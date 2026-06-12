@@ -12,8 +12,12 @@ const _alphanumeric =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const _base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-String _randomString(Random rng, int minLen, int maxLen,
-    {String chars = _alphanumeric}) {
+String _randomString(
+  Random rng,
+  int minLen,
+  int maxLen, {
+  String chars = _alphanumeric,
+}) {
   final len = minLen + rng.nextInt(maxLen - minLen + 1);
   return String.fromCharCodes(
     List.generate(len, (_) => chars.codeUnitAt(rng.nextInt(chars.length))),
@@ -23,8 +27,8 @@ String _randomString(Random rng, int minLen, int maxLen,
 String _randomUuid(Random rng) {
   const hex = '0123456789abcdef';
   String segment(int len) => String.fromCharCodes(
-        List.generate(len, (_) => hex.codeUnitAt(rng.nextInt(16))),
-      );
+    List.generate(len, (_) => hex.codeUnitAt(rng.nextInt(16))),
+  );
   return '${segment(8)}-${segment(4)}-${segment(4)}-${segment(4)}-${segment(12)}';
 }
 
@@ -61,7 +65,9 @@ RecoveryCodesCredential genRecoveryCodesCredential(Random rng) {
 }
 
 Credential _genCredential(Random rng) {
-  return rng.nextBool() ? genTotpCredential(rng) : genRecoveryCodesCredential(rng);
+  return rng.nextBool()
+      ? genTotpCredential(rng)
+      : genRecoveryCodesCredential(rng);
 }
 
 ServiceProvider genProvider(Random rng) {
@@ -97,9 +103,7 @@ DeveloperEntry _genDeveloperEntry(Random rng) {
     notes: _randomString(rng, 0, 50),
     createdAt: _randomDateTime(rng),
     updatedAt: _randomDateTime(rng),
-    payload: <String, dynamic>{
-      'key': _randomString(rng, 1, 10),
-    },
+    payload: <String, dynamic>{'key': _randomString(rng, 1, 10)},
   );
 }
 
@@ -117,8 +121,10 @@ VaultData genVaultDataV3(Random rng) {
   }
 
   final devEntryCount = rng.nextInt(4);
-  final developerEntries =
-      List.generate(devEntryCount, (_) => _genDeveloperEntry(rng));
+  final developerEntries = List.generate(
+    devEntryCount,
+    (_) => _genDeveloperEntry(rng),
+  );
 
   return VaultData(
     schemaVersion: vaultDataSchemaVersion,
@@ -135,8 +141,7 @@ void main() {
       final rng = Random(42);
       for (int i = 0; i < 200; i++) {
         final c = genTotpCredential(rng);
-        expect(Credential.fromJson(c.toJson()), equals(c),
-            reason: 'iter $i');
+        expect(Credential.fromJson(c.toJson()), equals(c), reason: 'iter $i');
       }
     });
 
@@ -144,8 +149,7 @@ void main() {
       final rng = Random(42);
       for (int i = 0; i < 200; i++) {
         final c = genRecoveryCodesCredential(rng);
-        expect(Credential.fromJson(c.toJson()), equals(c),
-            reason: 'iter $i');
+        expect(Credential.fromJson(c.toJson()), equals(c), reason: 'iter $i');
       }
     });
 
@@ -153,8 +157,7 @@ void main() {
       final rng = Random(99);
       for (int i = 0; i < 200; i++) {
         final c = _genCredential(rng);
-        expect(Credential.fromJson(c.toJson()), equals(c),
-            reason: 'iter $i');
+        expect(Credential.fromJson(c.toJson()), equals(c), reason: 'iter $i');
       }
     });
   });
@@ -166,7 +169,8 @@ void main() {
         final p = genProvider(rng);
         expect(
           ServiceProvider.fromJson(
-              jsonDecode(jsonEncode(p.toJson())) as Map<String, dynamic>),
+            jsonDecode(jsonEncode(p.toJson())) as Map<String, dynamic>,
+          ),
           equals(p),
           reason: 'iter $i',
         );
@@ -179,7 +183,8 @@ void main() {
         final a = genAccount(rng, _randomUuid(rng));
         expect(
           Account.fromJson(
-              jsonDecode(jsonEncode(a.toJson())) as Map<String, dynamic>),
+            jsonDecode(jsonEncode(a.toJson())) as Map<String, dynamic>,
+          ),
           equals(a),
           reason: 'iter $i',
         );
@@ -194,61 +199,97 @@ void main() {
         final v = genVaultDataV3(rng);
         expect(
           VaultData.fromJson(
-              jsonDecode(jsonEncode(v.toJson())) as Map<String, dynamic>),
+            jsonDecode(jsonEncode(v.toJson())) as Map<String, dynamic>,
+          ),
           equals(v),
           reason: 'iter $i',
         );
       }
     });
+
+    test('DeveloperEntry equality includes nested payload contents', () {
+      final createdAt = DateTime.utc(2026, 6, 12);
+      final base = DeveloperEntry(
+        id: 'dev-1',
+        type: DeveloperEntryType.genericSecret,
+        title: 'Secret',
+        notes: 'notes',
+        createdAt: createdAt,
+        updatedAt: createdAt,
+        payload: const <String, dynamic>{
+          'fields': [
+            {'name': 'token', 'value': 'old'},
+          ],
+        },
+      );
+      final changed = base.copyWith(
+        payload: const <String, dynamic>{
+          'fields': [
+            {'name': 'token', 'value': 'new'},
+          ],
+        },
+      );
+
+      expect(changed, isNot(equals(base)));
+      expect(changed.hashCode, isNot(base.hashCode));
+    });
   });
 
-  group('Property 12: ordering invariants and FormatException for invalid kind',
-      () {
-    test('RecoveryCodesCredential.codes ordering survives round-trip', () {
-      final rng = Random(789);
-      for (int i = 0; i < 200; i++) {
-        final c = genRecoveryCodesCredential(rng);
-        final restored = RecoveryCodesCredential.fromJson(c.toJson());
-        expect(restored.codes, orderedEquals(c.codes), reason: 'iter $i');
-      }
-    });
+  group(
+    'Property 12: ordering invariants and FormatException for invalid kind',
+    () {
+      test('RecoveryCodesCredential.codes ordering survives round-trip', () {
+        final rng = Random(789);
+        for (int i = 0; i < 200; i++) {
+          final c = genRecoveryCodesCredential(rng);
+          final restored = RecoveryCodesCredential.fromJson(c.toJson());
+          expect(restored.codes, orderedEquals(c.codes), reason: 'iter $i');
+        }
+      });
 
-    test('Credential.fromJson throws when kind is missing', () {
-      expect(
-        () => Credential.fromJson(
-            {'id': 'x', 'createdAt': '2025-01-01T00:00:00.000Z'}),
-        throwsA(isA<FormatException>().having(
-          (e) => e.message,
-          'message',
-          contains('missing or not a string'),
-        )),
-      );
-    });
+      test('Credential.fromJson throws when kind is missing', () {
+        expect(
+          () => Credential.fromJson({
+            'id': 'x',
+            'createdAt': '2025-01-01T00:00:00.000Z',
+          }),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('missing or not a string'),
+            ),
+          ),
+        );
+      });
 
-    test('Credential.fromJson throws when kind is not a string', () {
-      expect(
-        () => Credential.fromJson({
-          'kind': 42,
-          'id': 'x',
-          'createdAt': '2025-01-01T00:00:00.000Z',
-        }),
-        throwsA(isA<FormatException>()),
-      );
-    });
+      test('Credential.fromJson throws when kind is not a string', () {
+        expect(
+          () => Credential.fromJson({
+            'kind': 42,
+            'id': 'x',
+            'createdAt': '2025-01-01T00:00:00.000Z',
+          }),
+          throwsA(isA<FormatException>()),
+        );
+      });
 
-    test('Credential.fromJson throws when kind is unknown', () {
-      expect(
-        () => Credential.fromJson({
-          'kind': 'unknownKind',
-          'id': 'x',
-          'createdAt': '2025-01-01T00:00:00.000Z',
-        }),
-        throwsA(isA<FormatException>().having(
-          (e) => e.message,
-          'message',
-          contains('Unknown credential kind: unknownKind'),
-        )),
-      );
-    });
-  });
+      test('Credential.fromJson throws when kind is unknown', () {
+        expect(
+          () => Credential.fromJson({
+            'kind': 'unknownKind',
+            'id': 'x',
+            'createdAt': '2025-01-01T00:00:00.000Z',
+          }),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('Unknown credential kind: unknownKind'),
+            ),
+          ),
+        );
+      });
+    },
+  );
 }

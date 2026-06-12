@@ -148,6 +148,8 @@ class DeveloperSettings {
 
   const DeveloperSettings({required this.enabled});
 
+  factory DeveloperSettings.enabled() => const DeveloperSettings(enabled: true);
+
   factory DeveloperSettings.disabled() =>
       const DeveloperSettings(enabled: false);
 
@@ -158,8 +160,44 @@ class DeveloperSettings {
   Map<String, dynamic> toJson() => <String, dynamic>{'enabled': enabled};
 
   factory DeveloperSettings.fromJson(Map<String, dynamic> json) {
-    return DeveloperSettings(enabled: json['enabled'] as bool? ?? false);
+    return DeveloperSettings(enabled: json['enabled'] as bool? ?? true);
   }
+}
+
+bool _jsonLikeEquals(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key)) return false;
+      if (!_jsonLikeEquals(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_jsonLikeEquals(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
+}
+
+int _jsonLikeHash(Object? value) {
+  if (value is Map) {
+    final entries = value.entries.toList()
+      ..sort((a, b) => a.key.toString().compareTo(b.key.toString()));
+    return Object.hashAll(
+      entries.map(
+        (entry) => Object.hash(entry.key, _jsonLikeHash(entry.value)),
+      ),
+    );
+  }
+  if (value is List) {
+    return Object.hashAll(value.map(_jsonLikeHash));
+  }
+  return value.hashCode;
 }
 
 class DeveloperEntry {
@@ -248,12 +286,20 @@ class DeveloperEntry {
           title == other.title &&
           notes == other.notes &&
           createdAt == other.createdAt &&
-          updatedAt == other.updatedAt;
+          updatedAt == other.updatedAt &&
+          _jsonLikeEquals(payload, other.payload);
 
   @override
-  int get hashCode => Object.hash(id, type, title, notes, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    type,
+    title,
+    notes,
+    createdAt,
+    updatedAt,
+    _jsonLikeHash(payload),
+  );
 }
-
 
 // ---------------------------------------------------------------------------
 // ServiceProvider — top-level grouping (e.g. "GitHub", "Google").
@@ -383,8 +429,7 @@ final class Account {
     'displayName': displayName,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
-    'credentials':
-        credentials.map((c) => c.toJson()).toList(growable: false),
+    'credentials': credentials.map((c) => c.toJson()).toList(growable: false),
   };
 
   factory Account.fromJson(Map<String, dynamic> json) {
@@ -406,9 +451,7 @@ final class Account {
     final credentials = (credentialsAny is List)
         ? credentialsAny
               .whereType<Map>()
-              .map(
-                (e) => Credential.fromJson(Map<String, dynamic>.from(e)),
-              )
+              .map((e) => Credential.fromJson(Map<String, dynamic>.from(e)))
               .toList()
         : <Credential>[];
 
@@ -479,15 +522,15 @@ class VaultData {
     required List<Account> accounts,
     required this.developerSettings,
     required List<DeveloperEntry> developerEntries,
-  })  : providers = List<ServiceProvider>.unmodifiable(providers),
-        accounts = List<Account>.unmodifiable(accounts),
-        developerEntries = List<DeveloperEntry>.unmodifiable(developerEntries);
+  }) : providers = List<ServiceProvider>.unmodifiable(providers),
+       accounts = List<Account>.unmodifiable(accounts),
+       developerEntries = List<DeveloperEntry>.unmodifiable(developerEntries);
 
   factory VaultData.empty() => VaultData(
     schemaVersion: vaultDataSchemaVersion,
     providers: const <ServiceProvider>[],
     accounts: const <Account>[],
-    developerSettings: DeveloperSettings.disabled(),
+    developerSettings: DeveloperSettings.enabled(),
     developerEntries: const <DeveloperEntry>[],
   );
 
@@ -511,8 +554,9 @@ class VaultData {
     'providers': providers.map((p) => p.toJson()).toList(growable: false),
     'accounts': accounts.map((a) => a.toJson()).toList(growable: false),
     'developerSettings': developerSettings.toJson(),
-    'developerEntries':
-        developerEntries.map((e) => e.toJson()).toList(growable: false),
+    'developerEntries': developerEntries
+        .map((e) => e.toJson())
+        .toList(growable: false),
   };
 
   /// Strict v3 parse. Legacy v1/v2 inputs MUST go through [VaultMigrator].
@@ -534,7 +578,9 @@ class VaultData {
     final providers = (providersAny is List)
         ? providersAny
               .whereType<Map>()
-              .map((e) => ServiceProvider.fromJson(Map<String, dynamic>.from(e)))
+              .map(
+                (e) => ServiceProvider.fromJson(Map<String, dynamic>.from(e)),
+              )
               .toList()
         : <ServiceProvider>[];
 
@@ -614,7 +660,7 @@ class AccountNotFoundError extends StateError {
 
 class CredentialNotFoundError extends StateError {
   CredentialNotFoundError(String accountId, String credentialId)
-      : super('Credential $credentialId not found in account $accountId');
+    : super('Credential $credentialId not found in account $accountId');
 }
 
 // ---------------------------------------------------------------------------
@@ -700,10 +746,7 @@ extension VaultDataOps on VaultData {
       throw ProviderNotFoundError(newProviderId);
     }
     final updated = List<Account>.from(accounts);
-    updated[i] = updated[i].copyWith(
-      providerId: newProviderId,
-      updatedAt: now,
-    );
+    updated[i] = updated[i].copyWith(providerId: newProviderId, updatedAt: now);
     return copyWith(accounts: updated);
   }
 
@@ -747,13 +790,11 @@ extension VaultDataOps on VaultData {
     if (ci == -1) {
       throw CredentialNotFoundError(accountId, credentialId);
     }
-    final newCredentials =
-        account.credentials.where((c) => c.id != credentialId).toList();
+    final newCredentials = account.credentials
+        .where((c) => c.id != credentialId)
+        .toList();
     final updated = List<Account>.from(accounts);
-    updated[i] = account.copyWith(
-      credentials: newCredentials,
-      updatedAt: now,
-    );
+    updated[i] = account.copyWith(credentials: newCredentials, updatedAt: now);
     return copyWith(accounts: updated);
   }
 
@@ -784,10 +825,7 @@ extension VaultDataOps on VaultData {
     final newCredentials = List<Credential>.from(account.credentials);
     newCredentials[ci] = replacement;
     final updated = List<Account>.from(accounts);
-    updated[i] = account.copyWith(
-      credentials: newCredentials,
-      updatedAt: now,
-    );
+    updated[i] = account.copyWith(credentials: newCredentials, updatedAt: now);
     return copyWith(accounts: updated);
   }
 
@@ -812,16 +850,18 @@ extension VaultDataOps on VaultData {
     if (toIdx == -1) throw AccountNotFoundError(toAccountId);
 
     final fromAccount = accounts[fromIdx];
-    final credIdx =
-        fromAccount.credentials.indexWhere((c) => c.id == credentialId);
+    final credIdx = fromAccount.credentials.indexWhere(
+      (c) => c.id == credentialId,
+    );
     if (credIdx == -1) {
       throw CredentialNotFoundError(fromAccountId, credentialId);
     }
     final cred = fromAccount.credentials[credIdx];
 
     final updatedFrom = fromAccount.copyWith(
-      credentials:
-          fromAccount.credentials.where((c) => c.id != credentialId).toList(),
+      credentials: fromAccount.credentials
+          .where((c) => c.id != credentialId)
+          .toList(),
       updatedAt: now,
     );
     final toAccount = accounts[toIdx];
@@ -906,8 +946,9 @@ sealed class Credential {
     }
     return switch (kind) {
       TotpCredential.kindName => TotpCredential.fromJson(json),
-      RecoveryCodesCredential.kindName =>
-          RecoveryCodesCredential.fromJson(json),
+      RecoveryCodesCredential.kindName => RecoveryCodesCredential.fromJson(
+        json,
+      ),
       _ => throw FormatException('Unknown credential kind: $kind'),
     };
   }
