@@ -84,10 +84,10 @@ class _ConfirmImportScreenState extends State<ConfirmImportScreen> {
       );
 
       if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.importSaved)),
-      );
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(l10n.importSaved)));
     } catch (e) {
       setState(() => _saveError = l10n.importSaveFailed(e.toString()));
     } finally {
@@ -161,7 +161,8 @@ class _ConfirmImportScreenState extends State<ConfirmImportScreen> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2),
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(l10n.saveToVault),
                       ),

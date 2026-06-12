@@ -7,6 +7,10 @@ import '../scan/paste_uri_dialog.dart';
 import '../scan/scan_screen.dart';
 import 'add_recovery_codes_screen.dart';
 
+enum _AddCredentialAction { scan, paste, recoveryCodes }
+
+typedef ScanScreenBuilder = Widget Function(BuildContext context);
+
 /// The unified add-credential bottom sheet, presented from the providers/
 /// accounts FAB or the [AccountDetailScreen]'s "Add credential" action.
 ///
@@ -15,33 +19,53 @@ import 'add_recovery_codes_screen.dart';
 /// - Paste otpauth URI
 /// - Add recovery codes
 ///
-/// Pre-bind hints:
-/// - When [targetAccountId] is provided, the credential is attached directly
-///   to that account without showing the picker sheet.
-/// - When [targetProviderId] is provided (and no targetAccountId), the
-///   subsequent picker is locked to that provider.
+/// `show` can pre-bind a target account or provider. When a target account is
+/// provided, the credential is attached directly to that account. When only a
+/// target provider is provided, the subsequent picker is locked to that
+/// provider.
 class AddCredentialSheet extends StatelessWidget {
-  const AddCredentialSheet({
-    super.key,
-    this.targetAccountId,
-    this.targetProviderId,
-  });
+  const AddCredentialSheet({super.key, this.scanScreenBuilder});
 
-  final String? targetAccountId;
-  final String? targetProviderId;
+  final ScanScreenBuilder? scanScreenBuilder;
 
   static Future<void> show(
     BuildContext context, {
     String? targetAccountId,
     String? targetProviderId,
+    ScanScreenBuilder? scanScreenBuilder,
   }) async {
-    await showModalBottomSheet<void>(
+    final action = await showModalBottomSheet<_AddCredentialAction>(
       context: context,
-      builder: (ctx) => AddCredentialSheet(
-        targetAccountId: targetAccountId,
-        targetProviderId: targetProviderId,
-      ),
+      builder: (ctx) =>
+          AddCredentialSheet(scanScreenBuilder: scanScreenBuilder),
     );
+
+    if (!context.mounted || action == null) return;
+
+    switch (action) {
+      case _AddCredentialAction.scan:
+        await _openScanImport(
+          context,
+          targetAccountId: targetAccountId,
+          targetProviderId: targetProviderId,
+          scanScreenBuilder: scanScreenBuilder,
+        );
+      case _AddCredentialAction.paste:
+        await _openPasteImport(
+          context,
+          targetAccountId: targetAccountId,
+          targetProviderId: targetProviderId,
+        );
+      case _AddCredentialAction.recoveryCodes:
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => AddRecoveryCodesScreen(
+              targetAccountId: targetAccountId,
+              targetProviderId: targetProviderId,
+            ),
+          ),
+        );
+    }
   }
 
   @override
@@ -65,73 +89,67 @@ class AddCredentialSheet extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.qr_code_scanner),
               title: Text(l10n.addCredentialScan),
-              onTap: () => _handleScan(context),
+              onTap: () => Navigator.of(context).pop(_AddCredentialAction.scan),
             ),
           ListTile(
             leading: const Icon(Icons.paste),
             title: Text(l10n.addCredentialPaste),
-            onTap: () => _handlePaste(context),
+            onTap: () => Navigator.of(context).pop(_AddCredentialAction.paste),
           ),
           ListTile(
             leading: const Icon(Icons.key),
             title: Text(l10n.addCredentialRecoveryCodes),
-            onTap: () => _handleRecoveryCodes(context),
+            onTap: () =>
+                Navigator.of(context).pop(_AddCredentialAction.recoveryCodes),
           ),
           const SizedBox(height: 8),
         ],
       ),
     );
   }
+}
 
-  Future<void> _handleScan(BuildContext context) async {
-    Navigator.of(context).pop(); // dismiss the sheet
+Future<void> _openScanImport(
+  BuildContext context, {
+  required String? targetAccountId,
+  required String? targetProviderId,
+  required ScanScreenBuilder? scanScreenBuilder,
+}) async {
+  final uriText = await Navigator.of(context).push<String?>(
+    MaterialPageRoute(
+      builder: (ctx) => scanScreenBuilder?.call(ctx) ?? const ScanScreen(),
+    ),
+  );
 
-    final uriText = await Navigator.of(context).push<String?>(
-      MaterialPageRoute(builder: (_) => const ScanScreen()),
-    );
+  if (!context.mounted || uriText == null || uriText.trim().isEmpty) return;
 
-    if (!context.mounted || uriText == null || uriText.trim().isEmpty) return;
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ConfirmImportScreen(
-          otpauthUri: uriText,
-          targetAccountId: targetAccountId,
-          targetProviderId: targetProviderId,
-        ),
+  await Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => ConfirmImportScreen(
+        otpauthUri: uriText,
+        targetAccountId: targetAccountId,
+        targetProviderId: targetProviderId,
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Future<void> _handlePaste(BuildContext context) async {
-    Navigator.of(context).pop();
+Future<void> _openPasteImport(
+  BuildContext context, {
+  required String? targetAccountId,
+  required String? targetProviderId,
+}) async {
+  final uriText = await showPasteOtpauthDialog(context);
 
-    final uriText = await showPasteOtpauthDialog(context);
+  if (!context.mounted || uriText == null || uriText.trim().isEmpty) return;
 
-    if (!context.mounted || uriText == null || uriText.trim().isEmpty) return;
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ConfirmImportScreen(
-          otpauthUri: uriText,
-          targetAccountId: targetAccountId,
-          targetProviderId: targetProviderId,
-        ),
+  await Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => ConfirmImportScreen(
+        otpauthUri: uriText,
+        targetAccountId: targetAccountId,
+        targetProviderId: targetProviderId,
       ),
-    );
-  }
-
-  Future<void> _handleRecoveryCodes(BuildContext context) async {
-    Navigator.of(context).pop();
-    if (!context.mounted) return;
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddRecoveryCodesScreen(
-          targetAccountId: targetAccountId,
-          targetProviderId: targetProviderId,
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
