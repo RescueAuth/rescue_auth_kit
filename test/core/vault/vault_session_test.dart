@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+
+import 'package:rescue_auth_kit/core/backup/vault_backup_models.dart';
+import 'package:rescue_auth_kit/core/backup/vault_backup_service.dart';
 
 import 'package:rescue_auth_kit/core/vault/vault_models.dart';
 import 'package:rescue_auth_kit/core/vault/vault_repository.dart';
@@ -677,4 +681,153 @@ void main() {
       }
     });
   });
+  test('destructive operations create checkpoint backups', () async {
+    final dir = await Directory.systemTemp.createTemp('rak_vault_test_');
+    try {
+      final backupService = _RecordingBackupService();
+      final repo = VaultRepository.forPath(
+        vaultFilePath: p.join(dir.path, 'vault.rakvault'),
+        backupService: backupService,
+      );
+      final session = VaultSession(repo);
+      await session.createNew(password: 'testpassword');
+
+      final provider = await session.addProvider(name: 'Example');
+      final account = await session.addAccount(
+        providerId: provider.id,
+        displayName: 'user@example.com',
+      );
+      await session.addCredentialToAccount(
+        accountId: account.id,
+        draft: TotpCredential(
+          id: 'totp-1',
+          createdAt: DateTime.utc(2026),
+          secretBase32: 'JBSWY3DPEHPK3PXP',
+          algorithm: TotpHashAlgorithm.sha1,
+          digits: 6,
+          period: 30,
+        ),
+      );
+
+      await session.removeCredentialFromAccount(
+        accountId: account.id,
+        credentialId: 'totp-1',
+      );
+      await session.removeAccount(account.id);
+      await session.removeProvider(provider.id);
+
+      expect(backupService.reasons, contains('delete-credential'));
+      expect(backupService.reasons, contains('delete-account'));
+      expect(backupService.reasons, contains('delete-provider'));
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('import creates a checkpoint backup before replacing vault', () async {
+    final sourceDir = await Directory.systemTemp.createTemp(
+      'rak_source_vault_test_',
+    );
+    final targetDir = await Directory.systemTemp.createTemp(
+      'rak_target_vault_test_',
+    );
+    try {
+      final sourceRepo = VaultRepository.forPath(
+        vaultFilePath: p.join(sourceDir.path, 'vault.rakvault'),
+      );
+      final sourceSession = VaultSession(sourceRepo);
+      await sourceSession.createNew(password: 'testpassword');
+      await sourceSession.addProvider(name: 'Imported');
+      final exportedBytes = await sourceRepo.exportBytes();
+
+      final backupService = _RecordingBackupService();
+      final targetRepo = VaultRepository.forPath(
+        vaultFilePath: p.join(targetDir.path, 'vault.rakvault'),
+        backupService: backupService,
+      );
+      final targetSession = VaultSession(targetRepo);
+      await targetSession.createNew(password: 'testpassword');
+
+      await targetSession.importVault(
+        vaultBytes: exportedBytes,
+        password: 'testpassword',
+      );
+
+      expect(backupService.reasons, contains('import'));
+      expect(targetSession.data.providers.single.name, 'Imported');
+    } finally {
+      await sourceDir.delete(recursive: true);
+      await targetDir.delete(recursive: true);
+    }
+  });
+
+  test('merge and developer delete create checkpoint backups', () async {
+    final dir = await Directory.systemTemp.createTemp('rak_vault_test_');
+    try {
+      final backupService = _RecordingBackupService();
+      final repo = VaultRepository.forPath(
+        vaultFilePath: p.join(dir.path, 'vault.rakvault'),
+        backupService: backupService,
+      );
+      final session = VaultSession(repo);
+      await session.createNew(password: 'testpassword');
+
+      final provider = await session.addProvider(name: 'Example');
+      final source = await session.addAccount(
+        providerId: provider.id,
+        displayName: 'source',
+      );
+      final target = await session.addAccount(
+        providerId: provider.id,
+        displayName: 'target',
+      );
+      await session.mergeAccountInto(
+        sourceAccountId: source.id,
+        targetAccountId: target.id,
+      );
+
+      await session.addDeveloperEntry(
+        type: DeveloperEntryType.genericSecret,
+        title: 'Secret',
+        payload: const {'value': 'hidden'},
+      );
+      final developerEntryId = session.data.developerEntries.single.id;
+      await session.removeDeveloperEntry(developerEntryId);
+
+      expect(backupService.reasons, contains('merge-account'));
+      expect(backupService.reasons, contains('delete-developer-entry'));
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+}
+
+class _RecordingBackupService implements VaultBackupService {
+  final List<String> reasons = [];
+
+  @override
+  String get locationDescription => 'recording';
+
+  @override
+  Future<void> createCheckpoint({
+    required Uint8List bytes,
+    required String reason,
+  }) async {
+    reasons.add(reason);
+  }
+
+  @override
+  Future<BackupSettings> loadSettings() async => BackupSettings.defaults();
+
+  @override
+  Future<void> maybeAutoBackup(Uint8List bytes) async {}
+
+  @override
+  Future<void> setAutoBackupEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setAutoBackupFrequency(AutoBackupFrequency frequency) async {}
+
+  @override
+  Future<void> updateSettings(BackupSettings settings) async {}
 }

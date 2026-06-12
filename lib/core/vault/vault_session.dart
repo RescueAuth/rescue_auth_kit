@@ -72,6 +72,7 @@ class VaultSession extends ChangeNotifier {
     required Uint8List vaultBytes,
     required String password,
   }) async {
+    await _repo.createCheckpointBackup(reason: 'import');
     _handle = await _repo.importBytes(bytes: vaultBytes, password: password);
     _status = VaultSessionStatus.unlocked;
     notifyListeners();
@@ -113,17 +114,20 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withRenamedProvider(
-      providerId,
-      name: name.trim(),
-      now: DateTime.now(),
-    ));
+    await _persist(
+      h.data.withRenamedProvider(
+        providerId,
+        name: name.trim(),
+        now: DateTime.now(),
+      ),
+    );
   }
 
   /// Removes a ServiceProvider and cascades to all its accounts.
   Future<void> removeProvider(String providerId) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
+    await _repo.createCheckpointBackup(reason: 'delete-provider');
     await _persist(h.data.withoutProvider(providerId));
   }
 
@@ -156,11 +160,13 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withRenamedAccount(
-      accountId,
-      displayName: displayName.trim(),
-      now: DateTime.now(),
-    ));
+    await _persist(
+      h.data.withRenamedAccount(
+        accountId,
+        displayName: displayName.trim(),
+        now: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> moveAccountToProvider({
@@ -169,16 +175,19 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withMovedAccount(
-      accountId,
-      newProviderId: newProviderId,
-      now: DateTime.now(),
-    ));
+    await _persist(
+      h.data.withMovedAccount(
+        accountId,
+        newProviderId: newProviderId,
+        now: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> removeAccount(String accountId) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
+    await _repo.createCheckpointBackup(reason: 'delete-account');
     await _persist(h.data.withoutAccount(accountId));
   }
 
@@ -192,11 +201,9 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withCredential(
-      accountId,
-      draft,
-      now: DateTime.now(),
-    ));
+    await _persist(
+      h.data.withCredential(accountId, draft, now: DateTime.now()),
+    );
   }
 
   /// Convenience: create a new account under [providerId] holding [draft].
@@ -222,7 +229,7 @@ class VaultSession extends ChangeNotifier {
 
   /// Convenience: create a new ServiceProvider AND a new account holding [draft].
   Future<({ServiceProvider provider, Account account})>
-      addCredentialAsNewProviderAndAccount({
+  addCredentialAsNewProviderAndAccount({
     required String providerName,
     required String accountDisplayName,
     required Credential draft,
@@ -244,9 +251,7 @@ class VaultSession extends ChangeNotifier {
       updatedAt: now,
       credentials: [draft],
     );
-    final newData = h.data
-        .withNewProvider(provider)
-        .withNewAccount(account);
+    final newData = h.data.withNewProvider(provider).withNewAccount(account);
     await _persist(newData);
     return (provider: provider, account: account);
   }
@@ -257,11 +262,10 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withoutCredential(
-      accountId,
-      credentialId,
-      now: DateTime.now(),
-    ));
+    await _repo.createCheckpointBackup(reason: 'delete-credential');
+    await _persist(
+      h.data.withoutCredential(accountId, credentialId, now: DateTime.now()),
+    );
   }
 
   /// Replaces a credential's content while preserving its id and createdAt.
@@ -273,12 +277,14 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withReplacedCredential(
-      accountId,
-      replacement.id,
-      replacement,
-      now: DateTime.now(),
-    ));
+    await _persist(
+      h.data.withReplacedCredential(
+        accountId,
+        replacement.id,
+        replacement,
+        now: DateTime.now(),
+      ),
+    );
   }
 
   /// Moves a credential from one account to another, preserving id, createdAt,
@@ -290,12 +296,14 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withMovedCredential(
-      fromAccountId,
-      credentialId,
-      toAccountId,
-      now: DateTime.now(),
-    ));
+    await _persist(
+      h.data.withMovedCredential(
+        fromAccountId,
+        credentialId,
+        toAccountId,
+        now: DateTime.now(),
+      ),
+    );
   }
 
   /// Merges [sourceAccountId] into [targetAccountId]: appends every credential
@@ -308,11 +316,14 @@ class VaultSession extends ChangeNotifier {
   }) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.withMergedAccount(
-      sourceAccountId,
-      targetAccountId,
-      now: DateTime.now(),
-    ));
+    await _repo.createCheckpointBackup(reason: 'merge-account');
+    await _persist(
+      h.data.withMergedAccount(
+        sourceAccountId,
+        targetAccountId,
+        now: DateTime.now(),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -322,9 +333,11 @@ class VaultSession extends ChangeNotifier {
   Future<void> setDeveloperBackupEnabled(bool enabled) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.copyWith(
-      developerSettings: h.data.developerSettings.copyWith(enabled: enabled),
-    ));
+    await _persist(
+      h.data.copyWith(
+        developerSettings: h.data.developerSettings.copyWith(enabled: enabled),
+      ),
+    );
   }
 
   Future<void> addDeveloperEntry({
@@ -345,9 +358,11 @@ class VaultSession extends ChangeNotifier {
       updatedAt: now,
       payload: Map.unmodifiable(payload),
     );
-    await _persist(h.data.copyWith(
-      developerEntries: <DeveloperEntry>[...h.data.developerEntries, entry],
-    ));
+    await _persist(
+      h.data.copyWith(
+        developerEntries: <DeveloperEntry>[...h.data.developerEntries, entry],
+      ),
+    );
   }
 
   Future<void> updateDeveloperEntry({
@@ -376,10 +391,13 @@ class VaultSession extends ChangeNotifier {
   Future<void> removeDeveloperEntry(String id) async {
     final h = _handle;
     if (h == null) throw const VaultLockedException();
-    await _persist(h.data.copyWith(
-      developerEntries: h.data.developerEntries
-          .where((entry) => entry.id != id)
-          .toList(growable: false),
-    ));
+    await _repo.createCheckpointBackup(reason: 'delete-developer-entry');
+    await _persist(
+      h.data.copyWith(
+        developerEntries: h.data.developerEntries
+            .where((entry) => entry.id != id)
+            .toList(growable: false),
+      ),
+    );
   }
 }
