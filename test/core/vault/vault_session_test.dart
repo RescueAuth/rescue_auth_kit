@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 
 import 'package:rescue_auth_kit/core/backup/vault_backup_models.dart';
 import 'package:rescue_auth_kit/core/backup/vault_backup_service.dart';
-
 import 'package:rescue_auth_kit/core/vault/vault_models.dart';
 import 'package:rescue_auth_kit/core/vault/vault_repository.dart';
 import 'package:rescue_auth_kit/core/vault/vault_session.dart';
@@ -93,10 +92,9 @@ void main() {
         ],
       );
 
-      session.setData(session.data.copyWith(
-        providers: [provider],
-        accounts: [account],
-      ));
+      session.setData(
+        session.data.copyWith(providers: [provider], accounts: [account]),
+      );
       await session.save();
 
       session.lock();
@@ -110,58 +108,58 @@ void main() {
     }
   });
 
-  test('developer backup setting and entries persist', () async {
-    final dir = await Directory.systemTemp.createTemp('rak_vault_test_');
+  test(
+    'developer backups are enabled by default and entries persist',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('rak_vault_test_');
 
-    try {
-      final vaultPath = p.join(dir.path, 'vault.rakvault');
-      final repo = VaultRepository.forPath(vaultFilePath: vaultPath);
-      final session = VaultSession(repo);
+      try {
+        final vaultPath = p.join(dir.path, 'vault.rakvault');
+        final repo = VaultRepository.forPath(vaultFilePath: vaultPath);
+        final session = VaultSession(repo);
 
-      await session.createNew(password: 'testpassword');
-      expect(session.data.developerSettings.enabled, isFalse);
+        await session.createNew(password: 'testpassword');
+        expect(session.data.developerSettings.enabled, isTrue);
 
-      await session.setDeveloperBackupEnabled(true);
-      expect(session.data.developerSettings.enabled, isTrue);
+        await session.addDeveloperEntry(
+          type: DeveloperEntryType.androidSigningKey,
+          title: 'RescueAuthKit Android',
+          payload: const {
+            'projectName': 'RescueAuthKit',
+            'packageName': 'com.xincy.rescue_auth_kit',
+            'keystoreFileName': 'upload-keystore.jks',
+            'keystoreBytesBase64': 'AQIDBA==',
+            'storePassword': 'store-pass',
+            'keyAlias': 'upload',
+            'keyPassword': 'key-pass',
+          },
+        );
+        expect(session.data.developerEntries.length, 1);
 
-      await session.addDeveloperEntry(
-        type: DeveloperEntryType.androidSigningKey,
-        title: 'RescueAuthKit Android',
-        payload: const {
-          'projectName': 'RescueAuthKit',
-          'packageName': 'com.xincy.rescue_auth_kit',
-          'keystoreFileName': 'upload-keystore.jks',
-          'keystoreBytesBase64': 'AQIDBA==',
-          'storePassword': 'store-pass',
-          'keyAlias': 'upload',
-          'keyPassword': 'key-pass',
-        },
-      );
-      expect(session.data.developerEntries.length, 1);
+        final id = session.data.developerEntries.single.id;
+        await session.updateDeveloperEntry(
+          id: id,
+          title: 'Updated Android',
+          notes: 'release',
+          payload: const {
+            'projectName': 'Updated',
+            'packageName': 'com.example.updated',
+            'keystoreFileName': 'upload-keystore.jks',
+            'keystoreBytesBase64': 'AQIDBA==',
+            'storePassword': 'store-pass',
+            'keyAlias': 'upload',
+            'keyPassword': 'key-pass',
+          },
+        );
+        expect(session.data.developerEntries.single.title, 'Updated Android');
 
-      final id = session.data.developerEntries.single.id;
-      await session.updateDeveloperEntry(
-        id: id,
-        title: 'Updated Android',
-        notes: 'release',
-        payload: const {
-          'projectName': 'Updated',
-          'packageName': 'com.example.updated',
-          'keystoreFileName': 'upload-keystore.jks',
-          'keystoreBytesBase64': 'AQIDBA==',
-          'storePassword': 'store-pass',
-          'keyAlias': 'upload',
-          'keyPassword': 'key-pass',
-        },
-      );
-      expect(session.data.developerEntries.single.title, 'Updated Android');
-
-      await session.removeDeveloperEntry(id);
-      expect(session.data.developerEntries, isEmpty);
-    } finally {
-      await dir.delete(recursive: true);
-    }
-  });
+        await session.removeDeveloperEntry(id);
+        expect(session.data.developerEntries, isEmpty);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Account-centric API tests covering provider + account + credential ops.
@@ -178,7 +176,15 @@ void main() {
     }
 
     Future<void> tearDownVault(Directory dir) async {
-      await dir.delete(recursive: true);
+      for (var attempt = 0; attempt < 5; attempt++) {
+        try {
+          await dir.delete(recursive: true);
+          return;
+        } on FileSystemException {
+          if (attempt == 4) rethrow;
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+      }
     }
 
     test('addProvider persists and notifies once', () async {
@@ -255,10 +261,7 @@ void main() {
       final s = await setupVault();
       try {
         await expectLater(
-          s.session.addAccount(
-            providerId: 'unknown',
-            displayName: 'X',
-          ),
+          s.session.addAccount(providerId: 'unknown', displayName: 'X'),
           throwsA(isA<ProviderNotFoundError>()),
         );
       } finally {
@@ -274,10 +277,7 @@ void main() {
           providerId: p.id,
           displayName: 'Initial',
         );
-        await s.session.renameAccount(
-          accountId: a.id,
-          displayName: 'Renamed',
-        );
+        await s.session.renameAccount(accountId: a.id, displayName: 'Renamed');
         expect(s.session.data.accounts.single.displayName, 'Renamed');
       } finally {
         await tearDownVault(s.dir);
@@ -323,14 +323,13 @@ void main() {
           digits: 6,
           period: 30,
         );
-        await s.session.addCredentialToAccount(
-          accountId: a.id,
-          draft: draft,
-        );
+        await s.session.addCredentialToAccount(accountId: a.id, draft: draft);
 
         expect(s.session.data.accounts.single.credentials, hasLength(1));
-        expect(s.session.data.accounts.single.credentials.single,
-            equals(draft));
+        expect(
+          s.session.data.accounts.single.credentials.single,
+          equals(draft),
+        );
         expect(notifyCount, 1);
       } finally {
         await tearDownVault(s.dir);
@@ -352,8 +351,10 @@ void main() {
           draft: draft,
         );
         expect(s.session.data.accounts.single.id, a.id);
-        expect(s.session.data.accounts.single.credentials.single,
-            equals(draft));
+        expect(
+          s.session.data.accounts.single.credentials.single,
+          equals(draft),
+        );
       } finally {
         await tearDownVault(s.dir);
       }
@@ -370,8 +371,7 @@ void main() {
           digits: 6,
           period: 30,
         );
-        final result =
-            await s.session.addCredentialAsNewProviderAndAccount(
+        final result = await s.session.addCredentialAsNewProviderAndAccount(
           providerName: 'GitHub',
           accountDisplayName: 'me',
           draft: draft,
@@ -452,8 +452,7 @@ void main() {
           throwsA(isA<VaultLockedException>()),
         );
         await expectLater(
-          s.session.moveAccountToProvider(
-              accountId: 'x', newProviderId: 'y'),
+          s.session.moveAccountToProvider(accountId: 'x', newProviderId: 'y'),
           throwsA(isA<VaultLockedException>()),
         );
 
@@ -557,8 +556,9 @@ void main() {
           replacement: replacement,
         );
 
-        final stored = s.session.data.accounts.single.credentials.single
-            as RecoveryCodesCredential;
+        final stored =
+            s.session.data.accounts.single.credentials.single
+                as RecoveryCodesCredential;
         expect(stored.id, 'r1');
         expect(stored.codes, const ['a', 'b', 'c']);
         expect(notifyCount, 1);
@@ -566,62 +566,61 @@ void main() {
         // Persistence
         s.session.lock();
         await s.session.unlock(password: 'testpassword');
-        final stored2 = s.session.data.accounts.single.credentials.single
-            as RecoveryCodesCredential;
+        final stored2 =
+            s.session.data.accounts.single.credentials.single
+                as RecoveryCodesCredential;
         expect(stored2.codes, const ['a', 'b', 'c']);
       } finally {
         await tearDownVault(s.dir);
       }
     });
 
-    test('moveCredentialToAccount transfers credential between accounts',
-        () async {
-      final s = await setupVault();
-      try {
-        final p = await s.session.addProvider(name: 'P');
-        final from = await s.session.addAccount(
-          providerId: p.id,
-          displayName: 'from',
-        );
-        final to = await s.session.addAccount(
-          providerId: p.id,
-          displayName: 'to',
-        );
+    test(
+      'moveCredentialToAccount transfers credential between accounts',
+      () async {
+        final s = await setupVault();
+        try {
+          final p = await s.session.addProvider(name: 'P');
+          final from = await s.session.addAccount(
+            providerId: p.id,
+            displayName: 'from',
+          );
+          final to = await s.session.addAccount(
+            providerId: p.id,
+            displayName: 'to',
+          );
 
-        final draft = RecoveryCodesCredential(
-          id: 'r1',
-          createdAt: DateTime.utc(2026, 5, 26),
-          codes: const ['a', 'b'],
-        );
-        await s.session.addCredentialToAccount(
-          accountId: from.id,
-          draft: draft,
-        );
+          final draft = RecoveryCodesCredential(
+            id: 'r1',
+            createdAt: DateTime.utc(2026, 5, 26),
+            codes: const ['a', 'b'],
+          );
+          await s.session.addCredentialToAccount(
+            accountId: from.id,
+            draft: draft,
+          );
 
-        var notifyCount = 0;
-        s.session.addListener(() => notifyCount++);
+          var notifyCount = 0;
+          s.session.addListener(() => notifyCount++);
 
-        await s.session.moveCredentialToAccount(
-          fromAccountId: from.id,
-          credentialId: 'r1',
-          toAccountId: to.id,
-        );
-        expect(notifyCount, 1);
-        expect(
-          s.session.data.requireAccount(from.id).credentials,
-          isEmpty,
-        );
-        expect(
-          s.session.data.requireAccount(to.id).credentials.single.id,
-          'r1',
-        );
-      } finally {
-        await tearDownVault(s.dir);
-      }
-    });
+          await s.session.moveCredentialToAccount(
+            fromAccountId: from.id,
+            credentialId: 'r1',
+            toAccountId: to.id,
+          );
+          expect(notifyCount, 1);
+          expect(s.session.data.requireAccount(from.id).credentials, isEmpty);
+          expect(
+            s.session.data.requireAccount(to.id).credentials.single.id,
+            'r1',
+          );
+        } finally {
+          await tearDownVault(s.dir);
+        }
+      },
+    );
 
-    test('mergeAccountInto merges source into target and persists',
-        () async {
+    test('mergeAccountInto merges source into target and persists', () async {
       final s = await setupVault();
       try {
         final p = await s.session.addProvider(name: 'Google');
@@ -681,6 +680,7 @@ void main() {
       }
     });
   });
+
   test('destructive operations create checkpoint backups', () async {
     final dir = await Directory.systemTemp.createTemp('rak_vault_test_');
     try {

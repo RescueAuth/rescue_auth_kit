@@ -89,15 +89,15 @@ class _EditRecoveryCodesScreenState extends State<EditRecoveryCodesScreen> {
     try {
       final replacement = original.copyWith(codes: codes);
       await context.read<VaultSession>().replaceCredentialInAccount(
-            accountId: widget.accountId,
-            replacement: replacement,
-          );
+        accountId: widget.accountId,
+        replacement: replacement,
+      );
 
       if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.recoverySaved)),
-      );
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(l10n.recoverySaved)));
     } catch (e) {
       setState(() => _error = l10n.recoverySaveFailed(e.toString()));
     } finally {
@@ -145,9 +145,7 @@ class _EditRecoveryCodesScreenState extends State<EditRecoveryCodesScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
               const SizedBox(height: 24),
@@ -171,4 +169,3 @@ class _EditRecoveryCodesScreenState extends State<EditRecoveryCodesScreen> {
     );
   }
 }
-

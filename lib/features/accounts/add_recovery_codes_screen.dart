@@ -95,10 +95,10 @@ class _AddRecoveryCodesScreenState extends State<AddRecoveryCodesScreen> {
       );
 
       if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.recoverySaved)),
-      );
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(l10n.recoverySaved)));
     } catch (e) {
       setState(() => _error = l10n.recoverySaveFailed(e.toString()));
     } finally {
@@ -136,9 +136,7 @@ class _AddRecoveryCodesScreenState extends State<AddRecoveryCodesScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
               const SizedBox(height: 24),
