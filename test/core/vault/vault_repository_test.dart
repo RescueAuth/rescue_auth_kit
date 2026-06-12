@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:rescue_auth_kit/core/backup/vault_backup_models.dart';
+import 'package:rescue_auth_kit/core/backup/vault_backup_service.dart';
 import 'package:rescue_auth_kit/core/crypto/vault_crypto.dart';
 import 'package:rescue_auth_kit/core/vault/vault_models.dart';
 import 'package:rescue_auth_kit/core/vault/vault_repository.dart';
@@ -128,6 +130,67 @@ void main() {
     }
   });
 
+  test('save triggers automatic backup without blocking persistence', () async {
+    final dir = await Directory.systemTemp.createTemp('rak_vault_test_');
+
+    try {
+      final vaultPath = p.join(dir.path, 'vault.rakvault');
+      final backupService = _RecordingBackupService();
+      final repo = VaultRepository.forPath(
+        vaultFilePath: vaultPath,
+        backupService: backupService,
+      );
+
+      var handle = await repo.createNewVault(password: 'testpassword');
+      handle = handle.copyWith(
+        data: handle.data.copyWith(
+          providers: [
+            ServiceProvider(
+              id: 'p1',
+              name: 'Example',
+              createdAt: DateTime.utc(2026),
+              updatedAt: DateTime.utc(2026),
+            ),
+          ],
+        ),
+      );
+      await repo.save(handle);
+
+      expect(backupService.autoBackupCount, 2);
+      expect(await repo.open(password: 'testpassword'), isA<VaultHandle>());
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('checkpoint backup failure does not block import', () async {
+    final dir1 = await Directory.systemTemp.createTemp('rak_vault_test_src_');
+    final dir2 = await Directory.systemTemp.createTemp('rak_vault_test_dst_');
+
+    try {
+      final source = VaultRepository.forPath(
+        vaultFilePath: p.join(dir1.path, 'vault.rakvault'),
+      );
+      await source.createNewVault(password: 'testpassword');
+      final bytes = await source.exportBytes();
+
+      final backupService = _RecordingBackupService(throwOnCheckpoint: true);
+      final repo = VaultRepository.forPath(
+        vaultFilePath: p.join(dir2.path, 'vault.rakvault'),
+        backupService: backupService,
+      );
+      await repo.createNewVault(password: 'oldpassword');
+      await repo.createCheckpointBackup(reason: 'import');
+      await repo.importBytes(bytes: bytes, password: 'testpassword');
+
+      expect(backupService.checkpointCount, 1);
+      expect(await repo.open(password: 'testpassword'), isA<VaultHandle>());
+    } finally {
+      await dir1.delete(recursive: true);
+      await dir2.delete(recursive: true);
+    }
+  });
+
   test(
     'open silently upgrades schema v1 vault file to current schema',
     () async {
@@ -171,6 +234,43 @@ void main() {
 
   // Future-schema vault rejection and wrong-password regression tests
   _futureSchemaAndAuthTests();
+}
+
+class _RecordingBackupService implements VaultBackupService {
+  _RecordingBackupService({this.throwOnCheckpoint = false});
+
+  final bool throwOnCheckpoint;
+  var autoBackupCount = 0;
+  var checkpointCount = 0;
+
+  @override
+  String get locationDescription => 'recording';
+
+  @override
+  Future<void> createCheckpoint({
+    required Uint8List bytes,
+    required String reason,
+  }) async {
+    checkpointCount++;
+    if (throwOnCheckpoint) throw const FileSystemException('checkpoint failed');
+  }
+
+  @override
+  Future<BackupSettings> loadSettings() async => BackupSettings.defaults();
+
+  @override
+  Future<void> maybeAutoBackup(Uint8List bytes) async {
+    autoBackupCount++;
+  }
+
+  @override
+  Future<void> setAutoBackupEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setAutoBackupFrequency(AutoBackupFrequency frequency) async {}
+
+  @override
+  Future<void> updateSettings(BackupSettings settings) async {}
 }
 
 Future<void> _writeLegacySchema1Vault({
@@ -280,10 +380,7 @@ void _v2MigrationIntegrationTests() {
         final vaultPath = p.join(dir.path, 'vault.rekvault');
         const password = 'test-migration-pw';
 
-        await _writeV2FixtureVault(
-          vaultPath: vaultPath,
-          password: password,
-        );
+        await _writeV2FixtureVault(vaultPath: vaultPath, password: password);
 
         final repo = VaultRepository.forPath(vaultFilePath: vaultPath);
         final handle = await repo.open(password: password);
@@ -311,8 +408,7 @@ void _v2MigrationIntegrationTests() {
         final rcAccount = data.accounts[1];
         expect(rcAccount.providerId, data.providers[1].id);
         expect(rcAccount.displayName, 'GitHub Recovery');
-        final rcCred =
-            rcAccount.credentials.single as RecoveryCodesCredential;
+        final rcCred = rcAccount.credentials.single as RecoveryCodesCredential;
         expect(rcCred.codes, ['abc-123', 'def-456', 'ghi-789']);
 
         // Re-open and assert structural equality (idempotence at file IO).
@@ -378,10 +474,7 @@ void _futureSchemaAndAuthTests() {
       try {
         final vaultPath = p.join(dir.path, 'vault.rekvault');
         const password = 'test-future-pw';
-        await _writeFutureSchemaVault(
-          vaultPath: vaultPath,
-          password: password,
-        );
+        await _writeFutureSchemaVault(vaultPath: vaultPath, password: password);
 
         final bytesBefore = await File(vaultPath).readAsBytes();
 

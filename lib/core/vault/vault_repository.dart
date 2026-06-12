@@ -6,6 +6,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../backup/vault_backup_service.dart';
 import '../crypto/vault_crypto.dart';
 import 'vault_migrator.dart';
 import 'vault_models.dart';
@@ -56,25 +57,36 @@ class VaultHandle {
 class VaultRepository {
   final String vaultFilePath;
   final VaultCrypto crypto;
+  final VaultBackupService backupService;
 
   static const String vaultFileName = 'vault.rekvault';
 
-  VaultRepository._({required this.vaultFilePath, required this.crypto});
+  VaultRepository._({
+    required this.vaultFilePath,
+    required this.crypto,
+    required this.backupService,
+  });
 
   static Future<VaultRepository> create() async {
     final baseDir = await getApplicationSupportDirectory();
     final dir = Directory(p.join(baseDir.path, 'RescueAuthKit'));
     final filePath = p.join(dir.path, vaultFileName);
-    return VaultRepository._(vaultFilePath: filePath, crypto: VaultCrypto());
+    return VaultRepository._(
+      vaultFilePath: filePath,
+      crypto: VaultCrypto(),
+      backupService: await DefaultVaultBackupService.create(),
+    );
   }
 
   static VaultRepository forPath({
     required String vaultFilePath,
     VaultCrypto? crypto,
+    VaultBackupService? backupService,
   }) {
     return VaultRepository._(
       vaultFilePath: vaultFilePath,
       crypto: crypto ?? VaultCrypto(),
+      backupService: backupService ?? const NoopVaultBackupService(),
     );
   }
 
@@ -171,6 +183,19 @@ class VaultRepository {
     return Uint8List.fromList(await file.readAsBytes());
   }
 
+  Future<void> createCheckpointBackup({required String reason}) async {
+    final file = File(vaultFilePath);
+    if (!await file.exists()) return;
+    try {
+      await backupService.createCheckpoint(
+        bytes: Uint8List.fromList(await file.readAsBytes()),
+        reason: reason,
+      );
+    } catch (_) {
+      // Backup is protective, but must never block the primary operation.
+    }
+  }
+
   Future<VaultHandle> importBytes({
     required Uint8List bytes,
     required String password,
@@ -261,6 +286,11 @@ class VaultRepository {
     if (await bak.exists()) {
       await bak.delete();
     }
-  }
 
+    try {
+      await backupService.maybeAutoBackup(bytes);
+    } catch (_) {
+      // Backup failure must not turn a successful vault write into data loss.
+    }
+  }
 }
