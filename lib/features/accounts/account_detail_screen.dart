@@ -47,9 +47,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
 
   Account? _findAccount(VaultSession session) {
     try {
-      return session.data.accounts.firstWhere(
-        (a) => a.id == widget.accountId,
-      );
+      return session.data.accounts.firstWhere((a) => a.id == widget.accountId);
     } catch (_) {
       return null;
     }
@@ -85,9 +83,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     final displayName = controller.text.trim();
     if (displayName.isEmpty) return;
     await context.read<VaultSession>().renameAccount(
-          accountId: widget.accountId,
-          displayName: displayName,
-        );
+      accountId: widget.accountId,
+      displayName: displayName,
+    );
   }
 
   Future<void> _confirmDeleteAccount(BuildContext context) async {
@@ -149,9 +147,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
 
     if (!context.mounted || confirmed != true) return;
     await context.read<VaultSession>().removeCredentialFromAccount(
-          accountId: widget.accountId,
-          credentialId: credentialId,
-        );
+      accountId: widget.accountId,
+      credentialId: credentialId,
+    );
   }
 
   @override
@@ -209,10 +207,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                 value: 'rename',
                 child: Text(l10n.accountDetailRename),
               ),
-              PopupMenuItem(
-                value: 'move',
-                child: Text(l10n.accountMoveAction),
-              ),
+              PopupMenuItem(value: 'move', child: Text(l10n.accountMoveAction)),
               PopupMenuItem(
                 value: 'merge',
                 child: Text(l10n.accountMergeAction),
@@ -275,20 +270,19 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: switch (credential) {
               TotpCredential totp => _TotpCredentialCard(
-                  credential: totp,
-                  account: account,
-                  onDelete: () =>
-                      _confirmDeleteCredential(context, credential.id),
-                ),
+                credential: totp,
+                account: account,
+                onDelete: () =>
+                    _confirmDeleteCredential(context, credential.id),
+              ),
               RecoveryCodesCredential recovery => _RecoveryCodesCredentialCard(
-                  credential: recovery,
-                  accountId: widget.accountId,
-                  onDelete: () =>
-                      _confirmDeleteCredential(context, credential.id),
-                  onEdit: () => _editRecoveryCredential(context, recovery),
-                  onMove: () =>
-                      _moveCredentialToAccount(context, credential.id),
-                ),
+                credential: recovery,
+                accountId: widget.accountId,
+                onDelete: () =>
+                    _confirmDeleteCredential(context, credential.id),
+                onEdit: () => _editRecoveryCredential(context, recovery),
+                onMove: () => _moveCredentialToAccount(context, credential.id),
+              ),
             },
           ),
 
@@ -323,10 +317,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     );
   }
 
-  void _moveCredentialToAccount(
-    BuildContext context,
-    String credentialId,
-  ) {
+  void _moveCredentialToAccount(BuildContext context, String credentialId) {
     showMoveCredentialDialog(
       context,
       fromAccountId: widget.accountId,
@@ -350,10 +341,7 @@ class _ProviderHeader extends StatelessWidget {
           children: [
             const Icon(Icons.business, size: 18),
             const SizedBox(width: 8),
-            Text(
-              provider.name,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text(provider.name, style: Theme.of(context).textTheme.titleSmall),
           ],
         ),
       ),
@@ -439,14 +427,16 @@ class _TotpCredentialCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.error_outline,
-                      color: Theme.of(context).colorScheme.error),
+                  Icon(
+                    Icons.error_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    'Error',
+                    l10n.totpInvalidSecret,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
               ),
@@ -464,9 +454,9 @@ class _TotpCredentialCard extends StatelessWidget {
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: code));
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.totpCopied)),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(l10n.totpCopied)));
                     },
                     icon: const Icon(Icons.copy),
                   ),
@@ -538,9 +528,9 @@ class _RecoveryCodesCredentialCardState
                     final allCodes = codes.join('\n');
                     await Clipboard.setData(ClipboardData(text: allCodes));
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(l10n.copied)),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(l10n.copied)));
                   },
                 ),
                 PopupMenuButton<String>(

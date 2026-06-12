@@ -19,6 +19,7 @@ class UpdateCheckResult {
     this.latestTag,
     this.releaseName,
     this.releaseUrl,
+    this.releaseNotes,
   });
 
   final UpdateCheckStatus status;
@@ -27,6 +28,7 @@ class UpdateCheckResult {
   final String? latestTag;
   final String? releaseName;
   final String? releaseUrl;
+  final String? releaseNotes;
 
   bool get updateAvailable => status == UpdateCheckStatus.updateAvailable;
 }
@@ -83,18 +85,22 @@ class AppVersion implements Comparable<AppVersion> {
   }
 }
 
+typedef ReleaseFetcher = Future<GitHubRelease?> Function();
+
 class UpdateChecker {
   const UpdateChecker({
     this.owner = 'xincy22',
     this.repo = 'rescue_auth_kit',
     this.timeout = const Duration(seconds: 10),
     this.endpoint,
+    this.releaseFetcher,
   });
 
   final String owner;
   final String repo;
   final Duration timeout;
   final Uri? endpoint;
+  final ReleaseFetcher? releaseFetcher;
 
   Uri get latestReleaseUri =>
       endpoint ??
@@ -112,7 +118,7 @@ class UpdateChecker {
     required String currentVersion,
     String currentBuildNumber = '',
   }) async {
-    final release = await _fetchLatestRelease();
+    final release = await (releaseFetcher ?? _fetchLatestRelease)();
     if (release == null) {
       return UpdateCheckResult(
         status: UpdateCheckStatus.noReleaseFound,
@@ -131,6 +137,7 @@ class UpdateChecker {
         latestTag: release.tagName,
         releaseName: release.name,
         releaseUrl: release.htmlUrl,
+        releaseNotes: release.body,
       );
     }
 
@@ -143,10 +150,11 @@ class UpdateChecker {
       latestTag: release.tagName,
       releaseName: release.name,
       releaseUrl: release.htmlUrl,
+      releaseNotes: release.body,
     );
   }
 
-  Future<_GitHubRelease?> _fetchLatestRelease() async {
+  Future<GitHubRelease?> _fetchLatestRelease() async {
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final request = await client.getUrl(latestReleaseUri).timeout(timeout);
@@ -179,7 +187,7 @@ class UpdateChecker {
           'GitHub returned an unexpected response.',
         );
       }
-      return _GitHubRelease.fromJson(decoded);
+      return GitHubRelease.fromJson(decoded);
     } on TimeoutException {
       throw const UpdateCheckException('GitHub update check timed out.');
     } on SocketException catch (e) {
@@ -192,28 +200,31 @@ class UpdateChecker {
   }
 }
 
-class _GitHubRelease {
-  const _GitHubRelease({
+class GitHubRelease {
+  const GitHubRelease({
     required this.tagName,
     required this.htmlUrl,
     this.name,
+    this.body,
   });
 
   final String tagName;
   final String htmlUrl;
   final String? name;
+  final String? body;
 
-  factory _GitHubRelease.fromJson(Map<String, dynamic> json) {
+  factory GitHubRelease.fromJson(Map<String, dynamic> json) {
     final tagName = json['tag_name'];
     final htmlUrl = json['html_url'];
     if (tagName is! String || htmlUrl is! String) {
       throw const UpdateCheckException('GitHub release is missing tag or URL.');
     }
 
-    return _GitHubRelease(
+    return GitHubRelease(
       tagName: tagName,
       htmlUrl: htmlUrl,
       name: json['name'] is String ? json['name'] as String : null,
+      body: json['body'] is String ? json['body'] as String : null,
     );
   }
 }

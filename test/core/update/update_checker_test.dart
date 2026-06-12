@@ -25,4 +25,33 @@ void main() {
       expect(AppVersion.tryParse(''), isNull);
     });
   });
+
+  group('UpdateChecker', () {
+    test('copies GitHub release body into releaseNotes', () async {
+      final checker = UpdateChecker(
+        releaseFetcher: () async => const GitHubRelease(
+          tagName: 'v1.3.0',
+          htmlUrl: 'https://example.com/release',
+          name: 'RescueAuthKit 1.3.0',
+          body: 'Release note body',
+        ),
+      );
+
+      final result = await checker.checkForVersion(currentVersion: '1.2.0');
+
+      expect(result.status, UpdateCheckStatus.updateAvailable);
+      expect(result.releaseNotes, 'Release note body');
+    });
+
+    test('parses release body from GitHub JSON', () {
+      final release = GitHubRelease.fromJson(const {
+        'tag_name': 'v1.3.0',
+        'html_url': 'https://example.com/release',
+        'name': 'Release name',
+        'body': 'Body text',
+      });
+
+      expect(release.body, 'Body text');
+    });
+  });
 }

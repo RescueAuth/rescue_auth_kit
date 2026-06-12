@@ -10,6 +10,8 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/backup/vault_backup_models.dart';
+import '../../core/backup/vault_backup_service.dart';
 import '../../core/update/update_checker.dart';
 import '../../core/vault/vault_repository.dart';
 import '../../core/vault/vault_session.dart';
@@ -24,6 +26,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final Future<PackageInfo?> _packageInfoFuture;
+  Future<BackupSettings>? _backupSettingsFuture;
 
   @override
   void initState() {
@@ -84,76 +87,130 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final repo = context.read<VaultRepository>();
-    final developerEnabled = context
-        .watch<VaultSession>()
-        .data
-        .developerSettings
-        .enabled;
+    _backupSettingsFuture ??= repo.backupService.loadSettings();
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          l10n.settingsVaultSection,
-          style: Theme.of(context).textTheme.titleMedium,
+        _SectionHeader(
+          title: l10n.settingsVaultSection,
+          subtitle: l10n.settingsVaultSubtitle,
         ),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.backupCurrentPath),
-                const SizedBox(height: 8),
-                SelectableText(repo.vaultFilePath),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.upload),
-                        label: Text(l10n.backupExport),
-                        onPressed: () => _exportVault(context, repo),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.download),
-                        label: Text(l10n.backupImport),
-                        onPressed: () => _importVault(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          l10n.settingsFeaturesSection,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: SwitchListTile(
-            secondary: const Icon(Icons.code),
-            title: Text(l10n.settingsDeveloperBackupTitle),
-            subtitle: Text(l10n.settingsDeveloperBackupSubtitle),
-            value: developerEnabled,
-            onChanged: (value) async {
-              await context.read<VaultSession>().setDeveloperBackupEnabled(
-                value,
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        _buildManualBackupEntry(context, repo),
+        const SizedBox(height: 12),
+        _buildAutoBackupEntry(context, repo),
+        const SizedBox(height: 20),
         _buildVersionSection(context),
       ],
     );
+  }
+
+  Widget _buildManualBackupEntry(BuildContext context, VaultRepository repo) {
+    final l10n = AppLocalizations.of(context);
+
+    return _SettingsEntryCard(
+      icon: Icons.folder_copy_outlined,
+      title: l10n.backupManualTitle,
+      subtitle: l10n.backupManualEntrySubtitle,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ManualBackupScreen(
+            vaultFilePath: repo.vaultFilePath,
+            onExport: (ctx) => _exportVault(ctx, repo),
+            onImport: (ctx) => _importVault(ctx),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAutoBackupEntry(BuildContext context, VaultRepository repo) {
+    final l10n = AppLocalizations.of(context);
+
+    return FutureBuilder<BackupSettings>(
+      future: _backupSettingsFuture,
+      builder: (context, snapshot) {
+        final settings = snapshot.data ?? BackupSettings.defaults();
+        final status = settings.lastBackupStatus;
+        final statusText = _backupStatusText(l10n, status);
+
+        return _SettingsEntryCard(
+          icon: Icons.history,
+          title: l10n.backupAutoTitle,
+          subtitle: settings.autoBackupEnabled
+              ? l10n.backupAutoEntrySubtitle(
+                  _frequencyLabel(l10n, settings.autoBackupFrequency),
+                  statusText,
+                )
+              : l10n.backupAutoDisabledSubtitle,
+          onTap: () async {
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => AutoBackupSettingsScreen(
+                  backupService: repo.backupService,
+                  initialSettings: settings,
+                  statusTextBuilder: (l10n, status) =>
+                      _backupStatusText(l10n, status),
+                  frequencyLabelBuilder: _frequencyLabel,
+                ),
+              ),
+            );
+            if (!context.mounted) return;
+            setState(() {
+              _backupSettingsFuture = repo.backupService.loadSettings();
+            });
+          },
+        );
+      },
+    );
+  }
+
+  String _frequencyLabel(AppLocalizations l10n, AutoBackupFrequency frequency) {
+    return switch (frequency) {
+      AutoBackupFrequency.onEveryChange => l10n.backupAutoFrequencyEveryChange,
+      AutoBackupFrequency.daily => l10n.backupAutoFrequencyDaily,
+      AutoBackupFrequency.weekly => l10n.backupAutoFrequencyWeekly,
+      AutoBackupFrequency.monthly => l10n.backupAutoFrequencyMonthly,
+    };
+  }
+
+  String _backupStatusText(AppLocalizations l10n, BackupStatus status) {
+    if (status.at == null) return l10n.backupAutoStatusNone;
+
+    final message = _localizedBackupStatusMessage(l10n, status);
+    final summary = status.success
+        ? l10n.backupAutoStatusSuccess(message)
+        : l10n.backupAutoStatusIssue(message);
+    final path = status.path;
+    if (path == null || path.isEmpty) return summary;
+    return '$summary\n$path';
+  }
+
+  String _localizedBackupStatusMessage(
+    AppLocalizations l10n,
+    BackupStatus status,
+  ) {
+    final message = status.message;
+    final detail = status.detail ?? '';
+    return switch (message) {
+      'auto.created' || 'Automatic backup created.' => l10n.backupAutoCreated,
+      'checkpoint.created' ||
+      'Checkpoint backup created.' => l10n.backupCheckpointCreated,
+      'backup.cleanupFailed' => l10n.backupCleanupFailed(detail),
+      'auto.failed' => l10n.backupAutoFailed(detail),
+      'checkpoint.failed' => l10n.backupCheckpointFailed(detail),
+      _ when message.startsWith('Failed to clean up ') => message,
+      _ when message.startsWith('Automatic backup failed: ') =>
+        l10n.backupAutoFailed(
+          message.substring('Automatic backup failed: '.length),
+        ),
+      _ when message.startsWith('Checkpoint backup failed: ') =>
+        l10n.backupCheckpointFailed(
+          message.substring('Checkpoint backup failed: '.length),
+        ),
+      _ => message,
+    };
   }
 
   Future<PackageInfo?> _loadPackageInfo() async {
@@ -167,44 +224,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildVersionSection(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.settingsVersionSection,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        Card(
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-            leading: const Icon(Icons.info_outline),
-            title: Text(l10n.settingsVersionTitle),
-            subtitle: FutureBuilder<PackageInfo?>(
-              future: _packageInfoFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Text(l10n.settingsLoadingVersion);
-                }
+    return FutureBuilder<PackageInfo?>(
+      future: _packageInfoFuture,
+      builder: (context, snapshot) {
+        final packageInfo = snapshot.data;
+        final version = snapshot.connectionState == ConnectionState.waiting
+            ? l10n.settingsLoadingVersion
+            : packageInfo == null
+            ? l10n.settingsUnknownVersion
+            : '${packageInfo.version}+${packageInfo.buildNumber}';
 
-                final packageInfo = snapshot.data;
-                final version = packageInfo == null
-                    ? l10n.settingsUnknownVersion
-                    : '${packageInfo.version}+${packageInfo.buildNumber}';
-
-                return Text(l10n.settingsAppVersion(version));
-              },
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeader(
+              title: l10n.settingsVersionSection,
+              subtitle: l10n.settingsVersionSubtitle,
             ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const VersionInfoScreen()),
+            const SizedBox(height: 12),
+            Card(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AboutVersionScreen()),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      _IconBadge(icon: Icons.verified_outlined),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.aboutTitle,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(l10n.settingsAppVersion(version)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -323,16 +394,443 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class VersionInfoScreen extends StatefulWidget {
-  const VersionInfoScreen({super.key});
+typedef BackupAction = Future<void> Function(BuildContext context);
+
+class ManualBackupScreen extends StatelessWidget {
+  const ManualBackupScreen({
+    super.key,
+    required this.vaultFilePath,
+    required this.onExport,
+    required this.onImport,
+  });
+
+  final String vaultFilePath;
+  final BackupAction onExport;
+  final BackupAction onImport;
 
   @override
-  State<VersionInfoScreen> createState() => _VersionInfoScreenState();
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.backupManualTitle)),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CardTitle(
+                    icon: Icons.folder_copy_outlined,
+                    title: l10n.backupManualTitle,
+                    subtitle: l10n.backupManualSubtitle,
+                  ),
+                  const SizedBox(height: 16),
+                  _InfoTile(
+                    icon: Icons.lock_outline,
+                    label: l10n.backupCurrentPath,
+                    value: vaultFilePath,
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.icon(
+                        icon: const Icon(Icons.upload),
+                        label: Text(l10n.backupExport),
+                        onPressed: () => onExport(context),
+                      ),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.download),
+                        label: Text(l10n.backupImport),
+                        onPressed: () => onImport(context),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _VersionInfoScreenState extends State<VersionInfoScreen> {
-  final UpdateChecker _updateChecker = const UpdateChecker();
+typedef BackupStatusTextBuilder =
+    String Function(AppLocalizations l10n, BackupStatus status);
+typedef FrequencyLabelBuilder =
+    String Function(AppLocalizations l10n, AutoBackupFrequency frequency);
 
+class AutoBackupSettingsScreen extends StatefulWidget {
+  const AutoBackupSettingsScreen({
+    super.key,
+    required this.backupService,
+    required this.initialSettings,
+    required this.statusTextBuilder,
+    required this.frequencyLabelBuilder,
+  });
+
+  final VaultBackupService backupService;
+  final BackupSettings initialSettings;
+  final BackupStatusTextBuilder statusTextBuilder;
+  final FrequencyLabelBuilder frequencyLabelBuilder;
+
+  @override
+  State<AutoBackupSettingsScreen> createState() =>
+      _AutoBackupSettingsScreenState();
+}
+
+class _AutoBackupSettingsScreenState extends State<AutoBackupSettingsScreen> {
+  late Future<BackupSettings> _settingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _settingsFuture = Future.value(widget.initialSettings);
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _settingsFuture = widget.backupService.loadSettings();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.backupAutoTitle)),
+      body: FutureBuilder<BackupSettings>(
+        future: _settingsFuture,
+        builder: (context, snapshot) {
+          final settings = snapshot.data ?? widget.initialSettings;
+          final statusText = widget.statusTextBuilder(
+            l10n,
+            settings.lastBackupStatus,
+          );
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _CardTitle(
+                        icon: Icons.history,
+                        title: l10n.backupAutoTitle,
+                        subtitle: l10n.backupAutoSubtitle,
+                        trailing: Switch(
+                          value: settings.autoBackupEnabled,
+                          onChanged: (value) async {
+                            await widget.backupService.setAutoBackupEnabled(
+                              value,
+                            );
+                            await _reload();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<AutoBackupFrequency>(
+                        initialValue: settings.autoBackupFrequency,
+                        decoration: InputDecoration(
+                          labelText: l10n.backupAutoFrequency,
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          for (final frequency in AutoBackupFrequency.values)
+                            DropdownMenuItem(
+                              value: frequency,
+                              child: Text(
+                                widget.frequencyLabelBuilder(l10n, frequency),
+                              ),
+                            ),
+                        ],
+                        onChanged: settings.autoBackupEnabled
+                            ? (value) async {
+                                if (value == null) return;
+                                await widget.backupService
+                                    .setAutoBackupFrequency(value);
+                                await _reload();
+                              }
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      _InfoTile(
+                        icon: Icons.download_done_outlined,
+                        label: l10n.backupAutoLocationLabel,
+                        value: widget.backupService.locationDescription,
+                      ),
+                      const SizedBox(height: 8),
+                      _InfoTile(
+                        icon: settings.lastBackupStatus.success
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                        label: l10n.backupAutoLastResult,
+                        value: statusText,
+                        isIssue: !settings.lastBackupStatus.success,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.backupAutoRetentionDescription,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _IconBadge(icon: icon),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(width: 12), trailing!],
+      ],
+    );
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.isIssue = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isIssue;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final iconColor = isIssue ? colorScheme.error : colorScheme.primary;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(value),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: colorScheme.onPrimaryContainer),
+    );
+  }
+}
+
+class _SettingsEntryCard extends StatelessWidget {
+  const _SettingsEntryCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _IconBadge(icon: icon),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReleaseNotesCard extends StatelessWidget {
+  const _ReleaseNotesCard({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.notes_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SelectableText(body, style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AboutVersionScreen extends StatefulWidget {
+  const AboutVersionScreen({
+    super.key,
+    this.updateChecker = const UpdateChecker(),
+    this.packageInfoFuture,
+  });
+
+  final UpdateChecker updateChecker;
+  final Future<PackageInfo?>? packageInfoFuture;
+
+  @override
+  State<AboutVersionScreen> createState() => _AboutVersionScreenState();
+}
+
+class _AboutVersionScreenState extends State<AboutVersionScreen> {
   late final Future<PackageInfo?> _packageInfoFuture;
   bool _checkingForUpdates = false;
   UpdateCheckResult? _lastUpdateCheck;
@@ -340,7 +838,7 @@ class _VersionInfoScreenState extends State<VersionInfoScreen> {
   @override
   void initState() {
     super.initState();
-    _packageInfoFuture = _loadPackageInfo();
+    _packageInfoFuture = widget.packageInfoFuture ?? _loadPackageInfo();
   }
 
   Future<PackageInfo?> _loadPackageInfo() async {
@@ -356,7 +854,7 @@ class _VersionInfoScreenState extends State<VersionInfoScreen> {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsVersionTitle)),
+      appBar: AppBar(title: Text(l10n.aboutTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -367,11 +865,13 @@ class _VersionInfoScreenState extends State<VersionInfoScreen> {
                 vertical: 12,
               ),
               leading: const Icon(Icons.info_outline),
-              title: Text(l10n.settingsVersionTitle),
+              title: Text(l10n.aboutTitle),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 4),
+                  Text(l10n.aboutDescription),
+                  const SizedBox(height: 12),
                   FutureBuilder<PackageInfo?>(
                     future: _packageInfoFuture,
                     builder: (context, snapshot) {
@@ -387,15 +887,25 @@ class _VersionInfoScreenState extends State<VersionInfoScreen> {
                       return Text(l10n.settingsAppVersion(version));
                     },
                   ),
-                  const SizedBox(height: 4),
-                  Text(l10n.settingsVersionSubtitle),
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          _ReleaseNotesCard(
+            title: l10n.aboutCurrentReleaseNotesTitle,
+            body: l10n.aboutCurrentReleaseNotes,
+          ),
           if (_lastUpdateCheck != null) ...[
             const SizedBox(height: 16),
             _buildReleaseCard(context, _lastUpdateCheck!),
+            const SizedBox(height: 16),
+            _ReleaseNotesCard(
+              title: l10n.aboutLatestReleaseNotesTitle,
+              body: _lastUpdateCheck!.releaseNotes?.trim().isNotEmpty == true
+                  ? _lastUpdateCheck!.releaseNotes!
+                  : l10n.aboutNoReleaseNotes,
+            ),
           ],
         ],
       ),
@@ -471,7 +981,13 @@ class _VersionInfoScreenState extends State<VersionInfoScreen> {
     setState(() => _checkingForUpdates = true);
 
     try {
-      final result = await _updateChecker.check();
+      final packageInfo = await _packageInfoFuture;
+      final result = packageInfo == null
+          ? await widget.updateChecker.check()
+          : await widget.updateChecker.checkForVersion(
+              currentVersion: packageInfo.version,
+              currentBuildNumber: packageInfo.buildNumber,
+            );
       if (!context.mounted) return;
 
       setState(() => _lastUpdateCheck = result);

@@ -23,11 +23,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final developerEnabled = context
-        .watch<VaultSession>()
-        .data
-        .developerSettings
-        .enabled;
+    context.watch<VaultSession>();
     final destinations =
         <
           ({
@@ -43,13 +39,12 @@ class _HomeShellState extends State<HomeShell> {
             label: l10n.tabProviders,
             page: const ProvidersListScreen(),
           ),
-          if (developerEnabled)
-            (
-              destination: _HomeDestination.developer,
-              icon: Icons.code,
-              label: l10n.tabDeveloper,
-              page: const DeveloperScreen(),
-            ),
+          (
+            destination: _HomeDestination.developer,
+            icon: Icons.code,
+            label: l10n.tabDeveloper,
+            page: const DeveloperScreen(),
+          ),
           (
             destination: _HomeDestination.settings,
             icon: Icons.settings,

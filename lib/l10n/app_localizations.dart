@@ -212,23 +212,11 @@ abstract class AppLocalizations {
   /// **'Vault Backup'**
   String get settingsVaultSection;
 
-  /// No description provided for @settingsFeaturesSection.
+  /// No description provided for @settingsVaultSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Features'**
-  String get settingsFeaturesSection;
-
-  /// No description provided for @settingsDeveloperBackupTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Developer Backup'**
-  String get settingsDeveloperBackupTitle;
-
-  /// No description provided for @settingsDeveloperBackupSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Store Android signing keys, API keys, SSH keys, env vars, and other developer secrets in the encrypted vault.'**
-  String get settingsDeveloperBackupSubtitle;
+  /// **'Manage encrypted exports and automatic local backup copies.'**
+  String get settingsVaultSubtitle;
 
   /// No description provided for @settingsVersionSection.
   ///
@@ -247,6 +235,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Checks GitHub Releases for newer RescueAuthKit builds.'**
   String get settingsVersionSubtitle;
+
+  /// No description provided for @aboutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About RescueAuthKit'**
+  String get aboutTitle;
+
+  /// No description provided for @aboutDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'RescueAuthKit is a local-first encrypted vault for TOTP secrets, recovery codes, Android signing keys, API credentials, SSH keys, environment variables, and other recovery material.'**
+  String get aboutDescription;
+
+  /// No description provided for @aboutCurrentReleaseNotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s new in 1.2.0'**
+  String get aboutCurrentReleaseNotesTitle;
+
+  /// No description provided for @aboutCurrentReleaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic encrypted backups now write to Downloads/RescueAuthKit/Backups on Android.\n\nCheckpoint backups are created before risky operations such as import, delete, and merge.\n\nSettings has been simplified into focused detail pages, and developer credentials are available by default.\n\nQR import flow has additional automated coverage so it can be checked without testing on a personal phone.'**
+  String get aboutCurrentReleaseNotes;
+
+  /// No description provided for @aboutLatestReleaseNotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest release notes'**
+  String get aboutLatestReleaseNotesTitle;
+
+  /// No description provided for @aboutNoReleaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'No release notes were provided for this GitHub release.'**
+  String get aboutNoReleaseNotes;
 
   /// No description provided for @settingsLoadingVersion.
   ///
@@ -325,6 +349,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Expires in {seconds} seconds'**
   String totpExpiresIn(Object seconds);
+
+  /// No description provided for @totpInvalidSecret.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid TOTP secret'**
+  String get totpInvalidSecret;
 
   /// No description provided for @addTotpSheetScan.
   ///
@@ -470,6 +500,24 @@ abstract class AppLocalizations {
   /// **'Current vault path:'**
   String get backupCurrentPath;
 
+  /// No description provided for @backupManualTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual backup'**
+  String get backupManualTitle;
+
+  /// No description provided for @backupManualEntrySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export or import an encrypted vault file.'**
+  String get backupManualEntrySubtitle;
+
+  /// No description provided for @backupManualSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export or import an encrypted .rakvault file when you need to move data yourself.'**
+  String get backupManualSubtitle;
+
   /// No description provided for @backupExport.
   ///
   /// In en, this message translates to:
@@ -535,6 +583,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error importing vault: {error}'**
   String backupImportFailed(Object error);
+
+  /// No description provided for @backupAutoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic backups'**
+  String get backupAutoTitle;
+
+  /// No description provided for @backupAutoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep recent encrypted copies outside the app data directory.'**
+  String get backupAutoSubtitle;
+
+  /// No description provided for @backupAutoEntrySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency} · {status}'**
+  String backupAutoEntrySubtitle(Object frequency, Object status);
+
+  /// No description provided for @backupAutoDisabledSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic backups are turned off.'**
+  String get backupAutoDisabledSubtitle;
+
+  /// No description provided for @backupAutoLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location: {location}'**
+  String backupAutoLocation(Object location);
+
+  /// No description provided for @backupAutoLocationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup location'**
+  String get backupAutoLocationLabel;
+
+  /// No description provided for @backupAutoFrequency.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic backup frequency'**
+  String get backupAutoFrequency;
+
+  /// No description provided for @backupAutoFrequencyEveryChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Every change'**
+  String get backupAutoFrequencyEveryChange;
+
+  /// No description provided for @backupAutoFrequencyDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily'**
+  String get backupAutoFrequencyDaily;
+
+  /// No description provided for @backupAutoFrequencyWeekly.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly'**
+  String get backupAutoFrequencyWeekly;
+
+  /// No description provided for @backupAutoFrequencyMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly'**
+  String get backupAutoFrequencyMonthly;
+
+  /// No description provided for @backupAutoRetentionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto backups keep the latest 5 files. Checkpoint backups before risky operations keep another latest 5 files.'**
+  String get backupAutoRetentionDescription;
+
+  /// No description provided for @backupAutoStatusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No backup has run yet.'**
+  String get backupAutoStatusNone;
+
+  /// No description provided for @backupAutoLastResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Last result'**
+  String get backupAutoLastResult;
+
+  /// No description provided for @backupAutoStatusSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Last backup: {message}'**
+  String backupAutoStatusSuccess(Object message);
+
+  /// No description provided for @backupAutoStatusIssue.
+  ///
+  /// In en, this message translates to:
+  /// **'Last backup issue: {message}'**
+  String backupAutoStatusIssue(Object message);
+
+  /// No description provided for @backupAutoCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic backup created.'**
+  String get backupAutoCreated;
+
+  /// No description provided for @backupCheckpointCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkpoint backup created.'**
+  String get backupCheckpointCreated;
+
+  /// No description provided for @backupCleanupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to clean up {count} old backup file(s).'**
+  String backupCleanupFailed(Object count);
+
+  /// No description provided for @backupAutoFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic backup failed: {error}'**
+  String backupAutoFailed(Object error);
+
+  /// No description provided for @backupCheckpointFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkpoint backup failed: {error}'**
+  String backupCheckpointFailed(Object error);
 
   /// No description provided for @developerAddTitle.
   ///

@@ -72,14 +72,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsVaultSection => 'Vault Backup';
 
   @override
-  String get settingsFeaturesSection => 'Features';
-
-  @override
-  String get settingsDeveloperBackupTitle => 'Developer Backup';
-
-  @override
-  String get settingsDeveloperBackupSubtitle =>
-      'Store Android signing keys, API keys, SSH keys, env vars, and other developer secrets in the encrypted vault.';
+  String get settingsVaultSubtitle =>
+      'Manage encrypted exports and automatic local backup copies.';
 
   @override
   String get settingsVersionSection => 'Version';
@@ -90,6 +84,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsVersionSubtitle =>
       'Checks GitHub Releases for newer RescueAuthKit builds.';
+
+  @override
+  String get aboutTitle => 'About RescueAuthKit';
+
+  @override
+  String get aboutDescription =>
+      'RescueAuthKit is a local-first encrypted vault for TOTP secrets, recovery codes, Android signing keys, API credentials, SSH keys, environment variables, and other recovery material.';
+
+  @override
+  String get aboutCurrentReleaseNotesTitle => 'What\'s new in 1.2.0';
+
+  @override
+  String get aboutCurrentReleaseNotes =>
+      'Automatic encrypted backups now write to Downloads/RescueAuthKit/Backups on Android.\n\nCheckpoint backups are created before risky operations such as import, delete, and merge.\n\nSettings has been simplified into focused detail pages, and developer credentials are available by default.\n\nQR import flow has additional automated coverage so it can be checked without testing on a personal phone.';
+
+  @override
+  String get aboutLatestReleaseNotesTitle => 'Latest release notes';
+
+  @override
+  String get aboutNoReleaseNotes =>
+      'No release notes were provided for this GitHub release.';
 
   @override
   String get settingsLoadingVersion => 'Loading version...';
@@ -141,6 +156,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String totpExpiresIn(Object seconds) {
     return 'Expires in $seconds seconds';
   }
+
+  @override
+  String get totpInvalidSecret => 'Invalid TOTP secret';
 
   @override
   String get addTotpSheetScan => 'Scan QR';
@@ -224,6 +242,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupCurrentPath => 'Current vault path:';
 
   @override
+  String get backupManualTitle => 'Manual backup';
+
+  @override
+  String get backupManualEntrySubtitle =>
+      'Export or import an encrypted vault file.';
+
+  @override
+  String get backupManualSubtitle =>
+      'Export or import an encrypted .rakvault file when you need to move data yourself.';
+
+  @override
   String get backupExport => 'Export Vault';
 
   @override
@@ -265,6 +294,85 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String backupImportFailed(Object error) {
     return 'Error importing vault: $error';
+  }
+
+  @override
+  String get backupAutoTitle => 'Automatic backups';
+
+  @override
+  String get backupAutoSubtitle =>
+      'Keep recent encrypted copies outside the app data directory.';
+
+  @override
+  String backupAutoEntrySubtitle(Object frequency, Object status) {
+    return '$frequency · $status';
+  }
+
+  @override
+  String get backupAutoDisabledSubtitle => 'Automatic backups are turned off.';
+
+  @override
+  String backupAutoLocation(Object location) {
+    return 'Location: $location';
+  }
+
+  @override
+  String get backupAutoLocationLabel => 'Backup location';
+
+  @override
+  String get backupAutoFrequency => 'Automatic backup frequency';
+
+  @override
+  String get backupAutoFrequencyEveryChange => 'Every change';
+
+  @override
+  String get backupAutoFrequencyDaily => 'Daily';
+
+  @override
+  String get backupAutoFrequencyWeekly => 'Weekly';
+
+  @override
+  String get backupAutoFrequencyMonthly => 'Monthly';
+
+  @override
+  String get backupAutoRetentionDescription =>
+      'Auto backups keep the latest 5 files. Checkpoint backups before risky operations keep another latest 5 files.';
+
+  @override
+  String get backupAutoStatusNone => 'No backup has run yet.';
+
+  @override
+  String get backupAutoLastResult => 'Last result';
+
+  @override
+  String backupAutoStatusSuccess(Object message) {
+    return 'Last backup: $message';
+  }
+
+  @override
+  String backupAutoStatusIssue(Object message) {
+    return 'Last backup issue: $message';
+  }
+
+  @override
+  String get backupAutoCreated => 'Automatic backup created.';
+
+  @override
+  String get backupCheckpointCreated => 'Checkpoint backup created.';
+
+  @override
+  String backupCleanupFailed(Object count) {
+    return 'Failed to clean up $count old backup file(s).';
+  }
+
+  @override
+  String backupAutoFailed(Object error) {
+    return 'Automatic backup failed: $error';
+  }
+
+  @override
+  String backupCheckpointFailed(Object error) {
+    return 'Checkpoint backup failed: $error';
   }
 
   @override

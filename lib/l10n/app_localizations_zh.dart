@@ -70,14 +70,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsVaultSection => 'Vault 备份';
 
   @override
-  String get settingsFeaturesSection => '功能';
-
-  @override
-  String get settingsDeveloperBackupTitle => '开发者备份';
-
-  @override
-  String get settingsDeveloperBackupSubtitle =>
-      '把 Android 签名密钥、API Key、SSH Key、环境变量和其他开发者密钥保存到加密 Vault。';
+  String get settingsVaultSubtitle => '管理加密导出文件，以及自动保留在本地的备份副本。';
 
   @override
   String get settingsVersionSection => '版本';
@@ -88,6 +81,26 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get settingsVersionSubtitle =>
       '从 GitHub Releases 检查 RescueAuthKit 是否有新版本。';
+
+  @override
+  String get aboutTitle => '关于 RescueAuthKit';
+
+  @override
+  String get aboutDescription =>
+      'RescueAuthKit 是一个本地优先的加密 Vault，用来保存 TOTP 密钥、恢复码、Android 签名密钥、API 凭据、SSH Key、环境变量和其他恢复材料。';
+
+  @override
+  String get aboutCurrentReleaseNotesTitle => '1.2.0 更新内容';
+
+  @override
+  String get aboutCurrentReleaseNotes =>
+      '自动加密备份现在会写入 Android 的 Downloads/RescueAuthKit/Backups。\n\n导入、删除、合并等高风险操作前会创建保护点备份。\n\n设置页已简化为更聚焦的详情页，开发者凭据功能默认可用。\n\nQR 导入链路增加了自动化覆盖，可以在不使用个人手机扫码的情况下检查。';
+
+  @override
+  String get aboutLatestReleaseNotesTitle => '最新发布说明';
+
+  @override
+  String get aboutNoReleaseNotes => '这个 GitHub Release 没有提供发布说明。';
 
   @override
   String get settingsLoadingVersion => '正在读取版本...';
@@ -139,6 +152,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String totpExpiresIn(Object seconds) {
     return '剩余 $seconds 秒';
   }
+
+  @override
+  String get totpInvalidSecret => 'TOTP 密钥无效';
 
   @override
   String get addTotpSheetScan => '扫码导入';
@@ -221,6 +237,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupCurrentPath => '当前 Vault 路径：';
 
   @override
+  String get backupManualTitle => '手动备份';
+
+  @override
+  String get backupManualEntrySubtitle => '导出或导入加密的 Vault 文件。';
+
+  @override
+  String get backupManualSubtitle => '需要自己迁移数据时，导出或导入加密的 .rakvault 文件。';
+
+  @override
   String get backupExport => '导出备份';
 
   @override
@@ -259,6 +284,84 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String backupImportFailed(Object error) {
     return '导入失败：$error';
+  }
+
+  @override
+  String get backupAutoTitle => '自动备份';
+
+  @override
+  String get backupAutoSubtitle => '在应用数据目录之外保留最近的加密副本。';
+
+  @override
+  String backupAutoEntrySubtitle(Object frequency, Object status) {
+    return '$frequency · $status';
+  }
+
+  @override
+  String get backupAutoDisabledSubtitle => '自动备份已关闭。';
+
+  @override
+  String backupAutoLocation(Object location) {
+    return '位置：$location';
+  }
+
+  @override
+  String get backupAutoLocationLabel => '备份位置';
+
+  @override
+  String get backupAutoFrequency => '自动备份频率';
+
+  @override
+  String get backupAutoFrequencyEveryChange => '每次更改';
+
+  @override
+  String get backupAutoFrequencyDaily => '每天';
+
+  @override
+  String get backupAutoFrequencyWeekly => '每周';
+
+  @override
+  String get backupAutoFrequencyMonthly => '每月';
+
+  @override
+  String get backupAutoRetentionDescription =>
+      '自动备份保留最近 5 个文件。高风险操作前的保护点备份会另外保留最近 5 个文件。';
+
+  @override
+  String get backupAutoStatusNone => '还没有运行过备份。';
+
+  @override
+  String get backupAutoLastResult => '最近结果';
+
+  @override
+  String backupAutoStatusSuccess(Object message) {
+    return '最近一次备份：$message';
+  }
+
+  @override
+  String backupAutoStatusIssue(Object message) {
+    return '最近一次备份异常：$message';
+  }
+
+  @override
+  String get backupAutoCreated => '已创建自动备份。';
+
+  @override
+  String get backupCheckpointCreated => '已创建保护点备份。';
+
+  @override
+  String backupCleanupFailed(Object count) {
+    return '有 $count 个旧备份文件清理失败。';
+  }
+
+  @override
+  String backupAutoFailed(Object error) {
+    return '自动备份失败：$error';
+  }
+
+  @override
+  String backupCheckpointFailed(Object error) {
+    return '保护点备份失败：$error';
   }
 
   @override
