@@ -1,6 +1,8 @@
 package com.rescueauth.v2.database
 
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
 import java.util.zip.ZipFile
@@ -14,13 +16,25 @@ import java.util.zip.ZipFile
  * packaged APK: every ELF `.so`'s load segment alignment is a multiple of
  * 16384 and the ELF program headers are 16 KB aligned.
  *
- * Run after `:app:assembleDebug` with the APK path injected.
+ * The APK path is injected by `:app:testDebugUnitTest` via the
+ * `rescueauth.debugApk` system property (the test task depends on
+ * `assembleDebug`). If the APK cannot be found the test FAILS — it never
+ * silently returns, so a missing build cannot produce a false green.
+ *
+ * What this test can and cannot prove:
+ * - CAN prove: every ELF `.so` inside the final APK has PT_LOAD segments with
+ *   p_align satisfying the 16 KB rule (zipalign/ELF metadata).
+ * - CANNOT prove: runtime `malloc`/`mmap` alignment, actual load behavior on a
+ *   16 KB device, or correctness of the C code's internal allocation.
  */
 class PageSize16KTest {
 
     @Test
-    fun `debug apk native libs are 16k page aligned`() {
-        val apk = findDebugApk() ?: return // APK not built yet — skip gracefully
+    fun debugApkNativeLibsAre16kPageAligned() {
+        val apk = findDebugApk()
+        assertNotNull("APK not found — run :app:assembleDebug first", apk)
+        assertTrue("APK must exist and be non-empty: ${apk!!.absolutePath}", apk.length() > 0)
+
         ZipFile(apk).use { zip ->
             val soEntries = zip.entries().asSequence()
                 .filter { it.name.endsWith(".so") && !it.isDirectory }
@@ -38,15 +52,28 @@ class PageSize16KTest {
     }
 
     private fun findDebugApk(): File? {
+        // System property injected by build.gradle.kts (testDebugUnitTest).
+        val injected = System.getProperty("rescueauth.debugApk")
+        if (!injected.isNullOrBlank()) {
+            val f = File(injected)
+            if (f.exists()) return f
+        }
+        // Fallbacks relative to the current working directory, for IDE runs.
         val cwd = File("").absoluteFile
         val candidates = listOf(
             File(cwd, "build/outputs/apk/debug/app-debug.apk"),
             File(cwd, "app/build/outputs/apk/debug/app-debug.apk"),
-            File("build/outputs/apk/debug/app-debug.apk"),
-            File("app/build/outputs/apk/debug/app-debug.apk"),
             File("/workspace/v2/app/build/outputs/apk/debug/app-debug.apk"),
         )
         return candidates.firstOrNull { it.exists() }
+            ?: run {
+                fail(
+                    "Debug APK not found for 16 KB page-size verification. " +
+                        "Run ./gradlew :app:assembleDebug before this test, or " +
+                        "pass -Drescueauth.debugApk=<path>."
+                )
+                null
+            }
     }
 
     /**
