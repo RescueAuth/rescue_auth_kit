@@ -391,6 +391,9 @@ Future<void> verify(String fixturesDir) async {
     ('schema2_normal', 'test-password-2'),
     ('schema3_normal', 'test-password-3'),
     ('rfc4226_sha1_secret', 'rfc-test'),
+    // Phase 1 fix additive fixtures (see docs/LEGACY_IMPORT.md §6.1)
+    ('schema1_same_issuer_multi_account', 'test-password-1'),
+    ('schema1_invalid_totp_params', 'test-password-1'),
   ]) {
     final ok = await decryptPositive(name, pw);
     stdout.writeln('  verify $name: ${ok ? "PASS" : "FAIL"}');
@@ -412,7 +415,7 @@ Future<void> verify(String fixturesDir) async {
     passed++;
   }
 
-  stdout.writeln('verify: $passed/9 checks passed');
+  stdout.writeln('verify: $passed/11 checks passed');
 }
 
 Future<void> main(List<String> args) async {

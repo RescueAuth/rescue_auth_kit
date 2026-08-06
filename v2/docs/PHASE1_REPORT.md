@@ -42,18 +42,20 @@
    fixture 全部失败、交叉向量却通过的原因。
 2. **极端 KDF 参数可导致进程 abort**：header 声称 8 GiB 时直接跑 Argon2 会
    OOM core dump。importer 必须在 KDF 前校验上限（已实现并测试）。
-3. **HChaCha20 旋转方向**：ChaCha20 quarter round 是 **rotate left**，
+3. **HChaCha20 旋转方向**（历史记录）：ChaCha20 quarter round 是 **rotate left**，
    写成 rotate right 会导致只有前 16 字节正确、后 16 字节错误。
-4. BC 1.78.1 **无内置 XChaCha20/HChaCha20**，需自实现 HChaCha20（标准构造，
-   已用 Dart 交叉验证）。
+4. BC 1.78.1 **无内置 XChaCha20/HChaCha20**，需自实现 HChaCha20。
+   **phase 1 fix 已升级到 BC 1.85**：BC 1.85 提供原生 `XChaCha20Poly1305`，
+   与旧 fixture、IETF 官方向量、Dart 交叉向量全部兼容（见 ADR-0002），
+   自实现 HChaCha20 已删除。
 
-## 3. 库选型与依据
+## 3. 库选型与依据（phase 1 fix 更新）
 
 | 用途 | 选型 | 依据 |
 | --- | --- | --- |
-| Argon2id | Bouncy Castle `bcprov` 1.78.1 | 纯 Java、Android 可用、与 Dart 参数兼容（version 13）；比引入 native libargon2 更轻、无 NDK/ABI 负担 |
-| XChaCha20-Poly1305 | Bouncy Castle `bcprov`（ChaCha20Poly1305 AEAD）+ 自实现 HChaCha20 | BC 无 HChaCha20；标准构造 + 交叉验证保证兼容 |
-| SQLCipher | 待定（阶段 2 前定） | 计划 `net.zetetic:android-database-sqlcipher` + Room `SupportFactory` |
+| Argon2id | Bouncy Castle `bcprov` 1.85 | 纯 Java、Android 可用、与 Dart 参数兼容（version 13）；比引入 native libargon2 更轻、无 NDK/ABI 负担 |
+| XChaCha20-Poly1305 | Bouncy Castle `bcprov` 1.85 **原生 `XChaCha20Poly1305`** | BC 1.85 内置；官方向量 + Dart 交叉向量 + 随机属性测试锁定兼容（ADR-0002）；不再自实现 HChaCha20 |
+| SQLCipher | 阶段 2 定稿 | **采用 `net.zetetic:sqlcipher-android`（当前维护，4.17.0），不用已过时的 `android-database-sqlcipher`** |
 | Keystore/Biometric | AndroidX `androidx.biometric` + `KeyStore` | 平台原生，`FLAG_SECURE` + 后台遮罩用 Activity 回调 |
 | 数据库 | Room（KSP） | 官方 ORM，SQLCipher 官方支持 |
 | 更新签名 | Ed25519（Bouncy Castle） | 公钥小、验签快、CNB 侧无依赖 |
@@ -64,8 +66,8 @@
    "未导入报告"并保留原始 `.rakvault`（预览必须显示数量）。
 2. **旧恢复码无"已用"状态**：旧 schema 1/2/3 的恢复码均为字符串列表，
    导入后全部 `UNUSED`。用户需自行重新标记（记录于 LEGACY_IMPORT.md）。
-3. **BC 自实现 HChaCha20 的维护风险**：BC 一旦提供官方 HChaCha20，应对比
-   并切换到官方实现；当前以 Dart 交叉向量锁定。
+3. **BC 自实现 HChaCha20 的维护风险**（已解除）：BC 1.85 提供原生
+   `XChaCha20Poly1305`，自实现已删除，不再依赖自行维护的密码算法。
 4. **Argon2id 内存占用**：默认 19 MiB，若未来 fixture 使用更大参数，
    importer 上限（256 MiB）可能拒绝——符合安全设计（防 DoS）。
 5. **阶段 1 未做平台生命周期验证**（Room/SQLCipher/Keystore/Biometric/SAF/

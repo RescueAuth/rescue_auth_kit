@@ -33,6 +33,11 @@ android {
                 "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
                 "META-INF/OSGI-INF/MANIFEST.MF",
                 "META-INF/*.kotlin_module",
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE.txt",
+                "META-INF/LICENSE",
+                "META-INF/NOTICE.md",
+                "META-INF/NOTICE.txt",
             )
         }
     }

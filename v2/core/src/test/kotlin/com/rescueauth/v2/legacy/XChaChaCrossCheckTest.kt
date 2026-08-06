@@ -1,13 +1,12 @@
 package com.rescueauth.v2.legacy
 
 import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Cross-check: decrypts a ciphertext produced by the Dart `cryptography`
- * package (the exact library used by the legacy app) with our Kotlin
- * XChaCha20-Poly1305. If this fails, decrypting legacy fixtures cannot work.
+ * package (the exact library used by the legacy app) with BC 1.85's native
+ * `XChaCha20Poly1305`. If this fails, decrypting legacy fixtures cannot work.
  */
 class XChaChaCrossCheckTest {
 
@@ -21,20 +20,17 @@ class XChaChaCrossCheckTest {
 
     @Test
     fun `kotlin decrypts dart xchacha20-poly1305 ciphertext`() {
-        val encrypted = dartCiphertext + dartMac // BC ChaCha20Poly1305 expects ct||tag
+        val encrypted = dartCiphertext + dartMac // BC XChaCha20Poly1305 expects ct||tag
         val plain = LegacyVaultDecryptor.decrypt(encrypted, key, nonce)
         assertArrayEquals(expectedPlaintext.toByteArray(Charsets.UTF_8), plain)
     }
 
     @Test
-    fun `dart xchacha cross vector decrypts with our hchacha`() {
-        // Recompute subkey + subnonce exactly as the legacy decryptor does.
-        val subkey = HChaCha20.deriveSubkey(key, nonce.copyOfRange(0, 16))
-        val subnonce = ByteArray(12)
-        System.arraycopy(nonce, 16, subnonce, 4, 8)
-        val aead = org.bouncycastle.crypto.modes.ChaCha20Poly1305()
+    fun `dart xchacha cross vector decrypts with native bc implementation`() {
+        // BC 1.85 native XChaCha20Poly1305 takes the full 24-byte nonce.
+        val aead = org.bouncycastle.crypto.modes.XChaCha20Poly1305()
         aead.init(false, org.bouncycastle.crypto.params.ParametersWithIV(
-            org.bouncycastle.crypto.params.KeyParameter(subkey), subnonce))
+            org.bouncycastle.crypto.params.KeyParameter(key), nonce))
         val input = dartCiphertext + dartMac
         val out = ByteArray(aead.getOutputSize(input.size))
         val len = aead.processBytes(input, 0, input.size, out, 0)
