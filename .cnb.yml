@@ -1,3 +1,23 @@
+# CNB pipeline configuration for rescue_auth_kit
+#
+# Pipeline layout:
+#   $  (fallback branch)
+#     issue.comment@npc     -> NPC issue-comment runner (existing, untouched)
+#     pull_request.comment@npc -> NPC PR-comment runner (existing, untouched)
+#   main
+#     push                  -> full cloud test loop incl. guarded Firebase Test Lab
+#
+# Security boundary (see docs/FIREBASE_TEST_LAB.md):
+#   * Firebase credentials are imported ONLY by the `main`+`push` pipeline below.
+#   * PR branches, issue events, NPC comment events, tag events and any other
+#     branch/event MUST NOT import the firebase-test-lab.yml secret file.
+#   * A PR branch therefore cannot (and must not) run a real Test Lab matrix;
+#     the first real execution only happens after this config reaches `main`.
+#
+# The full `main` push flow:
+#   JVM/core tests -> Robolectric unit tests -> lint -> debug APK ->
+#   androidTest APK -> changed-file gating -> single virtual-device FTL matrix.
+
 $:
   issue.comment@npc:
     - name: npc-issue-comment
@@ -19,3 +39,87 @@ $:
           options:
             model: deepseek-v4-flash
             contextWindow: "1m"
+
+main:
+  push:
+    - name: full-cloud-test-loop
+      # Pinned, reproducible Android CI image (JDK 17/21 + Android SDK 34/35/36
+      # + build-tools 35.0.0, all version-pinned by the image tag). The same
+      # image also carries a pinned gcloud SDK for the Test Lab stage.
+      docker:
+        image: cimg/android:2026.08
+      env:
+        # Fixed, non-sensitive Test Lab device configuration.
+        FTL_DEVICE_MODEL: Pixel_7
+        FTL_DEVICE_VERSION: "33"
+        FTL_DEVICE_LOCALE: en
+        FTL_DEVICE_ORIENTATION: portrait
+        FTL_TEST_TIMEOUT: 5m
+        # Deterministic Gradle output paths (no unconstrained find|head -1).
+        # CNB_BUILD_WORKSPACE is /workspace for script tasks.
+        APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
+        TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      imports:
+        # Secrets are ONLY readable on `main` push (repository restricted to
+        # repository=xincy22/rescue_auth_kit, event=push, branch=main).
+        - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
+      stages:
+        - name: core-jvm-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :core:test
+        - name: app-robolectric-unit-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:testDebugUnitTest
+        - name: android-lint
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:lintDebug
+        - name: build-debug-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebug
+            test -s app/build/outputs/apk/debug/app-debug.apk
+        - name: build-androidtest-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebugAndroidTest
+            test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+        - name: changed-file-gate
+          # Skips Test Lab for documentation-only pushes. Never skips based on
+          # arbitrary strings in commit messages. Always compares the FULL
+          # CNB_BEFORE_SHA..CNB_COMMIT range; runs Test Lab when the range is
+          # empty/invalid/all-zero. See scripts/check-test-lab-gate.sh.
+          script: |
+            set -euo pipefail
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            export CNB_BEFORE_SHA CNB_COMMIT CNB_BUILD_WORKSPACE
+            scripts/check-test-lab-gate.sh
+        - name: firebase-test-lab
+          script: |
+            set -euo pipefail
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            gate=$(grep -E '^TEST_LAB_GATE=' .cnb-gate.env 2>/dev/null | cut -d= -f2- || true)
+            if [[ "$gate" == "skip" ]]; then
+              echo "TEST LAB NOT EXECUTED: documentation-only change"
+              exit 0
+            fi
+            echo "FTL_DEVICE_MODEL=${FTL_DEVICE_MODEL}"
+            echo "FTL_DEVICE_VERSION=${FTL_DEVICE_VERSION}"
+            echo "FTL_DEVICE_LOCALE=${FTL_DEVICE_LOCALE}"
+            echo "FTL_DEVICE_ORIENTATION=${FTL_DEVICE_ORIENTATION}"
+            echo "FTL_TEST_TIMEOUT=${FTL_TEST_TIMEOUT}"
+            echo "FTL_CNB_COMMIT=${CNB_COMMIT}"
+            echo "FTL_APP_APK=${APP_APK}"
+            echo "FTL_TEST_APK=${TEST_APK}"
+            # The runner enforces: single virtual device, no retries, no
+            # orchestrator, waits for the matrix to finish, preserves gcloud's
+            # raw exit code and classifies it (incl. CONFIGURATION FAILURE and
+            # QUOTA EXHAUSTED annotations) in the build log.
+            export APP_APK TEST_APK FIREBASE_PROJECT_ID \
+                   GCP_SERVICE_ACCOUNT_JSON_BASE64 \
+                   FTL_DEVICE_MODEL FTL_DEVICE_VERSION FTL_DEVICE_LOCALE \
+                   FTL_DEVICE_ORIENTATION FTL_TEST_TIMEOUT
+            export CNB_COMMIT
+            scripts/run-firebase-test-lab.sh
