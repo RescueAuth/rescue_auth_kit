@@ -6,6 +6,12 @@ RescueAuthKit is a small, opinionated 2FA vault focused on one thing: reliable
 import/export so you can move your TOTP secrets and recovery codes between
 devices without guessing which app supports what.
 
+> **Note:** The repository is being rewritten as a **native Android app** under
+> [`v2/`](v2/) (Kotlin + Room/SQLCipher, encrypted database, biometric unlock).
+> The legacy Flutter app below is frozen at tag `v1.2.0` and kept for reference
+> and one-time migration. See [`v2/AGENTS.md`](v2/AGENTS.md) for the v2 status
+> and build commands.
+
 ## Why I built this
 
 Most authenticator apps make migration the hardest part of the experience. This
@@ -23,6 +29,26 @@ project flips the priority:
   - XChaCha20-Poly1305 for authenticated encryption
 - Cross-platform migration flow:
   - Export on one device, import on another, verify the same codes.
+
+## RescueAuth v2 (Android native rewrite)
+
+- **Location**: `v2/` — Kotlin + Jetpack Compose + Room/SQLCipher.
+- **Status**: phases 0/1 + phase1-fix + phase 2 (encrypted DB, VaultKey/Keystore,
+  secure session, auto-lock, mask + FLAG_SECURE) are merged to `main`;
+  `phase2-blocker-hotfix` (PR #6) fixed the biometric-prompt startup crash and
+  made platform tests buildable/truthful.
+- **Build**: `cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
+  (needs JDK 17 + Android SDK 35). Instrumented tests (6 cases) are written and
+  compile; execution still requires a device/emulator.
+- **Docs**: see `v2/docs/` (PHASE reports, ADRs, LEGACY_IMPORT, BACKUP_FORMAT,
+  THREAT_MODEL, UPDATE_PROTOCOL).
+
+## Legacy Flutter app (v1.x, frozen)
+
+The original cross-platform Flutter app, frozen at tag `v1.2.0`. It remains
+fully functional but is no longer the active development target.
+
+---
 
 ## Vault model
 

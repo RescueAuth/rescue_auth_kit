@@ -1,6 +1,7 @@
 # THREAT_MODEL.md — 威胁模型与安全假设
 
 > 阶段 0/1 版。随实现推进持续更新；任何加密/备份/导入变更必须先更新本节。
+> **更新（2026-08-06，PR #6）**：同步 phase2-blocker-hotfix 新增的安全事实。
 
 ## 资产
 
@@ -29,6 +30,8 @@
 | 恶意/损坏备份文件 | AEAD 先验 MAC；KDF 参数上限校验（防 OOM）；大小上限 |
 | 恶意 `.rakvault` | header 校验（magic/version/KDF 上限）后再执行 Argon2 |
 | 更新源被篡改 | Ed25519 签名验证 `latest.json`；APK 校验大小+SHA-256+签名证书 |
+| 非加密/伪加密数据库文件 | instrumented 用例新增：**普通 SQLite header 文件（`SQLite format 3\0`）也必须被拒绝**，不能当作加密 vault 打开（`RescueAuthDatabaseInstrumentedTest.corruptedDatabaseFileIsRejectedEvenIfItHasValidSqliteHeader`） |
+| 生物识别/设备凭据不可用 | `resolveAvailableAuthenticators` 按设备实际可用性动态选择认证器；无可用认证器时明确提示需恢复流程，不静默降级；`DEVICE_CREDENTIAL` 路径不设 negative button（避免 `PromptInfo.build()` 抛异常导致启动崩溃） |
 | 进程被 dump | 敏感缓冲区显式清零；不落盘密钥 |
 
 ## 已确认的安全事实（实测）
