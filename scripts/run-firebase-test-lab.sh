@@ -264,7 +264,7 @@ validate_device_config() {
         exit "$FTL_EXIT_GENERAL_CONFIG"
     fi
 
-    local version_ok form_ok
+    local version_ok form_ok not_deprecated not_reduced
     version_ok="$(python3 -c '
 import json, sys
 try:
@@ -283,6 +283,22 @@ except Exception:
     print("no"); raise SystemExit
 print("yes" if str(d.get("form", "")).lower() == "virtual" else "no")
 ' "$describe_out")"
+    not_deprecated="$(python3 -c '
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    print("no"); raise SystemExit
+print("no" if d.get("deprecated", False) else "yes")
+' "$describe_out")"
+    not_reduced="$(python3 -c '
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    print("no"); raise SystemExit
+print("no" if d.get("reducedStability", False) else "yes")
+' "$describe_out")"
 
     if [[ "$version_ok" != "yes" ]]; then
         err "FTL device version not supported for model ${model}: API ${version}"
@@ -294,7 +310,17 @@ print("yes" if str(d.get("form", "")).lower() == "virtual" else "no")
         err "FTL_STATUS=${STATUS_CONFIG_FAILURE}"
         exit "$FTL_EXIT_GENERAL_CONFIG"
     fi
-    log "FTL device catalog check passed (virtual, API ${version})."
+    if [[ "$not_deprecated" != "yes" ]]; then
+        err "FTL device model ${model} is marked deprecated in the catalog."
+        err "FTL_STATUS=${STATUS_CONFIG_FAILURE}"
+        exit "$FTL_EXIT_GENERAL_CONFIG"
+    fi
+    if [[ "$not_reduced" != "yes" ]]; then
+        err "FTL device model ${model} is marked reduced_stability in the catalog."
+        err "FTL_STATUS=${STATUS_CONFIG_FAILURE}"
+        exit "$FTL_EXIT_GENERAL_CONFIG"
+    fi
+    log "FTL device catalog check passed (virtual, API ${version}, not deprecated, full stability)."
 }
 
 # ---------------------------------------------------------------------------

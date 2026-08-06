@@ -13,6 +13,11 @@
 #     branch/event MUST NOT import the firebase-test-lab.yml secret file.
 #   * A PR branch therefore cannot (and must not) run a real Test Lab matrix;
 #     the first real execution only happens after this config reaches `main`.
+#   * `imports` is pipeline-level: inside `full-cloud-test-loop` the injected
+#     secret variables are visible to ALL stages (core/JVM, Robolectric, lint,
+#     APK builds, gate and firebase-test-lab alike), NOT just firebase-test-lab.
+#   * `main` must stay a protected branch; every .cnb.yml / Gradle / build-script
+#     change requires a human diff review (see docs/FIREBASE_TEST_LAB.md §2).
 #
 # The full `main` push flow:
 #   JVM/core tests -> Robolectric unit tests -> lint -> debug APK ->
@@ -50,7 +55,9 @@ main:
         image: cimg/android:2026.08
       env:
         # Fixed, non-sensitive Test Lab device configuration.
-        FTL_DEVICE_MODEL: Pixel_7
+        # MediumPhone.arm is a VIRTUAL (emulator) FTL model, API 33. Do NOT use
+        # `panther` (physical Pixel 7): this pipeline must use one virtual device.
+        FTL_DEVICE_MODEL: MediumPhone.arm
         FTL_DEVICE_VERSION: "33"
         FTL_DEVICE_LOCALE: en
         FTL_DEVICE_ORIENTATION: portrait
@@ -60,6 +67,10 @@ main:
         APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
         TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
       imports:
+        # Pipeline-level imports: the injected secret variables become visible to
+        # EVERY stage of this pipeline from the first stage onward (core tests,
+        # Robolectric, lint, APK builds, changed-file gate and firebase-test-lab).
+        # They are NOT scoped to the firebase-test-lab stage alone.
         # Secrets are ONLY readable on `main` push (repository restricted to
         # repository=xincy22/rescue_auth_kit, event=push, branch=main).
         - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml

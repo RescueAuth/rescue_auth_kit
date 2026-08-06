@@ -91,7 +91,9 @@ core 模块 phase1-fix 测试 34/34 通过（`./gradlew :core:test`）。
 3. **16KB page size 已通过 ELF 静态校验**，但未在 16KB 设备上实际运行。
 4. **DataStore/其他 native 依赖**：DataStore 1.1.1 的 shared_counter 库
    已确认 16KB 对齐；后续升级需复测。
-5. **截图保护**：`FLAG_SECURE` 静态守卫测试通过，真机截图验证待完成。
+5. **截图保护**：`SecureScreenFlagTest`（**Robolectric unit test**，在
+   `:app:testDebugUnitTest` 中运行）已通过，真机截图验证待完成。它属于
+   unit test，不是 androidTest/instrumentation 测试。
 
 ## 5. 提交
 

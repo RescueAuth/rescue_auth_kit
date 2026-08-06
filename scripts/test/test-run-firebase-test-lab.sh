@@ -88,8 +88,16 @@ if [[ "${1:-}" == "auth" && "${2:-}" == "revoke" ]]; then
     exit 0
 fi
 if [[ "${1:-}" == "firebase" && "${2:-}" == "test" && "${3:-}" == "android" && "${4:-}" == "models" && "${5:-}" == "describe" ]]; then
-    if [[ "${6:-}" == "Pixel_7" ]]; then
-        printf '{"form":"virtual","supportedVersionIds":["33","31","30"]}'
+    if [[ "${6:-}" == "MediumPhone.arm" ]]; then
+        printf '{"form":"virtual","supportedVersionIds":["33","31","30"],"deprecated":false,"reducedStability":false}'
+        exit 0
+    fi
+    if [[ "${6:-}" == "DeprecatedModel" ]]; then
+        printf '{"form":"virtual","supportedVersionIds":["33"],"deprecated":true,"reducedStability":false}'
+        exit 0
+    fi
+    if [[ "${6:-}" == "ReducedModel" ]]; then
+        printf '{"form":"virtual","supportedVersionIds":["33"],"deprecated":false,"reducedStability":true}'
         exit 0
     fi
     printf '{"error":"model not found"}' >&2
@@ -124,7 +132,7 @@ common_env() {
     export TEST_APK="$TEST_WORKSPACE/app-debug-androidTest.apk"
     export FIREBASE_PROJECT_ID="rescue-auth-kit-test"
     export GCP_SERVICE_ACCOUNT_JSON_BASE64="$FAKE_SECRET_B64"
-    export FTL_DEVICE_MODEL="Pixel_7"
+    export FTL_DEVICE_MODEL="MediumPhone.arm"
     export FTL_DEVICE_VERSION="33"
     export FTL_DEVICE_LOCALE="en"
     export FTL_DEVICE_ORIENTATION="portrait"
@@ -301,11 +309,31 @@ assert_contains "$RUNNER_OUT" "Pixel_NotAReal" "names the bad model"
 echo
 echo "== 17. device version unsupported -> CONFIGURATION FAILURE =="
 common_env
-export FTL_DEVICE_MODEL="Pixel_7"
+export FTL_DEVICE_MODEL="MediumPhone.arm"
 export FTL_DEVICE_VERSION="99"
 run_runner
 assert_eq "$RUNNER_RC" "1" "exit 1"
 assert_contains "$RUNNER_OUT" "CONFIGURATION_FAILURE" "CONFIGURATION FAILURE"
+
+echo
+echo "== 17b. deprecated model -> CONFIGURATION FAILURE =="
+common_env
+export FTL_DEVICE_MODEL="DeprecatedModel"
+export FTL_DEVICE_VERSION="33"
+run_runner
+assert_eq "$RUNNER_RC" "1" "exit 1"
+assert_contains "$RUNNER_OUT" "CONFIGURATION_FAILURE" "CONFIGURATION FAILURE"
+assert_contains "$RUNNER_OUT" "deprecated" "names the deprecated flag"
+
+echo
+echo "== 17c. reduced_stability model -> CONFIGURATION FAILURE =="
+common_env
+export FTL_DEVICE_MODEL="ReducedModel"
+export FTL_DEVICE_VERSION="33"
+run_runner
+assert_eq "$RUNNER_RC" "1" "exit 1"
+assert_contains "$RUNNER_OUT" "CONFIGURATION_FAILURE" "CONFIGURATION FAILURE"
+assert_contains "$RUNNER_OUT" "reduced_stability" "names the reduced_stability flag"
 
 echo
 echo "== 18. cleanup trap removes temp files on failure path =="

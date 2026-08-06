@@ -59,6 +59,23 @@ main:
 `pull_request`、`issue`、`issue.comment@npc`、`pull_request.comment@npc`、
 `tag` 事件以及其他分支、手动且不受保护的触发器都**不得**导入密钥。
 
+> **`imports` 作用域说明（重要）**：`imports` 是 **Pipeline 级**配置，不是
+> Stage 级。一旦 `main.push` 流水线（`full-cloud-test-loop`）开始执行，注入的
+> 密钥变量对该流水线的**全部 stage 可见**：core/JVM tests、Robolectric、
+> lint、debug APK、androidTest APK、changed-file gate、firebase-test-lab
+> **都能读到**。**并非只有 `firebase-test-lab` stage 能看到**——
+> "只有 main push 流水线能导入"与"只有 FTL stage 能看到"是两个不同的事实，
+> 前者为真（密钥仓库的 repository/event/branch 限制），后者为假
+> （pipeline 级 `imports` 对整条流水线生效）。
+>
+> 当前 CNB 无法把 pipeline 级 `imports` 限制到单一 stage；按最小权限原则，
+> 若未来某密钥仅需单个 Stage 使用，应改为 Stage 级 `imports`（仅对该 Stage
+> 生效）。**本 PR 不引入任何跨流水线编排**，仅记录上述事实。
+>
+> **仓库治理要求**：`main` 必须保持为**保护分支**；所有 `.cnb.yml`、
+> Gradle 脚本与构建脚本（`scripts/*.sh` 等）的变更都必须经过**人工 diff
+> 审查**后才能合并。
+
 ---
 
 ## 3. PR 分支为什么不能真实运行 Test Lab
@@ -73,6 +90,14 @@ PR 分支（如 `auto/xxx`）不属于 `main`，无法满足密钥仓库
 
 这是一个有意的安全边界：防止任意 PR 提交消耗测试配额或触发云端设备。
 
+> **Test Lab 只运行 androidTest APK 中的测试**：FTL instrumentation matrix
+> 只执行 `--test=<TEST_APK>`（`app-debug-androidTest.apk`）中的用例。
+> JVM unit test 与 Robolectric unit test（含 `SecureScreenFlagTest`）在
+> 本地 stage（`:app:testDebugUnitTest`）中运行，**不会**被 Test Lab 执行。
+> `SecureScreenFlagTest` 是 **Robolectric unit test**（位于
+> `v2/app/src/test/`，`@RunWith(RobolectricTestRunner)`），不是
+> androidTest/instrumentation test。
+
 ---
 
 ## 4. 所需环境变量
@@ -85,7 +110,7 @@ PR 分支（如 `auto/xxx`）不属于 `main`，无法满足密钥仓库
 | `TEST_APK`                     | androidTest debug APK 的确定路径             | 否   |
 | `FIREBASE_PROJECT_ID`          | Firebase 项目 ID                             | 是   |
 | `GCP_SERVICE_ACCOUNT_JSON_BASE64` | GCP 服务账号 JSON 的 Base64                  | 是   |
-| `FTL_DEVICE_MODEL`             | 虚拟设备型号（如 `Pixel_7`）                  | 否   |
+| `FTL_DEVICE_MODEL`             | 虚拟设备型号（如 `MediumPhone.arm`）            | 否   |
 | `FTL_DEVICE_VERSION`           | 虚拟设备 Android API 版本                    | 否   |
 | `FTL_DEVICE_LOCALE`            | locale（固定 `en`）                          | 否   |
 | `FTL_DEVICE_ORIENTATION`       | 方向（固定 `portrait`）                       | 否   |
@@ -111,17 +136,21 @@ Gradle properties、用户 home 的永久文件或仓库目录。
 设备配置通过非敏感环境变量固定：
 
 ```text
-FTL_DEVICE_MODEL=Pixel_7
+FTL_DEVICE_MODEL=MediumPhone.arm
 FTL_DEVICE_VERSION=33
 FTL_DEVICE_LOCALE=en
 FTL_DEVICE_ORIENTATION=portrait
 FTL_TEST_TIMEOUT=5m
 ```
 
+`MediumPhone.arm` 是 Test Lab 目录中的 **VIRTUAL（虚拟/模拟器）** 型号，
+API 33 受其支持。**不得改用 `panther`**：`panther` 对应的是 Pixel 7
+**实体设备**，不符合本流水线"只使用一台虚拟设备"的约束。
+
 脚本在提交矩阵前会通过已认证的 gcloud 查询 FTL 设备目录：
 
 ```bash
-gcloud firebase test android models describe Pixel_7
+gcloud firebase test android models describe MediumPhone.arm
 ```
 
 校验规则：
@@ -131,7 +160,10 @@ gcloud firebase test android models describe Pixel_7
 3. 若配置不可用，报告 `CONFIGURATION FAILURE` 并失败，**绝不静默换成随机设备**；
 4. 只提交**一个**矩阵（单台虚拟设备），不创建多设备矩阵；
 5. **不启用**自动重试或 flaky retry；
-6. **不启用** Android Test Orchestrator（仓库此前未配置，接入时保持测试运行模型不变）。
+6. **不启用** Android Test Orchestrator（仓库此前未配置，接入时保持测试运行模型不变）；
+7. 目录条目中 `deprecated` 为真的 model **一律拒绝**，报告 `CONFIGURATION FAILURE`；
+8. 目录条目中 `reducedStability` 为真的 model **一律拒绝**，报告 `CONFIGURATION FAILURE`；
+9. `panther`（Pixel 7 实体设备）**禁止**作为本流水线的设备。
 
 日志中会输出最终使用的 model、API version、locale、orientation、timeout。
 
