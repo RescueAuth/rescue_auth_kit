@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivity is an AppCompatActivity and therefore requires an
+         AppCompat theme; a plain platform Material theme makes
+         AppCompatDelegate throw IllegalStateException in setContentView. -->
+    <style name="Theme.RescueAuth" parent="Theme.AppCompat.Light.NoActionBar" />
+</resources>
