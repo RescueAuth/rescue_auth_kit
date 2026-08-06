@@ -56,6 +56,19 @@ android {
     }
 }
 
+tasks.configureEach {
+    if (name == "testDebugUnitTest") {
+        // PageSize16KTest inspects the real packaged APK; the unit test task
+        // must not run before the APK exists (the test fails loudly if it is
+        // missing).
+        dependsOn("assembleDebug")
+        (this as Test).systemProperty(
+            "rescueauth.debugApk",
+            layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile.absolutePath,
+        )
+    }
+}
+
 dependencies {
     implementation(project(":core"))
     implementation(libs.androidx.core.ktx)

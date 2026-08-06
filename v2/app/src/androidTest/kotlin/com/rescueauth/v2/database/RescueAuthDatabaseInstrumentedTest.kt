@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -18,6 +19,9 @@ import org.junit.runner.RunWith
  * execution is UNFINISHED (marked per contract).
  *
  * Run with: `./gradlew :app:connectedDebugAndroidTest`
+ *
+ * Method names are valid Java/Kotlin identifiers (no backtick spaces) so the
+ * DEX builder accepts them for minSdk 26.
  */
 @RunWith(AndroidJUnit4::class)
 class RescueAuthDatabaseInstrumentedTest {
@@ -27,7 +31,7 @@ class RescueAuthDatabaseInstrumentedTest {
     private val testKey: ByteArray = ByteArray(32) { it.toByte() }
 
     @Test
-    fun `encrypted database opens and persists across reopen`() = runBlocking {
+    fun encryptedDatabaseOpensAndPersistsAcrossReopen() = runBlocking {
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
         var db = RescueAuthDatabase.build(context, testKey)
         db.authAccountDao().insertAll(
@@ -48,7 +52,7 @@ class RescueAuthDatabaseInstrumentedTest {
     }
 
     @Test
-    fun `wrong key fails to open encrypted database`() = runBlocking {
+    fun wrongKeyFailsToOpenEncryptedDatabase() = runBlocking {
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
         val db = RescueAuthDatabase.build(context, testKey)
         db.authAccountDao().insertAll(
@@ -71,7 +75,7 @@ class RescueAuthDatabaseInstrumentedTest {
     }
 
     @Test
-    fun `database file exists on disk and is encrypted`() = runBlocking {
+    fun databaseFileExistsOnDiskAndIsEncrypted() = runBlocking {
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
         val db = RescueAuthDatabase.build(context, testKey)
         db.authAccountDao().count()
@@ -83,7 +87,7 @@ class RescueAuthDatabaseInstrumentedTest {
     }
 
     @Test
-    fun `corrupted database file fails safely without crashing the process`() = runBlocking {
+    fun corruptedDatabaseFileFailsSafelyWithoutCrashingTheProcess() = runBlocking {
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
         // Write garbage bytes (not even a SQLCipher header).
         val file = context.getDatabasePath(RescueAuthDatabase.DB_NAME)
@@ -100,14 +104,15 @@ class RescueAuthDatabaseInstrumentedTest {
         } finally {
             db?.let { RescueAuthDatabase.closeDatabase(it) }
         }
-        // The app must not crash; either it throws a recoverable exception or
-        // the corrupted file is detected. (The UI should then offer restore.)
-        assertTrue("corrupted DB should fail safely", threw || true)
+        // The app must not crash; opening a corrupted (non-SQLCipher) file
+        // must surface as a recoverable exception instead of a process abort.
+        // This is a REAL assertion: it fails if SQLCipher silently succeeds.
+        assertTrue("corrupted DB must throw a recoverable exception", threw)
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
     }
 
     @Test
-    fun `reopen after close with same key keeps data (process-restart simulation)`() = runBlocking {
+    fun reopenAfterCloseWithSameKeyKeepsDataProcessRestartSimulation() = runBlocking {
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
         var db = RescueAuthDatabase.build(context, testKey)
         db.authAccountDao().insertAll(
@@ -120,6 +125,35 @@ class RescueAuthDatabaseInstrumentedTest {
         db = RescueAuthDatabase.build(context, testKey)
         assertNotNull(db.authAccountDao().getById("acc-p"))
         RescueAuthDatabase.closeDatabase(db)
+        context.deleteDatabase(RescueAuthDatabase.DB_NAME)
+    }
+
+    @Test
+    fun corruptedDatabaseFileIsRejectedEvenIfItHasValidSqliteHeader() = runBlocking {
+        // Guard against the weakest possible implementation: a database that
+        // is plain SQLite (no SQLCipher header/encryption) must NOT be treated
+        // as a valid encrypted vault.
+        context.deleteDatabase(RescueAuthDatabase.DB_NAME)
+        val file = context.getDatabasePath(RescueAuthDatabase.DB_NAME)
+        file.parentFile?.mkdirs()
+        // Write a minimal but VALID plain-SQLite header ("SQLite format 3\0").
+        val header = ByteArray(4096)
+        val magic = "SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)
+        System.arraycopy(magic, 0, header, 0, magic.size)
+        file.writeBytes(header)
+
+        var threw = false
+        var db: RescueAuthDatabase? = null
+        try {
+            db = RescueAuthDatabase.build(context, testKey)
+            db!!.authAccountDao().count()
+            fail("plain SQLite file must not open as an encrypted vault")
+        } catch (_: Exception) {
+            threw = true
+        } finally {
+            db?.let { RescueAuthDatabase.closeDatabase(it) }
+        }
+        assertTrue("plain SQLite file must be rejected", threw)
         context.deleteDatabase(RescueAuthDatabase.DB_NAME)
     }
 }

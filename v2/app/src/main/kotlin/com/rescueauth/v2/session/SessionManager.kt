@@ -34,7 +34,12 @@ class SessionManager(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     private val databaseFactory: (Context, ByteArray) -> RescueAuthDatabase =
         { ctx, key -> RescueAuthDatabase.build(ctx, key) },
+    // Injectable so platform tests can supply a fake VaultKeyManager instead
+    // of the real AndroidKeyStore-backed one (Robolectric has no Keystore).
+    private val vaultKeyManagerFactory: (Context) -> VaultKeyManager =
+        { VaultKeyManager.production(it) },
 ) {
+    private val vaultKeyManager: VaultKeyManager by lazy { vaultKeyManagerFactory(context) }
     private var database: RescueAuthDatabase? = null
     private var vaultKey: ByteArray? = null
     private var lockTimerJob: Job? = null
@@ -45,13 +50,13 @@ class SessionManager(
     fun databaseOrNull(): RescueAuthDatabase? = database
 
     /** @return true if a wrapped VaultKey exists (first-run check). */
-    fun needsFirstRunSetup(): Boolean = !VaultKeyManager.production(context).hasVaultKey
+    fun needsFirstRunSetup(): Boolean = !vaultKeyManager.hasVaultKey
 
     /**
      * First-run setup: generate + wrap the VaultKey. Returns the fresh key
      * so the caller can open the DB immediately (caller zeroes it after).
      */
-    fun createVault(): ByteArray = VaultKeyManager.production(context).generateAndWrap()
+    fun createVault(): ByteArray = vaultKeyManager.generateAndWrap()
 
     /**
      * Unlocks the session. Caller must have completed a successful
@@ -62,7 +67,7 @@ class SessionManager(
     fun unlock(): Boolean {
         if (!stateMachine.beginAuthentication()) return false
         return try {
-            val key = VaultKeyManager.production(context).unwrap()
+            val key = vaultKeyManager.unwrap()
             val db = databaseFactory(context, key)
             vaultKey?.fill(0)
             vaultKey = key
