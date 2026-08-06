@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 3,
+  "providers": [
+    {
+      "id": "prov-1",
+      "name": "GitHub",
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "updatedAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "prov-2",
+      "name": "Google",
+      "createdAt": "2024-02-01T08:00:00.000Z",
+      "updatedAt": "2024-02-01T08:00:00.000Z"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "acc-1",
+      "providerId": "prov-1",
+      "displayName": "alice@example.com",
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "updatedAt": "2024-01-15T10:30:00.000Z",
+      "credentials": [
+        {
+          "kind": "totp",
+          "id": "cred-1",
+          "createdAt": "2024-01-15T10:30:00.000Z",
+          "secretBase32": "JBSWY3DPEHPK3PXP",
+          "algorithm": "SHA1",
+          "digits": 6,
+          "period": 30
+        },
+        {
+          "kind": "recoveryCodes",
+          "id": "cred-2",
+          "createdAt": "2024-01-15T10:31:00.000Z",
+          "codes": [
+            "AAAA-BBBB-CCCC",
+            "DDDD-EEEE-FFFF",
+            "1111-2222-3333"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acc-2",
+      "providerId": "prov-2",
+      "displayName": "bob@example.com",
+      "createdAt": "2024-02-01T08:00:00.000Z",
+      "updatedAt": "2024-02-01T08:00:00.000Z",
+      "credentials": [
+        {
+          "kind": "totp",
+          "id": "cred-3",
+          "createdAt": "2024-02-01T08:00:00.000Z",
+          "secretBase32": "4F6VS6KX3UXWY2FQ",
+          "algorithm": "SHA256",
+          "digits": 6,
+          "period": 30
+        }
+      ]
+    }
+  ],
+  "developerSettings": {
+    "enabled": true
+  },
+  "developerEntries": [
+    {
+      "id": "dev-1",
+      "type": "genericSecret",
+      "title": "Test secret",
+      "notes": "placeholder",
+      "createdAt": "2024-06-01T00:00:00.000Z",
+      "updatedAt": "2024-06-01T00:00:00.000Z",
+      "payload": {
+        "value": "test-placeholder"
+      }
+    }
+  ]
+}

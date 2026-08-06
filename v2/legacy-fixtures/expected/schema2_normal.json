@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 2,
+  "totpEntries": [
+    {
+      "id": "totp-s1-rfc",
+      "issuer": "GitHub",
+      "accountName": "alice@example.com",
+      "secretBase32": "JBSWY3DPEHPK3PXP",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "totp-s1-256",
+      "issuer": "Google",
+      "accountName": "bob@example.com",
+      "secretBase32": "4F6VS6KX3UXWY2FQ",
+      "algorithm": "SHA256",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-02-01T08:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-512",
+      "issuer": "GitLab",
+      "accountName": "carol@example.com",
+      "secretBase32": "STZIM5KBOBYCYB3W",
+      "algorithm": "SHA512",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-03-01T09:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-d8",
+      "issuer": "AWS",
+      "accountName": "admin@example.com",
+      "secretBase32": "NIXKFFK6UF64LASU",
+      "algorithm": "SHA1",
+      "digits": 8,
+      "period": 30,
+      "createdAt": "2024-04-01T10:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-p60",
+      "issuer": "Dropbox",
+      "accountName": "dave@example.com",
+      "secretBase32": "WHR5YMQX45DCKNMH",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "period": 60,
+      "createdAt": "2024-05-01T11:00:00.000Z"
+    }
+  ],
+  "recoveryCodeSets": [
+    {
+      "id": "rcs-s1",
+      "title": "GitHub backup codes",
+      "codes": [
+        "AAAA-BBBB-CCCC",
+        "DDDD-EEEE-FFFF",
+        "1111-2222-3333"
+      ],
+      "createdAt": "2024-01-15T10:31:00.000Z"
+    }
+  ],
+  "developerSettings": {
+    "enabled": true
+  },
+  "developerEntries": [
+    {
+      "id": "dev-1",
+      "type": "apiCredential",
+      "title": "Example API",
+      "notes": "placeholder",
+      "createdAt": "2024-06-01T00:00:00.000Z",
+      "updatedAt": "2024-06-01T00:00:00.000Z",
+      "payload": {
+        "apiKey": "sk-test-placeholder",
+        "baseUrl": "https://example.com"
+      }
+    },
+    {
+      "id": "dev-2",
+      "type": "sshKey",
+      "title": "Deploy key",
+      "notes": "",
+      "createdAt": "2024-06-02T00:00:00.000Z",
+      "updatedAt": "2024-06-02T00:00:00.000Z",
+      "payload": {
+        "privateKey": "-----BEGIN TEST KEY-----",
+        "fingerprint": "aa:bb"
+      }
+    }
+  ]
+}

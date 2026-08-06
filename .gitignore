@@ -52,3 +52,6 @@ app.*.map.json
 **/key.properties
 signing/*.local.json
 signing/*.local.properties
+
+# Legacy fixture generator output (canonical copy lives in v2/legacy-fixtures)
+tools/legacy_fixtures/legacy-fixtures/
