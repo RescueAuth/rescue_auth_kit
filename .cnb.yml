@@ -1,0 +1,21 @@
+$:
+  issue.comment@npc:
+    - name: npc-issue-comment
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc go
+          type: npc:go
+          options:
+            model: deepseek-v4-flash
+            contextWindow: "1m"
+  pull_request.comment@npc:
+    - name: npc-pr-comment
+      docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc go
+          type: npc:go
+          options:
+            model: deepseek-v4-flash
+            contextWindow: "1m"
