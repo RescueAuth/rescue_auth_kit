@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Never back up the encrypted database to cloud backups: the VaultKey is
+     device-bound and cloud backup of the DB could leak wrapped state. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="vault_key_wrapped.b64" />
+        <exclude domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="vault_key_wrapped.b64" />
+    </device-transfer>
+</data-extraction-rules>
