@@ -98,30 +98,40 @@ XChaCha20-Poly1305 解密（先验证 MAC）→ UTF-8 JSON。
 
 ### 5.1 AuthAccount（新表）
 
-旧模型没有直接的"账户"扁平对象，映射规则：
+旧模型没有直接的“账户”扁平对象。映射规则**按条目（entry-centric）**，
+**禁止按 issuer 合并账户、禁止只保留首个 accountName**：
 
-- **schema 1/2**：`totpEntries` 按 `issuer`（trim + 小写）分桶。
-  - 每个桶 → 1 个 `AuthAccount`。
-  - `serviceName` = 桶内首个非空 issuer（空 issuer 用 `"Untitled"`）。
-  - `accountName` = 桶内首个非空 `accountName`；若为空则回退到 issuer 或 `"Account"`。
-  - 桶内其余条目 → 同一账户下的多个 `TotpCredential`。
+- **schema 1/2（TOTP）**：`totpEntries` 中**每条**条目 → **1 个独立 `AuthAccount`**。
+  - `serviceName` = 该条目自己的 `issuer`（trim，空则 `"Untitled"`）。
+  - `accountName` = 该条目自己的 `accountName`（trim，空则回退到 issuer 或 `"Account"`）。
+  - 该条目自己的 `secretBase32`/`algorithm`/`digits`/`period` → 该账户下唯一的 1 条 `TotpCredential`（原样保留，禁止 normalize）。
+  - 相同 `serviceName` **只允许在 UI 中分组**；不得合并账户、不得丢弃任何 accountName、
+    不得把同 issuer 的多条合并到同一账户下的多个 credential。
   - `recoveryCodeSets` 每个 set → 1 个独立 `AuthAccount`：
-    `serviceName` = set.title（空则 `"Recovery codes"`），`accountName` 同上。
-- **schema 3**：1 个 `Account` → 1 个 `AuthAccount`：
-  `serviceName` = 其 `provider.name`，`accountName` = `account.displayName`。
+    `serviceName` = set.title（空则 `"Recovery codes"`），`accountName` 同规则。
+- **schema 3**：1 个 `Account` → 1 个 `AuthAccount`（保持映射不变）：
+  `serviceName` = 其 `provider.name`，`accountName` = `account.displayName`；
+  该 Account 下的 `totp` / `recoveryCodes` credentials 作为子行挂在该账户下。
 - `favorite` = false（旧版无收藏概念）。
 - `notes` = null。
 - `sortOrder` = 导入顺序递增（0,1,2,...）。
 - `createdAt`/`updatedAt` = 旧对象对应时间，缺失用导入时刻。
-- `legacySourceId` = 旧 id（schema 1/2 为桶内第一个条目的 id；schema 3 为 account.id）。
+- `legacySourceId`：schema 1/2 为该条目的 id；schema 3 为 account.id。
 
 ### 5.2 TotpCredential（新表）
 
-- schema 1/2：每条 `totpEntries[i]` → 1 条 `TotpCredential`。
-- schema 3：每个 `kind=="totp"` credential → 1 条。
-- `secretBase32` = 旧 `secretBase32`（原样，禁止 normalize 丢失字节）。
-- `algorithm`：SHA1/SHA256/SHA512 直接映射；未知值按 SHA1 处理并记 warning。
-- `digits`/`periodSeconds`：默认 6/30，0 或负值视为无效并记 warning。
+- schema 1/2：每条 `totpEntries[i]` → 1 条 `TotpCredential`（挂在**自己的** `AuthAccount` 下）。
+- schema 3：每个 `kind=="totp"` credential → 1 条（挂在其所属 Account 的 `AuthAccount` 下）。
+- `secretBase32` = 旧 `secretBase32`（原样，禁止 normalize 丢字节）。
+- **非法 / 未知参数策略（phase 1 fix，禁止静默替换）**：
+  - 未知或缺失 `algorithm`（非 SHA1/SHA256/SHA512）、`digits` ∉ {6,7,8}、
+    `period <= 0`、或 base32 secret 非法 → **不得**被静默替换成 SHA1/6/30 后作为正常凭据导入
+    （那样会生成与旧应用不一致的错误 TOTP）。
+  - 正确做法：**保留原始字段**（不改写），标记为**不可用**，列入**未导入报告**
+    （`ImportRecord.warningCount` + 报告列出 sourceId/issuer/accountName/原因/原始参数），
+    不写入数据库。
+  - 解析器与 validator 都不会回填默认值：缺失字段以 null 保留，由
+    `LegacyTotpValidator`（`usability=invalid`）→ `LegacyToV2Mapper` 排除。
 - `legacySourceId` = 旧 credential id。
 
 ### 5.3 RecoveryCodeSet / RecoveryCode（新表）
@@ -155,6 +165,8 @@ v1 明确不做 Developer 密钥管理，因此：
 | `schema2/schema2_normal.rakvault` | `4129e2d44808dee3763f8f6484ff98457517e51908886104d71ddc85a4910533` | 2505 B | schema 2；含 Developer 数据（apiCredential、sshKey） |
 | `schema3/schema3_normal.rakvault` | `967b1a89499eabf2e4464156f9532b4a01610e55668c7a41beaa527b140dbbb7` | 2017 B | schema 3；providers/accounts/credentials + Developer |
 | `schema1/rfc4226_sha1_secret.rakvault` | `a8d05fa6c1124be03d59424bf658eb6f70054b7a58eb6cb09de774d1d3ad4518` | 641 B | RFC 4226 测试向量 secret（`GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ`，SHA1/6/30） |
+| `schema1/schema1_same_issuer_multi_account.rakvault` | `903910bcb3e860debe9981f301a191f3fb64f92f36c2bb14479e7277fa19348b` | 1317 B | schema 1；同一 issuer（GitHub）下 3 个不同 accountName（alice/bob/carol）+ 恢复码。**必须 1 条 → 1 个 AuthAccount** |
+| `schema1/schema1_invalid_totp_params.rakvault` | `8b764df75e0cb7cb0dd4c35a3d42d51414f6d79a42a20b056c11508fcf3912b7` | 1877 B | schema 1；1 条合法 + 5 条非法参数（未知 algorithm MD5 / digits=0 / period=-30 / 缺 algorithm / 非法 base32）。**必须保留原始值并列入未导入报告，禁止静默替换** |
 
 ### 6.2 负向（必须安全失败，不得崩溃/不得改变当前数据库）
 
@@ -178,6 +190,8 @@ v1 明确不做 Developer 密钥管理，因此：
 | `schema2_normal` | `test-password-2` |
 | `schema3_normal` | `test-password-3` |
 | `rfc4226_sha1_secret` | `rfc-test` |
+| `schema1_same_issuer_multi_account` | `test-password-1` |
+| `schema1_invalid_totp_params` | `test-password-1` |
 | 负向（除 wrong_password 外） | `test-password-1` |
 
 密码仅用于测试工具与 Kotlin importer 测试；真实导入中密码由用户输入一次，不落盘。
@@ -198,8 +212,16 @@ nonceB64:       解码后必须为 24 字节（XChaCha20-Poly1305）
 
 ## 8. 兼容性验收
 
-- Kotlin importer 对上述 9 个 fixture 的验证结果与 Dart 验证工具完全一致：
-  正向 4 个全部解密到预期明文；负向 5 个全部安全失败。
-- 导入时 TOTP 参数逐条校验，并对每个 TOTP 计算**测试时刻验证码**
-  （RFC 6238，固定测试时刻），与 RFC 4226 向量一致。
+- Kotlin importer 对上述 fixture 的验证结果与 Dart 验证工具完全一致：
+  正向 fixture 全部解密到预期明文；负向全部安全失败。
+- **phase 1 fix 追加验收**（`LegacyToV2MapperTest`）：
+  - `schema1_same_issuer_multi_account`：同一 issuer 下 3 个不同 accountName
+    → 3 个独立 AuthAccount（各自完整保留 issuer/accountName/TotpCredential），
+    `sortOrder` 唯一，不合并不丢弃。
+  - `schema1_invalid_totp_params`：5 条非法 TOTP 全部**保留原始字段**并列入
+    未导入报告（原因含具体值），合法条目仍正常导入。
+  - schema 3 保持 1 个旧 Account → 1 个 AuthAccount（TOTP + recoveryCodes
+    作为子行）。
+- 导入时 TOTP 参数逐条校验，并对每个**可导入** TOTP 计算**测试时刻验证码**
+  （RFC 6238，固定测试时刻），与 RFC 4226 向量一致；不可导入条目不计算。
 - 任一失败不得改变当前数据库（先 checkpoint，失败即中止）。

@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "totpEntries": [
+    {
+      "id": "totp-s1-ok",
+      "issuer": "GitHub",
+      "accountName": "alice@example.com",
+      "secretBase32": "JBSWY3DPEHPK3PXP",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "totp-s1-badalgo",
+      "issuer": "Google",
+      "accountName": "bob@example.com",
+      "secretBase32": "4F6VS6KX3UXWY2FQ",
+      "algorithm": "MD5",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-02-01T08:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-baddigits",
+      "issuer": "AWS",
+      "accountName": "admin@example.com",
+      "secretBase32": "NIXKFFK6UF64LASU",
+      "algorithm": "SHA1",
+      "digits": 0,
+      "period": 30,
+      "createdAt": "2024-04-01T10:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-badperiod",
+      "issuer": "Dropbox",
+      "accountName": "dave@example.com",
+      "secretBase32": "WHR5YMQX45DCKNMH",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "period": -30,
+      "createdAt": "2024-05-01T11:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-noalgo",
+      "issuer": "GitLab",
+      "accountName": "carol@example.com",
+      "secretBase32": "UIMXBNMCNNTG23MB",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-03-01T09:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-badsecret",
+      "issuer": "Notion",
+      "accountName": "eve@example.com",
+      "secretBase32": "INVALID!!!",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-06-01T09:00:00.000Z"
+    }
+  ],
+  "recoveryCodeSets": []
+}

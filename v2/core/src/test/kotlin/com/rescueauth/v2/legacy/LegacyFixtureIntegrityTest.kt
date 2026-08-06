@@ -21,6 +21,9 @@ class LegacyFixtureIntegrityTest {
         "truncated_ciphertext" to "51d7041a96a9d6f307689a40508d99415e49f71d6a105cd2f40b256a875044ad",
         "wrong_mac" to "a696d1f0978e11a41c996756eb62be0a548570c19a9172d7bd62548f6e514850",
         "extreme_kdf_params" to "a93bf914d93e06fe59af718363b3daec346425fd2977e15f4685d787fb818227",
+        // Phase 1 fix: additive fixtures (see docs/LEGACY_IMPORT.md §6.1)
+        "schema1_same_issuer_multi_account" to "903910bcb3e860debe9981f301a191f3fb64f92f36c2bb14479e7277fa19348b",
+        "schema1_invalid_totp_params" to "8b764df75e0cb7cb0dd4c35a3d42d51414f6d79a42a20b056c11508fcf3912b7",
     )
 
     @Test

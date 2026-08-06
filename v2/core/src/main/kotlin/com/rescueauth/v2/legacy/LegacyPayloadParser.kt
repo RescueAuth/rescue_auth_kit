@@ -1,7 +1,5 @@
 package com.rescueauth.v2.legacy
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -13,6 +11,14 @@ import kotlinx.serialization.json.jsonPrimitive
  * Parses legacy payload schema versions 1/2/3 into a uniform
  * [LegacyImportBundle]. Field shapes mirror `lib/core/vault/vault_models.dart`
  * at tag `v1.2.0` (schema 1 = d50d806, schema 2 = 922ddcb, schema 3 = HEAD).
+ *
+ * ## Raw preservation (phase 1 fix)
+ *
+ * `algorithm`, `digits` and `period` are kept **verbatim** from the source
+ * (missing fields → null). The parser NEVER defaults them to SHA1 / 6 / 30 —
+ * validation and the "usable / not imported" decision live in
+ * [LegacyTotpValidator] / [LegacyToV2Mapper], where silent substitution is
+ * forbidden.
  */
 object LegacyPayloadParser {
 
@@ -107,11 +113,12 @@ object LegacyPayloadParser {
                             issuer = serviceName,
                             accountName = displayName,
                             secretBase32 = cred["secretBase32"]?.jsonPrimitive?.content ?: "",
-                            algorithm = cred["algorithm"]?.jsonPrimitive?.content ?: "SHA1",
-                            digits = cred["digits"]?.jsonPrimitive?.content?.toIntOrNull() ?: 6,
-                            period = cred["period"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30,
+                            algorithm = cred["algorithm"]?.jsonPrimitive?.content ?: "",
+                            digits = cred["digits"]?.jsonPrimitive?.content?.toIntOrNull(),
+                            period = cred["period"]?.jsonPrimitive?.content?.toIntOrNull(),
                             createdAt = cred["createdAt"]?.jsonPrimitive?.content ?: createdAt,
                             legacySourceId = cred["id"]?.jsonPrimitive?.content,
+                            legacyAccountId = accountId,
                         )
                     )
 
@@ -124,6 +131,7 @@ object LegacyPayloadParser {
                                 ?: emptyList(),
                             createdAt = cred["createdAt"]?.jsonPrimitive?.content ?: createdAt,
                             legacySourceId = cred["id"]?.jsonPrimitive?.content,
+                            legacyAccountId = accountId,
                         )
                     )
                 }
@@ -156,9 +164,9 @@ object LegacyPayloadParser {
             issuer = o["issuer"]?.jsonPrimitive?.content ?: "",
             accountName = o["accountName"]?.jsonPrimitive?.content ?: "",
             secretBase32 = secret,
-            algorithm = o["algorithm"]?.jsonPrimitive?.content ?: "SHA1",
-            digits = o["digits"]?.jsonPrimitive?.content?.toIntOrNull() ?: 6,
-            period = o["period"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30,
+            algorithm = o["algorithm"]?.jsonPrimitive?.content ?: "",
+            digits = o["digits"]?.jsonPrimitive?.content?.toIntOrNull(),
+            period = o["period"]?.jsonPrimitive?.content?.toIntOrNull(),
             createdAt = o["createdAt"]?.jsonPrimitive?.content,
             legacySourceId = o["id"]?.jsonPrimitive?.content,
         )

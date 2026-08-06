@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "totpEntries": [
+    {
+      "id": "totp-s1-ga-1",
+      "issuer": "GitHub",
+      "accountName": "alice@example.com",
+      "secretBase32": "JBSWY3DPEHPK3PXP",
+      "algorithm": "SHA1",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "id": "totp-s1-ga-2",
+      "issuer": "GitHub",
+      "accountName": "bob@example.com",
+      "secretBase32": "4F6VS6KX3UXWY2FQ",
+      "algorithm": "SHA256",
+      "digits": 6,
+      "period": 30,
+      "createdAt": "2024-02-01T08:00:00.000Z"
+    },
+    {
+      "id": "totp-s1-ga-3",
+      "issuer": "GitHub",
+      "accountName": "carol@example.com",
+      "secretBase32": "STZIM5KBOBYCYB3W",
+      "algorithm": "SHA512",
+      "digits": 8,
+      "period": 30,
+      "createdAt": "2024-03-01T09:00:00.000Z"
+    }
+  ],
+  "recoveryCodeSets": [
+    {
+      "id": "rcs-s1-ga",
+      "title": "GitHub backup codes",
+      "codes": [
+        "AAAA-BBBB-CCCC",
+        "DDDD-EEEE-FFFF"
+      ],
+      "createdAt": "2024-01-15T10:31:00.000Z"
+    }
+  ]
+}

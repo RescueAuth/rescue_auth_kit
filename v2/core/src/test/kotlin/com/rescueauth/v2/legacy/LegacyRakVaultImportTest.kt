@@ -36,7 +36,6 @@ class LegacyRakVaultImportTest {
         assertEquals("SHA1", first.algorithm)
         assertEquals(6, first.digits)
         assertEquals(30, first.period)
-
         assertEquals(listOf("AAAA-BBBB-CCCC", "DDDD-EEEE-FFFF", "1111-2222-3333"),
             bundle.recoveryCodeSets.first().codes)
         assertEquals(0, bundle.developerCount)

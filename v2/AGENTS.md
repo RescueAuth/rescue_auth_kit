@@ -57,3 +57,4 @@ cd v2 && ./gradlew :core:test :app:assembleDebug
 ## 关键决策索引
 
 - `docs/ADRS/ADR-0001-legacy-import-frozen-baseline.md`
+- `docs/ADRS/ADR-0002-xchacha20-native-bc185.md`（BC 1.85 原生 XChaCha20-Poly1305，移除自实现 HChaCha20）
