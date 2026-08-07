@@ -349,15 +349,23 @@ Test Lab 结果默认存放在 Firebase 项目绑定的默认 Cloud Storage 桶�
 
 ---
 
-## 15. PR 合并后的首次运行说明
+## 15. 首次真实执行记录（已发生）
 
-本次 PR 的行为边界：
+Firebase Test Lab 已在本仓库 `main` 上真实执行并成功：
 
-- PR 分支中 **Test Lab 未执行**（读不到密钥）；
-- `androidTest APK` 已构建但**未在设备上运行**；
-- 本 PR 合并到 `main` 产生的 push 将是**第一次真实 Test Lab 执行**；
-- 该首次运行预计只消耗**一次虚拟设备测试**；
-- 若首次运行失败，**不得自动修改产品代码或自动重试**，需人工分析
+| 项 | 值 |
+| --- | --- |
+| 提交 | `9561956b`（PR #15 合并） |
+| 构建 | `cnb-87g-1jvdnj7iu` |
+| 设备 | `MediumPhone.arm`（virtual）/ API 33 |
+| matrix | `6707992428877319626` |
+| 结果 | `FTL_RAW_GCLOUD_EXIT_CODE=0`、`FTL_EXIT_CODE=0`、`FTL_STATUS=TEST_PASSED`、`FTL_FINAL=TEST_PASSED` |
+
+行为边界（持续有效）：
+
+- PR 分支中 **Test Lab 不执行**（读不到密钥）；
+- 每次 `main` push 只有 `changed-file-gate` 判定需要时才提交一个矩阵；
+- 若某次运行失败，**不得自动修改产品代码或自动重试**，需人工分析
   `FTL_STATUS` 与退出码后决定下一步。
 
 ---

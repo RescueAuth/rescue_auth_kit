@@ -94,7 +94,10 @@ UNLOCKED ──keystore invalidated──▶ KEY_INVALIDATED (需恢复流程)
   16KB page 配置断言。
 - **Robolectric 测试**：Room + SQLCipher 生命周期、锁定后数据库关闭、
   后台超时锁定、截图保护配置、Keystore 失效（mock）。
-- **Instrumented 测试**：真机/模拟器验证（本环境无设备，标记未完成）。
+- **Instrumented 测试**：真机/模拟器验证。数据库 6 用例已在 Firebase
+  Test Lab 真实执行 **6/6 PASS**（MediumPhone.arm / API 33，见
+  PHASE2_REPORT §3）；生物识别 / Keystore 认证有效期 / 截图保护等仍为
+  non-blocking 验证缺口。
 - **Android 16KB page size**：构建产物校验（zipalign -c 16）在 CI 中执行。
 
 ### 6. BiometricPrompt 认证器决策（phase2-blocker-hotfix 补充）
@@ -117,5 +120,6 @@ button 会在 `build()` 抛 `IllegalArgumentException`，导致首次启动即�
 
 - 好处：全库加密、密钥不可导出、后台任务不触碰密钥、串行 mutation 防并发丢失。
 - 代价：引入 SQLCipher native 库（APK 增大 ~10MB 各 ABI）；需要 Robolectric
-  配置；真机验证延迟到有设备的环境。
+  配置；生物识别 / Keystore 认证有效期 / 截图保护等真机验证仍为
+  non-blocking backlog（数据库路径已通过 Firebase Test Lab 6/6 PASS）。
 - 不可逆点：数据库 schema v1、VaultKey 包装结构一旦发布，变更需 migration。

@@ -33,10 +33,12 @@ RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目�
 - **状态**：阶段 0/1 + phase1-fix + 阶段 2（加密数据库、VaultKey/Keystore、
   安全会话、自动锁、遮罩 + FLAG_SECURE）均已合并进 `main`；
   `phase2-blocker-hotfix`（PR #6）修复了 BiometricPrompt 启动崩溃并使平台
-  测试可编译、断言真实化。
+  测试可编译、断言真实化；SQLCipher native 加载已修复（PR #15）。
+  数据库 instrumented 测试（`RescueAuthDatabaseInstrumentedTest`，6 用例）
+  已在 Firebase Test Lab 真实执行 **6/6 PASS**（MediumPhone.arm / API 33）。
 - **构建**：`cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
-  （需 JDK 17 + Android SDK 35）。Instrumented 测试（6 用例）已编写且可编译，
-  执行仍需真机/模拟器。
+  （需 JDK 17 + Android SDK 35）。Instrumented 测试经 `main` push 在
+  Firebase Test Lab 执行（见 `docs/FIREBASE_TEST_LAB.md`）。
 - **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、BACKUP_FORMAT、
   THREAT_MODEL、UPDATE_PROTOCOL）。
 

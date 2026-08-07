@@ -7,8 +7,33 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 > **v2 重写（2026-08-06）**：仓库自 `main` 起进入 Android 原生重写阶段，
 > 代码位于 `v2/`（Kotlin + Room/SQLCipher），旧 Flutter 应用冻结于 tag `v1.2.0`。
-> 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix），
-> 均已合并进 `main`。
+> 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
+> phase2-closure），均已合并进 `main`。
+
+## [v2 phase2-closure] - 2026-08-07（PR #16）
+
+Phase 2 收口 / 状态同步：数据库 instrumented 验证在 Firebase Test Lab
+真实执行 6/6 PASS 后的文档状态重建 + 历史 PR #12（launcher icon）吸收。
+
+### Added
+
+- 应用启动图标（源自设计稿 SVG）：`v2/tools/launcher_icon/src/icon.svg`
+  （单一事实来源）+ 自适应图标（API 26+，含 Android 13 monochrome）+ 传统
+  PNG 回退 + 可复现生成脚本 `v2/tools/launcher_icon/generate_icons.py`；
+  `AndroidManifest.xml` 设置 `android:icon` / `android:roundIcon`。
+  （吸收 PR #12 中仍有效的产品内容，非新增功能。）
+
+### Changed
+
+- 文档状态同步：`v2/AGENTS.md`、`v2/docs/PHASE2_REPORT.md`、`README*.md`
+  更新为最新 main 真实状态：JVM/Robolectric 35/35、数据库 instrumented
+  6/6 PASS（Firebase Test Lab，MediumPhone.arm / API 33）。
+
+### Notes
+
+- 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏 / 生命周期等仍为
+  **未真机验证**的验证缺口（non-blocking backlog），见 PHASE2_REPORT §4.2。
+- Phase 3 未开始（BACKUP_FORMAT 仍为 Draft）。
 
 ## [v2 phase2-blocker-hotfix] - 2026-08-06（PR #6）
 
@@ -37,9 +62,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Verified
 
-- `:core:test` 34/34、`:app:testDebugUnitTest` 31/31、`:app:assembleDebug` 成功。
+- `:core:test` 34/34、`:app:testDebugUnitTest` 31/31（后续 PR #15 后为 35/35）、
+  `:app:assembleDebug` 成功。
 - `:app:assembleDebugAndroidTest` 编译通过（instrumented 6 用例可 dex）。
 - `:app:lintDebug` 0 error。
+
+> 注：该版本的真机 instrumented 验证尚未执行；**后续（PR #15 合并后）**
+> `RescueAuthDatabaseInstrumentedTest` 已在 Firebase Test Lab 真实执行
+> 6/6 PASS（MediumPhone.arm / API 33）。
 
 ## [v2 phase 2] - 2026-08-06（PR #5）
 
@@ -57,7 +87,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Notes
 
-- 真机 instrumented 验证待设备环境（详见 `v2/docs/PHASE2_REPORT.md`）。
+- 真机 instrumented 验证待设备环境（详见 `v2/docs/PHASE2_REPORT.md`）；
+  已于 phase2-closure 前的 main（PR #15 合并后）在 Firebase Test Lab
+  真实执行 6/6 PASS。
 
 ## [v2 phase1-fix] - 2026-08-06（PR #3）
 
