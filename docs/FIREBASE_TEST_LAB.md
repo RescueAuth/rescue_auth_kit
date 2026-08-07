@@ -214,18 +214,21 @@ gcloud firebase test android models describe MediumPhone.arm
 `CNB_BEFORE_SHA..CNB_COMMIT`（覆盖多 commit 一次 push 的完整范围，不是只看
 最后一个 commit）。
 
-只有以下路径发生变化时才运行 Test Lab：
+只有以下路径发生变化时才运行 Test Lab（严格限定在 `v2/` Gradle 工程内，
+外加 CI/Test Lab runner 自身，所有路径均以锚定前缀匹配，因此根目录的
+`docs/**`、`README*` 以及根 Flutter 宿主应用的 `android/**` 永远不会误触发）：
 
 ```text
-app/**
-core/**
-gradle/**
-build.gradle
-build.gradle.kts
-settings.gradle
-settings.gradle.kts
-gradle.properties
-libs.versions.toml
+v2/app/**
+v2/core/**
+v2/gradle/**          （wrapper + gradle/libs.versions.toml）
+v2/build.gradle
+v2/build.gradle.kts
+v2/settings.gradle
+v2/settings.gradle.kts
+v2/gradle.properties
+v2/gradlew
+v2/gradlew.bat
 .cnb.yml
 scripts/run-firebase-test-lab.sh
 scripts/check-test-lab-gate.sh
@@ -372,8 +375,14 @@ PR 分支上真实执行过以下命令（不消耗任何 Test Lab 配额）：
 bash -n scripts/run-firebase-test-lab.sh
 shellcheck scripts/run-firebase-test-lab.sh
 bash scripts/test/test-run-firebase-test-lab.sh
+bash scripts/test/test-check-test-lab-gate.sh
 ```
 
 `scripts/test/test-run-firebase-test-lab.sh` 使用 fake `gcloud` 对
-失败路径、退出码分类、门控逻辑做了离线验证（54 项全部通过），fake
-仅存在于测试目录，绝不进入生产执行路径。
+失败路径、退出码分类、门控逻辑做了离线验证（88 项全部通过）；
+`scripts/test/test-check-test-lab-gate.sh` 是变更门控的专项回归套件
+（32 项全部通过），覆盖 `v2/app/**`、`v2/core/**`、`v2/gradle/**`、
+version catalog、CI/runner 自变更等所有必触发路径，以及 `docs/**`、
+`README*` 等纯文档跳过分支，并用 PR #13 的真实路径
+（`v2/app/src/androidTest/.../RescueAuthDatabaseInstrumentedTest.kt`）
+作为回归样例。fake 仅存在于测试目录，绝不进入生产执行路径。
