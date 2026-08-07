@@ -12,7 +12,10 @@
   + VaultKey/Keystore + 安全会话 + 串行 repository + 自动锁 + 遮罩 + FLAG_SECURE）
   且 **phase2-blocker-hotfix 已合并**（PR #6：修复 BiometricPrompt 启动崩溃、
   instrumented 测试可 dex 化、真实 FLAG_SECURE/损坏库断言）。
-  真机 instrumented 验证（6 用例已可编译）待有设备环境执行。
+  **数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS**
+  （`RescueAuthDatabaseInstrumentedTest`，MediumPhone.arm / API 33，见
+  `docs/PHASE2_REPORT.md`）。生物识别/Keystore 认证有效期/截图保护等仍为
+  **未真机验证**的验证缺口（非 blocker，见 PHASE2_REPORT §C）。
 
 ## 必跑命令（提交前）
 
@@ -20,13 +23,15 @@
 # 生成/验证 legacy fixtures（仅阶段 0 工具，勿随意重跑）
 cd tools/legacy_fixtures && dart run bin/generate_fixtures.dart verify
 
-# v2 全量测试 + 构建（core 34 + app JVM/Robolectric 31）
+# v2 全量测试 + 构建（core 34 + app JVM/Robolectric 35）
 cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
 
-# instrumented 测试 APK 编译（真机验证前的必要前置，需 Android SDK）
+# instrumented 测试 APK 编译（FTL/真机执行前的必要前置，需 Android SDK）
 cd v2 && ./gradlew :app:assembleDebugAndroidTest
-# 有真机/模拟器时：
+# 本地有真机/模拟器时：
 cd v2 && ./gradlew :app:connectedDebugAndroidTest
+# Firebase Test Lab（仅 main push，见 docs/FIREBASE_TEST_LAB.md）
+# 最新 main 已真实执行 RescueAuthDatabaseInstrumentedTest 6/6 PASS。
 ```
 
 > 环境要求：JDK 17 + Android SDK（compileSdk 35 / build-tools 35）。
@@ -65,10 +70,12 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] Room + SQLCipher（Zetetic sqlcipher-android 4.17.0）+ schema v1 实体/DAO
   - [x] VaultKey（Keystore 包装/解包）+ 安全会话状态机 + SessionManager（自动锁/后台）
   - [x] 串行 repository（Mutex + withTransaction + 备份快照 sink）+ FLAG_SECURE
-  - [x] JVM/Robolectric 测试 **31 个**（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE；含 `SecureScreenFlagTest`，它是 **Robolectric unit test**，在 `:app:testDebugUnitTest` 中运行，不是 androidTest/instrumentation 测试）
+  - [x] JVM/Robolectric 测试 **35 个**（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE、SQLCipher native loader 并发契约；含 `SecureScreenFlagTest`，它是 **Robolectric unit test**，在 `:app:testDebugUnitTest` 中运行，不是 androidTest/instrumentation 测试）
   - [x] phase2-blocker-hotfix（PR #6）：BiometricPrompt 崩溃修复 + instrumented 可编译 + 真实断言
-  - [ ] instrumented 真机验证（6 用例：SQLCipher 加密路径 + 生物识别 + 截图保护）——已可编译，待设备；截图保护由 `SecureScreenFlagTest`（Robolectric unit test）在 JVM 阶段验证
-- [ ] 阶段 3：新备份协议 + BackupKey + 恢复套件 + 导入导出
+  - [x] SQLCipher native 加载（PR #15）：`SQLCipherNativeLoader` 在数据库唯一入口加载，publish-after-load 并发契约 + 4 个 JVM 测试
+  - [x] **instrumented 真机验证（数据库 6 用例）**：`RescueAuthDatabaseInstrumentedTest` 已在 Firebase Test Lab 真实执行 6/6 PASS（MediumPhone.arm / API 33 / virtual，构建 cnb-87g-1jvdnj7iu）
+  - [ ] 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏行为等**仍待真机验证**（non-blocking backlog，见 PHASE2_REPORT）
+- [ ] 阶段 3：新备份协议 + BackupKey + 恢复套件 + 导入导出（**NOT STARTED**）
 - [ ] 阶段 4：旧库导入完整流程 + Developer 数据处理
 - [ ] 阶段 5：主要界面 + 设计系统 + 截图测试
 - [ ] 阶段 6：托管更新（`rescueauth-updates` 仓库）+ CI + 签名

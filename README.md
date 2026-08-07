@@ -36,10 +36,13 @@ project flips the priority:
 - **Status**: phases 0/1 + phase1-fix + phase 2 (encrypted DB, VaultKey/Keystore,
   secure session, auto-lock, mask + FLAG_SECURE) are merged to `main`;
   `phase2-blocker-hotfix` (PR #6) fixed the biometric-prompt startup crash and
-  made platform tests buildable/truthful.
+  made platform tests buildable/truthful; SQLCipher native loading is fixed
+  (PR #15). The database instrumentation tests
+  (`RescueAuthDatabaseInstrumentedTest`, 6 cases) have **passed 6/6 on Firebase
+  Test Lab** (MediumPhone.arm / API 33).
 - **Build**: `cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
-  (needs JDK 17 + Android SDK 35). Instrumented tests (6 cases) are written and
-  compile; execution still requires a device/emulator.
+  (needs JDK 17 + Android SDK 35). Instrumented tests run on Firebase Test Lab
+  via `main` push (see `docs/FIREBASE_TEST_LAB.md`).
 - **Docs**: see `v2/docs/` (PHASE reports, ADRs, LEGACY_IMPORT, BACKUP_FORMAT,
   THREAT_MODEL, UPDATE_PROTOCOL).
 
