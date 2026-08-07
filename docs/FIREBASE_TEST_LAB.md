@@ -46,31 +46,29 @@ https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.y
 | event     | `push`                            |
 | branch    | `main`                            |
 
-因此在 `.cnb.yml` 中，**只有** `main.push` 流水线通过 `imports` 引用该文件：
+因此在 `.cnb.yml` 中，**只有** `main.push` 流水线的 `firebase-test-lab` stage
+通过 `imports` 引用该文件：
 
 ```yaml
 main:
   push:
     - name: full-cloud-test-loop
-      imports:
-        - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
+      stages:
+        - name: firebase-test-lab
+          imports:
+            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
 ```
 
 `pull_request`、`issue`、`issue.comment@npc`、`pull_request.comment@npc`、
 `tag` 事件以及其他分支、手动且不受保护的触发器都**不得**导入密钥。
 
-> **`imports` 作用域说明（重要）**：`imports` 是 **Pipeline 级**配置，不是
-> Stage 级。一旦 `main.push` 流水线（`full-cloud-test-loop`）开始执行，注入的
-> 密钥变量对该流水线的**全部 stage 可见**：core/JVM tests、Robolectric、
-> lint、debug APK、androidTest APK、changed-file gate、firebase-test-lab
-> **都能读到**。**并非只有 `firebase-test-lab` stage 能看到**——
-> "只有 main push 流水线能导入"与"只有 FTL stage 能看到"是两个不同的事实，
-> 前者为真（密钥仓库的 repository/event/branch 限制），后者为假
-> （pipeline 级 `imports` 对整条流水线生效）。
->
-> 当前 CNB 无法把 pipeline 级 `imports` 限制到单一 stage；按最小权限原则，
-> 若未来某密钥仅需单个 Stage 使用，应改为 Stage 级 `imports`（仅对该 Stage
-> 生效）。**本 PR 不引入任何跨流水线编排**，仅记录上述事实。
+> **`imports` 作用域说明（重要）**：`imports` 采用 **Stage 级**作用域（CNB
+> 官方 Schema 同时支持 Pipeline 级、Stage 级与 Job 级 `imports`；本配置使用
+> Stage 级，且该 stage 未声明 `jobs`，等价于单一 Job，凭据生命周期只覆盖
+> `firebase-test-lab` 这一个执行单元）。注入的密钥变量**仅对
+> `firebase-test-lab` stage 可见**：core/JVM tests、Robolectric、lint、
+> debug APK、androidTest APK、changed-file gate 均**无法读取** Firebase 凭据。
+> "只有 main push 流水线能导入"与"只有 FTL stage 能看到"两个约束同时成立。
 >
 > **仓库治理要求**：`main` 必须保持为**保护分支**；所有 `.cnb.yml`、
 > Gradle 脚本与构建脚本（`scripts/*.sh` 等）的变更都必须经过**人工 diff

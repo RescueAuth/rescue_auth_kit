@@ -13,9 +13,10 @@
 #     branch/event MUST NOT import the firebase-test-lab.yml secret file.
 #   * A PR branch therefore cannot (and must not) run a real Test Lab matrix;
 #     the first real execution only happens after this config reaches `main`.
-#   * `imports` is pipeline-level: inside `full-cloud-test-loop` the injected
-#     secret variables are visible to ALL stages (core/JVM, Robolectric, lint,
-#     APK builds, gate and firebase-test-lab alike), NOT just firebase-test-lab.
+#   * `imports` is scoped to the `firebase-test-lab` stage ONLY: inside
+#     `full-cloud-test-loop` the injected secret variables are visible to that
+#     single execution unit (core/JVM, Robolectric, lint, APK builds and the
+#     changed-file gate cannot read them).
 #   * `main` must stay a protected branch; every .cnb.yml / Gradle / build-script
 #     change requires a human diff review (see docs/FIREBASE_TEST_LAB.md §2).
 #
@@ -66,14 +67,6 @@ main:
         # CNB_BUILD_WORKSPACE is /workspace for script tasks.
         APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
         TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-      imports:
-        # Pipeline-level imports: the injected secret variables become visible to
-        # EVERY stage of this pipeline from the first stage onward (core tests,
-        # Robolectric, lint, APK builds, changed-file gate and firebase-test-lab).
-        # They are NOT scoped to the firebase-test-lab stage alone.
-        # Secrets are ONLY readable on `main` push (repository restricted to
-        # repository=xincy22/rescue_auth_kit, event=push, branch=main).
-        - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
       stages:
         - name: core-jvm-tests
           script: |
@@ -108,6 +101,14 @@ main:
             export CNB_BEFORE_SHA CNB_COMMIT CNB_BUILD_WORKSPACE
             scripts/check-test-lab-gate.sh
         - name: firebase-test-lab
+          # Stage-scoped imports: the injected secret variables are visible ONLY
+          # to this stage (and its single job). Every other stage of
+          # `full-cloud-test-loop` (core/JVM, Robolectric, lint, APK builds,
+          # changed-file gate) cannot read them.
+          # Secrets are ONLY readable on `main` push (repository restricted to
+          # repository=xincy22/rescue_auth_kit, event=push, branch=main).
+          imports:
+            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
           script: |
             set -euo pipefail
             cd "${CNB_BUILD_WORKSPACE:-/workspace}"
