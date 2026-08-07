@@ -1,6 +1,10 @@
 # UPDATE_PROTOCOL.md — 更新协议（草案）
 
-> 状态：**Draft**（阶段 6 实现前必须定稿并完成 1.0.0 → 1.0.1 演练）。
+> 状态：**Draft**（Roadmap 阶段 6 / L2 实现前定稿）。
+> **2026-08-07（Issue #17 产品决策）**：Update Check 范围收敛为——
+> **保留**：app version/about、check releases、open release externally；
+> **不做**：self update installer、APK silent install、auto-download
+> updater。用户确认后仅**跳转到发布页**，由用户自行安装。
 
 ## 结论
 
@@ -34,14 +38,15 @@
 - 私钥放 CI 密钥管理，禁止写入仓库/日志/构建产物。
 - CI 检测空/非 HTTPS/无法匿名读取的 `UPDATE_MANIFEST_URL` 时拒绝出稳定版。
 
-## 客户端流程
+## 客户端流程（L2 范围）
 
-1. 设置页手动"检查更新"；WorkManager 最多每天自动一次。
+1. 设置页手动"检查更新"（**无** WorkManager 自动检查）。
 2. 验证 manifest 签名 → 比较 `versionCode`（不比版本字符串）。
-3. 用户确认 → DownloadManager 下载 APK。
-4. 校验大小 + SHA-256 + `applicationId`/`versionCode`/签名证书一致。
-5. 调起系统包安装器，由用户确认安装。
-6. 更新服务故障不锁死离线应用；`severity` 安全更新也只强提示。
+3. 有更新时显示版本信息与 release notes，提供"打开发布页"。
+4. 用户点击后由系统浏览器/外部打开 `releaseNotesUrl` / `apkUrl`；
+   **应用不下载、不校验、不调起安装器**（不做 self update / silent
+   install / auto-download）。
+5. 更新服务故障不锁死离线应用；`severity` 安全更新也只强提示。
 
 ## 发布流水线
 
@@ -60,7 +65,7 @@
 - 旧版可安装回滚（保留历史版本 APK 与对应 manifest 历史）。
 - `minSupportedVersionCode` 用于拒绝过旧版本。
 
-## 待定项（阶段 6）
+## 待定项（阶段 6 / L2）
 
 - 创建 `rescueauth-updates` 仓库并配置跨仓发布权限。
-- CNB 附件插件上传参数（`ttl: 0`）与 `latest.json` 中实际下载 URL 注入。
+- 确认发布页跳转 URL 形态（release page 或 `releaseNotesUrl`）。
