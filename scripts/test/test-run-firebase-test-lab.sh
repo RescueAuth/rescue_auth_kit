@@ -126,6 +126,34 @@ mkfake_apk() {
     ( cd "$(mktemp -d)" && touch AndroidManifest.xml && zip -q -r "$path" AndroidManifest.xml )
 }
 
+# Realistic APK-shaped archive: AndroidManifest.xml FIRST (as Gradle produces),
+# followed by many other entries so unzip still has data to stream AFTER grep -q
+# would have exited on the first match. This is the archive shape that triggers
+# the SIGPIPE false negative in `unzip -Z1 ... | grep -q ...` under pipefail.
+mkfake_apk_large() {
+    local path="$1"
+    local nfiles="$2"
+    mkdir -p "$(dirname "$path")"
+    rm -f "$path"
+    (
+        cd "$(mktemp -d)"
+        touch AndroidManifest.xml
+        local i
+        for i in $(seq 1 "$nfiles"); do
+            printf 'x%.0s' $(seq 1 100) > "filler_${i}.bin"
+        done
+        zip -q -r "$path" .
+    )
+}
+
+# Valid zip archive WITHOUT AndroidManifest.xml (must be rejected).
+mkfake_apk_nomanifest() {
+    local path="$1"
+    mkdir -p "$(dirname "$path")"
+    rm -f "$path"
+    ( cd "$(mktemp -d)" && touch classes.dex resources.arsc && zip -q -r "$path" . )
+}
+
 # standard env for happy-path (fake) runs
 common_env() {
     export APP_APK="$TEST_WORKSPACE/app-debug.apk"
@@ -444,6 +472,97 @@ if command -v gcloud >/dev/null 2>&1; then
 else
     ok "no real gcloud on PATH"
 fi
+
+echo
+echo "== 25. SIGPIPE regression: manifest-first APK with many trailing entries must PASS =="
+# Regression for the firebase-test-lab stage failure:
+#   [ftl][ERROR] APP_APK does not look like an Android APK (no AndroidManifest.xml)
+# The old check `unzip -Z1 "$apk" | grep -q 'AndroidManifest.xml'` under
+# `set -euo pipefail` kills the producer with SIGPIPE (141) as soon as grep -q
+# exits, so pipefail fails the whole pipeline even though the manifest exists.
+# The runner runs under `set -euo pipefail` (line 27), so a manifest-first,
+# many-entry APK is exactly the shape that used to be misjudged as "not an APK".
+common_env
+mkfake_apk_large "$APP_APK" 400
+mkfake_apk "$TEST_APK"
+FAKE_GCLOUD_EXIT=0
+run_runner
+assert_eq "$RUNNER_RC" "0" "runner exit 0 for manifest-first large APK"
+assert_contains "$RUNNER_OUT" "APP_APK ok" "APP_APK passes validation"
+assert_contains "$RUNNER_OUT" "TEST_APK ok" "TEST_APK passes validation"
+assert_contains "$RUNNER_OUT" "TEST_PASSED" "reaches fake Test Lab and passes"
+
+# Show the root cause explicitly: the OLD pattern really does exit 141 here,
+# while the archive undeniably contains AndroidManifest.xml at its root.
+(
+    set +e
+    set -o pipefail
+    unzip -Z1 "$APP_APK" 2>/dev/null | grep -q '^AndroidManifest.xml$'
+    ps=( "${PIPESTATUS[@]}" )
+    # Under pipefail the pipeline's overall status is the rightmost non-zero
+    # element of PIPESTATUS (capturing $? would reset the array first).
+    old_rc=0
+    for c in "${ps[@]}"; do [[ "$c" != 0 ]] && old_rc="$c"; done
+    assert_eq "$old_rc" "141" "old pattern: overall rc=141 under pipefail (SIGPIPE)"
+    assert_eq "${ps[0]}" "141" "old pattern: unzip producer killed by SIGPIPE (141)"
+    assert_eq "${ps[1]}" "0" "old pattern: grep found the manifest (0)"
+)
+unzip -Z1 "$APP_APK" 2>/dev/null > "$TEST_WORKSPACE/large-listing.txt"
+if grep -q '^AndroidManifest.xml$' "$TEST_WORKSPACE/large-listing.txt"; then
+    ok "archive really contains root AndroidManifest.xml"
+else
+    bad "archive really contains root AndroidManifest.xml"
+fi
+
+echo
+echo "== 26. valid zip WITHOUT AndroidManifest.xml must FAIL fast =="
+common_env
+mkfake_apk_nomanifest "$APP_APK"
+mkfake_apk "$TEST_APK"
+run_runner
+assert_eq "$RUNNER_RC" "1" "exit 1"
+assert_contains "$RUNNER_OUT" "CONFIGURATION_FAILURE" "status CONFIGURATION_FAILURE"
+assert_contains "$RUNNER_OUT" "does not look like an Android APK" "reports missing AndroidManifest.xml"
+assert_contains "$RUNNER_OUT" "APP_APK" "names APP_APK"
+
+# TEST_APK goes through the SAME validate_apk(); verify it is covered too.
+common_env
+mkfake_apk "$APP_APK"
+mkfake_apk_nomanifest "$TEST_APK"
+run_runner
+assert_eq "$RUNNER_RC" "1" "exit 1"
+assert_contains "$RUNNER_OUT" "CONFIGURATION_FAILURE" "TEST_APK status CONFIGURATION_FAILURE"
+assert_contains "$RUNNER_OUT" "does not look like an Android APK" "TEST_APK reports missing manifest"
+assert_contains "$RUNNER_OUT" "TEST_APK" "names TEST_APK"
+
+echo
+echo "== 27. set -euo pipefail: legal APK is NOT misjudged via SIGPIPE =="
+# The runner itself runs under `set -euo pipefail`; exercising the new helper
+# directly (same archive shape as test 25) proves a legal APK never triggers
+# the old 141 false negative.
+common_env
+mkfake_apk_large "$APP_APK" 400
+(
+    set -euo pipefail
+    # Extract the actual helper from the runner (avoids sourcing, which would
+    # execute main()).
+    apk_has_manifest=$(awk '/^apk_has_manifest\(\) \{/{f=1} f{print} f && /^\}$/{exit}' "$RUNNER")
+    if bash -c "set -euo pipefail; $apk_has_manifest; apk_has_manifest \"$APP_APK\""; then
+        ok "apk_has_manifest PASSES legal manifest-first APK under set -euo pipefail"
+    else
+        bad "apk_has_manifest PASSES legal manifest-first APK under set -euo pipefail"
+    fi
+)
+mkfake_apk_nomanifest "$APP_APK"
+(
+    set -euo pipefail
+    apk_has_manifest=$(awk '/^apk_has_manifest\(\) \{/{f=1} f{print} f && /^\}$/{exit}' "$RUNNER")
+    if bash -c "set -euo pipefail; $apk_has_manifest; ! apk_has_manifest \"$APP_APK\""; then
+        ok "apk_has_manifest FAILS manifest-less zip under set -euo pipefail"
+    else
+        bad "apk_has_manifest FAILS manifest-less zip under set -euo pipefail"
+    fi
+)
 
 echo
 echo "== summary =="

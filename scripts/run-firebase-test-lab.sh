@@ -199,6 +199,20 @@ decode_service_account_json() {
 # APK validation (deterministic Gradle output paths)
 # ---------------------------------------------------------------------------
 
+# True iff the archive contains AndroidManifest.xml at its ROOT (the Android
+# APK convention). The FULL entry list is read into a variable first and the
+# match runs on that captured text, so grep -q never closes the pipe while
+# unzip is still streaming. This avoids a SIGPIPE false negative under
+# `set -euo pipefail`: with an early-exit consumer (e.g. `unzip -Z1 ... |
+# grep -q ...`) the producer is killed with 141 once grep exits, and pipefail
+# turns the whole pipeline into a failure even though the manifest exists.
+apk_has_manifest() {
+    local archive="$1"
+    local listing
+    listing="$(unzip -Z1 "$archive" 2>/dev/null)" || return 1
+    grep -q '^AndroidManifest.xml$' <<<"$listing"
+}
+
 validate_apk() {
     local name="$1"
     local path="${!name:-}"
@@ -223,7 +237,7 @@ validate_apk() {
         err "FTL_STATUS=${STATUS_CONFIG_FAILURE}"
         exit "$FTL_EXIT_GENERAL_CONFIG"
     fi
-    if ! unzip -Z1 "$path" 2>/dev/null | grep -q 'AndroidManifest.xml'; then
+    if ! apk_has_manifest "$path"; then
         err "${name} does not look like an Android APK (no AndroidManifest.xml): ${path}"
         err "FTL_STATUS=${STATUS_CONFIG_FAILURE}"
         exit "$FTL_EXIT_GENERAL_CONFIG"
