@@ -9,8 +9,10 @@
 - v2 代码位于 `v2/` 目录，从 `databaseSchemaVersion = 1` 与
   `backupFormatVersion = 1` 开始。
 - 当前阶段：**阶段 0/1/phase1-fix 已完成**，阶段 2 已实现（Room + SQLCipher
-  + VaultKey/Keystore + 安全会话 + 串行 repository + 自动锁 + 遮罩 + FLAG_SECURE），
-  真机 instrumented 验证待有设备环境完成。
+  + VaultKey/Keystore + 安全会话 + 串行 repository + 自动锁 + 遮罩 + FLAG_SECURE）
+  且 **phase2-blocker-hotfix 已合并**（PR #6：修复 BiometricPrompt 启动崩溃、
+  instrumented 测试可 dex 化、真实 FLAG_SECURE/损坏库断言）。
+  真机 instrumented 验证（6 用例已可编译）待有设备环境执行。
 
 ## 必跑命令（提交前）
 
@@ -18,9 +20,17 @@
 # 生成/验证 legacy fixtures（仅阶段 0 工具，勿随意重跑）
 cd tools/legacy_fixtures && dart run bin/generate_fixtures.dart verify
 
-# v2 全量测试 + 构建
+# v2 全量测试 + 构建（core 34 + app JVM/Robolectric 31）
 cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
+
+# instrumented 测试 APK 编译（真机验证前的必要前置，需 Android SDK）
+cd v2 && ./gradlew :app:assembleDebugAndroidTest
+# 有真机/模拟器时：
+cd v2 && ./gradlew :app:connectedDebugAndroidTest
 ```
+
+> 环境要求：JDK 17 + Android SDK（compileSdk 35 / build-tools 35）。
+> 本仓库**不提交** `local.properties`；本地构建需自行设置 `sdk.dir`。
 
 任何修改必须通过以上命令后才可提交。
 
@@ -50,13 +60,14 @@ cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
 - [x] 阶段 0：冻结旧项目（tag `v1.2.0`）+ legacy fixtures + 映射文档
 - [x] 阶段 1：最小 Kotlin/Android 工程 + Argon2id/XChaCha20-Poly1305 解密 spike
 - [x] phase1-fix：entry-centric 映射 + 非法参数不静默替换 + BC 1.85 官方 XChaCha20
-- [ ] 阶段 2：数据库 schema v1 + VaultKey/Keystore + 串行 repository + 自动锁
+- [x] 阶段 2：数据库 schema v1 + VaultKey/Keystore + 串行 repository + 自动锁
   - [x] ADR-0003（VaultKey/Keystore/会话/备份冲突/16KB）
   - [x] Room + SQLCipher（Zetetic sqlcipher-android 4.17.0）+ schema v1 实体/DAO
   - [x] VaultKey（Keystore 包装/解包）+ 安全会话状态机 + SessionManager（自动锁/后台）
   - [x] 串行 repository（Mutex + withTransaction + 备份快照 sink）+ FLAG_SECURE
-  - [x] JVM/Robolectric 测试 30 个（并发、锁定、超时、密钥失效、16KB page；含 `SecureScreenFlagTest`，它是 **Robolectric unit test**，在 `:app:testDebugUnitTest` 中运行，不是 androidTest/instrumentation 测试）
-  - [ ] instrumented 真机验证（SQLCipher 加密路径 + 生物识别）——待设备；截图保护由 `SecureScreenFlagTest`（Robolectric unit test）在 JVM 阶段验证
+  - [x] JVM/Robolectric 测试 **31 个**（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE；含 `SecureScreenFlagTest`，它是 **Robolectric unit test**，在 `:app:testDebugUnitTest` 中运行，不是 androidTest/instrumentation 测试）
+  - [x] phase2-blocker-hotfix（PR #6）：BiometricPrompt 崩溃修复 + instrumented 可编译 + 真实断言
+  - [ ] instrumented 真机验证（6 用例：SQLCipher 加密路径 + 生物识别 + 截图保护）——已可编译，待设备；截图保护由 `SecureScreenFlagTest`（Robolectric unit test）在 JVM 阶段验证
 - [ ] 阶段 3：新备份协议 + BackupKey + 恢复套件 + 导入导出
 - [ ] 阶段 4：旧库导入完整流程 + Developer 数据处理
 - [ ] 阶段 5：主要界面 + 设计系统 + 截图测试
@@ -67,3 +78,4 @@ cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug
 
 - `docs/ADRS/ADR-0001-legacy-import-frozen-baseline.md`
 - `docs/ADRS/ADR-0002-xchacha20-native-bc185.md`（BC 1.85 原生 XChaCha20-Poly1305，移除自实现 HChaCha20）
+- `docs/ADRS/ADR-0003-database-vaultkey-session.md`（数据库加密、VaultKey 分层、安全会话生命周期、16KB）

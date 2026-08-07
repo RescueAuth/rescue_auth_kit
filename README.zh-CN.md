@@ -5,6 +5,10 @@
 RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目标只有一个：
 把导入/导出（迁移与恢复）这件事做得可靠、可验证。
 
+> **注意**：仓库正在 `v2/` 下重写为**原生 Android 应用**（Kotlin + Room/SQLCipher，
+> 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `v1.2.0`，仅作
+> 参考与一次性迁移。v2 状态与构建命令见 [`v2/AGENTS.md`](v2/AGENTS.md)。
+
 ## 我为什么写这个
 
 很多认证器应用在"迁移数据"这件事上体验很差：要么不支持导出，要么格式不通用，
@@ -22,6 +26,26 @@ RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目�
   - XChaCha20-Poly1305 作为 AEAD
 - 强调跨设备迁移闭环：
   - 一端导出，另一端导入，再验证同样的验证码
+
+## RescueAuth v2（Android 原生重写）
+
+- **位置**：`v2/` — Kotlin + Jetpack Compose + Room/SQLCipher。
+- **状态**：阶段 0/1 + phase1-fix + 阶段 2（加密数据库、VaultKey/Keystore、
+  安全会话、自动锁、遮罩 + FLAG_SECURE）均已合并进 `main`；
+  `phase2-blocker-hotfix`（PR #6）修复了 BiometricPrompt 启动崩溃并使平台
+  测试可编译、断言真实化。
+- **构建**：`cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
+  （需 JDK 17 + Android SDK 35）。Instrumented 测试（6 用例）已编写且可编译，
+  执行仍需真机/模拟器。
+- **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、BACKUP_FORMAT、
+  THREAT_MODEL、UPDATE_PROTOCOL）。
+
+## 旧 Flutter 应用（v1.x，已冻结）
+
+原始的跨平台 Flutter 应用，冻结于 tag `v1.2.0`。仍完整可用，但不再是活跃
+开发目标。
+
+---
 
 ## Vault 数据模型
 

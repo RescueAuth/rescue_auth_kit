@@ -3,6 +3,9 @@
 - 状态：**Accepted**（phase2）
 - 日期：2026-08-06
 - 关联：执行规划 §4、§12 阶段 2、用户 phase2 指令
+- **更新（2026-08-06，PR #6）**：§2 补充 BiometricPrompt 认证器的
+  blocker 修复记录（`DEVICE_CREDENTIAL` 禁止 negative button、认证仅
+  resumed 后触发）。
 
 ## 背景
 
@@ -93,6 +96,22 @@ UNLOCKED ──keystore invalidated──▶ KEY_INVALIDATED (需恢复流程)
   后台超时锁定、截图保护配置、Keystore 失效（mock）。
 - **Instrumented 测试**：真机/模拟器验证（本环境无设备，标记未完成）。
 - **Android 16KB page size**：构建产物校验（zipalign -c 16）在 CI 中执行。
+
+### 6. BiometricPrompt 认证器决策（phase2-blocker-hotfix 补充）
+
+回归审计发现 `PromptInfo.Builder` 同时设置 `DEVICE_CREDENTIAL` 与 negative
+button 会在 `build()` 抛 `IllegalArgumentException`，导致首次启动即崩。
+补充决策：
+
+- 认证器按设备实际可用性动态解析（`resolveAvailableAuthenticators`），
+  不再写死 `BIOMETRIC_STRONG | DEVICE_CREDENTIAL`。
+- `DEVICE_CREDENTIAL` 被允许时**不得**设置 negative button（系统 UI 提供取消）；
+  biometric-only 提示保留 "Cancel" negative button。
+- `authenticate()` 只在 Activity **RESUMED** 后触发（`onCreate` 仅记录需求），
+  并用 `AtomicBoolean` 防止取消/失败/重复 `onResume` 造成认证循环。
+- 无可用认证器时明确提示恢复流程，不静默降级（`BIOMETRIC_ERROR_NONE_ENROLLED` 等）。
+- `MainActivity` 使用 AppCompat 主题（`Theme.RescueAuth`）——`AppCompatActivity`
+  要求 AppCompat 主题，否则 `setContentView` 抛 `IllegalStateException`。
 
 ## 后果
 
