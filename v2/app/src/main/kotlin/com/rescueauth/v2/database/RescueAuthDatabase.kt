@@ -57,6 +57,11 @@ abstract class RescueAuthDatabase : RoomDatabase() {
          * created per-open so a new key (or re-unwrap) takes effect.
          */
         fun build(context: Context, vaultKey: ByteArray): RescueAuthDatabase {
+            // SQLCipher 4.17.0 does not load its native core automatically
+            // (see SQLCipherNativeLoader). Every database entry point must
+            // guarantee libsqlcipher.so is present before opening a
+            // connection; the loader is idempotent per process.
+            SQLCipherNativeLoader.ensureLoaded()
             val keyHex = vaultKey.joinToString("") { "%02x".format(it) }
             val factory = object : SupportSQLiteOpenHelper.Factory {
                 override fun create(configuration: SupportSQLiteOpenHelper.Configuration):
