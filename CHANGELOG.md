@@ -10,6 +10,32 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase3a merge-blocker] - 2026-08-07（PR #18 Developer merge 保守化 CR）
+
+Phase 3A compatibility CR 的 merge blocker 修正（最小 scope，不进入 Phase 3B）：
+
+### Changed
+
+- `MergePlanner`：Developer Entry 的 dedupe **只认 stableId**。移除了“异
+  stableId + 同敏感 payload → DUPLICATE”的规则：相同 secret / private key /
+  keystore 字节 / env values / generic values 本身不能证明两条不同 stableId
+  的 Developer Entry 是同一条逻辑资产（同一 API key 可按不同 service/account
+  保存为两个用途；同一 SSH key 可对应不同 server/usage；同一 keystore 可被
+  多个 project/package 使用；Env/Generic 同 value 不代表 name/label 相同），
+  因此不同 stableId 一律 **INSERT / keep both**，不得静默丢数据/语义。
+- `Canonicalization.developerFingerprint`：明确仅用于**同 stableId** 比较
+  （同 payload → DUPLICATE；异 payload → CONFLICT），不再用于跨 stableId dedupe。
+- `PACKAGE_FORMAT.md` / `PHASE3_REPORT.md` / ADR-0004 / ADR-0005：同步保守
+  merge 契约；per-type 完整 canonical logical equivalence 留到后续增强。
+
+### Tests
+
+- `MergePlannerTest` 新增 5 个 keep-both 用例：同 keystore 字节异
+  project/package → keep both；同 SSH key 异 logical usage/name → keep both；
+  同 API key/secret 异 service/account → keep both；Env sets 同值异
+  project/name → keep both；Generic secrets 同值异 label → keep both。
+- `:core:test` 101 → **106** 全绿（0 failure / 0 error）。
+
 ## [v2 phase3a compat] - 2026-08-07（PR #18 兼容性修正，对齐 PR #19 最新 main）
 
 PR #19（roadmap-v2）合并后，最新 PRODUCT / ROADMAP 成为新的 source of truth。
@@ -29,8 +55,9 @@ Phase 3B）：
 - `Canonicalization.developerFingerprint`：五类 Developer Entry 的敏感 payload
   语义 fingerprint（label 不参与）。
 - `MergePlanner` Developer Entry merge 语义（同 stableId+同 payload→dup；同
-  stableId+异 payload→conflict；异 stableId+同 payload→dup；否则 insert /
-  keep both）。
+  stableId+异 payload→conflict；**异 stableId→insert/keep both，不做跨
+  stableId 指纹 dedupe**——相同敏感 payload 不证明同一逻辑资产，避免静默
+  丢数据/语义）。
 - `RecoveryCodeStateDivergence` / `MergeSummary.stateDivergences`：Recovery
   used/unused 差异显式输出，不静默保留/覆盖（用户状态不是纯 metadata）。
 - `TotpParameters`（shared 层自带 base32/算法校验）+ `LegacyIsolationTest`

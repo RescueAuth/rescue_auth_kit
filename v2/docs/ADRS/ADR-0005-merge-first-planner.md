@@ -35,8 +35,8 @@ plan(destination: VaultSnapshot, source: VaultSnapshot): MergePlan
   摘要），Phase 3C 在单个 Room 事务内执行；Phase 3D 用作 import 预览。
 - **Developer Entry（本轮纳入）**：每类至少具备保守的 insert / duplicate /
   conflict 基础语义（同 stableId + 同敏感 payload → dup；同 stableId + 异
-  敏感 payload → conflict；异 stableId + 同敏感 payload → dup；否则 insert /
-  keep both）。
+  敏感 payload → conflict；**不同 stableId → insert / keep both**；不做跨
+  stableId 指纹 dedupe）。
 - **Recovery used/unused divergence（本轮新增）**：set 级决策不变，但
   per-code 的 used/unused 差异以 `RecoveryCodeStateDivergence` 显式输出、
   `MergeSummary.stateDivergences` 计数，绝不静默保留/覆盖（用户状态，
@@ -45,8 +45,9 @@ plan(destination: VaultSnapshot, source: VaultSnapshot): MergePlan
 ### 3. 决策规则
 
 - INSERT：source-only。
-- DUPLICATE：同 stableId+同内容，或不同 stableId+同 fingerprint；
-  metadata 差异不构成冲突（保留 destination）。
+- DUPLICATE：同 stableId+同内容，或（仅限 TOTP / recovery set）不同
+  stableId+同 fingerprint；metadata 差异不构成冲突（保留 destination）。
+  **Developer Entry 不做跨 stableId 指纹 dedupe**。
 - CONFLICT：同 stableId 但 secret / TOTP 参数 / recovery values /
   Developer 敏感 payload 不同。
 - UNCHANGED：destination-only，永不删除。

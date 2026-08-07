@@ -42,6 +42,15 @@ import java.security.MessageDigest
  *   keyName / notes) are deliberately EXCLUDED so that two entries sharing
  *   only a title are never auto-deduplicated (ROADMAP §8.3).
  *
+ *   IMPORTANT: the developer fingerprint is only used for **same-stableId**
+ *   comparisons (DUPLICATE vs CONFLICT of one lineage). It is NEVER used to
+ *   dedupe entries with **different stableIds**: identical sensitive payloads
+ *   do not prove the same logical asset (the same API key / SSH key /
+ *   keystore bytes / env values can legitimately serve different
+ *   service/account/project/keyName/label semantics), so different stableIds
+ *   are always INSERT / keep both. Per-type full canonical logical
+ *   equivalence is deferred to a later enhancement.
+ *
  * ## Security
  *
  * The TOTP fingerprint is derived from the secret and MUST be treated as
@@ -133,7 +142,7 @@ object Canonicalization {
     // ------------------------------------------------------------------
 
     /**
-     * Semantic fingerprint of a Developer Entry's SENSITIVE payload.
+     * Canonical sensitive payload of a Developer Entry.
      *
      * Conservative by design (ROADMAP §8.3): only the security-sensitive
      * content participates, never the display labels. This means:
@@ -141,9 +150,12 @@ object Canonicalization {
      * - two SSH keys that merely share a `keyName`/`title` are NOT deduped;
      * - two entries with the same stableId but different sensitive payload
      *   (e.g. the private key was rotated) yield different fingerprints and
-     *   are reported as CONFLICT;
-     * - two devices that independently imported the same underlying secret
-     *   (identical sensitive payload, different stableIds) dedupe.
+     *   are reported as CONFLICT.
+     *
+     * This fingerprint is used ONLY for same-stableId comparisons. It is
+     * never used to dedupe across different stableIds (see [MergePlanner]):
+     * identical sensitive payloads do not prove the same logical asset, so
+     * different stableIds are always INSERT / keep both.
      */
     fun developerFingerprint(entry: VaultDeveloperEntry): String = when (entry) {
         is VaultAndroidSigningKey -> sha256Hex(

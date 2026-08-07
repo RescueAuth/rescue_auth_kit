@@ -23,20 +23,24 @@ package com.rescueauth.v2.export
  *   fingerprint (canonical secret + algorithm + digits + period).
  * - Recovery-code sets are matched by stableId first, then by fingerprint
  *   (title + canonical code values).
- * - Developer Entries (all five types) are matched by stableId first, then by
- *   their sensitive-payload fingerprint. Labels are never part of the
- *   fingerprint, so same-title entries are never auto-deduplicated
- *   (ROADMAP §8.3).
+ * - Developer Entries (all five types) are matched by stableId only. The
+ *   sensitive-payload fingerprint is used to tell DUPLICATE (same payload)
+ *   from CONFLICT (different payload) for a same-stableId lineage, but it is
+ *   NEVER used to dedupe across different stableIds — identical sensitive
+ *   payloads do not prove the same logical asset, so different stableIds are
+ *   always INSERT / keep both (ROADMAP §8.3).
  *
  * ## Decisions
  *
  * - INSERT: source record does not exist in destination → it will be added
  *   (account inserted only if it must carry at least one INSERT).
  * - DUPLICATE: destination already holds an identical record (same stableId
- *   and same content, or different stableId but same semantic fingerprint)
- *   → skipped. Metadata-only differences (e.g. recovery-set title, account
- *   favorite/notes, developer labels) are DUPLICATE with destination values
- *   kept — never a silent overwrite of security content.
+ *   and same content, or — for TOTP / recovery sets — different stableId but
+ *   same semantic fingerprint) → skipped. Metadata-only differences
+ *   (e.g. recovery-set title, account favorite/notes, developer labels) are
+ *   DUPLICATE with destination values kept — never a silent overwrite of
+ *   security content. For Developer Entries, a different stableId is NEVER
+ *   a DUPLICATE (keep both).
  * - CONFLICT: same stableId (same lineage) but security-sensitive content
  *   (secret / TOTP params / recovery-code values / developer sensitive
  *   payload) differs → reported, never last-write-wins, never silently
@@ -99,9 +103,6 @@ object MergePlanner {
             .mapValues { (_, list) -> list.sortedBy { it.stableId }.first() }
 
         val destDeveloperByStableId = destination.developerEntries.associateBy { it.stableId }
-        val destDeveloperByFingerprint = destination.developerEntries
-            .groupBy { Canonicalization.developerFingerprint(it) }
-            .mapValues { (_, list) -> list.sortedBy { it.stableId }.first() }
 
         // ---- planned new accounts (dedupe by fingerprint within the plan) --
         // Maps fingerprint -> the stableId of the account we plan to insert.
@@ -164,8 +165,12 @@ object MergePlanner {
         }
 
         // ---- Developer Entries (conservative merge semantics) ------------
+        // Only stableId participates in developer dedupe (same payload →
+        // DUPLICATE, different payload → CONFLICT). Different stableIds are
+        // always INSERT / keep both: identical sensitive payloads across
+        // stableIds are NOT proof of the same logical asset.
         val developerPlans = source.developerEntries.map { entry ->
-            planDeveloperEntry(entry, destDeveloperByStableId, destDeveloperByFingerprint)
+            planDeveloperEntry(entry, destDeveloperByStableId)
         }
 
         // ---- unchanged: destination records not matched by any source -----
@@ -315,27 +320,35 @@ object MergePlanner {
         }
     }
 
+    /**
+     * Conservative Developer Entry planning (ROADMAP §8.3).
+     *
+     * - same stableId + same canonical logical payload → DUPLICATE (metadata
+     *   such as title / projectName / serviceName / keyName / notes may
+     *   differ; destination values kept);
+     * - same stableId + different sensitive payload → CONFLICT (never
+     *   last-write-wins, never silently overwritten);
+     * - different stableId → INSERT / keep both. The sensitive payload is
+     *   intentionally NOT used to dedupe across stableIds: the same secret /
+     *   private key / keystore bytes / env values can legitimately serve
+     *   different service/account/project/keyName/label semantics, and
+     *   silently dropping one of them would lose user data. Full canonical
+     *   logical-equivalence / per-type semantic identity is deferred to a
+     *   later enhancement.
+     */
     private fun planDeveloperEntry(
         entry: VaultDeveloperEntry,
         byStableId: Map<String, VaultDeveloperEntry>,
-        byFingerprint: Map<String, VaultDeveloperEntry>,
     ): DeveloperMergePlan {
         val stableMatch = byStableId[entry.stableId]
         if (stableMatch != null) {
             val same = Canonicalization.developerFingerprint(entry) ==
                 Canonicalization.developerFingerprint(stableMatch)
             return if (same) {
-                // Labels (title / projectName / serviceName / keyName / notes)
-                // may differ; sensitive payload identical → duplicate,
-                // destination values kept.
                 DeveloperMergePlan(entry.stableId, MergeDecision.DUPLICATE, stableMatch.stableId)
             } else {
                 DeveloperMergePlan(entry.stableId, MergeDecision.CONFLICT, stableMatch.stableId)
             }
-        }
-        val fingerprintMatch = byFingerprint[Canonicalization.developerFingerprint(entry)]
-        if (fingerprintMatch != null) {
-            return DeveloperMergePlan(entry.stableId, MergeDecision.DUPLICATE, fingerprintMatch.stableId)
         }
         return DeveloperMergePlan(entry.stableId, MergeDecision.INSERT, null)
     }

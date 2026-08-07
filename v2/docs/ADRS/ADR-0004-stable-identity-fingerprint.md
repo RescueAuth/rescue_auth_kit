@@ -45,6 +45,14 @@ TOTP QR 得到不同的 `id`；Export→Import→Export 若不处理会生成新
   - Generic Secret：全部 label=value（key 排序后 canonical）。
   title / projectName / serviceName / keyName / notes **绝不参与** ——
   不能因为 label 相同就自动 dedupe。
+  **用途限制**：Developer fingerprint **仅用于同 stableId 比较**（同
+  payload → DUPLICATE；异 payload → CONFLICT）。**绝不用于跨 stableId
+  dedupe**：相同 secret / private key / keystore 字节 / env values /
+  generic values 本身不能证明两条不同 stableId 的 Developer Entry 是同一
+  条逻辑资产（同一 API key 可按不同 service/account 保存为两个用途；同一
+  SSH key 可对应不同 server/usage；同一 keystore 可被多个 project/package
+  使用；Env/Generic 同 value 不代表 name/label 相同），因此不同 stableId
+  默认 INSERT / keep both，不得静默丢掉一条记录。
 
 ### 4. 安全约束
 

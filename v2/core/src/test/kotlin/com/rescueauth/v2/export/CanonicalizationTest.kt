@@ -148,7 +148,11 @@ class CanonicalizationTest {
             "k1", keyName = "work",
             privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAA\n-----END OPENSSH PRIVATE KEY-----",
         )
-        // Same private key, different keyName/title — still the same entry.
+        // Same private key, different keyName/title → same canonical sensitive
+        // payload. NOTE: this fingerprint equality does NOT imply the two
+        // entries are deduplicated — the merge planner only uses the developer
+        // fingerprint for same-stableId comparisons; different stableIds are
+        // always INSERT / keep both.
         val b = SnapshotBuilder.sshKey(
             "k2", keyName = "renamed", title = "Renamed",
             privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAA\n-----END OPENSSH PRIVATE KEY-----",
