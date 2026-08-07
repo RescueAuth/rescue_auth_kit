@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.ksp)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -22,6 +23,10 @@ android {
         release {
             isMinifyEnabled = false
         }
+    }
+    buildFeatures {
+        buildConfig = true
+        compose = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -79,6 +84,17 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.activity.compose)
 
+    // Jetpack Compose UI foundation (BOM-managed)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.navigation.compose)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+
     // Room + SQLCipher (Zetetic current artifact)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
@@ -91,6 +107,11 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.room.testing)
+
+    // Compose UI tests (Robolectric host + instrumented)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.core)

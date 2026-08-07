@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RescueAuth</string>
+
+    <!-- Unlock prompt (BiometricPrompt) -->
+    <string name="unlock_title">解锁 RescueAuth</string>
+    <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
+    <string name="unlock_cancel">取消</string>
+
+    <!-- App shell / navigation -->
+    <string name="nav_authenticator">认证器</string>
+    <string name="nav_developer">开发者</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Authenticator -->
+    <string name="authenticator_title">认证器</string>
+    <string name="authenticator_empty_title">还没有账户</string>
+    <string name="authenticator_empty_body">添加服务和账户后即可开始生成一次性密码。</string>
+    <string name="authenticator_section_totp">TOTP</string>
+    <string name="authenticator_section_recovery">恢复码</string>
+    <string name="authenticator_countdown_label">剩余</string>
+
+    <!-- Provider / Account list item -->
+    <string name="account_provider_label">服务</string>
+    <string name="account_pinned_label">已置顶</string>
+    <string name="account_actions_label">操作</string>
+
+    <!-- TOTP card -->
+    <string name="totp_code_copied">验证码已复制</string>
+    <string name="totp_copy_code">复制验证码</string>
+    <string name="totp_copy_code_description">复制当前一次性密码</string>
+
+    <!-- Recovery codes -->
+    <string name="recovery_codes_title">恢复码</string>
+    <string name="recovery_codes_unused_count">剩余 %1$d 个</string>
+    <string name="recovery_codes_used">已使用</string>
+    <string name="recovery_codes_unused">未使用</string>
+    <string name="recovery_codes_copy_all">全部复制</string>
+
+    <!-- Developer Vault -->
+    <string name="developer_title">开发者</string>
+    <string name="developer_subtitle">开发者保险库</string>
+    <string name="developer_empty_title">暂无开发者条目</string>
+    <string name="developer_empty_body">可安全存储签名密钥、API 凭据、SSH 密钥、环境变量及其他机密，全部保存在本机。</string>
+    <string name="developer_type_signing_key">Android 签名密钥</string>
+    <string name="developer_type_api_credential">API 凭据</string>
+    <string name="developer_type_ssh_key">SSH 密钥</string>
+    <string name="developer_type_env_var">环境变量集</string>
+    <string name="developer_type_generic">通用机密</string>
+    <string name="developer_entry_value_hidden">已隐藏</string>
+    <string name="developer_reveal">显示</string>
+    <string name="developer_hide">隐藏</string>
+    <string name="developer_reveal_hint">显示或隐藏敏感值</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_security_section">安全</string>
+    <string name="settings_about_section">关于</string>
+    <string name="settings_export_package">导出数据包</string>
+    <string name="settings_import_package">导入数据包</string>
+    <string name="settings_export_import_notice">导出与导入属于后续垂直切片，此处仅为占位入口。</string>
+    <string name="settings_version">版本 %1$s</string>
+
+    <!-- Common states -->
+    <string name="common_loading">正在加载…</string>
+    <string name="common_retry">重试</string>
+    <string name="common_error_title">出错了</string>
+    <string name="common_error_retry_description">点击重试加载</string>
+    <string name="common_unknown">未知</string>
+
+    <!-- Undo Snackbar contract -->
+    <string name="undo_snackbar_message">%1$s 已删除</string>
+    <string name="undo_snackbar_action">撤销</string>
+
+    <!-- Destructive confirmation dialog -->
+    <string name="destructive_dialog_title">删除 %1$s？</string>
+    <string name="destructive_dialog_message">此操作无法撤销。</string>
+    <string name="destructive_dialog_confirm">删除</string>
+    <string name="destructive_dialog_cancel">取消</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_back">返回</string>
+    <string name="a11y_sensitive_value">敏感值</string>
+</resources>

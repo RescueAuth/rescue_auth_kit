@@ -3,14 +3,16 @@ package com.rescueauth.v2
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
 import com.rescueauth.v2.security.VaultKeyManager
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.session.SessionManager
+import com.rescueauth.v2.ui.RescueAuthApp
+import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,25 +20,23 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
 /**
- * Root activity for phase 2 platform lifecycle validation.
+ * Root activity — the Compose host for the RescueAuth v2 app shell.
  *
- * Responsibilities (ADR-0003 §2, §4):
+ * **Phase 2 platform/session semantics are preserved unchanged:**
  * - `FLAG_SECURE` on the root window (blocks screenshots & recents preview).
  * - Background masking: an opaque overlay is shown in [onStop] and removed in
  *   [onStart] (after optional re-auth).
  * - First-run: create the VaultKey; otherwise unlock via BiometricPrompt.
  * - Auto-lock: [SessionManager.onAppBackgrounded] with the configured timeout.
  *
- * BiometricPrompt contract (phase2-blocker-hotfix):
- * - When `DEVICE_CREDENTIAL` is part of the allowed authenticators a negative
- *   button must NOT be set — `PromptInfo.Builder.build()` throws
- *   `IllegalArgumentException` otherwise, crashing the Activity on startup.
- *   The system UI supplies its own cancel button for the device-credential
- *   path. For a biometric-only prompt a negative "Cancel" button is kept.
- * - Authentication is only ever triggered while the Activity is RESUMED (never
- *   directly from `onCreate`) and is guarded so that cancel, failure and
- *   repeated `onResume` events can never create an authentication loop or
- *   crash the Activity.
+ * **Minimal UI-hosting change only:** the previous `simple_list_item_1`
+ * placeholder TextView is replaced by a [ComposeView] hosting [RescueAuthApp].
+ * The BiometricPrompt contract (phase2-blocker-hotfix), the state machine and
+ * the session manager are untouched.
+ *
+ * The shell is presentation-only: it renders the three top-level destinations
+ * and does not read any Vault data. Real Vault CRUD belongs to later vertical
+ * slices.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -64,18 +64,23 @@ class MainActivity : AppCompatActivity() {
         sessionManager = sessionManagerFactory?.invoke(this)
             ?: SessionManager(this, stateMachine, scope)
 
-        setContentView(android.R.layout.simple_list_item_1)
-        findViewById<TextView>(android.R.id.text1).text =
-            "RescueAuth v2 — phase 2 session lifecycle"
+        // Compose host for the app shell. The shell is presentation-only and
+        // does not need the unlocked session; it never reads Vault data.
+        val composeView = ComposeView(this).apply {
+            setContent {
+                RescueAuthTheme {
+                    RescueAuthApp(versionName = BuildConfig.VERSION_NAME)
+                }
+            }
+        }
+        setContentView(composeView)
 
         if (sessionManager.needsFirstRunSetup()) {
             val key = sessionManager.createVault()
             sessionManager.unlockWithFreshKey(key)
             key.fill(0)
-            showStatus("First run: VaultKey created & unlocked")
         } else {
             authRequested = true
-            showStatus("Locked — authenticate to unlock")
         }
     }
 
@@ -83,9 +88,6 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         sessionManager.onAppForegrounded()
         removeMask()
-        if (stateMachine.isUnlocked()) {
-            showStatus("Unlocked")
-        }
     }
 
     override fun onResume() {
@@ -118,7 +120,6 @@ class MainActivity : AppCompatActivity() {
         val authenticators = resolveAvailableAuthenticators()
         if (authenticators == null) {
             biometricPromptActive.set(false)
-            showStatus("No enrolled biometrics or device credential — recovery required")
             return
         }
 
@@ -132,9 +133,6 @@ class MainActivity : AppCompatActivity() {
                         biometricPromptActive.set(false)
                         if (sessionManager.unlock()) {
                             removeMask()
-                            showStatus("Unlocked")
-                        } else {
-                            showStatus("Unlock failed (Keystore invalidated?)")
                         }
                     }
 
@@ -142,32 +140,29 @@ class MainActivity : AppCompatActivity() {
                         // Cancel, lockout and hardware errors must NOT relaunch
                         // the prompt automatically (avoids an auth loop).
                         biometricPromptActive.set(false)
-                        showStatus("Auth error ($errorCode): $errString")
                     }
 
                     override fun onAuthenticationFailed() {
                         // Biometric not recognized: the system prompt stays
                         // open for another attempt — do not relaunch or close.
-                        showStatus("Auth failed — try again")
                     }
                 },
             )
             val builder = BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Unlock RescueAuth")
-                .setSubtitle("Use your fingerprint, face, or device credential")
+                .setTitle(getString(R.string.unlock_title))
+                .setSubtitle(getString(R.string.unlock_subtitle))
                 .setAllowedAuthenticators(authenticators)
             // DEVICE_CREDENTIAL forbids a negative button (PromptInfo.build()
             // throws IllegalArgumentException otherwise). Biometric-only
             // prompts keep a "Cancel" negative button.
             if (authenticators and BiometricManager.Authenticators.DEVICE_CREDENTIAL == 0) {
-                builder.setNegativeButtonText("Cancel")
+                builder.setNegativeButtonText(getString(R.string.unlock_cancel))
             }
             prompt.authenticate(builder.build())
         } catch (e: Exception) {
             // A prompt that cannot be launched must never crash the Activity;
             // surface the reason instead and allow a manual retry.
             biometricPromptActive.set(false)
-            showStatus("Biometric prompt unavailable: ${e.message}")
         }
     }
 
@@ -206,10 +201,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun removeMask() {
         maskView?.let { (window.decorView as FrameLayout).removeView(it) }
-    }
-
-    private fun showStatus(text: String) {
-        findViewById<TextView>(android.R.id.text1).text = text
     }
 
     override fun onDestroy() {
