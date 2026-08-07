@@ -2,8 +2,9 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目标只有一个：
-把导入/导出（迁移与恢复）这件事做得可靠、可验证。
+RescueAuthKit 是一个很小但很"偏执"的 **Android 个人安全库**：可靠的 TOTP
+认证器 + 恢复码 + 开发者密钥存储，并提供可移植、加密、merge-first 的
+导出/导入格式，让你可以在设备间迁移数据而不用猜哪个应用支持什么。
 
 > **注意**：仓库正在 `v2/` 下重写为**原生 Android 应用**（Kotlin + Room/SQLCipher，
 > 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `v1.2.0`，仅作
@@ -14,33 +15,36 @@ RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目�
 很多认证器应用在"迁移数据"这件事上体验很差：要么不支持导出，要么格式不通用，
 要么流程不清晰。这个项目的优先级正好相反：
 
-- 数据集中存放在一个加密 Vault 文件里
-- 备份与恢复是第一优先级能力
-- 目标是做到"手机 <-> 桌面端"可验证的闭环迁移
+- 数据集中存放在本机加密 Vault 里
+- 导出/导入是第一优先级能力
+- 目标是可靠的手机到手机迁移与恢复
 
 ## 这个项目的特别之处
 
-- 单一加密 Vault 文件，可以自由复制与保存
-- 强密码学方案（基于主密码）：
-  - Argon2id 作为 KDF
-  - XChaCha20-Poly1305 作为 AEAD
-- 强调跨设备迁移闭环：
-  - 一端导出，另一端导入，再验证同样的验证码
+- Android-only、local-first、加密个人安全库（无账号/登录后端、无云同步）
+- 三大正式能力：**Authenticator**（TOTP + 恢复码）、**Developer Vault**
+  （签名密钥/API 凭据/SSH 密钥/环境变量/通用密钥）、**Portable Vault
+  Package**（手动导出、per-export PIN、merge-first 导入）
+- 强本地加密：
+  - Android Keystore 包装的 VaultKey + SQLCipher 数据库
+  - Portable Package 由每次导出的 per-export PIN 保护
+- merge-first 导入：导入即合并到当前 Vault（无覆盖式 restore 语义）
 
 ## RescueAuth v2（Android 原生重写）
 
 - **位置**：`v2/` — Kotlin + Jetpack Compose + Room/SQLCipher。
-- **状态**：阶段 0/1 + phase1-fix + 阶段 2（加密数据库、VaultKey/Keystore、
-  安全会话、自动锁、遮罩 + FLAG_SECURE）均已合并进 `main`；
-  `phase2-blocker-hotfix`（PR #6）修复了 BiometricPrompt 启动崩溃并使平台
-  测试可编译、断言真实化；SQLCipher native 加载已修复（PR #15）。
-  数据库 instrumented 测试（`RescueAuthDatabaseInstrumentedTest`，6 用例）
-  已在 Firebase Test Lab 真实执行 **6/6 PASS**（MediumPhone.arm / API 33）。
+- **状态**：阶段 0/1/2 已收口合并进 `main`（加密数据库、VaultKey/Keystore、
+  安全会话、自动锁、遮罩 + FLAG_SECURE）；数据库 instrumented 测试
+  （`RescueAuthDatabaseInstrumentedTest`，6 用例）已在 Firebase Test Lab
+  真实执行 **6/6 PASS**（MediumPhone.arm / API 33）。**Phase 3 进行中**：
+  Phase 3A（Package + Merge Foundation）已在 PR #18 实现 —— 逻辑导出包模型、
+  stable identity + semantic fingerprint、merge planner、schema v2
+  （见 `v2/docs/PHASE3_REPORT.md`）。
 - **构建**：`cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
   （需 JDK 17 + Android SDK 35）。Instrumented 测试经 `main` push 在
   Firebase Test Lab 执行（见 `docs/FIREBASE_TEST_LAB.md`）。
-- **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、BACKUP_FORMAT、
-  THREAT_MODEL、UPDATE_PROTOCOL）。
+- **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、PACKAGE_FORMAT、
+  THREAT_MODEL、UPDATE_PROTOCOL）与正式路线图 [`v2/ROADMAP.md`](v2/ROADMAP.md)。
 
 ## 旧 Flutter 应用（v1.x，已冻结）
 
@@ -66,6 +70,9 @@ RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目�
 
 ## 功能
 
+> 以下为**旧 Flutter v1.2.0（已冻结）**的功能清单。v2 目标产品范围见
+> [`v2/ROADMAP.md`](v2/ROADMAP.md)，当前实现进度见
+> [`v2/AGENTS.md`](v2/AGENTS.md)。
 - 首页是"提供商"列表，逐级下钻到账户和凭据。
 - TOTP 动态码（实时刷新、倒计时、复制），只在账户详情页渲染。
 - 恢复码：新增、查看、一键全选复制、就地编辑、移动到其他账户、删除。
@@ -77,12 +84,15 @@ RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目�
 - 加密备份导出/导入（核心能力）。
 - 中英双语界面。
 
-## 当前重点支持平台
+## 当前重点支持平台（旧 v1.2.0，已冻结）
 
 - Windows 桌面端
 - Android
 
 暂不支持 Web（Vault 使用本地文件 IO）。
+
+> **v2 目标平台：Android only**。Windows / macOS / Linux / iOS / Web 客户端
+> 明确不开发（见 `v2/ROADMAP.md §1`）。上方为本节旧 Flutter 应用事实。
 
 ## 本地运行
 
@@ -100,7 +110,10 @@ flutter devices
 flutter run -d <device-id>
 ```
 
-## 备份 / 恢复（推荐验证流程）
+## 备份 / 恢复（旧 v1.2.0 流程，已冻结）
+
+> v2 已改为 **Portable Vault Package**：手动 Export（per-export PIN）+ merge-first
+> Import（无主密码、无 automatic backup）。下方为旧版事实。
 
 1. 在设备 A 创建并解锁 Vault
 2. 导入一些 TOTP / 恢复码
@@ -120,6 +133,8 @@ flutter run -d <device-id>
 
 ## 注意与限制
 
-- 不支持 `otpauth-migration://`
-- 忘记主密码就无法解密 Vault
+- 旧 v1 不支持 `otpauth-migration://`（v2 新增 **仅导入** 支持，作为外部导入
+  适配器，见 `v2/ROADMAP.md §4.3`）。
+- 忘记主密码就无法解密旧版 Vault（v2 不恢复全局主密码）。
 - TOTP 凭据故意设计为不可修改：改任何字段都等于换密钥，要变更只能删除后重新添加
+  （v2 保留该规则，见 `v2/ROADMAP.md §4.2`）。

@@ -8,7 +8,38 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > **v2 重写（2026-08-06）**：仓库自 `main` 起进入 Android 原生重写阶段，
 > 代码位于 `v2/`（Kotlin + Room/SQLCipher），旧 Flutter 应用冻结于 tag `v1.2.0`。
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
-> phase2-closure），均已合并进 `main`。
+> phase2-closure/roadmap-v2），均已合并进 `main`。
+
+## [v2 roadmap] - 2026-08-07（Issue #17）
+
+正式产品 Roadmap 定稿（docs-only）：
+
+### Added
+
+- `v2/ROADMAP.md`：正式路线图 source of truth——产品定位（Android-only /
+  local-first / encrypted personal security vault）、三支柱（Authenticator /
+  Developer Vault / Portable Vault Package）、Phase 3 之后全部重新规划
+  （3A→3D + Phase 4 daily-use slices P1–P8 + Phase 5 legacy 收口 + Phase 6
+  polish）、DAILY-USE READY 里程碑定义、Phase 3A Review Checklist。
+- `v2/docs/ADRS/ADR-0006-sensitive-action-reauth.md`：Sensitive Action
+  Re-authentication 正式能力（Export / export keystore / reveal 长期 secret
+  要求 fresh 生物识别/设备凭据）。
+
+### Changed
+
+- `v2/PRODUCT.md`：改为正式产品范围文档；明确 Developer Vault 五类全部
+  KEEP（废止“v2 removed”旧假设）、manual-only 导出、per-export PIN、
+  merge-first 导入、Sensitive re-auth、Search/Pin、Delete Undo、
+  otpauth-migration import-only。
+- `v2/AGENTS.md`：阶段跟踪改为 slice 化清单（3B/3C/3D、P1–P8、M1/M2、
+  L1–L3），新增架构边界（Legacy/Native 隔离、Package 独立 schema、
+  no automatic backup、Sensitive re-auth）。
+- `v2/docs/THREAT_MODEL.md`：Developer Entry 列为正式资产；新增
+  Sensitive re-auth、Global Search 不索引 secret、Clipboard auto-clear DEFER。
+- `v2/docs/UPDATE_PROTOCOL.md`：范围收敛为 check releases + 外部打开，
+  不做 self-update 安装。
+- `README.md` / `README.zh-CN.md`：产品描述改为 v2 三支柱；旧 Flutter
+  功能/平台/备份/限制段落标注为 frozen v1.2.0 事实。
 
 ## [v2 phase2-closure] - 2026-08-07（PR #16）
 

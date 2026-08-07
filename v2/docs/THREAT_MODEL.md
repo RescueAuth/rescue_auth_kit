@@ -2,6 +2,10 @@
 
 > 阶段 0/1 版。随实现推进持续更新；任何加密/备份/导入变更必须先更新本节。
 > **更新（2026-08-06，PR #6）**：同步 phase2-blocker-hotfix 新增的安全事实。
+> **更新（2026-08-07，Issue #17 产品决策）**：新增 Sensitive Action
+> Re-authentication（ADR-0006）；明确 Developer Vault 五类条目全部为正式
+> 资产（不再视为 removed）；Global Search 不索引 secret；Clipboard
+> auto-clear 列入 DEFER。
 
 ## 资产
 
@@ -46,9 +50,15 @@
 
 - 不做云托管密钥（v1 无服务器密钥托管）。
 - 不做应用内主密码（日常解锁仅系统生物识别/设备凭据）。
-- 剪贴板中的验证码在可配置时间后清除，但剪贴板本身是系统级风险。
-- 旧库导入的 Developer 数据不导入（除非转只读 secure note），
-  以"未导入报告"形式保留。
+- 剪贴板中的验证码在可配置时间后清除（clipboard auto-clear 为 **DEFER**，
+  不阻塞 daily use），但剪贴板本身是系统级风险。
+- 旧库导入的 Developer 数据默认不导入（除非转只读 secure note），
+  以"未导入报告"形式保留；**但 v2 原生 Developer Vault 是正式能力**，
+  五类条目全部 KEEP。
+- **敏感操作二次认证**：Export / export keystore / reveal 长期 secret 等
+  在解锁会话内仍要求 fresh Biometric / Device Credential（ADR-0006）。
+- **Global Search 不索引 secret**：只搜 Provider/Account/TOTP display
+  metadata/Developer title 等非敏感字段；secret 明文不入任何索引。
 
 ## 依赖
 
