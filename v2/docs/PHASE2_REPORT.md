@@ -185,7 +185,7 @@ core 模块 phase1-fix 测试 34/34 通过（`./gradlew :core:test`）。
 | Phase 0 | **DONE**：旧 Flutter 冻结 v1.2.0 + fixtures + LEGACY_IMPORT.md |
 | Phase 1 | **DONE**：最小 Kotlin/Android 工程 + Argon2id/XChaCha20 解密 spike（PR #1/#2/#3） |
 | Phase 2 | **IMPLEMENTED + 数据库真机验证 6/6 PASS**（见 §3）；生物识别/Keystore/截图保护等仍为未真机验证缺口（§4.2） |
-| Phase 3 | **NOT STARTED**（BACKUP_FORMAT.md 仍为 Draft；无 BackupKey/恢复套件/导入导出实现） |
+| Phase 3 | **STARTED（2026-08-07）**：Phase 3A（Package + Merge Foundation）已实现，见 `PHASE3_REPORT.md` / `PACKAGE_FORMAT.md` |
 
 ### Phase 2 结论
 

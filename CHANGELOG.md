@@ -8,7 +8,58 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > **v2 重写（2026-08-06）**：仓库自 `main` 起进入 Android 原生重写阶段，
 > 代码位于 `v2/`（Kotlin + Room/SQLCipher），旧 Flutter 应用冻结于 tag `v1.2.0`。
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
-> phase2-closure），均已合并进 `main`。
+> phase2-closure/phase3a），均已合并进 `main`。
+
+## [v2 phase3a] - 2026-08-07（PR #18）
+
+Phase 3A — **Package + Merge Foundation**。Phase 3 架构重置：
+Export Package 是可合并数据包，per-export PIN 保护，merge-first import。
+
+### Added
+
+- 纯 JVM 逻辑 package 领域模型（`:core` `export/`）：`VaultSnapshot` /
+  `VaultPackagePayload` / `PackageSourceMetadata`（无 Android/Room 依赖）。
+- `Canonicalization`：stable identity + semantic fingerprint（TOTP /
+  recovery-set / account）与 canonical 归一化；fingerprint 不落库、不入
+  plaintext header。
+- `PackageValidator`：逻辑 schema 版本 + 内部一致性校验（重复 stableId /
+  非法 TOTP 参数 / 非法 base32 / 非法 status），invalid source 拒绝整个包。
+- `MergePlanner`：确定性纯 merge planner → `MergePlan` / `MergeSummary`
+  （INSERT / DUPLICATE / CONFLICT / UNCHANGED），12 条强制 merge 语义。
+- Room schema v1→v2 migration：5 表新增 `stableId`（回填 `id` + UNIQUE
+  index），删除 `backup_record` 表。schema JSON 导出到 `app/schemas/`。
+- 文档：`docs/PACKAGE_FORMAT.md`（新逻辑契约）、`docs/PHASE3_REPORT.md`、
+  ADR-0004 / ADR-0005；THREAT_MODEL / PRODUCT / AGENTS / README* 同步。
+
+### Changed
+
+- `VaultRepository` 删除 BackupSnapshotSink / PRE_IMPORT checkpoint /
+  recordBackup / latestBackup（自动备份模型移除）。
+- 删除 `BackupRecordEntity` / `BackupRecordDao` / DataStore 依赖。
+- `:core` 的 kotlinx-serialization 由 `api` 改为 `implementation`（避免污染
+  app KSP classpath）。
+
+### Removed（旧 automatic-backup 抽象）
+
+- `BackupSnapshotSink`（onCheckpoint / onChange）
+- `BackupRecordEntity` / `BackupRecordDao` + Room 注册 + `backup_record` 表
+- `VaultRepository.recordBackup()` / `latestBackup()` / PRE_IMPORT checkpoint
+- DataStore 依赖（`androidx.datastore.preferences`）
+- `BACKUP_FORMAT.md`（重命名为 `.obsolete`，由 `PACKAGE_FORMAT.md` 取代）
+
+### Verified
+
+- `:core:test` 34 → **70**（+36 新增 Phase 3A 测试）全绿。
+- `:app:testDebugUnitTest` 35 → **36**（+1 migration 测试）全绿。
+- `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest` 成功。
+
+### Roadmap
+
+- Phase 0/1/2: CLOSED。Phase 3: STARTED。
+- Phase 3A: **PACKAGE + MERGE FOUNDATION**（本轮）。
+- Phase 3B: NOT STARTED（encrypted codec：Argon2id + XChaCha20-Poly1305）。
+- Phase 3C: NOT STARTED（transactional import/merge）。
+- Phase 3D: NOT STARTED（Android manual Export/Import UI + SAF）。
 
 ## [v2 phase2-closure] - 2026-08-07（PR #16）
 

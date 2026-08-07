@@ -23,12 +23,18 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * VaultRepository tests: serialized mutations, session-lock enforcement,
- * legacy import transactionality and the PRE_IMPORT checkpoint contract.
+ * VaultRepository tests: serialized mutations, session-lock enforcement and
+ * legacy import transactionality.
+ *
+ * Phase 3 reset: the automatic-backup snapshot sink / PRE_IMPORT checkpoint /
+ * BackupRecord bookkeeping were REMOVED (manual Export Package only). The
+ * repository no longer takes a snapshot sink, so the change-tracking and
+ * checkpoint-failure assertions are gone; the transactionality guarantees
+ * (all-or-nothing import, session-lock enforcement, serialization) remain.
  *
  * Uses an in-memory (unencrypted) Room DB — the SQLCipher path is covered by
  * the instrumented test. All repository logic (locking, serialization,
- * import mapping, snapshot hooks) is DB-backend agnostic.
+ * import mapping) is DB-backend agnostic.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -37,7 +43,6 @@ class VaultRepositoryTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var db: RescueAuthDatabase
     private lateinit var session: SecureSessionStateMachine
-    private lateinit var snapshots: RecordingSnapshotSink
 
     @Before
     fun setUp() {
@@ -47,7 +52,6 @@ class VaultRepositoryTest {
         session = SecureSessionStateMachine()
         session.beginAuthentication()
         session.onAuthenticationSuccess()
-        snapshots = RecordingSnapshotSink()
     }
 
     @After
@@ -55,7 +59,7 @@ class VaultRepositoryTest {
         db.close()
     }
 
-    private fun repo() = VaultRepository(db, session, snapshots)
+    private fun repo() = VaultRepository(db, session)
 
     private fun sampleBundle(): LegacyImportBundle = LegacyImportBundle(
         schemaVersion = 1,
@@ -122,8 +126,6 @@ class VaultRepositoryTest {
             }.awaitAll()
         }
         assertEquals(2, db.authAccountDao().count())
-        // 20 favorite toggles + 1 initial import = 21 change snapshots.
-        assertEquals(21, snapshots.changeCount)
     }
 
     @Test
@@ -150,8 +152,6 @@ class VaultRepositoryTest {
         assertEquals(2, db.authAccountDao().count())
         assertEquals(2, db.totpCredentialDao().listAll().size)
         assertEquals(1, db.importRecordDao().listAll().size)
-        // PRE_IMPORT checkpoint was produced BEFORE the write.
-        assertEquals(1, snapshots.checkpointCount)
     }
 
     @Test
@@ -182,17 +182,18 @@ class VaultRepositoryTest {
     }
 
     @Test
-    fun `checkpoint failure aborts import without touching database`() = runBlocking {
-        val failing = object : BackupSnapshotSink {
-            override fun onCheckpoint(reason: String) {
-                throw IllegalStateException("checkpoint failed")
-            }
-
-            override fun onChange(reason: String) {}
-        }
-        val r = VaultRepository(db, session, failing)
+    fun `legacy import failure rolls back the whole transaction`() = runBlocking {
+        val r = repo()
+        // A bundle that maps to nothing must abort the transaction without
+        // leaving any partial rows behind.
+        val emptyBundle = LegacyImportBundle(
+            schemaVersion = 1,
+            totpEntries = emptyList(),
+            recoveryCodeSets = emptyList(),
+            developerEntries = emptyList(),
+        )
         try {
-            r.importLegacy(sampleBundle())
+            r.importLegacy(emptyBundle)
             assertTrue("expected import to abort", false)
         } catch (e: VaultRepository.InvalidImportException) {
             // expected
@@ -220,21 +221,5 @@ class VaultRepositoryTest {
         assertEquals("USED", db.recoveryCodeDao().listBySet("set-1").first().status)
         r.markRecoveryCodeUnused("c1")
         assertEquals("UNUSED", db.recoveryCodeDao().listBySet("set-1").first().status)
-        // import(1) + markUsed(1) + markUnused(1) = 3 change snapshots.
-        assertEquals(3, snapshots.changeCount)
-    }
-
-    private class RecordingSnapshotSink : BackupSnapshotSink {
-        var checkpointCount = 0
-        var changeCount = 0
-            private set
-
-        override fun onCheckpoint(reason: String) {
-            checkpointCount++
-        }
-
-        override fun onChange(reason: String) {
-            changeCount++
-        }
     }
 }

@@ -13,7 +13,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "auth_account",
-    indices = [Index("serviceName"), Index("legacySourceId")],
+    indices = [Index("serviceName"), Index("legacySourceId"), Index(value = ["stableId"], unique = true)],
 )
 data class AuthAccountEntity(
     @PrimaryKey val id: String,
@@ -25,4 +25,7 @@ data class AuthAccountEntity(
     val createdAt: String,
     val updatedAt: String,
     val legacySourceId: String? = null,
+    /** Stable logical record ID — survives export/import across devices (Phase 3A).
+     *  Backfilled to the Room `id` for pre-Phase-3A rows. */
+    val stableId: String = id,
 )

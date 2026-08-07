@@ -16,6 +16,11 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Room schema export (migration/schema tests + review).
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
     }
 
     buildTypes {
@@ -54,6 +59,16 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    // Room MigrationTestHelper reads the exported schema JSONs from assets.
+    // Register the exported schema dir as a DEBUG-only asset source so
+    // Robolectric unit tests and instrumented tests can read them, while
+    // release builds never ship the schema JSONs.
+    sourceSets {
+        getByName("debug") {
+            assets.srcDir("$projectDir/schemas")
+        }
+    }
 }
 
 tasks.configureEach {
@@ -74,7 +89,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.activity.compose)

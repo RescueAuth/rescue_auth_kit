@@ -1,0 +1,48 @@
+# ADR-0004：Stable record identity 与 semantic fingerprint
+
+- 状态：**Accepted**（Phase 3A）
+- 日期：2026-08-07
+- 关联：PACKAGE_FORMAT.md §Identity、PHASE3_REPORT.md §3
+
+## 背景
+
+Phase 3 需要跨设备迁移 / 合并 Vault。审计发现 Room primary key 是
+per-install 随机 UUID，不是跨 Vault 稳定 identity：两台设备独立扫描同一
+TOTP QR 得到不同的 `id`；Export→Import→Export 若不处理会生成新 ID。
+
+## 决策
+
+### 1. 两层概念
+
+- **Stable record identity（lineage）**：每条记录有一个 `stableId`，
+  首次创建时生成并永久保持，随 Export Package 跨设备流转。
+- **Semantic fingerprint（dedupe）**：识别“逻辑上同一条 credential”，
+  用于两台设备独立录入的重复检测。
+
+### 2. Schema
+
+- 5 张业务表各加 `stableId TEXT NOT NULL` + UNIQUE index（schema v2）。
+- pre-Phase-3A 行 migration 回填 `stableId = id`（Room primary key 对既有
+  数据就是最自然的稳定 ID）。
+- **不为“看起来更现代”新增 UUID 字段**：新写入的行由业务层在创建时
+  生成 stableId（当前实现：= 主键 id，写入时分配）。
+
+### 3. Fingerprint 规则
+
+- TOTP：`SHA-256("totp" + canonical(secret, algorithm, digits, period))`。
+  issuer / accountName 不参与 —— 重命名不影响 credential 身份。
+- Recovery set：`SHA-256(title + code values)`；status/usedAt 不参与。
+- Account：`SHA-256(serviceName + accountName)`，仅用于 merge 分组。
+
+### 4. 安全约束
+
+- fingerprint 是 secret-derived 材料：只在 merge/import 时按需计算，
+  不落库，不放入 plaintext package header。
+- 不同 secret 永不合并（不同 fingerprint）。
+
+## 后果
+
+- 好处：跨设备 lineage + 语义去重分离；merge 语义可 JVM 纯逻辑验证。
+- 代价：schema v2 migration（5 列 + 5 唯一索引 + 删 backup_record 表）；
+  stableId 需要业务层保证写入时分配。
+- 不可逆点：schema v2 一旦发布，后续变更需 migration。

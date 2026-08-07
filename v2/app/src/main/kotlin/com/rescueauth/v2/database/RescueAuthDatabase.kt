@@ -33,9 +33,8 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         RecoveryCodeSetEntity::class,
         RecoveryCodeEntity::class,
         ImportRecordEntity::class,
-        BackupRecordEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class RescueAuthDatabase : RoomDatabase() {
@@ -45,11 +44,10 @@ abstract class RescueAuthDatabase : RoomDatabase() {
     abstract fun recoveryCodeSetDao(): RecoveryCodeSetDao
     abstract fun recoveryCodeDao(): RecoveryCodeDao
     abstract fun importRecordDao(): ImportRecordDao
-    abstract fun backupRecordDao(): BackupRecordDao
 
     companion object {
         const val DB_NAME = "rescueauth_v2.db"
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
 
         /**
          * Builds the encrypted database. [vaultKey] must be the unwrapped
@@ -74,8 +72,44 @@ abstract class RescueAuthDatabase : RoomDatabase() {
             }
             return Room.databaseBuilder(context, RescueAuthDatabase::class.java, DB_NAME)
                 .openHelperFactory(factory)
+                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
+        }
+
+        /**
+         * v1 → v2 (Phase 3A):
+         * - adds a `stableId` column to `auth_account`, `totp_credential`,
+         *   `recovery_code_set`, `recovery_code` and `import_record`, each
+         *   backfilled with the row's existing `id` (the Room primary key is
+         *   the stable logical ID for records that predate Phase 3A);
+         * - drops the obsolete `backup_record` table (automatic-backup model
+         *   removed — manual Export Package only).
+         */
+        val MIGRATION_1_2: androidx.room.migration.Migration = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE auth_account ADD COLUMN stableId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE auth_account SET stableId = id WHERE stableId = ''")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_auth_account_stableId ON auth_account(stableId)")
+
+                db.execSQL("ALTER TABLE totp_credential ADD COLUMN stableId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE totp_credential SET stableId = id WHERE stableId = ''")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_totp_credential_stableId ON totp_credential(stableId)")
+
+                db.execSQL("ALTER TABLE recovery_code_set ADD COLUMN stableId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE recovery_code_set SET stableId = id WHERE stableId = ''")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_recovery_code_set_stableId ON recovery_code_set(stableId)")
+
+                db.execSQL("ALTER TABLE recovery_code ADD COLUMN stableId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE recovery_code SET stableId = id WHERE stableId = ''")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_recovery_code_stableId ON recovery_code(stableId)")
+
+                db.execSQL("ALTER TABLE import_record ADD COLUMN stableId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE import_record SET stableId = id WHERE stableId = ''")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_import_record_stableId ON import_record(stableId)")
+
+                db.execSQL("DROP TABLE IF EXISTS backup_record")
+            }
         }
 
         /** Closes all connections (used by lock()/process teardown). */

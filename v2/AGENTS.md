@@ -6,16 +6,13 @@
 
 - v2 是**全新 Android 原生应用**（Kotlin + Jetpack Compose + Room/SQLCipher），
   与旧 Flutter 项目并行存在。旧项目保留在仓库根目录，冻结于 tag `v1.2.0`。
-- v2 代码位于 `v2/` 目录，从 `databaseSchemaVersion = 1` 与
-  `backupFormatVersion = 1` 开始。
-- 当前阶段：**阶段 0/1/phase1-fix 已完成**，阶段 2 已实现（Room + SQLCipher
+- v2 代码位于 `v2/` 目录，从 `databaseSchemaVersion = 1`（现为 **2**，Phase 3A
+  stableId migration）与 `packageFormatVersion = 1`（PACKAGE_FORMAT.md）开始。
+- 当前阶段：**阶段 0/1/phase1-fix/2 已完成**，阶段 2 已实现（Room + SQLCipher
   + VaultKey/Keystore + 安全会话 + 串行 repository + 自动锁 + 遮罩 + FLAG_SECURE）
-  且 **phase2-blocker-hotfix 已合并**（PR #6：修复 BiometricPrompt 启动崩溃、
-  instrumented 测试可 dex 化、真实 FLAG_SECURE/损坏库断言）。
-  **数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS**
-  （`RescueAuthDatabaseInstrumentedTest`，MediumPhone.arm / API 33，见
-  `docs/PHASE2_REPORT.md`）。生物识别/Keystore 认证有效期/截图保护等仍为
-  **未真机验证**的验证缺口（非 blocker，见 PHASE2_REPORT §C）。
+  且 **phase2-blocker-hotfix 已合并**（PR #6）；**数据库 instrumented 验证已在
+  Firebase Test Lab 真实执行 6/6 PASS**。**Phase 3 已 STARTED，3A 已实现**
+  （Package + Merge Foundation，见 `docs/PHASE3_REPORT.md` / `docs/PACKAGE_FORMAT.md`）。
 
 ## 必跑命令（提交前）
 
@@ -69,13 +66,17 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] ADR-0003（VaultKey/Keystore/会话/备份冲突/16KB）
   - [x] Room + SQLCipher（Zetetic sqlcipher-android 4.17.0）+ schema v1 实体/DAO
   - [x] VaultKey（Keystore 包装/解包）+ 安全会话状态机 + SessionManager（自动锁/后台）
-  - [x] 串行 repository（Mutex + withTransaction + 备份快照 sink）+ FLAG_SECURE
-  - [x] JVM/Robolectric 测试 **35 个**（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE、SQLCipher native loader 并发契约；含 `SecureScreenFlagTest`，它是 **Robolectric unit test**，在 `:app:testDebugUnitTest` 中运行，不是 androidTest/instrumentation 测试）
+  - [x] 串行 repository（Mutex + withTransaction）+ FLAG_SECURE
+  - [x] JVM/Robolectric 测试（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE、SQLCipher native loader 并发契约）
   - [x] phase2-blocker-hotfix（PR #6）：BiometricPrompt 崩溃修复 + instrumented 可编译 + 真实断言
-  - [x] SQLCipher native 加载（PR #15）：`SQLCipherNativeLoader` 在数据库唯一入口加载，publish-after-load 并发契约 + 4 个 JVM 测试
-  - [x] **instrumented 真机验证（数据库 6 用例）**：`RescueAuthDatabaseInstrumentedTest` 已在 Firebase Test Lab 真实执行 6/6 PASS（MediumPhone.arm / API 33 / virtual，构建 cnb-87g-1jvdnj7iu）
-  - [ ] 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏行为等**仍待真机验证**（non-blocking backlog，见 PHASE2_REPORT）
-- [ ] 阶段 3：新备份协议 + BackupKey + 恢复套件 + 导入导出（**NOT STARTED**）
+  - [x] SQLCipher native 加载（PR #15）：`SQLCipherNativeLoader` 在数据库唯一入口加载
+  - [x] **instrumented 真机验证（数据库 6 用例）**：6/6 PASS（Firebase Test Lab）
+  - [ ] 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏行为等**仍待真机验证**（non-blocking）
+- [x] 阶段 3（**STARTED**）
+  - [x] **Phase 3A：PACKAGE + MERGE FOUNDATION**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + canonicalization + 纯 merge planner + schema v1→v2 migration + 旧自动备份抽象清理 + JVM 测试 + 文档）
+  - [ ] Phase 3B：Encrypted Package Codec（Argon2id + XChaCha20-Poly1305 + package header）
+  - [ ] Phase 3C：Transactional Import / Merge（MergePlan → Room apply + rollback + 幂等）
+  - [ ] Phase 3D：Android 手动 Export / Import（SAF + PIN + 预览）
 - [ ] 阶段 4：旧库导入完整流程 + Developer 数据处理
 - [ ] 阶段 5：主要界面 + 设计系统 + 截图测试
 - [ ] 阶段 6：托管更新（`rescueauth-updates` 仓库）+ CI + 签名
@@ -85,4 +86,6 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 
 - `docs/ADRS/ADR-0001-legacy-import-frozen-baseline.md`
 - `docs/ADRS/ADR-0002-xchacha20-native-bc185.md`（BC 1.85 原生 XChaCha20-Poly1305，移除自实现 HChaCha20）
-- `docs/ADRS/ADR-0003-database-vaultkey-session.md`（数据库加密、VaultKey 分层、安全会话生命周期、16KB）
+- `docs/ADRS/ADR-0003-database-vaultkey-session.md`（数据库加密、VaultKey 分层、安全会话生命周期、16KB；§2 备份部分已被 Phase 3 reset 取代）
+- `docs/ADRS/ADR-0004-stable-identity-fingerprint.md`（stable record identity + semantic fingerprint）
+- `docs/ADRS/ADR-0005-merge-first-planner.md`（merge-first import + 纯 merge planner）

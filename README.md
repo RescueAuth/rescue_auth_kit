@@ -40,11 +40,17 @@ project flips the priority:
   (PR #15). The database instrumentation tests
   (`RescueAuthDatabaseInstrumentedTest`, 6 cases) have **passed 6/6 on Firebase
   Test Lab** (MediumPhone.arm / API 33).
+  **Phase 3 has STARTED** — 3A (Package + Merge Foundation: logical package
+  model, stable record identity, semantic fingerprint, deterministic pure
+  merge planner, schema v1→v2 migration, obsolete automatic-backup cleanup)
+  is implemented. 3B/3C/3D (encrypted codec, transactional import/merge,
+  Android manual Export/Import UI) are not started.
 - **Build**: `cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
   (needs JDK 17 + Android SDK 35). Instrumented tests run on Firebase Test Lab
   via `main` push (see `docs/FIREBASE_TEST_LAB.md`).
-- **Docs**: see `v2/docs/` (PHASE reports, ADRs, LEGACY_IMPORT, BACKUP_FORMAT,
-  THREAT_MODEL, UPDATE_PROTOCOL).
+- **Docs**: see `v2/docs/` (PHASE reports, ADRs, LEGACY_IMPORT, PACKAGE_FORMAT,
+  THREAT_MODEL, UPDATE_PROTOCOL). `BACKUP_FORMAT.md` is obsolete (old automatic-
+  backup draft), superseded by `PACKAGE_FORMAT.md`.
 
 ## Legacy Flutter app (v1.x, frozen)
 

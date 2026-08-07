@@ -36,11 +36,15 @@ RescueAuthKit 是一个很小但很"偏执"的 2FA 密钥库应用，核心目�
   测试可编译、断言真实化；SQLCipher native 加载已修复（PR #15）。
   数据库 instrumented 测试（`RescueAuthDatabaseInstrumentedTest`，6 用例）
   已在 Firebase Test Lab 真实执行 **6/6 PASS**（MediumPhone.arm / API 33）。
+  **Phase 3 已 STARTED**——3A（Package + Merge Foundation：逻辑 package 模型、
+  stable record identity、semantic fingerprint、确定性纯 merge planner、
+  schema v1→v2 migration、旧自动备份抽象清理）已实现；3B/3C/3D 未开始。
 - **构建**：`cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
   （需 JDK 17 + Android SDK 35）。Instrumented 测试经 `main` push 在
   Firebase Test Lab 执行（见 `docs/FIREBASE_TEST_LAB.md`）。
-- **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、BACKUP_FORMAT、
-  THREAT_MODEL、UPDATE_PROTOCOL）。
+- **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、PACKAGE_FORMAT、
+  THREAT_MODEL、UPDATE_PROTOCOL）。`BACKUP_FORMAT.md` 已废弃（旧自动备份草案），
+  由 `PACKAGE_FORMAT.md` 取代。
 
 ## 旧 Flutter 应用（v1.x，已冻结）
 

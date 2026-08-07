@@ -12,7 +12,6 @@ sqlcipher = "4.17.0"
 androidxCore = "1.13.1"
 appcompat = "1.7.0"
 biometric = "1.1.0"
-datastore = "1.1.1"
 robolectric = "4.14.1"
 androidxTestExtJunit = "1.2.1"
 androidxTestCore = "1.6.1"
@@ -36,7 +35,6 @@ sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
-androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
