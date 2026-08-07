@@ -203,8 +203,8 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
-| **3A — Package + Merge Foundation** | 逻辑 package 模型（VaultSnapshot / VaultPackagePayload）+ stableId + semantic fingerprint + canonicalization + 纯 merge planner + schema v1→v2 + 自动备份抽象清理 | 无用户 UI；为 3B/3C/3D 提供纯 JVM 契约与测试基线 | Phase 2 | L |
-| **3B — Encrypted Package Codec** | per-export PIN → KDF → PackageKey → AEAD 加密 envelope；wrong PIN/corrupted 安全失败；大小/记录上限 | 纯 JVM 可验证的加密导出/导入字节契约（无 UI） | 3A | M |
+| **3A — Package + Merge Foundation** | ✅ 已实现（PR #18）逻辑 package 模型（VaultSnapshot / VaultPackagePayload）+ stableId + semantic fingerprint + canonicalization + 纯 merge planner + schema v1→v2 + 自动备份抽象清理 | 无用户 UI；为 3B/3C/3D 提供纯 JVM 契约与测试基线 | Phase 2 | L |
+| **3B — Encrypted Package Codec** | ✅ 已实现（Phase 3B PR，见 `docs/PHASE3_REPORT.md` §9 / ADR-0007）per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD 加密 envelope；wrong PIN/corrupted 安全失败；header-is-untrusted / KDF accepted range / 大小上限；golden fixture | 纯 JVM 可验证的加密导出/导入字节契约（无 UI） | 3A | M |
 | **3C — Transactional Import / Merge** | MergePlan → Room apply（单事务、rollback、幂等）；Native + Legacy 共用 Merge Engine | 命令行/测试层可验证的“导入即合并”，仍无 UI | 3A + 3B | M |
 | **3D — Android Export / Import + Package Preview** | SAF 选择/写入、per-export PIN 对话框、import preview（Authenticator/Developer 计数）、Import all | 用户可手动导出/导入 Package；预览 + merge 报告 | 3B + 3C | L |
 
@@ -510,7 +510,7 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 ```
 Phase 2（已关闭）
    │
-   ├─▶ Phase 3A（进行中）──▶ 3B ──▶ 3C ──▶ 3D
+   ├─▶ Phase 3A（已关闭）──▶ 3B（已实现）──▶ 3C ──▶ 3D
    │                                        │
    │                    ┌───────────────────┘
    ▼                    ▼
