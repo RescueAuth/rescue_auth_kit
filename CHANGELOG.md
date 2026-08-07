@@ -10,6 +10,44 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase3a compat] - 2026-08-07（PR #18 兼容性修正，对齐 PR #19 最新 main）
+
+PR #19（roadmap-v2）合并后，最新 PRODUCT / ROADMAP 成为新的 source of truth。
+本轮把 PR #18 的 Phase 3A foundation 与最新产品定义严格对齐（限界 CR，不进入
+Phase 3B）：
+
+### Added
+
+- `VaultSnapshot.developerEntries`：Developer Vault 五类（Android Signing Key /
+  API Credential / SSH Key / Environment Variable Set / Generic Secret）作为
+  first-class 逻辑资产进入 portable logical schema（ROADMAP §8.2）。
+- `SnapshotScope`（FULL_VAULT / AUTHENTICATOR_ONLY / DEVELOPER_ONLY /
+  SELECTED_ITEMS）+ `PackageValidator` scope 一致性校验：partial / selective
+  snapshot 是 first-class 契约（ROADMAP §8.4 / §17）。
+- `VaultAndroidSigningKey.keystoreBase64`：binary keystore 以 base64 携带，
+  校验有效性 + 大小上限；只属于 encrypted payload，不进 plaintext header。
+- `Canonicalization.developerFingerprint`：五类 Developer Entry 的敏感 payload
+  语义 fingerprint（label 不参与）。
+- `MergePlanner` Developer Entry merge 语义（同 stableId+同 payload→dup；同
+  stableId+异 payload→conflict；异 stableId+同 payload→dup；否则 insert /
+  keep both）。
+- `RecoveryCodeStateDivergence` / `MergeSummary.stateDivergences`：Recovery
+  used/unused 差异显式输出，不静默保留/覆盖（用户状态不是纯 metadata）。
+- `TotpParameters`（shared 层自带 base32/算法校验）+ `LegacyIsolationTest`
+  （source 级锁定 shared logical 层不依赖 legacy 类型）。
+
+### Changed
+
+- `PackageValidator` 移除对 `legacy.TotpVerifier` 的依赖（Legacy/Native 隔离，
+  ROADMAP §9）。
+- `PACKAGE_FORMAT.md` / `PHASE3_REPORT.md` / ADR-0004 / ADR-0005 同步最新契约。
+
+### Tests
+
+- `:core:test` 70 → **101**（+31：MergePlanner +11、Canonicalization +4、
+  PackageValidator +11、LegacyIsolation +1、Serialization +4）；`:app:testDebugUnitTest` 36/36、
+  lint 0 error、assembleDebug / assembleDebugAndroidTest 成功。
+
 ## [v2 roadmap] - 2026-08-07（Issue #17）
 
 正式产品 Roadmap 定稿（docs-only）：

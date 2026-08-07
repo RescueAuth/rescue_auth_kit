@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
  * | Item | Location |
  * | --- | --- |
  * | logical schema version, source metadata, creation time | this payload |
- * | `VaultSnapshot` (accounts/credentials/recovery codes) | this payload |
+ * | `VaultSnapshot` (accounts/credentials/recovery codes + Developer Entries + scope) | this payload |
  * | magic, `formatVersion`, `cryptoVersion`, KDF id/params, salt, wrapped PackageKey, AEAD nonce, ciphertext | Phase 3B envelope (plaintext header) |
  * | per-export Export PIN | NEVER stored — only used in memory to derive the wrapping key |
  * | Export PIN salt | Phase 3B header (random per export) |

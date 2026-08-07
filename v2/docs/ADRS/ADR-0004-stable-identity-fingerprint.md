@@ -31,14 +31,28 @@ TOTP QR 得到不同的 `id`；Export→Import→Export 若不处理会生成新
 
 - TOTP：`SHA-256("totp" + canonical(secret, algorithm, digits, period))`。
   issuer / accountName 不参与 —— 重命名不影响 credential 身份。
-- Recovery set：`SHA-256(title + code values)`；status/usedAt 不参与。
+- Recovery set：`SHA-256(title + code values)`；status/usedAt 不参与（但
+  used/unused 差异由 MergePlanner 作为显式 state divergence 处理，见
+  ADR-0005）。
 - Account：`SHA-256(serviceName + accountName)`，仅用于 merge 分组。
+- **Developer Entry（本轮新增，ROADMAP §8.3）**：`SHA-256(敏感 payload)`
+  分类型定义：
+  - Android Signing Key：keystore base64 字节 + storePassword + keyAlias +
+    keyPassword；
+  - API Credential：apiKey + apiSecret；
+  - SSH Key：privateKey + passphrase；
+  - Environment Variable Set：全部 KEY=VALUE（key 排序后 canonical）；
+  - Generic Secret：全部 label=value（key 排序后 canonical）。
+  title / projectName / serviceName / keyName / notes **绝不参与** ——
+  不能因为 label 相同就自动 dedupe。
 
 ### 4. 安全约束
 
 - fingerprint 是 secret-derived 材料：只在 merge/import 时按需计算，
   不落库，不放入 plaintext package header。
 - 不同 secret 永不合并（不同 fingerprint）。
+- Android keystore 是 binary asset：以 base64 进入 logical schema，只存在
+  于 encrypted payload（ROADMAP §8.2）。
 
 ## 后果
 

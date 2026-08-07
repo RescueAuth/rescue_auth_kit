@@ -284,4 +284,261 @@ class MergePlannerTest {
         assertEquals("acc-1", plan.accountPlans.single().targetAccountStableId)
         assertEquals(MergeDecision.INSERT, plan.accountPlans.single().totpPlans.single().decision)
     }
+
+    // ------------------------------------------------------------------
+    // Developer Vault merge semantics (ROADMAP §8.3)
+    // ------------------------------------------------------------------
+
+    // same stableId + same sensitive payload -> DUPLICATE
+    @Test
+    fun developerSameStableIdSamePayloadIsDuplicate() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.sshKey("k1")),
+        )
+        val source = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.sshKey("k1", keyName = "renamed", title = "Renamed")),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(1, plan.summary.duplicates)
+        assertEquals(0, plan.summary.conflicts)
+        assertEquals(MergeDecision.DUPLICATE, plan.developerPlans.single().decision)
+        assertEquals("k1", plan.developerPlans.single().matchedDestinationStableId)
+    }
+
+    // same stableId + different sensitive payload -> CONFLICT
+    @Test
+    fun developerSameStableIdDifferentPayloadConflicts() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.sshKey("k1", privateKey = "AAA")),
+        )
+        val source = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.sshKey("k1", privateKey = "BBB")),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // different stableId + identical sensitive payload -> DUPLICATE
+    @Test
+    fun developerDifferentStableIdSamePayloadIsDuplicate() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.apiCredential("api-1", apiKey = "sk_1", apiSecret = "sec-1")),
+        )
+        val source = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.apiCredential("api-2", apiKey = "sk_1", apiSecret = "sec-1")),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(1, plan.summary.duplicates)
+        assertEquals(0, plan.summary.conflicts)
+        assertEquals(MergeDecision.DUPLICATE, plan.developerPlans.single().decision)
+        assertEquals("api-1", plan.developerPlans.single().matchedDestinationStableId)
+    }
+
+    // different stableId + different payload -> INSERT / keep both
+    @Test
+    fun developerDifferentStableIdDifferentPayloadInserts() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.sshKey("k1", keyName = "work", privateKey = "AAA")),
+        )
+        val source = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.sshKey("k2", keyName = "work", privateKey = "BBB")),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(1, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(0, plan.summary.conflicts)
+        assertEquals(MergeDecision.INSERT, plan.developerPlans.single().decision)
+        // Same keyName does NOT auto-dedupe (ROADMAP §8.3: 不能因为 title/
+        // keyName 相同就认为两份 SSH private key 相同).
+        assertEquals(null, plan.developerPlans.single().matchedDestinationStableId)
+    }
+
+    // second import of the same developer source is a no-op
+    @Test
+    fun developerSecondImportIsNoop() {
+        val entry = SnapshotBuilder.envVarSet(
+            "e1",
+            variables = listOf(VaultKeyValue("API_KEY", "x"), VaultKeyValue("URL", "y")),
+        )
+        val first = MergePlanner.plan(VaultSnapshot(), VaultSnapshot(developerEntries = listOf(entry)))
+        assertEquals(1, first.summary.inserted)
+        val dest = VaultSnapshot(developerEntries = listOf(entry))
+        val second = MergePlanner.plan(dest, VaultSnapshot(developerEntries = listOf(entry)))
+        assertEquals(0, second.summary.inserted)
+        assertEquals(1, second.summary.duplicates)
+        assertEquals(0, second.summary.conflicts)
+    }
+
+    // android signing key binary keystore participates in identity
+    @Test
+    fun developerSigningKeyKeystoreBytesDriveIdentity() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.signingKey("sk-1", keystoreBase64 = "AAECAwQFBgc=")),
+        )
+        val source = VaultSnapshot(
+            developerEntries = listOf(SnapshotBuilder.signingKey("sk-1", keystoreBase64 = "AQIDBAUGBwg=")),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        // Same stableId, different keystore bytes -> CONFLICT (never silently
+        // keep destination's keystore nor overwrite it).
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // destination-only developer entries are never deleted
+    @Test
+    fun developerDestinationNeverDeleted() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.genericSecret("g1", fields = listOf(VaultKeyValue("a", "1"))),
+            ),
+        )
+        val source = VaultSnapshot(developerEntries = emptyList())
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(0, plan.summary.conflicts)
+        assertEquals(1, plan.summary.unchanged)
+        assertTrue(plan.developerPlans.isEmpty())
+    }
+
+    // ------------------------------------------------------------------
+    // Recovery used/unused divergence (user state, never silently dropped)
+    // ------------------------------------------------------------------
+
+    // destination=UNUSED, source=USED -> surfaced as state divergence, not a
+    // silent DUPLICATE that keeps destination pretending nothing changed.
+    @Test
+    fun recoveryUsedUnusedDivergenceSurfacedNotSilentlyKept() {
+        val dest = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "UNUSED")),
+                    )
+                ),
+            )
+        )
+        val source = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "USED", usedAt = "2024-02-01T00:00:00Z")),
+                    )
+                ),
+            )
+        )
+        val plan = MergePlanner.plan(dest, source)
+        // Set-level: same values -> DUPLICATE (content identical).
+        assertEquals(1, plan.summary.duplicates)
+        assertEquals(0, plan.summary.conflicts)
+        // BUT the used/unused divergence is reported explicitly.
+        assertEquals(1, plan.summary.stateDivergences)
+        val codePlan = plan.accountPlans.single().recoverySetPlans.single().codePlans.single()
+        assertTrue(codePlan.stateDivergence != null)
+        assertEquals("UNUSED", codePlan.stateDivergence!!.destinationStatus)
+        assertEquals("USED", codePlan.stateDivergence!!.sourceStatus)
+        assertEquals("2024-02-01T00:00:00Z", codePlan.stateDivergence!!.sourceUsedAt)
+    }
+
+    // destination=USED, source=UNUSED -> divergence surfaced; cannot un-use.
+    @Test
+    fun recoveryUsedToUnusedDivergenceSurfaced() {
+        val dest = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "USED", usedAt = "t")),
+                    )
+                ),
+            )
+        )
+        val source = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "UNUSED")),
+                    )
+                ),
+            )
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(1, plan.summary.stateDivergences)
+        val div = plan.accountPlans.single().recoverySetPlans.single().codePlans.single().stateDivergence!!
+        assertEquals("USED", div.destinationStatus)
+        assertEquals("UNUSED", div.sourceStatus)
+    }
+
+    // identical state (both UNUSED) -> no divergence, clean duplicate
+    @Test
+    fun recoveryIdenticalStateNoDivergence() {
+        val dest = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "UNUSED")),
+                    )
+                ),
+            )
+        )
+        val source = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "UNUSED")),
+                    )
+                ),
+            )
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(1, plan.summary.duplicates)
+        assertEquals(0, plan.summary.stateDivergences)
+    }
+
+    // independent-device sets (different stableIds) still surface state diffs
+    @Test
+    fun recoveryStateDivergenceAcrossIndependentStableIds() {
+        val dest = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-1", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c1", "AAAA-BBBB", status = "UNUSED")),
+                    )
+                ),
+            )
+        )
+        val source = snapshot(
+            SnapshotBuilder.account(
+                "acc-2", "GitHub", "alice",
+                recoverySets = listOf(
+                    SnapshotBuilder.recoverySet(
+                        "set-2", "Backup codes",
+                        codes = listOf(SnapshotBuilder.recoveryCode("c9", "AAAA-BBBB", status = "USED")),
+                    )
+                ),
+            )
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(1, plan.summary.duplicates)
+        assertEquals(1, plan.summary.stateDivergences)
+    }
 }

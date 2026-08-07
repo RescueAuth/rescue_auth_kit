@@ -31,16 +31,27 @@ plan(destination: VaultSnapshot, source: VaultSnapshot): MergePlan
 
 - 不触碰数据库、不写盘、无随机、无时钟依赖。
 - 匹配顺序：stableId 优先，fingerprint 次之（account 用 fingerprint 分组）。
-- 输出 `MergePlan`（account/totp/recovery-set 级别决策 + 结构化摘要），
-  Phase 3C 在单个 Room 事务内执行；Phase 3D 用作 import 预览。
+- 输出 `MergePlan`（account/totp/recovery-set/developer 级别决策 + 结构化
+  摘要），Phase 3C 在单个 Room 事务内执行；Phase 3D 用作 import 预览。
+- **Developer Entry（本轮纳入）**：每类至少具备保守的 insert / duplicate /
+  conflict 基础语义（同 stableId + 同敏感 payload → dup；同 stableId + 异
+  敏感 payload → conflict；异 stableId + 同敏感 payload → dup；否则 insert /
+  keep both）。
+- **Recovery used/unused divergence（本轮新增）**：set 级决策不变，但
+  per-code 的 used/unused 差异以 `RecoveryCodeStateDivergence` 显式输出、
+  `MergeSummary.stateDivergences` 计数，绝不静默保留/覆盖（用户状态，
+  不是纯 metadata）。
 
 ### 3. 决策规则
 
 - INSERT：source-only。
 - DUPLICATE：同 stableId+同内容，或不同 stableId+同 fingerprint；
   metadata 差异不构成冲突（保留 destination）。
-- CONFLICT：同 stableId 但 secret / TOTP 参数 / recovery values 不同。
+- CONFLICT：同 stableId 但 secret / TOTP 参数 / recovery values /
+  Developer 敏感 payload 不同。
 - UNCHANGED：destination-only，永不删除。
+- stateDivergence（额外信号）：同 recovery set 内 used/unused 差异 →
+  显式报告，不改变 set 决策。
 
 ### 4. 强制不变式
 

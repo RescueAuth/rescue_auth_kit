@@ -56,12 +56,116 @@ object SnapshotBuilder {
         id: String,
         value: String,
         status: String = "UNUSED",
+        usedAt: String? = null,
         sortOrder: Int = 0,
     ) = VaultRecoveryCode(
         stableId = id,
         value = value,
         status = status,
-        usedAt = null,
+        usedAt = usedAt,
         sortOrder = sortOrder,
     )
+
+    // ------------------------------------------------------------------
+    // Developer Vault builders (five formal types)
+    // ------------------------------------------------------------------
+
+    fun signingKey(
+        id: String,
+        projectName: String = "demo",
+        packageName: String = "com.example.demo",
+        keystoreFileName: String = "release.jks",
+        keystoreBase64: String = DEFAULT_KEYSTORE_BASE64,
+        storePassword: String = "store-pass",
+        keyAlias: String = "release",
+        keyPassword: String = "key-pass",
+        title: String = "",
+        notes: String? = null,
+    ) = VaultAndroidSigningKey(
+        stableId = id,
+        projectName = projectName,
+        packageName = packageName,
+        keystoreFileName = keystoreFileName,
+        keystoreBase64 = keystoreBase64,
+        storePassword = storePassword,
+        keyAlias = keyAlias,
+        keyPassword = keyPassword,
+        title = title,
+        notes = notes,
+        createdAt = "2024-01-01T00:00:00Z",
+        updatedAt = "2024-01-01T00:00:00Z",
+    )
+
+    fun apiCredential(
+        id: String,
+        serviceName: String = "stripe",
+        accountName: String = "alice",
+        apiKey: String = "sk_test_123",
+        apiSecret: String = "secret-abc",
+        title: String = "",
+        notes: String? = null,
+    ) = VaultApiCredential(
+        stableId = id,
+        serviceName = serviceName,
+        accountName = accountName,
+        apiKey = apiKey,
+        apiSecret = apiSecret,
+        title = title,
+        notes = notes,
+        createdAt = "2024-01-01T00:00:00Z",
+        updatedAt = "2024-01-01T00:00:00Z",
+    )
+
+    fun sshKey(
+        id: String,
+        keyName: String = "work",
+        publicKey: String = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...",
+        privateKey: String = "-----BEGIN OPENSSH PRIVATE KEY-----\nMIIE...\n-----END OPENSSH PRIVATE KEY-----",
+        passphrase: String = "phrase",
+        title: String = "",
+        notes: String? = null,
+    ) = VaultSshKey(
+        stableId = id,
+        keyName = keyName,
+        publicKey = publicKey,
+        privateKey = privateKey,
+        passphrase = passphrase,
+        title = title,
+        notes = notes,
+        createdAt = "2024-01-01T00:00:00Z",
+        updatedAt = "2024-01-01T00:00:00Z",
+    )
+
+    fun envVarSet(
+        id: String,
+        projectName: String = "service-a",
+        variables: List<VaultKeyValue> = emptyList(),
+        title: String = "",
+        notes: String? = null,
+    ) = VaultEnvironmentVariableSet(
+        stableId = id,
+        projectName = projectName,
+        variables = variables,
+        title = title,
+        notes = notes,
+        createdAt = "2024-01-01T00:00:00Z",
+        updatedAt = "2024-01-01T00:00:00Z",
+    )
+
+    fun genericSecret(
+        id: String,
+        fields: List<VaultKeyValue> = emptyList(),
+        title: String = "",
+        notes: String? = null,
+    ) = VaultGenericSecret(
+        stableId = id,
+        fields = fields,
+        title = title,
+        notes = notes,
+        createdAt = "2024-01-01T00:00:00Z",
+        updatedAt = "2024-01-01T00:00:00Z",
+    )
+
+    /** 8 bytes → 12 base64 chars, deterministic, RFC 4648-valid. */
+    const val DEFAULT_KEYSTORE_BASE64 = "AAECAwQFBgc="
 }

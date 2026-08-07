@@ -137,4 +137,111 @@ class CanonicalizationTest {
         assertEquals(64, fp.length) // SHA-256 hex
         assertTrue(fp.matches(Regex("[0-9a-f]{64}")))
     }
+
+    // ------------------------------------------------------------------
+    // Developer Entry fingerprints (conservative, sensitive-payload based)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun developerFingerprintIgnoresLabelsButUsesSensitivePayload() {
+        val a = SnapshotBuilder.sshKey(
+            "k1", keyName = "work",
+            privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAA\n-----END OPENSSH PRIVATE KEY-----",
+        )
+        // Same private key, different keyName/title — still the same entry.
+        val b = SnapshotBuilder.sshKey(
+            "k2", keyName = "renamed", title = "Renamed",
+            privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAA\n-----END OPENSSH PRIVATE KEY-----",
+        )
+        assertEquals(
+            Canonicalization.developerFingerprint(a),
+            Canonicalization.developerFingerprint(b),
+        )
+
+        // Different private key -> different fingerprint (never merged).
+        val c = SnapshotBuilder.sshKey(
+            "k3", keyName = "work",
+            privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nBBB\n-----END OPENSSH PRIVATE KEY-----",
+        )
+        assertNotEquals(
+            Canonicalization.developerFingerprint(a),
+            Canonicalization.developerFingerprint(c),
+        )
+    }
+
+    @Test
+    fun developerFingerprintIsSensitiveToKeystoreBytesAndPasswords() {
+        val base = SnapshotBuilder.signingKey("sk1", keystoreBase64 = "AAECAwQFBgc=")
+        val sameBytes = SnapshotBuilder.signingKey("sk2", keystoreBase64 = "AAECAwQFBgc=", storePassword = "store-pass")
+        assertEquals(
+            Canonicalization.developerFingerprint(base),
+            Canonicalization.developerFingerprint(sameBytes),
+        )
+
+        assertNotEquals(
+            Canonicalization.developerFingerprint(base),
+            Canonicalization.developerFingerprint(base.copy(keystoreBase64 = "AQIDBAUGBwg=")),
+        )
+        assertNotEquals(
+            Canonicalization.developerFingerprint(base),
+            Canonicalization.developerFingerprint(base.copy(storePassword = "different")),
+        )
+        assertNotEquals(
+            Canonicalization.developerFingerprint(base),
+            Canonicalization.developerFingerprint(base.copy(keyPassword = "different")),
+        )
+    }
+
+    @Test
+    fun developerFingerprintForEnvAndGenericIsOrderInsensitiveAndValueSensitive() {
+        val envA = SnapshotBuilder.envVarSet(
+            "e1",
+            variables = listOf(VaultKeyValue("API_KEY", "secret-1"), VaultKeyValue("URL", "https://x")),
+        )
+        val envB = SnapshotBuilder.envVarSet(
+            "e2",
+            variables = listOf(VaultKeyValue("url", "https://x"), VaultKeyValue("api_key", "secret-1")),
+        )
+        // Same key/value pairs in different order / case -> same fingerprint.
+        assertEquals(
+            Canonicalization.developerFingerprint(envA),
+            Canonicalization.developerFingerprint(envB),
+        )
+
+        val envC = SnapshotBuilder.envVarSet(
+            "e3",
+            variables = listOf(VaultKeyValue("API_KEY", "secret-2"), VaultKeyValue("URL", "https://x")),
+        )
+        assertNotEquals(
+            Canonicalization.developerFingerprint(envA),
+            Canonicalization.developerFingerprint(envC),
+        )
+
+        val genA = SnapshotBuilder.genericSecret(
+            "g1",
+            fields = listOf(VaultKeyValue("token", "t-1")),
+        )
+        val genB = SnapshotBuilder.genericSecret(
+            "g2",
+            fields = listOf(VaultKeyValue("token", "t-2")),
+        )
+        assertNotEquals(
+            Canonicalization.developerFingerprint(genA),
+            Canonicalization.developerFingerprint(genB),
+        )
+    }
+
+    @Test
+    fun apiCredentialFingerprintUsesKeyAndSecretNotDisplayLabels() {
+        val a = SnapshotBuilder.apiCredential("api1", serviceName = "stripe", apiKey = "sk_1", apiSecret = "sec-1")
+        val b = SnapshotBuilder.apiCredential("api2", serviceName = "renamed", apiKey = "sk_1", apiSecret = "sec-1")
+        assertEquals(
+            Canonicalization.developerFingerprint(a),
+            Canonicalization.developerFingerprint(b),
+        )
+        assertNotEquals(
+            Canonicalization.developerFingerprint(a),
+            Canonicalization.developerFingerprint(a.copy(apiSecret = "sec-2")),
+        )
+    }
 }

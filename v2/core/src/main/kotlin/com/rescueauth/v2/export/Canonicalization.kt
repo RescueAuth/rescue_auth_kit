@@ -30,11 +30,17 @@ import java.security.MessageDigest
  *   that scan the same QR code (same secret+params) are the same credential
  *   even if one device later renamed the account.
  * - **Recovery-code-set fingerprint** = canonical title + canonical code
- *   values (status/usedAt excluded — using a code on one device must not make
- *   a later import "conflict").
+ *   values. `status`/`usedAt` are handled separately by the merge planner
+ *   (a used/unused divergence is a user-state difference and must never be
+ *   silently dropped as pure metadata — see [MergePlanner]).
  * - **Account fingerprint** = canonical(serviceName, accountName). Used only
  *   for merge grouping; account membership is decided by the child
  *   fingerprints, never by the account label alone.
+ * - **Developer Entry fingerprint** = canonical **sensitive payload** of the
+ *   entry (keystore bytes / apiKey+apiSecret / private key / env values /
+ *   generic field values). Labels (title / projectName / serviceName /
+ *   keyName / notes) are deliberately EXCLUDED so that two entries sharing
+ *   only a title are never auto-deduplicated (ROADMAP §8.3).
  *
  * ## Security
  *
@@ -121,6 +127,55 @@ object Canonicalization {
                 canonicalLabel(serviceName) + "\u0000" +
                 canonicalLabel(accountName),
         )
+
+    // ------------------------------------------------------------------
+    // Developer Entry fingerprints (conservative, sensitive-payload based)
+    // ------------------------------------------------------------------
+
+    /**
+     * Semantic fingerprint of a Developer Entry's SENSITIVE payload.
+     *
+     * Conservative by design (ROADMAP §8.3): only the security-sensitive
+     * content participates, never the display labels. This means:
+     *
+     * - two SSH keys that merely share a `keyName`/`title` are NOT deduped;
+     * - two entries with the same stableId but different sensitive payload
+     *   (e.g. the private key was rotated) yield different fingerprints and
+     *   are reported as CONFLICT;
+     * - two devices that independently imported the same underlying secret
+     *   (identical sensitive payload, different stableIds) dedupe.
+     */
+    fun developerFingerprint(entry: VaultDeveloperEntry): String = when (entry) {
+        is VaultAndroidSigningKey -> sha256Hex(
+            "signing\u0000" + canonicalSecret(entry.keystoreBase64) + "\u0000" +
+                entry.storePassword + "\u0000" + entry.keyAlias + "\u0000" + entry.keyPassword,
+        )
+        is VaultApiCredential -> sha256Hex(
+            "api\u0000" + canonicalSecret(entry.apiKey) + "\u0000" + entry.apiSecret,
+        )
+        is VaultSshKey -> sha256Hex(
+            "ssh\u0000" + entry.privateKey + "\u0000" + entry.passphrase,
+        )
+        is VaultEnvironmentVariableSet -> sha256Hex(
+            "env\u0000" + canonicalKeyValues(entry.variables),
+        )
+        is VaultGenericSecret -> sha256Hex(
+            "generic\u0000" + canonicalKeyValues(entry.fields),
+        )
+    }
+
+    /** Deterministic canonical form of key/value pairs (sorted by key). */
+    fun canonicalKeyValues(pairs: List<VaultKeyValue>): String {
+        val body = buildString {
+            pairs.sortedBy { it.key }.forEach { kv ->
+                append(canonicalSecret(kv.key))
+                append('\u0000')
+                append(canonicalSecret(kv.value))
+                append('\u0000')
+            }
+        }
+        return body
+    }
 
     private fun sha256Hex(input: String): String {
         val digest = MessageDigest.getInstance("SHA-256")

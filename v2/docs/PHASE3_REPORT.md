@@ -112,17 +112,24 @@ Phase 3A 在 `:core` 实现纯 JVM 逻辑模型（无 Android / Room 依赖）�
 
 | 类 | 内容 |
 | --- | --- |
-| `VaultSnapshot` | 逻辑快照：accounts → totpCredentials / recoveryCodeSets → recoveryCodes |
+| `VaultSnapshot` | 逻辑快照：accounts → totpCredentials / recoveryCodeSets → recoveryCodes；**+ developerEntries（五类 Developer Entry）+ scope（FULL_VAULT / AUTHENTICATOR_ONLY / DEVELOPER_ONLY / SELECTED_ITEMS）** |
 | `VaultPackagePayload` | logicalSchemaVersion=1、packageId、createdAt、source metadata、snapshot |
 | `PackageSourceMetadata` | client / appVersion / vaultInstanceId（非敏感技术字段） |
-| `Canonicalization` | canonical 归一化 + semantic fingerprint |
-| `PackageValidator` | 版本校验 + 内部一致性（重复 stableId、非法 TOTP 参数、非法 base32、非法 status） |
-| `MergePlanner` | 纯 deterministic merge planner → `MergePlan` / `MergeSummary` |
-| `MergePlan` / `MergeDecision` / `AccountMergePlan` / `TotpMergePlan` / `RecoverySetMergePlan` | 机器可读计划（Phase 3C 执行） |
+| `Canonicalization` | canonical 归一化 + semantic fingerprint（TOTP / Recovery / Account / **Developer Entry 敏感 payload**） |
+| `PackageValidator` | 版本校验 + 内部一致性（重复 stableId、非法 TOTP 参数、非法 base32、非法 status、**Developer 五类结构 + keystore base64/大小上限 + scope 一致性**） |
+| `MergePlanner` | 纯 deterministic merge planner → `MergePlan` / `MergeSummary`（**覆盖 Authenticator + Developer Entry；Recovery used/unused divergence 显式输出**） |
+| `MergePlan` / `MergeDecision` / `AccountMergePlan` / `TotpMergePlan` / `RecoverySetMergePlan` / `RecoveryCodeMergePlan` / `RecoveryCodeStateDivergence` / `DeveloperMergePlan` | 机器可读计划（Phase 3C 执行） |
 
 留到 Phase 3B encryption envelope：magic / formatVersion / cryptoVersion /
 KDF id / KDF params / salt / wrapped PackageKey / AEAD nonce / ciphertext /
 AAD；以及 Argon2id + XChaCha20-Poly1305 实际 codec。
+
+> **latest-main 对齐（PR #19 后）：** 本轮兼容性修正把 Phase 3A 与最新
+> PRODUCT / ROADMAP（Issue #17 落定）对齐：Developer Vault 五类是正式
+> v2 核心资产，`VaultSnapshot / VaultPackagePayload / shared logical
+> domain` 现在即能表达完整 Vault（不只 TOTP + Recovery Codes）；binary
+> keystore 以 `keystoreBase64` 安全携带；partial / selective snapshot
+> 是 first-class 契约；Developer Entry 已进入 shared merge foundation。
 
 ## 5. Merge semantics
 
@@ -133,9 +140,40 @@ AAD；以及 Argon2id + XChaCha20-Poly1305 实际 codec。
 - **DUPLICATE**：同 stableId+同内容，或不同 stableId+同 fingerprint →
   跳过。metadata 差异（title/favorite/notes/account label）一律
   DUPLICATE，保留 destination 值。
-- **CONFLICT**：同 stableId 但 secret / TOTP 参数 / recovery values 不同 →
-  报告，不覆盖。
+- **CONFLICT**：同 stableId 但 secret / TOTP 参数 / recovery values /
+  Developer 敏感 payload 不同 → 报告，不覆盖。
 - **UNCHANGED**：destination-only 记录 → 永不删除。
+
+### 5.1 Developer Entry merge（本轮对齐 ROADMAP §8.3）
+
+Developer Entry 五类已纳入 shared merge foundation：
+
+| 场景 | 决策 |
+| --- | --- |
+| 同 stableId + 同 canonical 敏感 payload | DUPLICATE |
+| 同 stableId + 不同敏感 payload | CONFLICT |
+| 不同 stableId + 同 canonical 敏感 payload | DUPLICATE |
+| 不同 stableId + 无充分证据重复 | INSERT / keep both |
+
+- fingerprint 只含敏感 payload（keystore 字节 / apiKey+apiSecret /
+  private key+passphrase / env values / generic field values）；
+  title / projectName / serviceName / keyName / notes 不参与。
+- 不能因为 title / projectName / serviceName / keyName 相同就自动 dedupe。
+
+### 5.2 Recovery used/unused divergence（本轮修正）
+
+- set fingerprint 仍不含 status/usedAt；但 used/unused 是用户状态。
+- destination=UNUSED & source=USED（或反向）→ `RecoveryCodeStateDivergence`
+  显式输出，`MergeSummary.stateDivergences` 计数；不静默保留/覆盖。
+- 不做复杂 CRDT / timestamp merge（保留 future 空间）。
+
+### 5.3 Legacy / Native 隔离（本轮确认 + source 级锁定）
+
+- `export` 包不再 import 任何 `com.rescueauth.v2.legacy` 类型（原先
+  `PackageValidator` 复用 `legacy.TotpVerifier`，本轮改为共享层自带的
+  `TotpParameters`）。
+- `LegacyIsolationTest` 在 source 级锁定“shared logical / merge 层不得
+  依赖 legacy 类型”。
 
 ## 6. Schema changes
 
@@ -165,19 +203,28 @@ UNIQUE index）。
 
 ## 8. Tests
 
-### 新增 Phase 3A 测试（`:core`，36 个）
+### 新增 Phase 3A 测试（`:core`，本轮累计 101）
 
-- `MergePlannerTest`（14）：empty+source→insert；dest+empty→unchanged；
-  全同→duplicate；二次 import→no-op；union；不同 stableId 同
-  fingerprint→duplicate；同 stableId 异 secret→conflict；metadata-only→
-  duplicate；recovery parent/child；destination 不删；source 顺序不影响
-  语义；deterministic；recovery-set conflict；inserted child 挂正确
-  account。
-- `CanonicalizationTest`（8）：secret/label 归一化；fingerprint 对
-  secret/参数敏感、对 label 不敏感；recovery-set fingerprint 忽略
-  status；SHA-256 格式。
-- `PackageValidatorTest`（14）：版本拒绝；重复 stableId；非法算法/digits/
-  base32/status；invalid source 不产生部分 plan；deterministic。
+Phase 3A 初始实现新增 36 个；本轮 compatibility CR（PR #19 对齐）再新增 31 个：
+
+- `MergePlannerTest`（初始 14 + 本轮 11 = 25）：新增 Developer merge 7 个
+  （同 stableId 同 payload→dup；同 stableId 异 payload→conflict；异 stableId
+  同 payload→dup；异 stableId 异 payload→insert/keep both；二次 import
+  no-op；signing key keystore 字节驱动 identity→conflict；destination-only
+  不删）+ Recovery used/unused divergence 4 个（dest=UNUSED source=USED
+  →surfaced；dest=USED source=UNUSED→surfaced；同状态→无 divergence；
+  跨独立 stableId 仍 surfaced）。
+- `CanonicalizationTest`（初始 8 + 本轮 4 = 12）：Developer fingerprint
+  忽略 label 但用敏感 payload；keystore 字节/password 敏感；env/generic
+  顺序不敏感值敏感；API credential 用 key+secret。
+- `PackageValidatorTest`（初始 14 + 本轮 11 = 25）：五类全验；重复 developer
+  stableId；非法/超大 keystore base64；空 apiKey；空 env var key；
+  DEVELOPER_ONLY / AUTHENTICATOR_ONLY / SELECTED_ITEMS 合法；scope 与内容
+  不一致拒绝。
+- `LegacyIsolationTest`（新增 1）：shared logical 层 source 级不得 import
+  legacy 类型。
+- `VaultSnapshotSerializationTest`（新增 4）：五类 Developer Entry + scope 的
+  JSON round-trip；binary keystore 不丢；package payload round-trip。
 
 ### 新增 App 测试（1 个）
 
@@ -186,7 +233,7 @@ UNIQUE index）。
 
 ### 原有测试
 
-- `:core:test`：34（legacy）→ 70（+36 新增）全绿。
+- `:core:test`：34（legacy）→ 70（+36 初始）→ **101（+31 本轮）** 全绿。
 - `:app:testDebugUnitTest`：35 → 36（+1 migration）全绿。
 - `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest` 成功。
 

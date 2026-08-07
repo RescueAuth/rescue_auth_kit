@@ -23,6 +23,10 @@ package com.rescueauth.v2.export
  *   fingerprint (canonical secret + algorithm + digits + period).
  * - Recovery-code sets are matched by stableId first, then by fingerprint
  *   (title + canonical code values).
+ * - Developer Entries (all five types) are matched by stableId first, then by
+ *   their sensitive-payload fingerprint. Labels are never part of the
+ *   fingerprint, so same-title entries are never auto-deduplicated
+ *   (ROADMAP §8.3).
  *
  * ## Decisions
  *
@@ -31,11 +35,32 @@ package com.rescueauth.v2.export
  * - DUPLICATE: destination already holds an identical record (same stableId
  *   and same content, or different stableId but same semantic fingerprint)
  *   → skipped. Metadata-only differences (e.g. recovery-set title, account
- *   favorite/notes) are DUPLICATE with destination values kept — never a
- *   silent overwrite of security content.
+ *   favorite/notes, developer labels) are DUPLICATE with destination values
+ *   kept — never a silent overwrite of security content.
  * - CONFLICT: same stableId (same lineage) but security-sensitive content
- *   (secret / TOTP params / recovery-code values) differs → reported, never
- *   last-write-wins, never silently overwritten.
+ *   (secret / TOTP params / recovery-code values / developer sensitive
+ *   payload) differs → reported, never last-write-wins, never silently
+ *   overwritten.
+ *
+ * ## Recovery used/unused divergence (user state, never silently dropped)
+ *
+ * The recovery-set fingerprint excludes `status`/`usedAt` so that marking a
+ * code used on one device does not turn a later import into a spurious
+ * "conflict". However, a used/unused divergence is REAL user state and must
+ * never be treated as pure metadata to be silently discarded:
+ *
+ * - destination = UNUSED, source = USED  → the source user consumed this code.
+ *   This is a user-state divergence: the plan records it explicitly
+ *   ([RecoveryCodeMergePlan.stateDivergence]) so the import UI / Phase 3C
+ *   surfaces it (default: keep destination, report the divergence). The
+ *   planner never silently keeps destination while pretending nothing
+ *   happened, and never silently overwrites destination with the source state.
+ * - destination = USED, source = UNUSED → cannot "un-use" a code; the plan
+ *   keeps the destination USED state and reports the divergence.
+ *
+ * Both cases are surfaced in [RecoveryCodeMergePlan.stateDivergence] and
+ * counted in [MergeSummary.stateDivergences] so no source-state is silently
+ * lost.
  *
  * ## Invariants (enforced and unit-tested)
  *
@@ -71,6 +96,11 @@ object MergePlanner {
         val destAccountByStableId = destination.accounts.associateBy { it.stableId }
         val destAccountByFingerprint = destination.accounts
             .groupBy { Canonicalization.accountFingerprint(it.serviceName, it.accountName) }
+            .mapValues { (_, list) -> list.sortedBy { it.stableId }.first() }
+
+        val destDeveloperByStableId = destination.developerEntries.associateBy { it.stableId }
+        val destDeveloperByFingerprint = destination.developerEntries
+            .groupBy { Canonicalization.developerFingerprint(it) }
             .mapValues { (_, list) -> list.sortedBy { it.stableId }.first() }
 
         // ---- planned new accounts (dedupe by fingerprint within the plan) --
@@ -133,32 +163,44 @@ object MergePlanner {
             )
         }
 
+        // ---- Developer Entries (conservative merge semantics) ------------
+        val developerPlans = source.developerEntries.map { entry ->
+            planDeveloperEntry(entry, destDeveloperByStableId, destDeveloperByFingerprint)
+        }
+
         // ---- unchanged: destination records not matched by any source -----
         val destTotpIds = destination.accounts.flatMap { it.totpCredentials.map { c -> c.stableId } }.toSet()
         val destSetIds = destination.accounts.flatMap { it.recoveryCodeSets.map { s -> s.stableId } }.toSet()
+        val destDeveloperIds = destination.developerEntries.map { it.stableId }.toSet()
+        val matchedDestDeveloper = developerPlans.mapNotNull { it.matchedDestinationStableId }.toSet()
         val unchangedTotp = (destTotpIds - matchedDestTotp).size
         val unchangedSets = (destSetIds - matchedDestSets).size
+        val unchangedDeveloper = (destDeveloperIds - matchedDestDeveloper).size
 
         val summary = MergeSummary(
             inserted = accountPlans.sumOf { p ->
                 p.totpPlans.count { it.decision == MergeDecision.INSERT } +
                     p.recoverySetPlans.count { it.decision == MergeDecision.INSERT }
-            },
+            } + developerPlans.count { it.decision == MergeDecision.INSERT },
             duplicates = accountPlans.sumOf { p ->
                 p.totpPlans.count { it.decision == MergeDecision.DUPLICATE } +
                     p.recoverySetPlans.count { it.decision == MergeDecision.DUPLICATE }
-            },
+            } + developerPlans.count { it.decision == MergeDecision.DUPLICATE },
             conflicts = accountPlans.sumOf { p ->
                 p.totpPlans.count { it.decision == MergeDecision.CONFLICT } +
                     p.recoverySetPlans.count { it.decision == MergeDecision.CONFLICT }
-            },
-            unchanged = unchangedTotp + unchangedSets,
+            } + developerPlans.count { it.decision == MergeDecision.CONFLICT },
+            unchanged = unchangedTotp + unchangedSets + unchangedDeveloper,
             rejected = 0,
+            stateDivergences = accountPlans.sumOf { p ->
+                p.recoverySetPlans.sumOf { it.stateDivergences }
+            },
         )
 
         return MergePlan(
             logicalSchemaVersion = VaultPackagePayload.CURRENT_LOGICAL_SCHEMA_VERSION,
             accountPlans = accountPlans,
+            developerPlans = developerPlans,
             summary = summary,
         )
     }
@@ -195,19 +237,107 @@ object MergePlanner {
             val sameContent = canonicalCodeValues(s) == canonicalCodeValues(stableMatch)
             return if (sameContent) {
                 // Metadata (title) may differ; content identical → duplicate,
-                // destination values kept.
-                RecoverySetMergePlan(s.stableId, MergeDecision.DUPLICATE, stableMatch.stableId)
+                // destination values kept. Used/unused divergences are still
+                // reported as state divergences (never silently dropped).
+                RecoverySetMergePlan(
+                    sourceStableId = s.stableId,
+                    decision = MergeDecision.DUPLICATE,
+                    matchedDestinationStableId = stableMatch.stableId,
+                    codePlans = planCodeStates(s.codes, stableMatch.codes),
+                )
             } else {
-                RecoverySetMergePlan(s.stableId, MergeDecision.CONFLICT, stableMatch.stableId)
+                RecoverySetMergePlan(
+                    sourceStableId = s.stableId,
+                    decision = MergeDecision.CONFLICT,
+                    matchedDestinationStableId = stableMatch.stableId,
+                    codePlans = planCodeStates(s.codes, stableMatch.codes),
+                )
             }
         }
         val fingerprintMatch = byFingerprint[
             Canonicalization.recoverySetFingerprint(s.title, s.codes)
         ]
         if (fingerprintMatch != null) {
-            return RecoverySetMergePlan(s.stableId, MergeDecision.DUPLICATE, fingerprintMatch.stableId)
+            return RecoverySetMergePlan(
+                sourceStableId = s.stableId,
+                decision = MergeDecision.DUPLICATE,
+                matchedDestinationStableId = fingerprintMatch.stableId,
+                codePlans = planCodeStates(s.codes, fingerprintMatch.codes),
+            )
         }
-        return RecoverySetMergePlan(s.stableId, MergeDecision.INSERT, null)
+        return RecoverySetMergePlan(
+            sourceStableId = s.stableId,
+            decision = MergeDecision.INSERT,
+            matchedDestinationStableId = null,
+        )
+    }
+
+    /**
+     * Compares per-code user state (used/unused) between source and the
+     * matched destination set. Produces one [RecoveryCodeMergePlan] per code;
+     * every used/unused divergence is recorded explicitly so that no
+     * source-state is silently lost.
+     *
+     * Codes are matched by VALUE (the set-level fingerprint already guarantees
+     * both sides carry the same code values, even when their stableIds differ
+     * because the sets were independently created); stableId is used as a
+     * secondary key for same-lineage sets.
+     *
+     * The set-level decision stays whatever it was; the state divergence is
+     * reported as a separate, visible signal.
+     */
+    private fun planCodeStates(
+        sourceCodes: List<VaultRecoveryCode>,
+        destCodes: List<VaultRecoveryCode>,
+    ): List<RecoveryCodeMergePlan> {
+        val destByValue = destCodes.associateBy { Canonicalization.canonicalLabel(it.value) }
+        return sourceCodes.sortedWith(compareBy({ it.sortOrder }, { it.value })).map { src ->
+            val dest = destByValue[Canonicalization.canonicalLabel(src.value)]
+            val divergence = if (dest != null && src.status != dest.status) {
+                RecoveryCodeStateDivergence(
+                    codeStableId = src.stableId,
+                    value = src.value,
+                    destinationStatus = dest.status,
+                    sourceStatus = src.status,
+                    destinationUsedAt = dest.usedAt,
+                    sourceUsedAt = src.usedAt,
+                )
+            } else {
+                null
+            }
+            RecoveryCodeMergePlan(
+                codeStableId = src.stableId,
+                value = src.value,
+                sourceStatus = src.status,
+                sourceUsedAt = src.usedAt,
+                stateDivergence = divergence,
+            )
+        }
+    }
+
+    private fun planDeveloperEntry(
+        entry: VaultDeveloperEntry,
+        byStableId: Map<String, VaultDeveloperEntry>,
+        byFingerprint: Map<String, VaultDeveloperEntry>,
+    ): DeveloperMergePlan {
+        val stableMatch = byStableId[entry.stableId]
+        if (stableMatch != null) {
+            val same = Canonicalization.developerFingerprint(entry) ==
+                Canonicalization.developerFingerprint(stableMatch)
+            return if (same) {
+                // Labels (title / projectName / serviceName / keyName / notes)
+                // may differ; sensitive payload identical → duplicate,
+                // destination values kept.
+                DeveloperMergePlan(entry.stableId, MergeDecision.DUPLICATE, stableMatch.stableId)
+            } else {
+                DeveloperMergePlan(entry.stableId, MergeDecision.CONFLICT, stableMatch.stableId)
+            }
+        }
+        val fingerprintMatch = byFingerprint[Canonicalization.developerFingerprint(entry)]
+        if (fingerprintMatch != null) {
+            return DeveloperMergePlan(entry.stableId, MergeDecision.DUPLICATE, fingerprintMatch.stableId)
+        }
+        return DeveloperMergePlan(entry.stableId, MergeDecision.INSERT, null)
     }
 
     /** Canonical code values ordered by sortOrder then value (deterministic). */
@@ -230,6 +360,7 @@ enum class AccountAction { INSERT_ACCOUNT, USE_EXISTING, DUPLICATE_ACCOUNT }
 data class MergePlan(
     val logicalSchemaVersion: Int,
     val accountPlans: List<AccountMergePlan>,
+    val developerPlans: List<DeveloperMergePlan> = emptyList(),
     val summary: MergeSummary,
 )
 
@@ -253,6 +384,49 @@ data class RecoverySetMergePlan(
     val sourceStableId: String,
     val decision: MergeDecision,
     val matchedDestinationStableId: String?,
+    /**
+     * Per-code state comparison (used/unused) against the matched destination
+     * set. Empty for an INSERT (no destination to compare to).
+     */
+    val codePlans: List<RecoveryCodeMergePlan> = emptyList(),
+) {
+    /** Number of used/unused divergences detected for this set. */
+    val stateDivergences: Int get() = codePlans.count { it.stateDivergence != null }
+}
+
+/**
+ * Per-code merge decision inside a [RecoverySetMergePlan]. The used/unused
+ * state is user state: any divergence is surfaced via [stateDivergence] and
+ * never silently dropped or silently applied.
+ */
+data class RecoveryCodeMergePlan(
+    val codeStableId: String,
+    val value: String,
+    val sourceStatus: String,
+    val sourceUsedAt: String?,
+    /** Non-null when destination and source disagree on used/unused. */
+    val stateDivergence: RecoveryCodeStateDivergence? = null,
+)
+
+/**
+ * Explicit used/unused divergence between destination and source for a single
+ * recovery code. Phase 3C/3D must surface this to the user; it is never
+ * resolved by silently keeping the destination state.
+ */
+data class RecoveryCodeStateDivergence(
+    val codeStableId: String,
+    val value: String,
+    val destinationStatus: String,
+    val sourceStatus: String,
+    val destinationUsedAt: String?,
+    val sourceUsedAt: String?,
+)
+
+data class DeveloperMergePlan(
+    val sourceStableId: String,
+    val decision: MergeDecision,
+    /** Destination record matched by stableId or fingerprint (if any). */
+    val matchedDestinationStableId: String?,
 )
 
 /**
@@ -260,6 +434,8 @@ data class RecoverySetMergePlan(
  * cover every source record; `unchanged` counts destination-only records that
  * are never deleted. `rejected` is always 0 for a validated package (the whole
  * package is rejected on validation failure — never a partial plan).
+ * `stateDivergences` counts used/unused recovery-code divergences surfaced by
+ * the plan (they are additional to the four base counts).
  */
 data class MergeSummary(
     val inserted: Int,
@@ -267,4 +443,5 @@ data class MergeSummary(
     val conflicts: Int,
     val unchanged: Int,
     val rejected: Int = 0,
+    val stateDivergences: Int = 0,
 )

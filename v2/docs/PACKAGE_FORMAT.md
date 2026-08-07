@@ -89,13 +89,44 @@ packageId
 createdAt
 source（client / appVersion / vaultInstanceId）
 snapshot:
+  scope            FULL_VAULT | AUTHENTICATOR_ONLY | DEVELOPER_ONLY | SELECTED_ITEMS
   accounts[]
     stableId / serviceName / accountName / favorite / notes /
     sortOrder / createdAt / updatedAt
     totpCredentials[]   stableId / secretBase32 / algorithm / digits / periodSeconds / createdAt
     recoveryCodeSets[]  stableId / title / createdAt / codes[]
       recoveryCodes[]   stableId / value / status / usedAt / sortOrder
+  developerEntries[]
+    (五类，sealed 子类型)
+    android_signing_key        stableId / projectName / packageName /
+                               keystoreFileName / keystoreBase64 / storePassword /
+                               keyAlias / keyPassword / title / notes / createdAt / updatedAt
+    api_credential             stableId / serviceName / accountName / apiKey /
+                               apiSecret / title / notes / createdAt / updatedAt
+    ssh_key                    stableId / keyName / publicKey / privateKey /
+                               passphrase / title / notes / createdAt / updatedAt
+    environment_variable_set   stableId / projectName / variables[key,value][] /
+                               title / notes / createdAt / updatedAt
+    generic_secret             stableId / fields[key,value][] /
+                               title / notes / createdAt / updatedAt
 ```
+
+> **Developer Vault 五类是正式 v2 核心资产**（ROADMAP §8.2）：`snapshot`
+> 必须能表达完整 Vault（Authenticator + Developer 五类），不只是 TOTP +
+> Recovery Codes。`developerEntries` 是 first-class 字段，不是 optional
+> extension。
+
+> **Android keystore 是 binary asset**（ROADMAP §6 / §8.2）：keystore
+> 内容以 `keystoreBase64`（RFC 4648 base64）携带，`PackageValidator` 校验
+> base64 有效性 + 大小上限（`MAX_KEYSTORE_BASE64_LENGTH`）。binary
+> keystore **只能**属于 encrypted payload，不得暴露在 plaintext package
+> header。
+
+> **Selective snapshot**（ROADMAP §8.4 / §17）：`scope` 声明快照携带的
+> section。partial / selected-items 快照是 first-class 契约；
+> `PackageValidator` 校验 scope 与实际内容一致（AUTHENTICATOR_ONLY 不得
+> 携带 developer entries，反之亦然）。Selective Import 走同一 Merge
+> Engine，不产生第二套实现。
 
 ## Identity（Phase 3A 已实现，见 ADR-0004）
 
@@ -132,8 +163,41 @@ Master Password 引入 v2 Vault。
 | --- | --- |
 | INSERT | source 记录在 destination 不存在 → 新增 |
 | DUPLICATE | destination 已存在相同记录（同 stableId+同内容，或不同 stableId 但同 semantic fingerprint）→ 跳过，保留 destination 值 |
-| CONFLICT | 同 stableId（lineage）但 secret / TOTP 参数 / recovery-code 值不同 → 报告，禁止 last-write-wins / 静默覆盖 |
+| CONFLICT | 同 stableId（lineage）但 secret / TOTP 参数 / recovery-code 值 / Developer 敏感 payload 不同 → 报告，禁止 last-write-wins / 静默覆盖 |
 | UNCHANGED | destination-only 记录 → 永不删除 |
+
+### Developer Entry merge（ROADMAP §8.3，Phase 3A foundation 已纳入）
+
+Developer Entry 五类全部进入 shared merge foundation，每类至少具备**保守、
+可扩展的 insert / duplicate / conflict 基础语义**：
+
+| 场景 | 决策 |
+| --- | --- |
+| 同 stableId + 同 canonical 敏感 payload | DUPLICATE |
+| 同 stableId + 不同敏感 payload | CONFLICT |
+| 不同 stableId + 同 canonical 敏感 payload | DUPLICATE |
+| 不同 stableId + 无充分证据重复 | INSERT / keep both |
+
+- fingerprint 只含**敏感 payload**（keystore 字节 / apiKey+apiSecret /
+  private key+passphrase / env values / generic field values）；
+  **title / projectName / serviceName / keyName / notes 绝不参与**。
+- **不能因为 title / projectName / serviceName / keyName 相同就自动
+  dedupe**（例如两份同名的 SSH private key 保持两条）。
+- per-type 更复杂 semantic fingerprint 可后续增强；Developer Entry 现在
+  已进入 shared merge foundation，不是后续才补。
+
+### Recovery used/unused divergence（用户状态，不静默丢弃）
+
+- Recovery set fingerprint 不含 `status`/`usedAt`（一台设备标记 used 不会
+  让后续 import 变成假 conflict）。
+- 但 **used/unused 是用户状态，不是纯 metadata**：
+  - destination=UNUSED、source=USED → 显式 divergence（`stateDivergence`）；
+  - destination=USED、source=UNUSED → 显式 divergence（不能 un-use）；
+  - 任何情况下 planner **不静默保留 destination 状态、也不静默覆盖为
+    source 状态**。
+- `MergePlan` 输出 `RecoveryCodeStateDivergence`，`MergeSummary` 计数
+  `stateDivergences`；Phase 3C/3D 必须向用户呈现。
+- 本轮不做复杂 CRDT / timestamp merge（保留 future 空间）。
 
 强制不变式（已用 JVM 测试锁定）：
 
@@ -148,4 +212,22 @@ Master Password 引入 v2 Vault。
 9. parent / child 关系保持正确。
 10. merge 必须 deterministic。
 11. 真正写入数据库必须 transactional（Phase 3C 实现）。
-12. MergeResult 结构化报告 inserted / duplicates / conflicts / unchanged / invalid。
+12. MergeResult 结构化报告 inserted / duplicates / conflicts / unchanged / invalid / stateDivergences。
+
+### Legacy / Native Import 隔离（ROADMAP §9，source 级锁定）
+
+```
+legacy parser/crypto/models   （`legacy` 包）
+        ↓
+shared logical snapshot / merge（`export` 包）
+        ↑
+native package codec          （Phase 3B，`export`/codec）
+```
+
+- 允许共享：`VaultSnapshot`（logical schema）、validation、`MergeEngine`、
+  MergeResult。
+- **shared logical / merge 层不得依赖 legacy 类型**：`export` 包不 import
+  `com.rescueauth.v2.legacy` 任何类型（`LegacyIsolationTest` 在 source 级
+  锁定）。
+- 未来删除 Legacy Import ⇒ 删除 legacy compatibility layer，**不得要求
+  重构 Native Package Import**。

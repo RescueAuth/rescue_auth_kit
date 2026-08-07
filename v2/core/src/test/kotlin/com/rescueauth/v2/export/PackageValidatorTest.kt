@@ -227,4 +227,147 @@ class PackageValidatorTest {
             plan.summary.duplicates,
         )
     }
+
+    // ------------------------------------------------------------------
+    // Developer Vault validation (ROADMAP §6 / §8.2)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun allFiveDeveloperEntryTypesValidate() {
+        val snapshot = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.signingKey("sk-1"),
+                SnapshotBuilder.apiCredential("api-1"),
+                SnapshotBuilder.sshKey("ssh-1"),
+                SnapshotBuilder.envVarSet("env-1", variables = listOf(VaultKeyValue("A", "1"))),
+                SnapshotBuilder.genericSecret("gen-1", fields = listOf(VaultKeyValue("x", "y"))),
+            )
+        )
+        PackageValidator.validate(snapshot)
+        PackageValidator.validate(validPayload(snapshot))
+    }
+
+    @Test
+    fun duplicateDeveloperStableIdRejected() {
+        val snapshot = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.signingKey("sk-1"),
+                SnapshotBuilder.sshKey("sk-1"),
+            )
+        )
+        try {
+            PackageValidator.validate(snapshot)
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("duplicate developer entry stableId"))
+        }
+    }
+
+    @Test
+    fun invalidKeystoreBase64Rejected() {
+        val bad = SnapshotBuilder.signingKey("sk-1", keystoreBase64 = "not!!base64!!!")
+        try {
+            PackageValidator.validate(VaultSnapshot(developerEntries = listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("not valid base64"))
+        }
+    }
+
+    @Test
+    fun oversizeKeystoreRejected() {
+        val big = "A".repeat(PackageValidator.MAX_KEYSTORE_BASE64_LENGTH + 1)
+        val bad = SnapshotBuilder.signingKey("sk-1", keystoreBase64 = big)
+        try {
+            PackageValidator.validate(VaultSnapshot(developerEntries = listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("size limit"))
+        }
+    }
+
+    @Test
+    fun blankApiKeyRejected() {
+        val bad = SnapshotBuilder.apiCredential("api-1", apiKey = "   ")
+        try {
+            PackageValidator.validate(VaultSnapshot(developerEntries = listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("apiKey"))
+        }
+    }
+
+    @Test
+    fun blankEnvVarKeyRejected() {
+        val bad = SnapshotBuilder.envVarSet(
+            "env-1",
+            variables = listOf(VaultKeyValue("  ", "x")),
+        )
+        try {
+            PackageValidator.validate(VaultSnapshot(developerEntries = listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("variable key"))
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Selective / partial snapshot contract (ROADMAP §8.4 / §17)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun developerOnlySnapshotValid() {
+        val snapshot = VaultSnapshot(
+            scope = SnapshotScope.DEVELOPER_ONLY,
+            developerEntries = listOf(SnapshotBuilder.signingKey("sk-1")),
+        )
+        PackageValidator.validate(snapshot)
+    }
+
+    @Test
+    fun authenticatorOnlySnapshotValid() {
+        val snapshot = VaultSnapshot(
+            scope = SnapshotScope.AUTHENTICATOR_ONLY,
+            accounts = listOf(validAccount()),
+        )
+        PackageValidator.validate(snapshot)
+    }
+
+    @Test
+    fun selectedItemsSnapshotValid() {
+        val snapshot = VaultSnapshot(
+            scope = SnapshotScope.SELECTED_ITEMS,
+            accounts = listOf(validAccount()),
+            developerEntries = listOf(SnapshotBuilder.genericSecret("g1")),
+        )
+        PackageValidator.validate(snapshot)
+    }
+
+    @Test
+    fun authenticatorOnlyWithDeveloperEntriesRejected() {
+        val snapshot = VaultSnapshot(
+            scope = SnapshotScope.AUTHENTICATOR_ONLY,
+            developerEntries = listOf(SnapshotBuilder.sshKey("ssh-1")),
+        )
+        try {
+            PackageValidator.validate(snapshot)
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("AUTHENTICATOR_ONLY"))
+        }
+    }
+
+    @Test
+    fun developerOnlyWithAccountsRejected() {
+        val snapshot = VaultSnapshot(
+            scope = SnapshotScope.DEVELOPER_ONLY,
+            accounts = listOf(validAccount()),
+        )
+        try {
+            PackageValidator.validate(snapshot)
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("DEVELOPER_ONLY"))
+        }
+    }
 }
