@@ -80,5 +80,7 @@
 
 - 阶段 2：Room + SQLCipher + Keystore + BiometricPrompt 生命周期、
   VaultKey 包装/解锁/锁定/失效处理、串行 repository、自动锁/遮罩。
-- 阶段 3：BACKUP_FORMAT.md 定稿 + 测试向量 + BackupKey/恢复套件。
-- 阶段 4：旧库导入完整流程（预览 UI + checkpoint + 事务写入 + Developer 策略）。
+- 阶段 3：~~BACKUP_FORMAT.md 定稿 + BackupKey/恢复套件~~ → **已改为**
+  PACKAGE_FORMAT.md + per-export PIN 的 Export Package + merge-first
+  import（Phase 3A 已实现，见 PHASE3_REPORT.md）。
+- 阶段 4：旧库导入完整流程（预览 UI + 事务写入 + Developer 策略）。

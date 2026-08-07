@@ -17,7 +17,10 @@
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
 - 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A 已实现**
   （Package + Merge Foundation，PR #18，见 `docs/PHASE3_REPORT.md` /
-  `docs/PACKAGE_FORMAT.md` / `ROADMAP.md §5.2`）。
+  `docs/PACKAGE_FORMAT.md` / `ROADMAP.md §5.2`）；3A 已与 PR #19 最新
+  PRODUCT / ROADMAP 对齐（Developer Vault 五类进入 portable logical
+  schema + merge foundation；binary keystore base64；selective snapshot
+  scope；Recovery used/unused divergence 显式输出）。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。

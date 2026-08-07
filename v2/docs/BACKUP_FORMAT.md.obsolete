@@ -1,0 +1,16 @@
+# BACKUP_FORMAT.md（已废弃 — 由 PACKAGE_FORMAT.md 取代）
+
+> **状态：OBSOLETE**。本文描述的是旧“自动备份”草案（Master Password /
+> BackupKey / HKDF-SHA256 / AES-256-GCM / automatic backup），与 Phase 3
+> 新的产品定义冲突，已废弃。**Phase 3 的正式逻辑契约见
+> [PACKAGE_FORMAT.md](PACKAGE_FORMAT.md)**。
+>
+> 废弃原因：
+> - 旧草案假设全局 Master Password / BackupKey 保护 v2 backup；
+>   新模型是每份 Export Package 独立 per-export PIN。
+> - 旧草案面向 automatic/scheduled/background backup + WorkManager；
+>   新模型是 manual export only。
+> - 旧草案把备份当作“镜像/覆盖恢复”；新模型是
+>   **Import is merge-first**，restore = merge into empty vault。
+>
+> 保留此文件仅用于历史追溯，不得作为实现依据。

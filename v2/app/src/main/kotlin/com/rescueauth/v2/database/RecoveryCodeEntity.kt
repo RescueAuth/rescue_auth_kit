@@ -15,7 +15,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         )
     ],
-    indices = [Index("setId")],
+    indices = [Index("setId"), Index(value = ["stableId"], unique = true)],
 )
 data class RecoveryCodeEntity(
     @PrimaryKey val id: String,
@@ -25,4 +25,7 @@ data class RecoveryCodeEntity(
     val status: String,
     val usedAt: String? = null,
     val sortOrder: Int,
+    /** Stable logical record ID — survives export/import across devices (Phase 3A).
+     *  Backfilled to the Room `id` for pre-Phase-3A rows. */
+    val stableId: String = id,
 )

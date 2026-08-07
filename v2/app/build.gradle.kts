@@ -17,6 +17,11 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Room schema export (migration/schema tests + review).
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
     }
 
     buildTypes {
@@ -59,6 +64,16 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    // Room MigrationTestHelper reads the exported schema JSONs from assets.
+    // Register the exported schema dir as a DEBUG-only asset source so
+    // Robolectric unit tests and instrumented tests can read them, while
+    // release builds never ship the schema JSONs.
+    sourceSets {
+        getByName("debug") {
+            assets.srcDir("$projectDir/schemas")
+        }
+    }
 }
 
 tasks.configureEach {
@@ -79,7 +94,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.activity.compose)
@@ -117,4 +131,15 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.room.testing)
+}
+
+// KSP's bundled kotlinx-serialization 1.6.3 conflicts with Room 2.8.4's
+// schema-JSON reader (compiled against 1.8.1) on the same KSP compile
+// classpath. Force serialization to 1.8.1 everywhere so the runtime
+// interface has the default `typeParametersSerializers()`.
+configurations.configureEach {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1")
+        force("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    }
 }

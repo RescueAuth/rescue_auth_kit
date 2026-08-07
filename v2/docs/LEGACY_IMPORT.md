@@ -224,4 +224,8 @@ nonceB64:       解码后必须为 24 字节（XChaCha20-Poly1305）
     作为子行）。
 - 导入时 TOTP 参数逐条校验，并对每个**可导入** TOTP 计算**测试时刻验证码**
   （RFC 6238，固定测试时刻），与 RFC 4226 向量一致；不可导入条目不计算。
-- 任一失败不得改变当前数据库（先 checkpoint，失败即中止）。
+- 任一失败不得改变当前数据库（单事务，失败即回滚）。
+
+> **Phase 3A 更新（2026-08-07）**：旧文档中的“PRE_IMPORT checkpoint /
+> 导入后新格式备份”已随自动备份模型移除。legacy 导入仍为单事务；
+> 未来 legacy importer 会复用新的 Merge Engine（见 PACKAGE_FORMAT.md §Legacy）。

@@ -15,7 +15,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         )
     ],
-    indices = [Index("accountId"), Index("legacySourceId")],
+    indices = [Index("accountId"), Index("legacySourceId"), Index(value = ["stableId"], unique = true)],
 )
 data class TotpCredentialEntity(
     @PrimaryKey val id: String,
@@ -26,4 +26,7 @@ data class TotpCredentialEntity(
     val periodSeconds: Int,
     val createdAt: String,
     val legacySourceId: String? = null,
+    /** Stable logical record ID — survives export/import across devices (Phase 3A).
+     *  Backfilled to the Room `id` for pre-Phase-3A rows. */
+    val stableId: String = id,
 )

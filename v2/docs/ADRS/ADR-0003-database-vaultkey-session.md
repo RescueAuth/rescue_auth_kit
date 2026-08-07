@@ -1,11 +1,17 @@
 # ADR-0003：数据库加密、VaultKey 与安全会话生命周期
 
-- 状态：**Accepted**（phase2）
+- 状态：**Accepted**（phase2）；§2 的 BackupKey / 后台备份部分已被
+  **Phase 3 reset 取代**（见 ADR-0004 / ADR-0005 / PACKAGE_FORMAT.md）
 - 日期：2026-08-06
 - 关联：执行规划 §4、§12 阶段 2、用户 phase2 指令
 - **更新（2026-08-06，PR #6）**：§2 补充 BiometricPrompt 认证器的
   blocker 修复记录（`DEVICE_CREDENTIAL` 禁止 negative button、认证仅
   resumed 后触发）。
+- **更新（2026-08-07，Phase 3A）**：本 ADR 中“BackupKey / 后台备份
+  快照 / WorkManager 复制快照”的章节为旧自动备份模型的遗留设计，
+  **不再适用**。Phase 3 采用 manual Export Package + per-export PIN +
+  merge-first import（见 PACKAGE_FORMAT.md）。VaultKey / 会话 / 串行
+  repository / 锁屏策略章节仍有效且保持不变。
 
 ## 背景
 
@@ -37,9 +43,13 @@ Room + SQLCipher 全库加密、VaultKey 生成/包装/解锁/锁定/失效处�
 ```
 VaultKey (256-bit 随机, 数据库主密钥)
   └─ 由 Android Keystore 中不可导出的 AES-256-GCM 密钥包装 (wrap/unwrap)
-BackupKey (256-bit 随机, 阶段 3)
-  └─ 设备内由 VaultKey 保护；恢复套件离线持有
 ```
+
+> ⚠️ **Phase 3 reset（2026-08-07）**：旧层级中的 `BackupKey` / 恢复套件
+> / 后台备份快照已被移除。跨设备迁移使用 **manual Export Package**：
+> 每份包由独立的 per-export PIN → KDF → wrapping key → PackageKey → AEAD
+> 保护（见 PACKAGE_FORMAT.md / ADR-0004 / ADR-0005）。
+> **不存在** BackupKey / 全局 backup password / 永久 master password。
 
 - **VaultKey 生成**：`SecureRandom`（Android `java.security.SecureRandom`）
   一次性生成 32 字节；**禁止从用户密码派生**（v2 无日常主密码）。
@@ -58,11 +68,7 @@ BackupKey (256-bit 随机, 阶段 3)
   下次启动需重新生物识别解锁。
 - **Keystore 失效**（设备重置/锁屏变化/系统异常）：
   **不得删除数据库**。检测到 unwrap 失败（`KeyPermanentlyInvalidatedException`
-  等）→ 状态机进入 `KEY_INVALIDATED` → UI 引导用户用恢复套件/备份恢复。
-- **后台备份冲突**：WorkManager **不得**绕过用户认证解锁数据库。方案：
-  应用在已解锁并成功提交事务后，立即生成**加密备份快照**（内存/临时文件），
-  WorkManager 只负责把已加密快照复制到用户选择的目录。这样后台任务
-  不需要数据库访问，也不触碰 VaultKey。
+  等）→ 状态机进入 `KEY_INVALIDATED` → UI 引导用户用 Export Package / 备份恢复。
 
 ### 3. 串行 repository mutation
 

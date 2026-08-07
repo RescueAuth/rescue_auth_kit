@@ -2,8 +2,6 @@ package com.rescueauth.v2.repository
 
 import com.rescueauth.v2.database.AuthAccountDao
 import com.rescueauth.v2.database.AuthAccountEntity
-import com.rescueauth.v2.database.BackupRecordDao
-import com.rescueauth.v2.database.BackupRecordEntity
 import com.rescueauth.v2.database.ImportRecordDao
 import com.rescueauth.v2.database.ImportRecordEntity
 import com.rescueauth.v2.database.RecoveryCodeDao
@@ -27,9 +25,10 @@ import kotlinx.coroutines.sync.withLock
  *   never interleave or drop data.
  * - Every mutation checks [session.isUnlocked] first; a locked session
  *   throws [SessionLockedException] instead of touching a closed DB.
- * - On every committed change an encrypted backup snapshot is handed to a
- *   [BackupSnapshotSink] — WorkManager only copies already-encrypted snapshots
- *   and never needs to unlock the database (ADR-0003 §2).
+ * - **No automatic/background backup hooks live here.** The Phase 3 product
+ *   model is manual Export Package only: every change is recorded in the
+ *   local encrypted vault, and the user explicitly exports a portable package
+ *   when they want a backup / migration (see docs/PACKAGE_FORMAT.md).
  *
  * Read-only queries (observeX) can run concurrently with the mutex held for
  * writes only.
@@ -37,7 +36,6 @@ import kotlinx.coroutines.sync.withLock
 class VaultRepository(
     private val db: RescueAuthDatabase,
     private val session: SecureSessionStateMachine,
-    private val snapshotSink: BackupSnapshotSink? = null,
 ) {
     class SessionLockedException(message: String = "Session is locked") : Exception(message)
     class InvalidImportException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -49,7 +47,6 @@ class VaultRepository(
     private val recoverySetDao: RecoveryCodeSetDao get() = db.recoveryCodeSetDao()
     private val recoveryCodeDao: RecoveryCodeDao get() = db.recoveryCodeDao()
     private val importDao: ImportRecordDao get() = db.importRecordDao()
-    private val backupDao: BackupRecordDao get() = db.backupRecordDao()
 
     // ------------------------------------------------------------------
     // Reads (no lock required — DB handle is closed on lock so calls fail)
@@ -65,8 +62,13 @@ class VaultRepository(
 
     /**
      * Imports a validated [LegacyImportBundle] in a single transaction.
-     * Performs a PRE_IMPORT checkpoint (backup snapshot) first; if that fails
-     * the import aborts without touching the database (execution plan §7.2).
+     *
+     * Phase 3 reset: there is NO PRE_IMPORT backup checkpoint anymore — the
+     * automatic-backup snapshot model was removed (manual Export Package only).
+     * The import itself is still transactional: any failure rolls back the
+     * whole import. (A future Phase 3C step funnels the logical records
+     * through the Merge Planner; legacy import currently maps directly to
+     * Room rows exactly as Phase 2 established.)
      */
     suspend fun importLegacy(bundle: LegacyImportBundle): ImportSummary {
         checkUnlocked()
@@ -76,19 +78,12 @@ class VaultRepository(
                 if (result.accounts.isEmpty() && result.report.notImported.isEmpty()) {
                     throw InvalidImportException("Nothing to import")
                 }
-                // PRE_IMPORT checkpoint: must succeed BEFORE writing anything.
-                try {
-                    snapshotSink?.onCheckpoint("PRE_IMPORT")
-                } catch (e: Exception) {
-                    throw InvalidImportException(
-                        "Backup checkpoint failed — import aborted: ${e.message}", e
-                    )
-                }
 
                 val now = java.time.Instant.now().toString()
                 val accounts = result.accounts.map { a ->
                     AuthAccountEntity(
                         id = a.id,
+                        stableId = a.id,
                         serviceName = a.serviceName,
                         accountName = a.accountName,
                         favorite = a.favorite,
@@ -108,6 +103,7 @@ class VaultRepository(
                     for (t in a.totpCredentials) {
                         totps += TotpCredentialEntity(
                             id = t.id,
+                            stableId = t.id,
                             accountId = a.id,
                             secretBase32 = t.secretBase32,
                             algorithm = t.algorithm,
@@ -120,6 +116,7 @@ class VaultRepository(
                     for (s in a.recoveryCodeSets) {
                         sets += RecoveryCodeSetEntity(
                             id = s.id,
+                            stableId = s.id,
                             accountId = a.id,
                             title = s.title,
                             createdAt = a.createdAt,
@@ -128,6 +125,7 @@ class VaultRepository(
                         codes += s.codes.map { c ->
                             RecoveryCodeEntity(
                                 id = c.id,
+                                stableId = c.id,
                                 setId = s.id,
                                 value = c.value,
                                 status = c.status,
@@ -145,6 +143,7 @@ class VaultRepository(
                 importDao.insert(
                     ImportRecordEntity(
                         id = java.util.UUID.randomUUID().toString(),
+                        stableId = java.util.UUID.randomUUID().toString(),
                         sourceType = "LEGACY_RAKVAULT",
                         sourceFingerprint = fingerprint,
                         importedAt = now,
@@ -152,9 +151,6 @@ class VaultRepository(
                         warningCount = result.report.notImported.size + bundle.developerCount,
                     )
                 )
-
-                // Post-import new-format backup snapshot.
-                snapshotSink?.onChange("PRE_IMPORT")
 
                 ImportSummary(
                     importedAccounts = result.accounts.size,
@@ -172,7 +168,6 @@ class VaultRepository(
             db.withTransaction {
                 recoveryCodeDao.markUsed(codeId, usedAt)
             }
-            snapshotSink?.onChange("CHANGE")
         }
     }
 
@@ -183,7 +178,6 @@ class VaultRepository(
             db.withTransaction {
                 recoveryCodeDao.markUnused(codeId)
             }
-            snapshotSink?.onChange("CHANGE")
         }
     }
 
@@ -194,7 +188,6 @@ class VaultRepository(
             db.withTransaction {
                 accountDao.setFavorite(accountId, favorite, java.time.Instant.now().toString())
             }
-            snapshotSink?.onChange("CHANGE")
         }
     }
 
@@ -204,29 +197,8 @@ class VaultRepository(
             db.withTransaction {
                 accountDao.deleteById(accountId)
             }
-            snapshotSink?.onChange("CHANGE")
         }
     }
-
-    suspend fun recordBackup(status: String, reason: String, uri: String, sizeBytes: Long, sha256: String, errorCode: String? = null) {
-        checkUnlocked()
-        mutex.withLock {
-            backupDao.insert(
-                BackupRecordEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    createdAt = java.time.Instant.now().toString(),
-                    reason = reason,
-                    uri = uri,
-                    sizeBytes = sizeBytes,
-                    sha256 = sha256,
-                    status = status,
-                    errorCode = errorCode,
-                )
-            )
-        }
-    }
-
-    suspend fun latestBackup() = backupDao.latestSuccess()
 
     private fun checkUnlocked() {
         if (!session.isUnlocked()) throw SessionLockedException()
@@ -239,14 +211,3 @@ data class ImportSummary(
     val notImported: List<String>,
     val warningCount: Int,
 )
-
-/**
- * Receives encrypted backup snapshots. The production implementation copies
- * the snapshot to the user-chosen directory; WorkManager never unlocks the DB.
- */
-interface BackupSnapshotSink {
-    /** Must throw if the snapshot cannot be produced (checkpoint failure). */
-    fun onCheckpoint(reason: String)
-    /** Best-effort post-change snapshot. */
-    fun onChange(reason: String)
-}
