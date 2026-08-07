@@ -220,6 +220,11 @@ N env / N generic），支持 **Import all**；Selective Import 作为同阶段/
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
 | **P1 — TOTP usable loop（垂直切片）** | Compose 首页：Vault 列表 + TOTP 显示/倒计时/复制；添加（QR + otpauth paste + manual entry）；删除 + Undo；持久化 | 用户可完成“解锁 → 看码 → 复制 → 添加 → 删除”完整日常循环 | Phase 2 会话层 + TOTP core | L |
+
+> **P1 状态（2026-08-07，Issue #20）**：已实现 otpauth paste + manual
+> entry、真实 production storage、倒计时/复制/删除+Undo（见
+> `docs/PHASE4_P1_REPORT.md`）。**QR 扫描**与 **otpauth-migration** 尚未
+> 实现，按 Issue #20 契约放入后续 slice。
 | **P2 — otpauth-migration import** | 解析 `otpauth-migration://` → 内部 logical credential → 批量 merge 预览/导入 | 可从 Google Authenticator 批量迁入 | P1 + 3C | S |
 | **P3 — Recovery Codes slice** | 恢复码列表：batch add / expand-collapse / copy all / edit / delete / move；used-unused 标记 + remaining count + used 弱化显示 | 恢复码可完整管理（一等 Vault credential） | P1 | M |
 | **P4 — Developer Vault slice（第一批）** | Android Signing Key + API Credential 全 CRUD / reveal-hide / copy / export keystore / key.properties 复制；Sensitive re-auth 接入 | 两种最常见的 Developer Entry 可日常使用 | 3D + re-auth（§5.6） | M |

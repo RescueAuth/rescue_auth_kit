@@ -200,6 +200,20 @@ class VaultRepository(
         }
     }
 
+    /**
+     * Runs [block] as one serialized, transactional mutation. All production
+     * Authenticator CRUD funnels through here so concurrency and session-lock
+     * guarantees stay in a single place.
+     */
+    suspend fun <T> mutate(block: suspend () -> T): T {
+        checkUnlocked()
+        return mutex.withLock {
+            db.withTransaction {
+                block()
+            }
+        }
+    }
+
     private fun checkUnlocked() {
         if (!session.isUnlocked()) throw SessionLockedException()
     }

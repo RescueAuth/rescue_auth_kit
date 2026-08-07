@@ -19,6 +19,9 @@ object RescueAuthRoutes {
     const val DEVELOPER = "developer"
     const val SETTINGS = "settings"
 
+    /** Phase 4 P1: Add TOTP sheet hosted above the Authenticator screen. */
+    const val AUTHENTICATOR_ADD = "authenticator/add"
+
     // --- Authenticator future structure (contract only) ---
     const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{providerId}/{accountId}"
     const val AUTHENTICATOR_TOTP = "authenticator/totp/{credentialId}"

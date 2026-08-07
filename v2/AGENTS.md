@@ -21,6 +21,8 @@
   PRODUCT / ROADMAP 对齐（Developer Vault 五类进入 portable logical
   schema + merge foundation；binary keystore base64；selective snapshot
   scope；Recovery used/unused divergence 显式输出）。
+  **Phase 4 P1 已实现**（TOTP Daily-Use Loop，见
+  `docs/PHASE4_P1_REPORT.md`；真实 production storage，QR 暂未实现）。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。
@@ -112,7 +114,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [ ] 3C Transactional Import / Merge（MergePlan → Room apply + rollback + 幂等）
   - [ ] 3D Android Export / Import + Package Preview（SAF + PIN + Import all）
 - [ ] 阶段 4：Daily-use vertical slices
-  - [ ] P1 TOTP usable loop（QR / otpauth paste / manual / countdown / copy / delete+Undo）
+  - [x] **P1 TOTP usable loop**（otpauth paste / manual / countdown / copy / delete+Undo，真实 production storage，PR 见 docs/PHASE4_P1_REPORT.md；QR 后续补）
   - [ ] P2 otpauth-migration import（IMPORT ONLY，External Import Adapter）
   - [ ] P3 Recovery Codes slice（batch/expand/copy all/edit/delete/move + used-unused）
   - [ ] P4 Developer Vault 第一批（Android Signing Key + API Credential + re-auth 接入）

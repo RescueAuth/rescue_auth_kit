@@ -15,6 +15,12 @@ interface AuthAccountDao {
     @Query("SELECT * FROM auth_account WHERE id = :id")
     suspend fun getById(id: String): AuthAccountEntity?
 
+    @Query("SELECT * FROM auth_account WHERE stableId = :stableId")
+    suspend fun getByStableId(stableId: String): AuthAccountEntity?
+
+    @Query("SELECT * FROM auth_account WHERE serviceName = :serviceName AND accountName = :accountName LIMIT 1")
+    suspend fun findByServiceAndAccount(serviceName: String, accountName: String): AuthAccountEntity?
+
     @Query("SELECT * FROM auth_account WHERE serviceName = :serviceName ORDER BY sortOrder")
     fun observeByService(serviceName: String): Flow<List<AuthAccountEntity>>
 
