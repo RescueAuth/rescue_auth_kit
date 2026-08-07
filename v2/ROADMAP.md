@@ -112,7 +112,7 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 | Pin / Pinned Items | **NEW** | 简单 Pin/Unpin 置顶；不做 Favorites 体系（见 §7.2） |
 | Portable Vault Package | **REDESIGN（已完成 reset）** | per-export PIN、versioned、encrypted、logical、portable、mergeable；manual only |
 | Selective Export / Import | **NEW** | Package domain 不得阻碍 partial snapshot；Selective Import 走同一 Merge Engine |
-| Merge / Dedupe | **REDESIGN（Phase 3A 已实现 TOTP+Recovery 基础）** | 扩展到 Developer Entry（未来） |
+| Merge / Dedupe | **REDESIGN（Phase 3A foundation 覆盖完整 Vault）** | 基础 insert/duplicate/conflict 语义在 portable logical schema 内覆盖 TOTP / Recovery Codes / Developer Entry；每类更复杂的 per-type semantic dedupe 后续增强 |
 | Legacy Import（`.rakvault`） | **KEEP（compat only）** | 与 Native Package Import 强制隔离（见 §9） |
 | Delete Undo | **NEW** | 普通删除 SnackBar Undo；高破坏性操作保留 confirmation（见 §11） |
 | Clipboard auto-clear | **DEFER** | Later security polish，不阻塞 daily use（见 §12） |
@@ -330,8 +330,9 @@ platform。
 
 ### 8.2 Package 必须覆盖完整 Vault（Phase 3A 验收）
 
+Developer Vault 五类是**正式 v2 核心资产**，不是未来 optional extension；
 `LogicalVaultSnapshot / VaultPackagePayload` **不得只覆盖 TOTP + Recovery
-Codes**。必须能表达：
+Codes**，必须现在即可表达：
 
 ```
 Authenticator:
@@ -350,19 +351,20 @@ Developer:
 
 - 所有 Native Package Import 采用 **merge-first**。必须支持：
   - stable identity（stableId，已实现）
-  - semantic duplicate detection（fingerprint，已实现 TOTP/Recovery）
+  - semantic duplicate detection（fingerprint：TOTP/Recovery 已实现；
+    Developer Entry 基础语义纳入 Phase 3A foundation，per-type 精确 dedupe 后续增强）
   - conflict detection（已实现）
   - no silent overwrite（已实现）
   - deterministic result（已实现）
   - idempotent repeated import（已实现）
   - transaction rollback（Phase 3C 实现）
-- **Merge 不仅适用于 TOTP**，Roadmap 覆盖：TOTP、Recovery Codes、
-  Developer Entry。
-- **Developer Entry 未来需定义每类**：
-  - logical identity
-  - duplicate
-  - conflict
-  - 例如：**不能因为 title 相同就自动认为两份 SSH private key 相同**。
+- **Merge 覆盖完整 Vault 资产**：TOTP、Recovery Codes、Developer Entry
+  全部在 Phase 3A 的 portable logical schema / merge foundation 范围内。
+- **Developer Entry 已纳入 Phase 3A foundation**：每类至少具备**保守、
+  可扩展的 insert / duplicate / conflict 基础语义**（例如：**不能因为
+  title 相同就自动认为两份 SSH private key 相同**）；更复杂的 per-type
+  semantic dedupe 可后续增强，但不能等后续才把 Developer Entry 加入
+  portable logical schema。
 - 安全原则：**宁可 keep both / conflict，不要错误 dedupe**。
 
 ### 8.4 Selective Export / Import
@@ -426,6 +428,33 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 - 完整 i18n（但核心页面至少 en 可用；zh-CN 在 daily-use release 前恢复，
   见 §13）
 - SSH / Env / Generic 三类的完整 UI（basic Developer Vault 已覆盖最常用两类）
+
+### 10.1 V2.0 FEATURE COMPLETE 里程碑定义
+
+**V2.0 FEATURE COMPLETE** 是 v2 重构完成的正式里程碑，代表**正式产品
+范围全部完成**。**DAILY-USE READY 只是“已经可以迁移过去并开始日常自用”
+的中间里程碑**，不能被解释为整个 v2 重构完成。
+
+达到 **V2.0 FEATURE COMPLETE** 必须包含：
+
+- [ ] Authenticator 正式能力（Provider/Account/TOTP 完整能力）
+- [ ] Recovery Codes 完整能力
+- [ ] Developer Vault 五类完整能力（Android Signing Key / API Credential /
+  SSH Key / Env Var Set / Generic Secret）
+- [ ] Android Signing Key keystore import/export
+- [ ] Portable Package full / selective export / import
+- [ ] merge / dedupe / conflict（覆盖全部资产）
+- [ ] Legacy migration（`.rakvault` 收口）
+- [ ] Search + Pin
+- [ ] Delete Undo（全类型覆盖）
+- [ ] Sensitive Action Re-auth（全敏感操作覆盖）
+- [ ] en + zh-CN（完整双语）
+- [ ] About / Update Check
+
+**不阻塞 V2.0 FEATURE COMPLETE**（按 Roadmap §18 deferred policy 处理）：
+
+- clipboard auto-clear
+- 动画 / 无障碍 polish
 
 ---
 
@@ -501,24 +530,27 @@ Phase 6 L1/L2/L3（polish）——不阻塞 daily-use
 
 ## 16. 里程碑检查表（对照）
 
-| 能力 | 归属 | DAILY-USE READY 门槛 |
-| --- | --- | --- |
-| biometric unlock | Phase 2 | 必需 |
-| TOTP add/view/countdown/copy | P1 | 必需 |
-| delete + Undo | P1（起步） | 必需 |
-| persistence | Phase 2 + P1 | 必需 |
-| QR / otpauth paste / manual entry | P1 | 必需 |
-| manual Export Package | 3B + 3D | 必需 |
-| Native Package Import | 3C + 3D | 必需 |
-| merge / dedupe | 3A + 3C | 必需 |
-| basic Recovery Codes | P3 | 必需 |
-| basic Developer Vault | P4 | 必需 |
-| sensitive-action re-auth | P4 | 必需 |
-| otpauth-migration import | P2 | 可选（增强） |
-| Selective Export/Import | P5 | 可选（增强） |
-| Search / Pin | P7 | 可选（增强） |
-| legacy import 收口 | M1/M2 | 兼容性，不阻塞新用户 |
-| i18n / update / clipboard polish | L1/L2/L3 | 不阻塞 |
+| 能力 | 归属 | DAILY-USE READY | V2.0 FEATURE COMPLETE |
+| --- | --- | --- | --- |
+| biometric unlock | Phase 2 | 必需 | 必需 |
+| TOTP add/view/countdown/copy | P1 | 必需 | 必需（正式能力） |
+| delete + Undo | P1（起步）→ P8 完善 | 必需 | 必需（全类型覆盖） |
+| persistence | Phase 2 + P1 | 必需 | 必需 |
+| QR / otpauth paste / manual entry | P1 | 必需 | 必需 |
+| manual Export Package | 3B + 3D | 必需 | 必需 |
+| Native Package Import | 3C + 3D | 必需 | 必需 |
+| merge / dedupe / conflict | 3A + 3C | 必需（dedupe 基础） | 必需（含 conflict，全资产覆盖） |
+| basic Recovery Codes | P3 | 必需（basic） | 必需（完整能力） |
+| basic Developer Vault | P4 | 必需（首批两类） | 必需（五类完整） |
+| Android Signing Key keystore import/export | P4 | 可选（增强） | 必需 |
+| sensitive-action re-auth | P4 | 必需（Export / reveal 类） | 必需（全敏感操作覆盖） |
+| otpauth-migration import | P2 | 可选（增强） | 可选（增强） |
+| Selective Export / Import | P5 | 可选（增强） | 必需 |
+| Search / Pin | P7 | 可选（增强） | 必需 |
+| legacy import 收口 | M1/M2 | 兼容性，不阻塞新用户 | 必需（Legacy migration 完成） |
+| en + zh-CN | L1 | 不阻塞（核心页面 en 可用） | 必需（完整双语） |
+| About / Update Check | L2 | 不阻塞 | 必需 |
+| clipboard / 动画 / 无障碍 polish | L3 | 不阻塞 | 不阻塞（deferred policy） |
 
 ---
 
@@ -540,8 +572,10 @@ Phase 6 L1/L2/L3（polish）——不阻塞 daily-use
    —— 逻辑模型必须支持部分快照（Entire Vault / section / selected
    items），不得阻碍 Selective Export / Import。
 4. **Merge 是否不是 TOTP-only**
-   —— Merge Engine 必须能表达 Developer Entry 的 merge/duplicate/
-   conflict（可先留语义占位，但不能架构上只能处理 TOTP）。
+   —— Merge Engine / portable logical schema 必须已纳入 Developer Entry：
+   每类至少具备保守、可扩展的 insert / duplicate / conflict 基础语义；
+   更复杂的 per-type semantic dedupe 可后续增强，但不能架构上只能处理
+   TOTP，也不能等后续才把 Developer Entry 加入 portable logical schema。
 5. **Legacy / Native Import 是否隔离**
    —— 两者有独立 parser / crypto / errors / use case；只共享
    LogicalVaultSnapshot / validation / Merge Engine / MergeResult。

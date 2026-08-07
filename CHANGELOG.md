@@ -20,7 +20,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   local-first / encrypted personal security vault）、三支柱（Authenticator /
   Developer Vault / Portable Vault Package）、Phase 3 之后全部重新规划
   （3A→3D + Phase 4 daily-use slices P1–P8 + Phase 5 legacy 收口 + Phase 6
-  polish）、DAILY-USE READY 里程碑定义、Phase 3A Review Checklist。
+  polish）、DAILY-USE READY 与 V2.0 FEATURE COMPLETE 里程碑定义（见
+  ROADMAP §10 / §10.1）、Phase 3A Review Checklist。
 - `v2/docs/ADRS/ADR-0006-sensitive-action-reauth.md`：Sensitive Action
   Re-authentication 正式能力（Export / export keystore / reveal 长期 secret
   要求 fresh 生物识别/设备凭据）。

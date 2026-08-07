@@ -117,14 +117,15 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [ ] P6 Developer Vault 第二批（SSH Key / Env Var Set / Generic Secret）
   - [ ] P7 Search + Pin
   - [ ] P8 Delete Undo 完善
-  - [ ] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10）
+  - [ ] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
+  - [ ] **V2.0 FEATURE COMPLETE 里程碑**（定义见 ROADMAP.md §10.1；正式产品范围全部完成，不等于 DAILY-USE READY）
 - [ ] 阶段 5：Migration（legacy import 收口）
   - [ ] M1 Legacy Import UI 完整流程（与 Native Package Import UI 区分）
   - [ ] M2 Developer 数据处理（legacy）
 - [ ] 阶段 6：Product polish
-  - [ ] L1 Localization（en + zh-CN）
-  - [ ] L2 About / Update Check
-  - [ ] L3 Clipboard / security polish（含 DEFER 项 clipboard auto-clear）
+  - [ ] L1 Localization（en + zh-CN；完整双语为 V2.0 FEATURE COMPLETE 门槛）
+  - [ ] L2 About / Update Check（V2.0 FEATURE COMPLETE 门槛）
+  - [ ] L3 Clipboard / security polish（含 DEFER 项 clipboard auto-clear；不阻塞 DAILY-USE READY 与 V2.0 FEATURE COMPLETE）
 
 ## 关键决策索引
 
