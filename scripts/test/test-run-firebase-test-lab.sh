@@ -88,6 +88,18 @@ if [[ "${1:-}" == "auth" && "${2:-}" == "revoke" ]]; then
     exit 0
 fi
 if [[ "${1:-}" == "firebase" && "${2:-}" == "test" && "${3:-}" == "android" && "${4:-}" == "models" && "${5:-}" == "describe" ]]; then
+    if [[ -n "${FAKE_GCLOUD_LOG:-}" ]]; then
+        printf 'describe %s\n' "$*" >> "$FAKE_GCLOUD_LOG"
+    fi
+    # Real gcloud `models describe` defaults to YAML and only emits JSON when
+    # --format=json is passed. The runner's parser uses json.load(), so the
+    # flag is mandatory. The fake mirrors this faithfully: without the flag it
+    # prints YAML (which the parser cannot read), turning every existing
+    # happy-path test into a live guard for the --format=json flag.
+    if [[ "${7:-}" != "--format=json" ]]; then
+        printf 'form: VIRTUAL\nid: %s\nname: %s\nsupportedVersionIds:\n- "30"\n- "31"\n- "33"\ntags:\n- arm\n' "${6:-}" "${6:-}"
+        exit 0
+    fi
     if [[ "${6:-}" == "MediumPhone.arm" ]]; then
         printf '{"form":"virtual","supportedVersionIds":["33","31","30"],"deprecated":false,"reducedStability":false}'
         exit 0
@@ -565,6 +577,100 @@ mkfake_apk_nomanifest "$APP_APK"
 )
 
 echo
+
+echo "== 28. catalog parser regression: multi-value supportedVersionIds + --format=json =="
+# Root cause of the main-CI failure:
+#   [ftl][ERROR] FTL device version not supported for model MediumPhone.arm: API 33
+#
+# Real `gcloud firebase test android models describe` defaults to YAML and only
+# emits JSON with --format=json. The runner's parser calls json.load() on the
+# captured file, so without the flag the catalog "30,31,33" is unreadable and
+# EVERY version looks unsupported. The fix adds --format=json to the describe
+# call. These regression cases pin the multi-value supportedVersionIds member-
+# ship behaviour with the runner's real parser.
+common_env
+FAKE_GCLOUD_EXIT=0
+
+# 28a. happy path (MediumPhone.arm + API 33, multi-value supportedVersionIds)
+#      already covered by tests 7..15, but assert explicitly that the runner
+#      passed --format=json to the fake gcloud.
+FAKE_GCLOUD_LOG="$TEST_WORKSPACE/gcloud-calls.log"
+export FAKE_GCLOUD_LOG
+run_runner
+assert_eq "$RUNNER_RC" "0" "28a runner exit 0 for MediumPhone.arm API 33"
+assert_contains "$RUNNER_OUT" "FTL device catalog check passed" "28a catalog check passes"
+if grep -q 'describe.*MediumPhone.arm.*--format=json' "$FAKE_GCLOUD_LOG"; then
+    ok "28a fake gcloud describe invoked WITH --format=json"
+else
+    bad "28a fake gcloud describe invoked WITH --format=json (got: $(cat "$FAKE_GCLOUD_LOG" 2>/dev/null))"
+fi
+unset FAKE_GCLOUD_LOG
+
+# 28b. multi-value supportedVersionIds: version 30 and 31 must ALSO be accepted
+#      (same JSON list, membership check is not a single-element special case).
+for v in 30 31; do
+    common_env
+    export FTL_DEVICE_VERSION="$v"
+    FAKE_GCLOUD_EXIT=0
+    run_runner
+    assert_eq "$RUNNER_RC" "0" "28b runner exit 0 for MediumPhone.arm API $v"
+    assert_contains "$RUNNER_OUT" "FTL device catalog check passed" "28b catalog check passes for API $v"
+done
+
+# 28c. version NOT in the multi-value list must still fail fast (membership is
+#      not inverted by the JSON fix).
+common_env
+FAKE_GCLOUD_EXIT=0
+export FTL_DEVICE_VERSION="29"
+run_runner
+assert_eq "$RUNNER_RC" "1" "28c exit 1 for unsupported API 29"
+assert_contains "$RUNNER_OUT" "CONFIGURATION_FAILURE" "28c CONFIGURATION_FAILURE"
+assert_contains "$RUNNER_OUT" "FTL device version not supported for model MediumPhone.arm: API 29" "28c names model and version"
+
+# 28d. parser unit-level guard: the runner's exact python membership expression
+#      must return "yes" for 33 and "no" for an absent value against a JSON
+#      doc with multi-value supportedVersionIds (30/31/33).
+cat > "$TEST_WORKSPACE/multi-version.json" <<'EOF'
+{"form":"virtual","supportedVersionIds":["30","31","33"],"tags":["arm"]}
+EOF
+for probe in 33 31 30; do
+    got="$(python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+versions = d.get("supportedVersionIds", []) or []
+print("yes" if sys.argv[2] in [str(v) for v in versions] else "no")
+' "$TEST_WORKSPACE/multi-version.json" "$probe")"
+    assert_eq "$got" "yes" "28d parser: API $probe is a member of multi-value list"
+done
+got="$(python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+versions = d.get("supportedVersionIds", []) or []
+print("yes" if sys.argv[2] in [str(v) for v in versions] else "no")
+' "$TEST_WORKSPACE/multi-version.json" "29")"
+assert_eq "$got" "no" "28d parser: absent API 29 is not a member"
+
+# 28e. YAML default (no --format=json) must NOT be accepted by the parser:
+#      guards against re-introducing the bug even if a future change drops the
+#      flag.
+cat > "$TEST_WORKSPACE/yaml-default.yaml" <<'EOF'
+form: VIRTUAL
+id: MediumPhone.arm
+name: MediumPhone.arm
+supportedVersionIds:
+- '30'
+- '31'
+- '33'
+tags:
+- arm
+EOF
+bad_rc=0
+python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$TEST_WORKSPACE/yaml-default.yaml" 2>/dev/null \
+    || bad_rc=$?
+assert_eq "$bad_rc" "1" "28e YAML default output is rejected by json.load (bug guard)"
+
+echo
+
 echo "== summary =="
 echo "  PASS: $PASS  FAIL: $FAIL"
 rm -rf "$TEST_WORKSPACE"

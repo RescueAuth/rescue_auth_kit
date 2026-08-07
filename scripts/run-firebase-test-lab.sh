@@ -266,12 +266,21 @@ validate_device_config() {
 
     # Ask the authenticated Test Lab service for the catalog entry of the
     # exact model. The response is redacted (we only print booleans).
+    #
+    # NOTE: --format=json is REQUIRED. Without it gcloud's default output for
+    # `models describe` is YAML, and the parser below uses json.load(), which
+    # would fail with a JSONDecodeError and make every version look
+    # unsupported (the parser prints "no" even though the catalog contains the
+    # version). This was the root cause of:
+    #   [ftl][ERROR] FTL device version not supported for model
+    #   MediumPhone.arm: API 33
     local describe_out
     describe_out="$(mktemp "${TMP_ROOT}/ftl-model-desc.XXXXXX.json")"
     chmod 600 "$describe_out"
     register_tmp "$describe_out"
 
     if ! "$gcloud_bin" firebase test android models describe "$model" \
+        --format=json \
         >"$describe_out" 2>"${describe_out}.err"; then
         err "FTL device model not found / not queryable: ${model}"
         err "FTL_STATUS=${STATUS_CONFIG_FAILURE}"
