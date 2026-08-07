@@ -38,6 +38,8 @@ Export Package 是可合并数据包，per-export PIN 保护，merge-first impor
 - 删除 `BackupRecordEntity` / `BackupRecordDao` / DataStore 依赖。
 - `:core` 的 kotlinx-serialization 由 `api` 改为 `implementation`（避免污染
   app KSP classpath）。
+- kotlinx-serialization 升到 1.8.1（与 Room 2.8.4 schema-JSON 读取器对齐，
+  修复 KSP/Room `AbstractMethodError` classpath 冲突）。
 
 ### Removed（旧 automatic-backup 抽象）
 
