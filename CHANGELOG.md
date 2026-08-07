@@ -8,60 +8,39 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > **v2 重写（2026-08-06）**：仓库自 `main` 起进入 Android 原生重写阶段，
 > 代码位于 `v2/`（Kotlin + Room/SQLCipher），旧 Flutter 应用冻结于 tag `v1.2.0`。
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
-> phase2-closure/phase3a），均已合并进 `main`。
+> phase2-closure/roadmap-v2），均已合并进 `main`。
 
-## [v2 phase3a] - 2026-08-07（PR #18）
+## [v2 roadmap] - 2026-08-07（Issue #17）
 
-Phase 3A — **Package + Merge Foundation**。Phase 3 架构重置：
-Export Package 是可合并数据包，per-export PIN 保护，merge-first import。
+正式产品 Roadmap 定稿（docs-only）：
 
 ### Added
 
-- 纯 JVM 逻辑 package 领域模型（`:core` `export/`）：`VaultSnapshot` /
-  `VaultPackagePayload` / `PackageSourceMetadata`（无 Android/Room 依赖）。
-- `Canonicalization`：stable identity + semantic fingerprint（TOTP /
-  recovery-set / account）与 canonical 归一化；fingerprint 不落库、不入
-  plaintext header。
-- `PackageValidator`：逻辑 schema 版本 + 内部一致性校验（重复 stableId /
-  非法 TOTP 参数 / 非法 base32 / 非法 status），invalid source 拒绝整个包。
-- `MergePlanner`：确定性纯 merge planner → `MergePlan` / `MergeSummary`
-  （INSERT / DUPLICATE / CONFLICT / UNCHANGED），12 条强制 merge 语义。
-- Room schema v1→v2 migration：5 表新增 `stableId`（回填 `id` + UNIQUE
-  index），删除 `backup_record` 表。schema JSON 导出到 `app/schemas/`。
-- 文档：`docs/PACKAGE_FORMAT.md`（新逻辑契约）、`docs/PHASE3_REPORT.md`、
-  ADR-0004 / ADR-0005；THREAT_MODEL / PRODUCT / AGENTS / README* 同步。
+- `v2/ROADMAP.md`：正式路线图 source of truth——产品定位（Android-only /
+  local-first / encrypted personal security vault）、三支柱（Authenticator /
+  Developer Vault / Portable Vault Package）、Phase 3 之后全部重新规划
+  （3A→3D + Phase 4 daily-use slices P1–P8 + Phase 5 legacy 收口 + Phase 6
+  polish）、DAILY-USE READY 与 V2.0 FEATURE COMPLETE 里程碑定义（见
+  ROADMAP §10 / §10.1）、Phase 3A Review Checklist。
+- `v2/docs/ADRS/ADR-0006-sensitive-action-reauth.md`：Sensitive Action
+  Re-authentication 正式能力（Export / export keystore / reveal 长期 secret
+  要求 fresh 生物识别/设备凭据）。
 
 ### Changed
 
-- `VaultRepository` 删除 BackupSnapshotSink / PRE_IMPORT checkpoint /
-  recordBackup / latestBackup（自动备份模型移除）。
-- 删除 `BackupRecordEntity` / `BackupRecordDao` / DataStore 依赖。
-- `:core` 的 kotlinx-serialization 由 `api` 改为 `implementation`（避免污染
-  app KSP classpath）。
-- kotlinx-serialization 升到 1.8.1（与 Room 2.8.4 schema-JSON 读取器对齐，
-  修复 KSP/Room `AbstractMethodError` classpath 冲突）。
-
-### Removed（旧 automatic-backup 抽象）
-
-- `BackupSnapshotSink`（onCheckpoint / onChange）
-- `BackupRecordEntity` / `BackupRecordDao` + Room 注册 + `backup_record` 表
-- `VaultRepository.recordBackup()` / `latestBackup()` / PRE_IMPORT checkpoint
-- DataStore 依赖（`androidx.datastore.preferences`）
-- `BACKUP_FORMAT.md`（重命名为 `.obsolete`，由 `PACKAGE_FORMAT.md` 取代）
-
-### Verified
-
-- `:core:test` 34 → **70**（+36 新增 Phase 3A 测试）全绿。
-- `:app:testDebugUnitTest` 35 → **36**（+1 migration 测试）全绿。
-- `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest` 成功。
-
-### Roadmap
-
-- Phase 0/1/2: CLOSED。Phase 3: STARTED。
-- Phase 3A: **PACKAGE + MERGE FOUNDATION**（本轮）。
-- Phase 3B: NOT STARTED（encrypted codec：Argon2id + XChaCha20-Poly1305）。
-- Phase 3C: NOT STARTED（transactional import/merge）。
-- Phase 3D: NOT STARTED（Android manual Export/Import UI + SAF）。
+- `v2/PRODUCT.md`：改为正式产品范围文档；明确 Developer Vault 五类全部
+  KEEP（废止“v2 removed”旧假设）、manual-only 导出、per-export PIN、
+  merge-first 导入、Sensitive re-auth、Search/Pin、Delete Undo、
+  otpauth-migration import-only。
+- `v2/AGENTS.md`：阶段跟踪改为 slice 化清单（3B/3C/3D、P1–P8、M1/M2、
+  L1–L3），新增架构边界（Legacy/Native 隔离、Package 独立 schema、
+  no automatic backup、Sensitive re-auth）。
+- `v2/docs/THREAT_MODEL.md`：Developer Entry 列为正式资产；新增
+  Sensitive re-auth、Global Search 不索引 secret、Clipboard auto-clear DEFER。
+- `v2/docs/UPDATE_PROTOCOL.md`：范围收敛为 check releases + 外部打开，
+  不做 self-update 安装。
+- `README.md` / `README.zh-CN.md`：产品描述改为 v2 三支柱；旧 Flutter
+  功能/平台/备份/限制段落标注为 frozen v1.2.0 事实。
 
 ## [v2 phase2-closure] - 2026-08-07（PR #16）
 

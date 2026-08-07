@@ -2,9 +2,10 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-RescueAuthKit is a small, opinionated 2FA vault focused on one thing: reliable
-import/export so you can move your TOTP secrets and recovery codes between
-devices without guessing which app supports what.
+RescueAuthKit is a small, opinionated **personal security vault** for Android:
+reliable TOTP authenticator + recovery codes + developer secrets storage, with a
+portable, encrypted, merge-first export/import format so you can move your vault
+between devices without guessing which app supports what.
 
 > **Note:** The repository is being rewritten as a **native Android app** under
 > [`v2/`](v2/) (Kotlin + Room/SQLCipher, encrypted database, biometric unlock).
@@ -17,40 +18,40 @@ devices without guessing which app supports what.
 Most authenticator apps make migration the hardest part of the experience. This
 project flips the priority:
 
-- Your data lives in one encrypted vault file.
-- Backup and restore are first-class features, not an afterthought.
-- The goal is "phone <-> desktop" recovery that you can actually trust.
+- Your data lives in one encrypted local vault.
+- Export/import are first-class features, not an afterthought.
+- The goal is reliable phone-to-phone recovery and migration.
 
 ## What is special here
 
-- Single encrypted vault file you can copy anywhere.
-- Strong password-based encryption:
-  - Argon2id for key derivation
-  - XChaCha20-Poly1305 for authenticated encryption
-- Cross-platform migration flow:
-  - Export on one device, import on another, verify the same codes.
+- Android-only, local-first, encrypted personal security vault (no account/login
+  backend, no cloud sync).
+- Three first-class capabilities: **Authenticator** (TOTP + recovery codes),
+  **Developer Vault** (Android signing keys / API credentials / SSH keys / env
+  vars / generic secrets) and **Portable Vault Package** (manual export,
+  per-export PIN, merge-first import).
+- Strong local encryption:
+  - Android Keystore-wrapped VaultKey + SQLCipher database
+  - Portable packages protected by a per-export PIN
+- Merge-first import: importing a package merges into the current vault (no
+  replace/restore-overwrite semantics).
 
 ## RescueAuth v2 (Android native rewrite)
 
 - **Location**: `v2/` — Kotlin + Jetpack Compose + Room/SQLCipher.
-- **Status**: phases 0/1 + phase1-fix + phase 2 (encrypted DB, VaultKey/Keystore,
-  secure session, auto-lock, mask + FLAG_SECURE) are merged to `main`;
-  `phase2-blocker-hotfix` (PR #6) fixed the biometric-prompt startup crash and
-  made platform tests buildable/truthful; SQLCipher native loading is fixed
-  (PR #15). The database instrumentation tests
-  (`RescueAuthDatabaseInstrumentedTest`, 6 cases) have **passed 6/6 on Firebase
-  Test Lab** (MediumPhone.arm / API 33).
-  **Phase 3 has STARTED** — 3A (Package + Merge Foundation: logical package
-  model, stable record identity, semantic fingerprint, deterministic pure
-  merge planner, schema v1→v2 migration, obsolete automatic-backup cleanup)
-  is implemented. 3B/3C/3D (encrypted codec, transactional import/merge,
-  Android manual Export/Import UI) are not started.
+- **Status**: phases 0/1/2 are closed and merged to `main` (encrypted DB,
+  VaultKey/Keystore, secure session, auto-lock, mask + FLAG_SECURE); the
+  database instrumentation tests (`RescueAuthDatabaseInstrumentedTest`, 6 cases)
+  have **passed 6/6 on Firebase Test Lab** (MediumPhone.arm / API 33).
+  **Phase 3 is in progress**: Phase 3A (Package + Merge Foundation) is
+  implemented in PR #18 — logical export-package model, stable identity +
+  semantic fingerprint, merge planner, schema v2 (see `v2/docs/PHASE3_REPORT.md`).
 - **Build**: `cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
   (needs JDK 17 + Android SDK 35). Instrumented tests run on Firebase Test Lab
   via `main` push (see `docs/FIREBASE_TEST_LAB.md`).
 - **Docs**: see `v2/docs/` (PHASE reports, ADRs, LEGACY_IMPORT, PACKAGE_FORMAT,
-  THREAT_MODEL, UPDATE_PROTOCOL). `BACKUP_FORMAT.md` is obsolete (old automatic-
-  backup draft), superseded by `PACKAGE_FORMAT.md`.
+  THREAT_MODEL, UPDATE_PROTOCOL) and the formal roadmap in
+  [`v2/ROADMAP.md`](v2/ROADMAP.md).
 
 ## Legacy Flutter app (v1.x, frozen)
 
@@ -77,6 +78,9 @@ ServiceProvider (e.g. "GitHub")
 
 ## Features
 
+> The list below describes the **legacy Flutter v1.2.0 (frozen)** app. The v2
+> target product scope lives in [`v2/ROADMAP.md`](v2/ROADMAP.md); current
+> implementation status lives in [`v2/AGENTS.md`](v2/AGENTS.md).
 - Providers list as the home tab; drill down into accounts and credentials.
 - TOTP codes with live countdown and copy (rendered only on the account
   detail screen).
@@ -91,12 +95,16 @@ ServiceProvider (e.g. "GitHub")
 - Encrypted backup export and import (the core feature).
 - Bilingual UI (English / Simplified Chinese).
 
-## Supported Platforms (current focus)
+## Supported Platforms (legacy v1.2.0, frozen)
 
 - Windows desktop
 - Android
 
 Web is not supported (the vault uses local file IO).
+
+> **v2 target platform: Android only**. Windows / macOS / Linux / iOS / Web
+> clients are explicitly out of scope (see `v2/ROADMAP.md §1`). The list above
+> describes the legacy Flutter app.
 
 ## Run locally
 
@@ -114,7 +122,11 @@ flutter devices
 flutter run -d <device-id>
 ```
 
-## Backup / Restore (the intended flow)
+## Backup / Restore (legacy v1.2.0 flow, frozen)
+
+> v2 has moved to **Portable Vault Package**: manual Export (per-export PIN) +
+> merge-first Import (no master password, no automatic backup). The flow below
+> describes the legacy app.
 
 1. Create and unlock the vault on Device A
 2. Import a few TOTP entries and/or recovery codes
@@ -135,7 +147,8 @@ A 1.0.x vault is migrated automatically on first unlock under 1.1.0:
 
 ## Notes and limitations
 
-- `otpauth-migration://` is not supported.
-- Forgetting the master password means the vault cannot be decrypted.
+- `otpauth-migration://` is not supported by the legacy v1 app (v2 adds
+  **import-only** support as an External Import Adapter — see `v2/ROADMAP.md §4.3`).
+- Forgetting the master password means the legacy vault cannot be decrypted.
 - TOTP credentials are immutable by design — to change any field, delete
-  and re-add the credential.
+  and re-add the credential (kept for v2, see `v2/ROADMAP.md §4.2`).

@@ -1,14 +1,33 @@
 # PRODUCT.md — RescueAuth v2
 
-## 产品目标
+> 状态：**正式**（2026-08-07，Issue #17 产品决策落定）。
+> 本文定义 v2 的**产品范围**；路线图见 `ROADMAP.md`；阶段进度见
+> `AGENTS.md`。三处不一致视为文档违约。
 
-RescueAuth v2 是一个 **Android 原生的离线 2FA 与恢复资料库**（Kotlin + Jetpack Compose）。
-核心目标：
+## 产品定位
+
+RescueAuth v2 是 **Android-only、local-first、encrypted personal
+security vault**。它不是单纯的 TOTP Authenticator。完整产品包含三个
+**正式产品能力**：
+
+```
+A. Authenticator          —— Service Provider / Account / TOTP / Recovery Codes
+B. Developer Vault        —— 五类 Developer Entry（完整保留 v1.2.0）
+C. Portable Vault Package —— backup / migration / selective transfer / vault merge
+```
+
+> ⚠️ **已废弃的旧假设**：本仓库曾存在“Developer Vault 在 v2 被
+> intentionally removed”的说法。该假设**已废止**：Developer Vault 五类
+> 条目全部 KEEP，是正式产品能力。
+
+## 产品目标
 
 1. 打开应用后尽快找到并复制验证码。
 2. 用户始终能明确知道数据何时通过手动 Export Package 导出一份。
-3. 手机仍在时，可无密码迁移到新设备（manual Export Package + merge import）。
-4. 手机丢失时，用新设备导入最新 Export Package 恢复数据（需要该份包 的 Export PIN）。
+3. 手机仍在时，可无密码迁移到新设备（manual Export Package + merge
+   import）。
+4. 手机丢失时，用新设备导入最新 Export Package 恢复数据（需要该份包
+   的 Export PIN）。
 5. 可一次性导入旧 RescueAuthKit（`.rakvault`）数据库。
 
 ## 核心流程
@@ -17,50 +36,82 @@ RescueAuth v2 是一个 **Android 原生的离线 2FA 与恢复资料库**（Kot
   - 认证器按设备实际可用性动态选择（`resolveAvailableAuthenticators`）；
     `DEVICE_CREDENTIAL` 路径由系统 UI 提供取消，不设 negative button；
     无可用认证器时提示恢复流程，不静默降级。
-- **验证码**：首页直查 TOTP，搜索 + 收藏 + 复制 + 倒计时。
-- **迁移/备份**：**仅手动** Export Package。每次导出为用户选择的
-  这一份数据包设置独立 Export PIN（不保存到 Vault、不改变 VaultKey、
-  不参与本机解锁）。导入为 **merge-first**（不是覆盖恢复）。
+  - 安全模型：`Biometric/Device Credential → Android Keystore → VaultKey
+    → SQLCipher Vault`（Phase 2 已定稿，保持）。
+- **验证码**：首页直查 TOTP，倒计时 + 复制。
+- **迁移/备份**：**仅手动** Export Package。每次导出为用户选择的这一份
+  数据包设置独立 Export PIN（不保存到 Vault、不改变 VaultKey、不参与
+  本机解锁）。导入为 **merge-first**（不是覆盖恢复）。
 - **恢复**：新导出包导入 / 旧库一次性导入。
+- **高敏感操作**：即使 Vault 已解锁，Export、export keystore、reveal
+  SSH private key / API secret / signing 密码等操作要求一次 fresh
+  Biometric / Device Credential 认证（Sensitive Action Re-authentication）。
 
 > Phase 3 明确不做：automatic backup、scheduled backup、background
 > backup、WorkManager backup、cloud sync、自动上传、自动 checkpoint 文件。
 
 ## v1 必须包含
 
-TOTP 增删改查 + otpauth URI + 二维码扫描；恢复码分组/已用状态；
-**手动**加密导出（per-export PIN 的 Export Package）+ merge-first 导入；
-新旧格式导入；生物识别/设备凭据解锁；后台遮罩 + `FLAG_SECURE`；
-中英双语；固定清单式更新检查 + APK 更新。
+TOTP 增删改查 + otpauth URI + 二维码扫描 + otpauth-migration 批量导入；
+Provider/Account/Credential 层级与创建/rename/move/merge/delete；恢复码
+分组/已用状态/批量添加/展开收起/复制全部/编辑/删除/移动；五类 Developer
+Entry（Android Signing Key / API Credential / SSH Key / Env Var Set /
+Generic Secret）的存储/查看/复制/导出；**手动**加密导出（per-export PIN
+的 Export Package）+ merge-first 导入 + Selective Export/Import；
+Global Search + Pin；Delete Undo；Sensitive Action Re-authentication；
+生物识别/设备凭据解锁；后台遮罩 + `FLAG_SECURE`；中英双语；固定清单式
+更新检查 + 外部打开发布页。
 
 > 注意：v1 不包含 automatic/scheduled/background backup、保留策略、
-> 备份健康状态、恢复套件——这些已从 Phase 3 产品目标移除。
+> 备份健康状态、恢复套件、云同步、ssh-agent、DevOps 自动化。
 
 ## v1 明确不做
 
-- Developer API Key / SSH 私钥 / 签名文件等开发者密钥管理。
-- Web / Windows / iOS 客户端。
-- 用户账号、服务器同步、多人协作。
-- 依赖 GitHub/CNB Release API 的运行时版本检查。
-- 静默安装更新。
+- Web / Windows / macOS / Linux / iOS 客户端（Android only）。
+- 用户账号、服务器同步、多人协作、云同步。
+- automatic / scheduled / background backup（仅 manual export）。
+- 依赖运行时 API 的自动更新安装 / APK 静默安装 / 自动下载。
 - 未经用户选择的明文导出。
+- otpauth-migration export（仅 import）。
+- SSH agent / SSH generation tool / API execution / DevOps automation /
+  arbitrary file vault / social sharing。
+- 恢复全局 Master Password。
 
-## 旧库 Developer 数据策略
+## Developer 数据策略（KEEP，五类全保留）
 
-导入预览必须显示 Developer 数据数量，提供：
-- 推荐：暂不导入，生成未导入报告，保留原始 `.rakvault`。
-- 可选：转只读 `Legacy secure note`（不进主导航）。
-禁止静默丢弃、禁止写入日志。
+Developer Vault 是正式产品能力，边界为 **secure storage / view / copy /
+export**，不是 DevOps automation platform。
+
+- **Android Signing Key**：projectName、packageName、keystore file
+  contents、keystore filename、storePassword、keyAlias、keyPassword；
+  create/view/edit/delete；reveal/hide；copy fields；export keystore；
+  Copy key.properties-style properties。
+- **API Credential**：serviceName、accountName、apiKey、apiSecret、
+  title/notes；view/edit/delete/copy/reveal。
+- **SSH Key**：keyName、publicKey、privateKey、passphrase、title/notes；
+  view/edit/delete/copy/reveal。不扩展 ssh-agent / 生成 / 部署。
+- **Environment Variable Set**：projectName、多个 KEY=VALUE；
+  create/view/edit/delete/copy。
+- **Generic Secret**：arbitrary label=value fields、title/notes；
+  create/view/edit/delete/copy。
+
+Legacy（`.rakvault`）导入时的旧 Developer 数据策略保持不变：预览显示
+数量、默认“未导入 + 报告”、可选转只读 secure note、禁止静默丢弃、
+禁止写入日志。
 
 ## 数据归属
 
-- TOTP/恢复码/恢复密钥/导入数据 → 本地加密数据库（SQLCipher）。
-- 非敏感偏好 → DataStore（当前未启用，Phase 3A 已移除旧备份偏好依赖）。
-- 跨设备迁移只通过 **manual Export Package**：每份包由独立
-  per-export PIN 派生 key 保护；PIN 不保存到 Vault、不改变 VaultKey。
+- TOTP/恢复码/恢复密钥/导入数据/Developer Entry → 本地加密数据库
+  （SQLCipher）。
+- 非敏感偏好 → DataStore（当前未启用）。
+- 跨设备迁移只通过 **manual Export Package**：每份包由独立 per-export
+  PIN 派生 key 保护；PIN 不保存到 Vault、不改变 VaultKey。
 - **不存在** BackupKey / 全局 backup password / 永久 master password。
 
 ## 非目标（技术约束）
 
 - 不自建服务器、不用自有域名/DNS/CDN。
-- 更新源固定为公开 CNB 仓库 `xincy22/rescueauth-updates` 的原始文件地址。
+- 更新源固定为公开 CNB 仓库 `xincy22/rescueauth-updates` 的原始文件地址
+  （详见 `docs/UPDATE_PROTOCOL.md`）；不做 self-update 安装。
+- Portable Package format 保持 platform-neutral（不依赖 Android API /
+  Room 表示），但当前 Roadmap 不为其他平台安排客户端开发。
