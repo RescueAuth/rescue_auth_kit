@@ -1,4 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RescueAuth</string>
+
+    <!-- Unlock prompt (BiometricPrompt) -->
+    <string name="unlock_title">Unlock RescueAuth</string>
+    <string name="unlock_subtitle">Use your fingerprint, face, or device credential</string>
+    <string name="unlock_cancel">Cancel</string>
+
+    <!-- App shell / navigation -->
+    <string name="nav_authenticator">Authenticator</string>
+    <string name="nav_developer">Developer</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Authenticator -->
+    <string name="authenticator_title">Authenticator</string>
+    <string name="authenticator_empty_title">No accounts yet</string>
+    <string name="authenticator_empty_body">Add a service and account to start generating one-time passwords.</string>
+    <string name="authenticator_section_totp">TOTP</string>
+    <string name="authenticator_section_recovery">Recovery codes</string>
+    <string name="authenticator_countdown_label">Expires in</string>
+
+    <!-- Provider / Account list item -->
+    <string name="account_provider_label">Service</string>
+    <string name="account_pinned_label">Pinned</string>
+    <string name="account_actions_label">Actions</string>
+
+    <!-- TOTP card -->
+    <string name="totp_code_copied">Code copied</string>
+    <string name="totp_copy_code">Copy code</string>
+    <string name="totp_copy_code_description">Copy the current one-time password</string>
+
+    <!-- Recovery codes -->
+    <string name="recovery_codes_title">Recovery codes</string>
+    <string name="recovery_codes_unused_count">%1$d unused</string>
+    <string name="recovery_codes_used">Used</string>
+    <string name="recovery_codes_unused">Unused</string>
+    <string name="recovery_codes_copy_all">Copy all</string>
+
+    <!-- Developer Vault -->
+    <string name="developer_title">Developer</string>
+    <string name="developer_subtitle">Developer Vault</string>
+    <string name="developer_empty_title">No developer entries</string>
+    <string name="developer_empty_body">Store signing keys, API credentials, SSH keys, environment variables and other secrets securely on this device.</string>
+    <string name="developer_type_signing_key">Android Signing Key</string>
+    <string name="developer_type_api_credential">API Credential</string>
+    <string name="developer_type_ssh_key">SSH Key</string>
+    <string name="developer_type_env_var">Environment Variable Set</string>
+    <string name="developer_type_generic">Generic Secret</string>
+    <string name="developer_entry_value_hidden">Hidden</string>
+    <string name="developer_reveal">Reveal</string>
+    <string name="developer_hide">Hide</string>
+    <string name="developer_reveal_hint">Show or hide the sensitive value</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_security_section">Security</string>
+    <string name="settings_about_section">About</string>
+    <string name="settings_export_package">Export package</string>
+    <string name="settings_import_package">Import package</string>
+    <string name="settings_export_import_notice">Export and import are part of a later vertical slice and are shown here as placeholders only.</string>
+    <string name="settings_version">Version %1$s</string>
+
+    <!-- Common states -->
+    <string name="common_loading">Loading…</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_error_title">Something went wrong</string>
+    <string name="common_error_retry_description">Tap to retry loading</string>
+    <string name="common_unknown">Unknown</string>
+
+    <!-- Undo Snackbar contract -->
+    <string name="undo_snackbar_message">%1$s deleted</string>
+    <string name="undo_snackbar_action">Undo</string>
+
+    <!-- Destructive confirmation dialog -->
+    <string name="destructive_dialog_title">Delete %1$s?</string>
+    <string name="destructive_dialog_message">This action cannot be undone.</string>
+    <string name="destructive_dialog_confirm">Delete</string>
+    <string name="destructive_dialog_cancel">Cancel</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_back">Back</string>
+    <string name="a11y_sensitive_value">Sensitive value</string>
 </resources>
