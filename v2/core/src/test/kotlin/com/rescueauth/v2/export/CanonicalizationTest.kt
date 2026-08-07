@@ -139,27 +139,25 @@ class CanonicalizationTest {
     }
 
     // ------------------------------------------------------------------
-    // Developer Entry fingerprints (conservative, sensitive-payload based)
+    // Developer Entry logical fingerprint (FULL LOGICAL PAYLOAD)
     // ------------------------------------------------------------------
 
     @Test
-    fun developerFingerprintIgnoresLabelsButUsesSensitivePayload() {
+    fun developerLogicalFingerprintIsSensitiveToEveryUserMeaningfulField() {
+        // Same stableId-level entry: same private key but different keyName /
+        // title / notes → different full logical payload (any user-meaningful
+        // field counts, NOT only the sensitive payload).
         val a = SnapshotBuilder.sshKey(
             "k1", keyName = "work",
             privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAA\n-----END OPENSSH PRIVATE KEY-----",
         )
-        // Same private key, different keyName/title → same canonical sensitive
-        // payload. NOTE: this fingerprint equality does NOT imply the two
-        // entries are deduplicated — the merge planner only uses the developer
-        // fingerprint for same-stableId comparisons; different stableIds are
-        // always INSERT / keep both.
-        val b = SnapshotBuilder.sshKey(
-            "k2", keyName = "renamed", title = "Renamed",
+        val renamed = SnapshotBuilder.sshKey(
+            "k1", keyName = "renamed", title = "Renamed",
             privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAA\n-----END OPENSSH PRIVATE KEY-----",
         )
-        assertEquals(
-            Canonicalization.developerFingerprint(a),
-            Canonicalization.developerFingerprint(b),
+        assertNotEquals(
+            Canonicalization.developerLogicalFingerprint(a),
+            Canonicalization.developerLogicalFingerprint(renamed),
         )
 
         // Different private key -> different fingerprint (never merged).
@@ -168,36 +166,45 @@ class CanonicalizationTest {
             privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nBBB\n-----END OPENSSH PRIVATE KEY-----",
         )
         assertNotEquals(
-            Canonicalization.developerFingerprint(a),
-            Canonicalization.developerFingerprint(c),
+            Canonicalization.developerLogicalFingerprint(a),
+            Canonicalization.developerLogicalFingerprint(c),
         )
     }
 
     @Test
-    fun developerFingerprintIsSensitiveToKeystoreBytesAndPasswords() {
+    fun developerLogicalFingerprintIsSensitiveToKeystoreBytesPasswordsAndLabels() {
         val base = SnapshotBuilder.signingKey("sk1", keystoreBase64 = "AAECAwQFBgc=")
-        val sameBytes = SnapshotBuilder.signingKey("sk2", keystoreBase64 = "AAECAwQFBgc=", storePassword = "store-pass")
-        assertEquals(
-            Canonicalization.developerFingerprint(base),
-            Canonicalization.developerFingerprint(sameBytes),
+        // Identical bytes + passwords but different project/package (a
+        // user-meaningful logical field) → different fingerprint.
+        val diffProject = SnapshotBuilder.signingKey(
+            "sk3", projectName = "other", packageName = "com.other.app",
+            keystoreBase64 = "AAECAwQFBgc=",
+        )
+        assertNotEquals(
+            Canonicalization.developerLogicalFingerprint(base),
+            Canonicalization.developerLogicalFingerprint(diffProject),
         )
 
         assertNotEquals(
-            Canonicalization.developerFingerprint(base),
-            Canonicalization.developerFingerprint(base.copy(keystoreBase64 = "AQIDBAUGBwg=")),
+            Canonicalization.developerLogicalFingerprint(base),
+            Canonicalization.developerLogicalFingerprint(base.copy(keystoreBase64 = "AQIDBAUGBwg=")),
         )
         assertNotEquals(
-            Canonicalization.developerFingerprint(base),
-            Canonicalization.developerFingerprint(base.copy(storePassword = "different")),
+            Canonicalization.developerLogicalFingerprint(base),
+            Canonicalization.developerLogicalFingerprint(base.copy(storePassword = "different")),
         )
         assertNotEquals(
-            Canonicalization.developerFingerprint(base),
-            Canonicalization.developerFingerprint(base.copy(keyPassword = "different")),
+            Canonicalization.developerLogicalFingerprint(base),
+            Canonicalization.developerLogicalFingerprint(base.copy(keyPassword = "different")),
+        )
+        assertNotEquals(
+            Canonicalization.developerLogicalFingerprint(base),
+            Canonicalization.developerLogicalFingerprint(base.copy(title = "Renamed")),
         )
     }
 
     @Test
-    fun developerFingerprintForEnvAndGenericIsOrderInsensitiveAndValueSensitive() {
+    fun developerLogicalFingerprintForEnvAndGenericIsOrderInsensitiveAndValueSensitive() {
         val envA = SnapshotBuilder.envVarSet(
             "e1",
             variables = listOf(VaultKeyValue("API_KEY", "secret-1"), VaultKeyValue("URL", "https://x")),
@@ -208,8 +215,8 @@ class CanonicalizationTest {
         )
         // Same key/value pairs in different order / case -> same fingerprint.
         assertEquals(
-            Canonicalization.developerFingerprint(envA),
-            Canonicalization.developerFingerprint(envB),
+            Canonicalization.developerLogicalFingerprint(envA),
+            Canonicalization.developerLogicalFingerprint(envB),
         )
 
         val envC = SnapshotBuilder.envVarSet(
@@ -217,8 +224,19 @@ class CanonicalizationTest {
             variables = listOf(VaultKeyValue("API_KEY", "secret-2"), VaultKeyValue("URL", "https://x")),
         )
         assertNotEquals(
-            Canonicalization.developerFingerprint(envA),
-            Canonicalization.developerFingerprint(envC),
+            Canonicalization.developerLogicalFingerprint(envA),
+            Canonicalization.developerLogicalFingerprint(envC),
+        )
+
+        // Same values but different variable NAME -> different fingerprint
+        // (variable names are user-meaningful logical fields).
+        val envD = SnapshotBuilder.envVarSet(
+            "e4",
+            variables = listOf(VaultKeyValue("OTHER_NAME", "secret-1"), VaultKeyValue("URL", "https://x")),
+        )
+        assertNotEquals(
+            Canonicalization.developerLogicalFingerprint(envA),
+            Canonicalization.developerLogicalFingerprint(envD),
         )
 
         val genA = SnapshotBuilder.genericSecret(
@@ -230,22 +248,47 @@ class CanonicalizationTest {
             fields = listOf(VaultKeyValue("token", "t-2")),
         )
         assertNotEquals(
-            Canonicalization.developerFingerprint(genA),
-            Canonicalization.developerFingerprint(genB),
+            Canonicalization.developerLogicalFingerprint(genA),
+            Canonicalization.developerLogicalFingerprint(genB),
+        )
+
+        // Same values but different field LABEL -> different fingerprint.
+        val genC = SnapshotBuilder.genericSecret(
+            "g3",
+            fields = listOf(VaultKeyValue("other-label", "t-1")),
+        )
+        assertNotEquals(
+            Canonicalization.developerLogicalFingerprint(genA),
+            Canonicalization.developerLogicalFingerprint(genC),
         )
     }
 
     @Test
-    fun apiCredentialFingerprintUsesKeyAndSecretNotDisplayLabels() {
+    fun apiCredentialLogicalFingerprintUsesKeySecretAndDisplayLabels() {
         val a = SnapshotBuilder.apiCredential("api1", serviceName = "stripe", apiKey = "sk_1", apiSecret = "sec-1")
-        val b = SnapshotBuilder.apiCredential("api2", serviceName = "renamed", apiKey = "sk_1", apiSecret = "sec-1")
-        assertEquals(
-            Canonicalization.developerFingerprint(a),
-            Canonicalization.developerFingerprint(b),
+        // Same apiKey/apiSecret but different serviceName/accountName →
+        // different full logical payload (CONFLICT on same stableId).
+        val renamed = SnapshotBuilder.apiCredential("api1", serviceName = "renamed", apiKey = "sk_1", apiSecret = "sec-1")
+        assertNotEquals(
+            Canonicalization.developerLogicalFingerprint(a),
+            Canonicalization.developerLogicalFingerprint(renamed),
         )
         assertNotEquals(
-            Canonicalization.developerFingerprint(a),
-            Canonicalization.developerFingerprint(a.copy(apiSecret = "sec-2")),
+            Canonicalization.developerLogicalFingerprint(a),
+            Canonicalization.developerLogicalFingerprint(a.copy(apiSecret = "sec-2")),
+        )
+    }
+
+    @Test
+    fun developerLogicalFingerprintIgnoresPureTechnicalMetadata() {
+        val a = SnapshotBuilder.apiCredential("api1", apiKey = "sk_1", apiSecret = "sec-1")
+        // createdAt / updatedAt are pure technical metadata: a same-stableId
+        // entry whose only difference is these timestamps is DUPLICATE, so the
+        // fingerprint must ignore them.
+        val b = a.copy(createdAt = "2025-01-01T00:00:00Z", updatedAt = "2025-01-01T00:00:00Z")
+        assertEquals(
+            Canonicalization.developerLogicalFingerprint(a),
+            Canonicalization.developerLogicalFingerprint(b),
         )
     }
 }

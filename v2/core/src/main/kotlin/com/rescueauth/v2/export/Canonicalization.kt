@@ -36,20 +36,23 @@ import java.security.MessageDigest
  * - **Account fingerprint** = canonical(serviceName, accountName). Used only
  *   for merge grouping; account membership is decided by the child
  *   fingerprints, never by the account label alone.
- * - **Developer Entry fingerprint** = canonical **sensitive payload** of the
- *   entry (keystore bytes / apiKey+apiSecret / private key / env values /
- *   generic field values). Labels (title / projectName / serviceName /
- *   keyName / notes) are deliberately EXCLUDED so that two entries sharing
- *   only a title are never auto-deduplicated (ROADMAP §8.3).
- *
- *   IMPORTANT: the developer fingerprint is only used for **same-stableId**
- *   comparisons (DUPLICATE vs CONFLICT of one lineage). It is NEVER used to
- *   dedupe entries with **different stableIds**: identical sensitive payloads
- *   do not prove the same logical asset (the same API key / SSH key /
- *   keystore bytes / env values can legitimately serve different
- *   service/account/project/keyName/label semantics), so different stableIds
- *   are always INSERT / keep both. Per-type full canonical logical
- *   equivalence is deferred to a later enhancement.
+ * - **Developer Entry logical fingerprint** = canonical **FULL LOGICAL
+ *   PAYLOAD** of the entry — every user-meaningful field (projectName /
+ *   packageName / keystore bytes / storePassword / keyAlias / keyPassword /
+ *   serviceName / accountName / apiKey / apiSecret / keyName / publicKey /
+ *   privateKey / passphrase / env variable names+values / generic field
+ *   labels+values / title / notes). Pure technical metadata
+ *   (`createdAt` / `updatedAt`) is excluded. This fingerprint is what
+ *   decides same-stableId DUPLICATE vs CONFLICT: two records with the same
+ *   stableId are DUPLICATE **only when the FULL canonical logical payload is
+ *   identical**; any user-meaningful field difference (title / notes /
+ *   projectName / packageName / serviceName / accountName / keyName / env
+ *   variable names / generic field labels, not just the sensitive payload)
+ *   is a CONFLICT (ROADMAP §8.3). It is NEVER used to dedupe entries with
+ *   **different stableIds**: identical sensitive payloads do not prove the
+ *   same logical asset (the same API key / SSH key / keystore bytes / env
+ *   values can legitimately serve different service/account/project/keyName/
+ *   label semantics), so different stableIds are always INSERT / keep both.
  *
  * ## Security
  *
@@ -73,6 +76,14 @@ object Canonicalization {
     /** Collapse whitespace runs to one space, trim, uppercase (labels). */
     fun canonicalLabel(value: String): String =
         WHITESPACE.replace(value.trim(), " ").uppercase()
+
+    /**
+     * Canonical form of a nullable label: `null` and empty remain distinct
+     * (a missing label is NOT equal to an empty label), and non-null values
+     * are canonicalised via [canonicalLabel].
+     */
+    fun canonicalNullableLabel(value: String?): String =
+        value?.let { canonicalLabel(it) } ?: "\u0000NULL\u0000"
 
     /** Base32 secrets: strip separators/whitespace, uppercase (RFC 4648). */
     fun canonicalSecret(value: String): String =
@@ -138,49 +149,95 @@ object Canonicalization {
         )
 
     // ------------------------------------------------------------------
-    // Developer Entry fingerprints (conservative, sensitive-payload based)
+    // Developer Entry logical fingerprint (FULL LOGICAL PAYLOAD)
     // ------------------------------------------------------------------
 
     /**
-     * Canonical sensitive payload of a Developer Entry.
+     * Canonical FULL LOGICAL PAYLOAD of a Developer Entry.
      *
-     * Conservative by design (ROADMAP §8.3): only the security-sensitive
-     * content participates, never the display labels. This means:
+     * Same-stableId lineage comparison is decided on this fingerprint
+     * (ROADMAP §8.3): two records with the same stableId are DUPLICATE only
+     * when this fingerprint is equal — i.e. EVERY user-meaningful logical
+     * field matches (projectName / packageName / keystore bytes /
+     * storePassword / keyAlias / keyPassword / serviceName / accountName /
+     * apiKey / apiSecret / keyName / publicKey / privateKey / passphrase /
+     * env variable names+values / generic field labels+values / title /
+     * notes). Any user-meaningful difference — not just a sensitive-payload
+     * difference — is a CONFLICT, so a same-stableId record whose
+     * `title` / `notes` / `projectName` / `packageName` / `serviceName` /
+     * `accountName` / `keyName` / env variable names / generic field labels
+     * differ from the destination is never silently dropped as a
+     * "metadata-only" DUPLICATE.
      *
-     * - two SSH keys that merely share a `keyName`/`title` are NOT deduped;
-     * - two entries with the same stableId but different sensitive payload
-     *   (e.g. the private key was rotated) yield different fingerprints and
-     *   are reported as CONFLICT.
+     * Pure technical metadata (`createdAt` / `updatedAt`) is deliberately
+     * excluded (the user cannot meaningfully edit it, and it never carries
+     * user data).
      *
      * This fingerprint is used ONLY for same-stableId comparisons. It is
-     * never used to dedupe across different stableIds (see [MergePlanner]):
+     * NEVER used to dedupe across different stableIds (see [MergePlanner]):
      * identical sensitive payloads do not prove the same logical asset, so
      * different stableIds are always INSERT / keep both.
      */
-    fun developerFingerprint(entry: VaultDeveloperEntry): String = when (entry) {
+    fun developerLogicalFingerprint(entry: VaultDeveloperEntry): String = when (entry) {
         is VaultAndroidSigningKey -> sha256Hex(
-            "signing\u0000" + canonicalSecret(entry.keystoreBase64) + "\u0000" +
-                entry.storePassword + "\u0000" + entry.keyAlias + "\u0000" + entry.keyPassword,
+            "signing\u0000" +
+                canonicalLabel(entry.title) + "\u0000" +
+                canonicalNullableLabel(entry.notes) + "\u0000" +
+                canonicalLabel(entry.projectName) + "\u0000" +
+                canonicalLabel(entry.packageName) + "\u0000" +
+                canonicalLabel(entry.keystoreFileName) + "\u0000" +
+                canonicalSecret(entry.keystoreBase64) + "\u0000" +
+                entry.storePassword + "\u0000" +
+                entry.keyAlias + "\u0000" +
+                entry.keyPassword,
         )
         is VaultApiCredential -> sha256Hex(
-            "api\u0000" + canonicalSecret(entry.apiKey) + "\u0000" + entry.apiSecret,
+            "api\u0000" +
+                canonicalLabel(entry.title) + "\u0000" +
+                canonicalNullableLabel(entry.notes) + "\u0000" +
+                canonicalLabel(entry.serviceName) + "\u0000" +
+                canonicalLabel(entry.accountName) + "\u0000" +
+                canonicalSecret(entry.apiKey) + "\u0000" +
+                entry.apiSecret,
         )
         is VaultSshKey -> sha256Hex(
-            "ssh\u0000" + entry.privateKey + "\u0000" + entry.passphrase,
+            "ssh\u0000" +
+                canonicalLabel(entry.title) + "\u0000" +
+                canonicalNullableLabel(entry.notes) + "\u0000" +
+                canonicalLabel(entry.keyName) + "\u0000" +
+                entry.publicKey + "\u0000" +
+                entry.privateKey + "\u0000" +
+                entry.passphrase,
         )
         is VaultEnvironmentVariableSet -> sha256Hex(
-            "env\u0000" + canonicalKeyValues(entry.variables),
+            "env\u0000" +
+                canonicalLabel(entry.title) + "\u0000" +
+                canonicalNullableLabel(entry.notes) + "\u0000" +
+                canonicalLabel(entry.projectName) + "\u0000" +
+                canonicalKeyValues(entry.variables),
         )
         is VaultGenericSecret -> sha256Hex(
-            "generic\u0000" + canonicalKeyValues(entry.fields),
+            "generic\u0000" +
+                canonicalLabel(entry.title) + "\u0000" +
+                canonicalNullableLabel(entry.notes) + "\u0000" +
+                canonicalKeyValues(entry.fields),
         )
     }
 
-    /** Deterministic canonical form of key/value pairs (sorted by key). */
+    /**
+     * Deterministic canonical form of key/value pairs (sorted by key).
+     *
+     * Keys (env variable names / generic field labels) are user-meaningful
+     * logical fields: they are canonicalised as labels (case-folded +
+     * whitespace-collapsed, but dashes / underscores / case-significant
+     * separators are preserved) so that `API_KEY` vs `API-KEY` are NOT
+     * conflated. Values are secret-like and keep the existing secret
+     * canonicalisation (separators stripped, case-folded).
+     */
     fun canonicalKeyValues(pairs: List<VaultKeyValue>): String {
         val body = buildString {
-            pairs.sortedBy { it.key }.forEach { kv ->
-                append(canonicalSecret(kv.key))
+            pairs.sortedBy { canonicalLabel(it.key) }.forEach { kv ->
+                append(canonicalLabel(kv.key))
                 append('\u0000')
                 append(canonicalSecret(kv.value))
                 append('\u0000')

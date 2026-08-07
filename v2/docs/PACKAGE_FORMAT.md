@@ -163,7 +163,7 @@ Master Password 引入 v2 Vault。
 | --- | --- |
 | INSERT | source 记录在 destination 不存在 → 新增 |
 | DUPLICATE | destination 已存在相同记录（同 stableId+同内容；或——仅限 TOTP / recovery set——不同 stableId 但同 semantic fingerprint）→ 跳过，保留 destination 值。**Developer Entry 不适用跨 stableId 判定**（见下） |
-| CONFLICT | 同 stableId（lineage）但 secret / TOTP 参数 / recovery-code 值 / Developer 敏感 payload 不同 → 报告，禁止 last-write-wins / 静默覆盖 |
+| CONFLICT | 同 stableId（lineage）但 secret / TOTP 参数 / recovery-code 值 / **Developer 任意用户语义字段**不同 → 报告，禁止 last-write-wins / 静默覆盖 |
 | UNCHANGED | destination-only 记录 → 永不删除 |
 
 ### Developer Entry merge（ROADMAP §8.3，Phase 3A foundation 已纳入）
@@ -173,14 +173,26 @@ Developer Entry 五类全部进入 shared merge foundation，每类至少具备*
 
 | 场景 | 决策 |
 | --- | --- |
-| 同 stableId + 同 canonical 敏感 payload | DUPLICATE |
-| 同 stableId + 不同敏感 payload | CONFLICT |
+| 同 stableId + canonical **FULL LOGICAL PAYLOAD** 完全一致 | DUPLICATE |
+| 同 stableId + **任意 user-meaningful logical field** 不同 | CONFLICT |
 | 不同 stableId | INSERT / keep both（默认） |
 
+- **FULL LOGICAL PAYLOAD** 覆盖各 Developer Entry 的**全部用户语义字段**，
+  不仅限于 sensitive payload：
+  - Android Signing Key：projectName / packageName / keystoreFileName /
+    keystore 字节 / storePassword / keyAlias / keyPassword / title / notes；
+  - API Credential：serviceName / accountName / apiKey / apiSecret /
+    title / notes；
+  - SSH Key：keyName / publicKey / privateKey / passphrase / title / notes；
+  - Environment Variable Set：projectName / variable **names**+values /
+    title / notes；
+  - Generic Secret：field **labels**+values / title / notes。
+- **`createdAt` / `updatedAt` 等纯技术 metadata 可排除**：仅当 FULL LOGICAL
+  PAYLOAD 完全一致（可能只有 createdAt/updatedAt 不同）才判定 DUPLICATE。
 - **Developer Entry 的 dedupe 只认 stableId**：只有同 stableId（同
-  lineage）才可能判定为 DUPLICATE / CONFLICT。sensitive-payload
-  fingerprint 仅用于同 stableId 时区分“同 payload → DUPLICATE”与
-  “异 payload → CONFLICT”。
+  lineage）才可能判定为 DUPLICATE / CONFLICT。full-logical-payload
+  fingerprint 仅用于同 stableId 时区分“FULL LOGICAL PAYLOAD 完全一致 →
+  DUPLICATE”与“任意用户语义字段不同 → CONFLICT”。
 - **不同 stableId 默认 INSERT / keep both**：相同 secret / private key /
   keystore 字节 / env values / generic values **本身不能证明两条不同
   stableId 的 Developer Entry 是同一条逻辑资产**。同一个 API key 可能被
@@ -189,16 +201,13 @@ Developer Entry 五类全部进入 shared merge foundation，每类至少具备*
   project/package 使用；Env Var Set 相同 value 不代表 variable
   name/project 相同；Generic Secret 相同 value 不代表 label/语义相同。
   因此**不得因敏感 payload 相同就静默丢掉一条记录**。
-- fingerprint 只含**敏感 payload**（keystore 字节 / apiKey+apiSecret /
-  private key+passphrase / env values / generic field values）；
-  **title / projectName / serviceName / keyName / notes 绝不参与**。
-- **不能因为 title / projectName / serviceName / keyName 相同就自动
-  dedupe**（例如两份同名的 SSH private key 保持两条）。
-- per-type 更复杂 semantic fingerprint / 完整 canonical logical
-  equivalence **留到后续增强（Phase 3A 不实现）**：只有当存在足够强、
-  明确且经文档定义的 per-type semantic identity 时，才可把不同 stableId
-  判定为 DUPLICATE；且不得只比较 sensitive payload，也不得静默丢掉
-  service/account/project/keyName/variable names/field labels 等语义信息。
+- **同 stableId 时不得因 title / notes / projectName / packageName /
+  serviceName / accountName / keyName / env variable names / generic field
+  labels 不同就静默当作 DUPLICATE**：这些是用户真实数据，任一不同即
+  CONFLICT（不静默保留 destination、不静默覆盖为 source、不静默丢弃）。
+- per-type 更复杂 semantic fingerprint / per-type semantic identity
+  **留到后续增强（Phase 3A 不实现）**：只有当存在足够强、明确且经文档定义
+  的 per-type semantic identity 时，才可把不同 stableId 判定为 DUPLICATE。
 - 目标：**宁可漏 dedupe，不要错误 dedupe 造成用户数据或语义丢失**。
 
 ### Recovery used/unused divergence（用户状态，不静默丢弃）

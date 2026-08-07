@@ -34,9 +34,13 @@ plan(destination: VaultSnapshot, source: VaultSnapshot): MergePlan
 - 输出 `MergePlan`（account/totp/recovery-set/developer 级别决策 + 结构化
   摘要），Phase 3C 在单个 Room 事务内执行；Phase 3D 用作 import 预览。
 - **Developer Entry（本轮纳入）**：每类至少具备保守的 insert / duplicate /
-  conflict 基础语义（同 stableId + 同敏感 payload → dup；同 stableId + 异
-  敏感 payload → conflict；**不同 stableId → insert / keep both**；不做跨
-  stableId 指纹 dedupe）。
+  conflict 基础语义（同 stableId + FULL LOGICAL PAYLOAD 完全一致 → dup；同
+  stableId + 任意 user-meaningful logical field 不同 → conflict；**不同
+  stableId → insert / keep both**；不做跨 stableId 指纹 dedupe）。FULL
+  LOGICAL PAYLOAD 覆盖全部用户语义字段（title / notes / projectName /
+  packageName / serviceName / accountName / keyName / env variable names /
+  generic field labels 等），不仅是敏感 payload；`createdAt` / `updatedAt`
+  等纯技术 metadata 排除。
 - **Recovery used/unused divergence（本轮新增）**：set 级决策不变，但
   per-code 的 used/unused 差异以 `RecoveryCodeStateDivergence` 显式输出、
   `MergeSummary.stateDivergences` 计数，绝不静默保留/覆盖（用户状态，
@@ -49,7 +53,7 @@ plan(destination: VaultSnapshot, source: VaultSnapshot): MergePlan
   stableId+同 fingerprint；metadata 差异不构成冲突（保留 destination）。
   **Developer Entry 不做跨 stableId 指纹 dedupe**。
 - CONFLICT：同 stableId 但 secret / TOTP 参数 / recovery values /
-  Developer 敏感 payload 不同。
+  **Developer 任一用户语义字段（FULL LOGICAL PAYLOAD）**不同。
 - UNCHANGED：destination-only，永不删除。
 - stateDivergence（额外信号）：同 recovery set 内 used/unused 差异 →
   显式报告，不改变 set 决策。

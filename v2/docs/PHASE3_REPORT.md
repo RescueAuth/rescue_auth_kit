@@ -102,8 +102,10 @@
 
 ### 3.6 Conflict 定义
 
-- 同 stableId 且内容（TOTP fingerprint / recovery code values / Developer
-  敏感 payload）不同 → **CONFLICT**（禁止 last-write-wins / 静默覆盖）。
+- 同 stableId 且内容（TOTP fingerprint / recovery code values / **Developer
+  任一用户语义字段**）不同 → **CONFLICT**（禁止 last-write-wins / 静默覆盖）。
+  Developer Entry 的“内容”是 canonical **FULL LOGICAL PAYLOAD**（全部用户
+  语义字段，见 §5.1），不是仅 sensitive payload。
 - 不同 stableId 但 fingerprint 相同 → DUPLICATE（**仅限 TOTP / recovery
   set**；Developer Entry 见 §5.1，不同 stableId 一律 keep both）。
 
@@ -116,7 +118,7 @@ Phase 3A 在 `:core` 实现纯 JVM 逻辑模型（无 Android / Room 依赖）�
 | `VaultSnapshot` | 逻辑快照：accounts → totpCredentials / recoveryCodeSets → recoveryCodes；**+ developerEntries（五类 Developer Entry）+ scope（FULL_VAULT / AUTHENTICATOR_ONLY / DEVELOPER_ONLY / SELECTED_ITEMS）** |
 | `VaultPackagePayload` | logicalSchemaVersion=1、packageId、createdAt、source metadata、snapshot |
 | `PackageSourceMetadata` | client / appVersion / vaultInstanceId（非敏感技术字段） |
-| `Canonicalization` | canonical 归一化 + semantic fingerprint（TOTP / Recovery / Account / **Developer Entry 敏感 payload**） |
+| `Canonicalization` | canonical 归一化 + semantic fingerprint（TOTP / Recovery / Account / **Developer Entry FULL LOGICAL PAYLOAD**） |
 | `PackageValidator` | 版本校验 + 内部一致性（重复 stableId、非法 TOTP 参数、非法 base32、非法 status、**Developer 五类结构 + keystore base64/大小上限 + scope 一致性**） |
 | `MergePlanner` | 纯 deterministic merge planner → `MergePlan` / `MergeSummary`（**覆盖 Authenticator + Developer Entry；Recovery used/unused divergence 显式输出**） |
 | `MergePlan` / `MergeDecision` / `AccountMergePlan` / `TotpMergePlan` / `RecoverySetMergePlan` / `RecoveryCodeMergePlan` / `RecoveryCodeStateDivergence` / `DeveloperMergePlan` | 机器可读计划（Phase 3C 执行） |
@@ -142,7 +144,7 @@ AAD；以及 Argon2id + XChaCha20-Poly1305 实际 codec。
   stableId+同 fingerprint → 跳过。metadata 差异（title/favorite/notes/
   account label）一律 DUPLICATE，保留 destination 值。
 - **CONFLICT**：同 stableId 但 secret / TOTP 参数 / recovery values /
-  Developer 敏感 payload 不同 → 报告，不覆盖。
+  **Developer 任一用户语义字段（FULL LOGICAL PAYLOAD）**不同 → 报告，不覆盖。
 - **UNCHANGED**：destination-only 记录 → 永不删除。
 
 ### 5.1 Developer Entry merge（本轮对齐 ROADMAP §8.3）
@@ -151,11 +153,23 @@ Developer Entry 五类已纳入 shared merge foundation：
 
 | 场景 | 决策 |
 | --- | --- |
-| 同 stableId + 同 canonical 敏感 payload | DUPLICATE |
-| 同 stableId + 不同敏感 payload | CONFLICT |
+| 同 stableId + canonical **FULL LOGICAL PAYLOAD** 完全一致 | DUPLICATE |
+| 同 stableId + **任意 user-meaningful logical field** 不同 | CONFLICT |
 | 不同 stableId | INSERT / keep both（默认） |
 
-- **Developer Entry 的 dedupe 只认 stableId**：sensitive-payload
+- **FULL LOGICAL PAYLOAD** 覆盖各 Developer Entry 的**全部用户语义字段**，
+  不仅限于 sensitive payload：
+  - Android Signing Key：projectName / packageName / keystoreFileName /
+    keystore 字节 / storePassword / keyAlias / keyPassword / title / notes；
+  - API Credential：serviceName / accountName / apiKey / apiSecret /
+    title / notes；
+  - SSH Key：keyName / publicKey / privateKey / passphrase / title / notes；
+  - Environment Variable Set：projectName / variable **names**+values /
+    title / notes；
+  - Generic Secret：field **labels**+values / title / notes。
+- **`createdAt` / `updatedAt` 等纯技术 metadata 可排除**：仅当 FULL LOGICAL
+  PAYLOAD 完全一致（可能只有 createdAt/updatedAt 不同）才判定 DUPLICATE。
+- **Developer Entry 的 dedupe 只认 stableId**：full-logical-payload
   fingerprint 仅用于同 stableId 时区分 DUPLICATE / CONFLICT；**不同
   stableId 不做指纹 dedupe**。
 - **原因（保守 merge 原则）**：相同 secret / private key / keystore 字节 /
@@ -166,15 +180,14 @@ Developer Entry 五类已纳入 shared merge foundation：
   Env Var Set 相同 value 不代表 variable name/project 相同；Generic
   Secret 相同 value 不代表 label/语义相同。因此不得因敏感 payload 相同就
   静默丢掉一条记录。
-- fingerprint 只含敏感 payload（keystore 字节 / apiKey+apiSecret /
-  private key+passphrase / env values / generic field values）；
-  title / projectName / serviceName / keyName / notes 不参与。
+- **同 stableId 时不得静默当作 DUPLICATE 的字段（任一不同即 CONFLICT）**：
+  title / notes / projectName / packageName / serviceName / accountName /
+  keyName / env variable names / generic field labels —— 这些是用户真实数据，
+  不是纯 metadata。
 - 不能因为 title / projectName / serviceName / keyName 相同就自动 dedupe。
 - per-type 完整 canonical logical equivalence / per-type semantic identity
   **留到后续增强（Phase 3A 不实现）**：只有存在足够强、明确且经文档定义的
-  per-type semantic identity 时才可把不同 stableId 判定为 DUPLICATE，且
-  不得只比较 sensitive payload，也不得静默丢掉 service/account/project/
-  keyName/variable names/field labels 等语义信息。
+  per-type semantic identity 时才可把不同 stableId 判定为 DUPLICATE。
 - 目标：**宁可漏 dedupe，不要错误 dedupe 造成用户数据或语义丢失**。
 
 ### 5.2 Recovery used/unused divergence（本轮修正）
@@ -220,25 +233,32 @@ UNIQUE index）。
 
 ## 8. Tests
 
-### 新增 Phase 3A 测试（`:core`，本轮累计 106）
+### 新增 Phase 3A 测试（`:core`，本轮累计 112）
 
 Phase 3A 初始实现新增 36 个；本轮 compatibility CR（PR #19 对齐）新增 31 个；
-Developer merge 保守化 CR 再新增 5 个 keep-both 用例（合计 106）：
+Developer merge 保守化 CR 再新增 5 个 keep-both 用例；
+**本轮 full-logical-equivalence blocker 修复再新增 6 个同 stableId CONFLICT 用例**（合计 112）：
 
-- `MergePlannerTest`（初始 14 + 本轮 11 + CR 修正 5 = 30）：新增 Developer
-  merge 12 个（同 stableId 同 payload→dup；同 stableId 异 payload→conflict；
-  异 stableId 同 payload→**keep both**；异 stableId 异 payload→insert/keep
-  both；二次 import no-op；signing key keystore 字节驱动 identity→conflict；
-  destination-only 不删；**CR 修正：同 keystore 字节不同 project/package →
-  keep both；同 SSH key 不同 logical usage/name → keep both；同 API
-  key/secret 不同 service/account → keep both；Env sets 同值异
-  project/name → keep both；Generic secrets 同值异 label → keep both**）+ Recovery
-  used/unused divergence 4 个（dest=UNUSED source=USED →surfaced；dest=USED
-  source=UNUSED→surfaced；同状态→无 divergence；跨独立 stableId 仍 surfaced）。
-- `CanonicalizationTest`（初始 8 + 本轮 4 = 12）：Developer fingerprint
-  忽略 label 但用敏感 payload（fingerprint 仅用于同 stableId 比较）；
-  keystore 字节/password 敏感；env/generic 顺序不敏感值敏感；API
-  credential 用 key+secret。
+- `MergePlannerTest`（35）：新增 Developer merge：同 stableId + FULL LOGICAL
+  PAYLOAD 完全一致→dup；同 stableId 同 secret 异 title→conflict；同 stableId
+  signing key 同 keystore 异 project/package→conflict；同 stableId API 同
+  key/secret 异 service/account→conflict；同 stableId SSH 同 key 异
+  keyName→conflict；同 stableId env 同 values 异 variable names→conflict；同
+  stableId generic 同 values 异 labels→conflict；异 stableId 同 payload→keep
+  both；异 stableId 异 payload→insert/keep both；二次 import no-op；signing
+  key keystore 字节驱动 identity→conflict；destination-only 不删；同 keystore
+  字节不同 project/package → keep both；同 SSH key 不同 logical usage/name →
+  keep both；同 API key/secret 不同 service/account → keep both；Env sets 同
+  值异 project/name → keep both；Generic secrets 同值异 label → keep
+  both）+ Recovery used/unused divergence 4 个（dest=UNUSED source=USED
+  →surfaced；dest=USED source=UNUSED→surfaced；同状态→无 divergence；跨独立
+  stableId 仍 surfaced）。
+- `CanonicalizationTest`（13）：`developerLogicalFingerprint`（FULL LOGICAL
+  PAYLOAD）覆盖全部用户语义字段——异 keyName/title→异 fingerprint；异
+  project/package→异 fingerprint；异 variable names→异 fingerprint；异 field
+  labels→异 fingerprint；异 title→异 fingerprint；`createdAt`/`updatedAt` 纯
+  技术 metadata→同 fingerprint（DUPLICATE 合法）；env/generic 顺序不敏感值敏感；
+  API credential 用 key+secret+labels。
 - `PackageValidatorTest`（初始 14 + 本轮 11 = 25）：五类全验；重复 developer
   stableId；非法/超大 keystore base64；空 apiKey；空 env var key；
   DEVELOPER_ONLY / AUTHENTICATOR_ONLY / SELECTED_ITEMS 合法；scope 与内容
@@ -256,7 +276,7 @@ Developer merge 保守化 CR 再新增 5 个 keep-both 用例（合计 106）：
 ### 原有测试
 
 - `:core:test`：34（legacy）→ 70（+36 初始）→ **101（+31 本轮）** →
-  **106（+5 CR 修正）** 全绿。
+  **106（+5 CR 修正）** → **112（+6 full-logical-equivalence blocker 修复）** 全绿。
 - `:app:testDebugUnitTest`：35 → 36（+1 migration）全绿。
 - `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest` 成功。
 

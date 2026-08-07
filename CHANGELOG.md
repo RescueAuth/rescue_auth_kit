@@ -10,6 +10,46 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase3a full-logical-equivalence] - 2026-08-07（PR #18 Developer merge blocker 最终修正）
+
+Phase 3A compatibility CR 的最后一个 merge blocker 修正（最小 scope，不进入 Phase 3B）：
+
+### Changed
+
+- `Canonicalization.developerFingerprint` → `Canonicalization.developerLogicalFingerprint`：
+  同 stableId 判重从 **sensitive payload** 改为 **FULL LOGICAL PAYLOAD**（覆盖各
+  Developer Entry 的**全部用户语义字段**）：
+  - Android Signing Key：title / notes / projectName / packageName /
+    keystoreFileName / keystore 字节 / storePassword / keyAlias / keyPassword；
+  - API Credential：title / notes / serviceName / accountName / apiKey / apiSecret；
+  - SSH Key：title / notes / keyName / publicKey / privateKey / passphrase；
+  - Environment Variable Set：title / notes / projectName / variable **names**+values；
+  - Generic Secret：title / notes / field **labels**+values。
+  `createdAt` / `updatedAt` 等纯技术 metadata 排除。
+- `MergePlanner`：同 stableId 时——FULL LOGICAL PAYLOAD 完全一致 → **DUPLICATE**；
+  **任意 user-meaningful logical field 不同（title / notes / projectName /
+  packageName / serviceName / accountName / keyName / env variable names /
+  generic field labels 任一不同，不仅限于 sensitive payload）→ CONFLICT**。
+  不同 stableId 一律 **INSERT / keep both**（不变，跨 stableId 不做指纹 dedupe）。
+- `canonicalKeyValues`：key（env variable names / generic field labels）改为
+  label canonicalization（保留 `_` / `-`，避免 `API_KEY` vs `API-KEY` 被折叠），
+  value 保持 secret canonicalization。
+- `PACKAGE_FORMAT.md` / `PHASE3_REPORT.md` / ADR-0004 / ADR-0005：同步
+  full-logical-equivalence 契约。
+
+### Tests
+
+- `MergePlannerTest` 新增 7 个 CR 要求的用例：同 stableId 同 secret 异 title →
+  CONFLICT；同 stableId signing key 同 keystore 异 project/package → CONFLICT；
+  同 stableId API 同 key/secret 异 service/account → CONFLICT；同 stableId SSH 同
+  key 异 keyName → CONFLICT；同 stableId env 同 values 异 variable names →
+  CONFLICT；同 stableId generic 同 values 异 labels → CONFLICT；同 stableId FULL
+  LOGICAL PAYLOAD 完全一致 → DUPLICATE。
+- `CanonicalizationTest` 改为 `developerLogicalFingerprint` 语义（+1）：任一用户
+  语义字段不同 → 异 fingerprint；`createdAt`/`updatedAt` 纯技术 metadata → 同
+  fingerprint。
+- `:core:test` 106 → **112** 全绿（0 failure / 0 error）。
+
 ## [v2 phase3a merge-blocker] - 2026-08-07（PR #18 Developer merge 保守化 CR）
 
 Phase 3A compatibility CR 的 merge blocker 修正（最小 scope，不进入 Phase 3B）：

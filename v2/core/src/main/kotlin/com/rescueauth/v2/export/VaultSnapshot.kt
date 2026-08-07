@@ -142,14 +142,16 @@ data class VaultRecoveryCode(
  * / [notes] / [createdAt] / [updatedAt] surface is shared by all five types.
  *
  * The merge semantics are deliberately conservative (ROADMAP §8.3):
- * - same stableId + same canonical sensitive payload → DUPLICATE;
- * - same stableId + different sensitive payload → CONFLICT;
+ * - same stableId + canonical FULL LOGICAL PAYLOAD identical → DUPLICATE;
+ * - same stableId + ANY user-meaningful logical field different (title /
+ *   notes / projectName / packageName / serviceName / accountName / keyName /
+ *   env variable names / generic field labels, not just the sensitive
+ *   payload) → CONFLICT;
  * - different stableId → INSERT / keep both (identical sensitive payloads do
  *   NOT prove the same logical asset; silently dropping one would lose
  *   service/account/project/keyName/label semantics).
- * Metadata (title / projectName / serviceName / keyName / notes) is NEVER
- * part of the semantic fingerprint — two entries that merely share a title
- * are never auto-deduplicated.
+ * Only pure technical metadata (createdAt / updatedAt) is excluded from the
+ * full logical equivalence comparison.
  */
 @Serializable
 sealed interface VaultDeveloperEntry {

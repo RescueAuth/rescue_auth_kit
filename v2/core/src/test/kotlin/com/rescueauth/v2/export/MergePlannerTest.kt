@@ -289,14 +289,16 @@ class MergePlannerTest {
     // Developer Vault merge semantics (ROADMAP §8.3)
     // ------------------------------------------------------------------
 
-    // same stableId + same sensitive payload -> DUPLICATE
+    // same stableId + FULL LOGICAL PAYLOAD identical -> DUPLICATE
     @Test
-    fun developerSameStableIdSamePayloadIsDuplicate() {
+    fun developerSameStableIdSameLogicalPayloadIsDuplicate() {
         val dest = VaultSnapshot(
             developerEntries = listOf(SnapshotBuilder.sshKey("k1")),
         )
         val source = VaultSnapshot(
-            developerEntries = listOf(SnapshotBuilder.sshKey("k1", keyName = "renamed", title = "Renamed")),
+            // Same stableId, byte-identical full logical payload (only pure
+            // technical metadata createdAt/updatedAt may differ) -> DUPLICATE.
+            developerEntries = listOf(SnapshotBuilder.sshKey("k1")),
         )
         val plan = MergePlanner.plan(dest, source)
         assertEquals(0, plan.summary.inserted)
@@ -306,14 +308,133 @@ class MergePlannerTest {
         assertEquals("k1", plan.developerPlans.single().matchedDestinationStableId)
     }
 
-    // same stableId + different sensitive payload -> CONFLICT
+    // same stableId + same secret but different title -> CONFLICT
     @Test
-    fun developerSameStableIdDifferentPayloadConflicts() {
+    fun developerSameStableIdSameSecretDifferentTitleConflicts() {
         val dest = VaultSnapshot(
-            developerEntries = listOf(SnapshotBuilder.sshKey("k1", privateKey = "AAA")),
+            developerEntries = listOf(SnapshotBuilder.genericSecret("g1", title = "prod token", fields = listOf(VaultKeyValue("token", "t-1")))),
         )
         val source = VaultSnapshot(
-            developerEntries = listOf(SnapshotBuilder.sshKey("k1", privateKey = "BBB")),
+            developerEntries = listOf(SnapshotBuilder.genericSecret("g1", title = "staging token", fields = listOf(VaultKeyValue("token", "t-1")))),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // same stableId signing key + same keystore + different project/package -> CONFLICT
+    @Test
+    fun signingKeySameStableIdSameKeystoreDifferentProjectPackageConflicts() {
+        val keystore = "AAECAwQFBgc="
+        val dest = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.signingKey(
+                    "sk-1", projectName = "app-a", packageName = "com.a.app",
+                    keystoreBase64 = keystore,
+                ),
+            ),
+        )
+        // Same stableId + same keystore bytes but different project/package.
+        val source = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.signingKey(
+                    "sk-1", projectName = "app-b", packageName = "com.b.app",
+                    keystoreBase64 = keystore,
+                ),
+            ),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // same stableId API + same key/secret + different service/account -> CONFLICT
+    @Test
+    fun apiCredentialSameStableIdSameKeySecretDifferentServiceAccountConflicts() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.apiCredential("api-1", serviceName = "stripe", accountName = "alice"),
+            ),
+        )
+        // Same stableId + same apiKey/apiSecret but different service/account.
+        val source = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.apiCredential("api-1", serviceName = "stripe", accountName = "bob"),
+            ),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // same stableId SSH + same key + different keyName -> CONFLICT
+    @Test
+    fun sshKeySameStableIdSameKeyDifferentKeyNameConflicts() {
+        val key = "-----BEGIN OPENSSH PRIVATE KEY-----\nSAME\n-----END OPENSSH PRIVATE KEY-----"
+        val dest = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.sshKey("k1", keyName = "prod-server", privateKey = key),
+            ),
+        )
+        // Same stableId + same private key but different keyName.
+        val source = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.sshKey("k1", keyName = "staging-server", privateKey = key),
+            ),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // same stableId env + same values + different variable names -> CONFLICT
+    @Test
+    fun envVarSetSameStableIdSameValuesDifferentVariableNamesConflicts() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.envVarSet(
+                    "e1", projectName = "service-a",
+                    variables = listOf(VaultKeyValue("API_KEY", "same"), VaultKeyValue("URL", "https://x")),
+                ),
+            ),
+        )
+        // Same stableId + same values but different variable NAMES.
+        val source = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.envVarSet(
+                    "e1", projectName = "service-a",
+                    variables = listOf(VaultKeyValue("SECRET", "same"), VaultKeyValue("URL", "https://x")),
+                ),
+            ),
+        )
+        val plan = MergePlanner.plan(dest, source)
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.summary.conflicts)
+        assertEquals(MergeDecision.CONFLICT, plan.developerPlans.single().decision)
+    }
+
+    // same stableId generic + same values + different labels -> CONFLICT
+    @Test
+    fun genericSecretSameStableIdSameValuesDifferentLabelsConflicts() {
+        val dest = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.genericSecret("g1", fields = listOf(VaultKeyValue("token", "t-1"))),
+            ),
+        )
+        // Same stableId + same value but different field LABEL.
+        val source = VaultSnapshot(
+            developerEntries = listOf(
+                SnapshotBuilder.genericSecret("g1", fields = listOf(VaultKeyValue("other-label", "t-1"))),
+            ),
         )
         val plan = MergePlanner.plan(dest, source)
         assertEquals(0, plan.summary.inserted)
