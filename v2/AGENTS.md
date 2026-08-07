@@ -65,9 +65,9 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] Room + SQLCipher（Zetetic sqlcipher-android 4.17.0）+ schema v1 实体/DAO
   - [x] VaultKey（Keystore 包装/解包）+ 安全会话状态机 + SessionManager（自动锁/后台）
   - [x] 串行 repository（Mutex + withTransaction + 备份快照 sink）+ FLAG_SECURE
-  - [x] JVM/Robolectric 测试 **31 个**（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE）
+  - [x] JVM/Robolectric 测试 **31 个**（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE；含 `SecureScreenFlagTest`，它是 **Robolectric unit test**，在 `:app:testDebugUnitTest` 中运行，不是 androidTest/instrumentation 测试）
   - [x] phase2-blocker-hotfix（PR #6）：BiometricPrompt 崩溃修复 + instrumented 可编译 + 真实断言
-  - [ ] instrumented 真机验证（6 用例：SQLCipher 加密路径 + 生物识别 + 截图保护）——已可编译，待设备
+  - [ ] instrumented 真机验证（6 用例：SQLCipher 加密路径 + 生物识别 + 截图保护）——已可编译，待设备；截图保护由 `SecureScreenFlagTest`（Robolectric unit test）在 JVM 阶段验证
 - [ ] 阶段 3：新备份协议 + BackupKey + 恢复套件 + 导入导出
 - [ ] 阶段 4：旧库导入完整流程 + Developer 数据处理
 - [ ] 阶段 5：主要界面 + 设计系统 + 截图测试

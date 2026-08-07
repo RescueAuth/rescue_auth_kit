@@ -55,3 +55,7 @@ signing/*.local.properties
 
 # Legacy fixture generator output (canonical copy lives in v2/legacy-fixtures)
 tools/legacy_fixtures/legacy-fixtures/
+
+# Firebase Test Lab CI: transient gate file generated at runtime on the CI
+# workspace (never committed)
+.cnb-gate.env
