@@ -1,8 +1,9 @@
-# PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A/3B 实现报告
+# PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A/3B/3C 实现报告
 
-> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B 的实现报告，也是后续
-> 3C/3D 的唯一事实依据。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
-> Encrypted Package Codec 已实现（独立 PR）。
+> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B + Phase 3C 的实现报告，也是后续
+> 3D 的唯一事实依据。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
+> Encrypted Package Codec 已实现（PR #22）；Phase 3C Transactional Import /
+> Merge Apply 已实现（独立 PR）。
 
 ## 1. Phase 3 architecture reset
 
@@ -383,8 +384,173 @@ merge 前 review 提出的 3 个 codec contract blocker 已按最小修正完成
 | Phase 1 | CLOSED |
 | Phase 2 | CLOSED |
 | Phase 3 | **STARTED** |
-| Phase 3A | **PACKAGE + MERGE FOUNDATION**（已实现，PR #18） |
-| Phase 3B | **ENCRYPTED PACKAGE CODEC**（本轮实现，PR OPEN） |
-| Phase 3C | NOT STARTED（transactional import/merge：MergePlan → Room apply + rollback + idempotency） |
-| Phase 3D | NOT STARTED（Android manual Export/Import UI + SAF） |
-| Phase 4+ | NOT STARTED |
+| Phase 3A | **PACKAGE + MERGE FOUNDATION**（已实现，PR #18，**CLOSED**） |
+| Phase 3B | **ENCRYPTED PACKAGE CODEC**（已实现，PR #22，**CLOSED**） |
+| Phase 3C | **TRANSACTIONAL IMPORT / MERGE APPLY**（本轮实现，PR OPEN，见 §11 / ADR-0008） |
+| Phase 3D | NOT STARTED（Android manual Export/Import UI + SAF + import preview + conflict resolution） |
+| Phase 4+ | P1 CLOSED；其余 NOT STARTED |
+
+## 11. Phase 3C — Transactional Import / Merge Apply（已实现，PR OPEN）
+
+> 状态：**Phase 3A CLOSED / 3B CLOSED / 3C IMPLEMENTED / 3D NOT STARTED**。
+> 本轮不做 SAF / Export UI / Import UI / PIN dialog / preview / conflict
+> resolution UI / Developer UI（均属 3D 或后续 slice）。
+
+### 11.1 Persistence schema audit（编码前审计）
+
+Phase 3C 开始前的 Room schema（v2）只有 Authenticator 侧的表：
+
+| 表 | 覆盖 |
+| --- | --- |
+| `auth_account` / `totp_credential` / `recovery_code_set` / `recovery_code` | Authenticator（Provider→Account→TOTP/Recovery） |
+| `import_record` | 导入审计（sourceType/fingerprint/counts） |
+
+**结论**：Room **尚无 Developer persistence**。Portable logical schema
+（`VaultSnapshot`）已能表达五类 Developer Entry（3A），但本地 Room 无法
+落库。若 3C 只 apply Authenticator、Developer skip，会破坏 Native Package
+Import 的“完整 Vault merge”正式语义 —— 因此本 PR 内做最小 schema 增补
+（v2→v3），使五类 Developer Entry 真实落库，**不因此开始 Developer UI**。
+
+### 11.2 Developer persistence 设计（方案 A：单表 + typed payload）
+
+新增 `developer_entry` 表：
+
+- `id`（Room 本地主键）、`stableId`（UNIQUE，portable lineage）、
+  `entryType`（五类枚举名，索引）、`title` / `notes` / `createdAt` /
+  `updatedAt` / `sortOrder`；
+- `payloadJson`：类型化逻辑载荷（平台中立 sealed serializer 的 JSON）。
+
+选择方案 A（而非 base + per-type 五表）：五类仅差 3–6 个类型字段，全量
+merge 场景下方案 B 需要 5 组 FK/DAO/mapper 无数据建模收益。
+
+- **安全**：storePassword / keyPassword / keystoreBase64 / apiKey /
+  apiSecret / privateKey / passphrase / env values / generic values 只存在
+  于 SQLCipher DB 内；不创建明文 sidecar；不写日志。
+- **mapper**：`DeveloperMappers` 是 Room ↔ logical 的唯一桥梁；Room entity
+  不渗透进 shared package/merge core（ROADMAP §9 / AGENTS 架构边界 3）。
+
+### 11.3 Room migration（v2 → v3）
+
+- `RescueAuthDatabase.version = 3`，`MIGRATION_2_3` 非 destructive：仅
+  `CREATE TABLE developer_entry` + `stableId` UNIQUE 索引 + `entryType` 索引。
+- 既有 TOTP / Recovery / ImportRecord 数据与 stableId lineage 全部保留。
+- Phase 2 SQLCipher / VaultKey 安全模型不变。
+- schema JSON `3.json` 导出；migration 测试验证旧库数据保留 + Developer
+  表可用。
+
+### 11.4 Transactional apply API
+
+```
+VaultPackagePayload → PackageValidator → MergePlanner
+        → MergePlanApplicator（单 Room 事务）→ local Vault
+```
+
+- `MergePlanApplicator`：唯一执行 `MergePlan` 的边界；只接收已校验的
+  logical snapshot + plan；不依赖 legacy / codec / SAF。
+- `VaultRepository.applyMergePlan(payload)`：Native Package Import 完整链路
+  （validate → plan → preflight → apply 全部在一个串行事务内）。
+- `VaultRepository.applySnapshot(snapshot, packageIdentity)`：共享事务
+  boundary，供 future Legacy / otpauth-migration adapter 复用。
+- 结果：`ImportOutcome.Applied(ApplyResult)` 或 `ImportOutcome.Blocked(...)`。
+- 整个 apply 在**一个 Room transaction** 内（mutex + `withTransaction`）；
+  中途失败全量 rollback；成功一次性落库；DUPLICATE 不重复插入；
+  destination-only 数据绝不删除。
+
+### 11.5 Parent / child identity resolution
+
+- `ResolvedProviderMapping`（source account stableId → destination account
+  stableId）与 `ResolvedAccountMapping`（→ destination Room id，实际 FK）。
+- 语义 dedupe 后，package 中属于 source Account A 的新 TOTP / Recovery
+  Set 插到已解析的 destination Account B 下；不创建重复 Account A、不用
+  source Room id、不丢 parent relation。
+
+### 11.6 CONFLICT / divergence 行为（保守，不自作主张）
+
+- 任何 unresolved CONFLICT → **不 apply**，返回 `ImportOutcome.Blocked`。
+- 任何 Recovery used/unused state divergence → **不 apply**（`stateDivergences`）。
+- 不 source wins / destination wins / last-write-wins / 静默 overwrite。
+- 3D preview/UI 后续负责让用户确认冲突处理。
+- 已由 MergePlanner 明确可自动 apply 的语义（INSERT / DUPLICATE /
+  metadata-only DUPLICATE）严格按 contract 执行。
+
+### 11.7 stableId 处理
+
+- 新 INSERT 对象保留 package/source stableId（lineage 跨 export/import
+  保持），Room `id` 为本地主键（ADR-0004 两层概念）。
+- 语义 DUPLICATE 用已有 destination 对象，不生成第二个 stableId。
+- CONFLICT 不得自动改 stableId 伪装新数据绕过冲突。
+
+### 11.8 Idempotence
+
+- 同一 package 第一次 import → 插入新数据；第二次 → 全 DUPLICATE / no-op。
+- 幂等性主要依赖 stableId / merge semantics，**不是** ImportRecord。
+- 覆盖测试：TOTP / Recovery / Developer 五类 / mixed full vault /
+  parent semantic dedupe 后 child insert 重复 apply。
+
+### 11.9 ImportRecord 语义
+
+- 只在事务成功时写 `V2_PACKAGE` record（sourceFingerprint = packageId /
+  timestamp / counts）；rollback 时不留 record。
+- 不保存 PIN / plaintext secrets / 整个 decrypted payload；只记录必要
+  metadata。
+
+### 11.10 Rollback / failure injection
+
+- `WriteSeam`（interface + `None`）是 repository/test dependency seam；
+  生产无 debug-only failure 开关。
+- 测试：Authenticator 成功后 Developer insert 失败 → 全部 rollback；
+  半程失败 → DB 与 import 前完全一致；ImportRecord rollback。
+
+### 11.11 Native / Legacy isolation
+
+- `MergePlanApplicator` 不 import legacy parser / legacy crypto / native
+  codec bytes/envelope / Android SAF/Uri；只接收已验证的 logical snapshot /
+  plan。删除 Legacy compatibility layer 不影响 Native Package Import。
+
+### 11.12 Changed files（Phase 3C）
+
+- `app/.../database/DeveloperEntryEntity.kt` / `DeveloperEntryDao.kt`（新）
+- `app/.../database/RescueAuthDatabase.kt`（version 3 + MIGRATION_2_3）
+- `app/.../database/AuthAccountDao.kt`（`listAll` / `listIdAndStableId`）
+- `app/.../domain/DeveloperModels.kt`（新，metadata 只读模型）
+- `app/.../repository/DeveloperMappers.kt`（新，Room ↔ logical 唯一桥梁）
+- `app/.../repository/MergePlanApplicator.kt`（新，事务 apply 边界）
+- `app/.../repository/VaultRepository.kt`（`buildDestinationSnapshot` /
+  `applyMergePlan` / `applySnapshot` / `ImportOutcome`）
+- `app/.../schemas/.../3.json`（新，schema 导出）
+- `app/.../test/.../MergePlanApplyTest.kt`（新，93 断言）
+- `app/.../test/.../MergeTestData.kt`（新，测试数据）
+- `app/.../test/.../RescueAuthDatabaseMigrationTest2To3.kt`（新）
+- 文档：ADR-0008 / PHASE3_REPORT §11 / ROADMAP / AGENTS / CHANGELOG
+
+### 11.13 Tests（Phase 3C）
+
+`:app:testDebugUnitTest` 新增 96 个断言（MergePlanApplyTest 93 + migration 3）：
+
+- Developer persistence：五类 round-trip；keystore binary exact round-trip；
+  password/private key/value 字段 round-trip；migration v2→v3 保留既有数据。
+- Basic apply：empty destination + full snapshot；Authenticator-only；
+  Developer-only；selected-items。
+- Parent resolution：duplicate Provider + new Account 不建重复 parent；
+  duplicate Account + new TOTP；semantic Account dedupe 后 child 指向正确
+  destination；inserted account 自身 stableId 为 parent。
+- Merge behavior：INSERT applied；DUPLICATE no-op；CONFLICT blocks；
+  destination-only preserved；Developer 异 stableId keep both；同 stableId
+  相同 duplicate；同 stableId 变化 conflict。
+- Recovery：used/unused divergence 双向 block，不静默丢失；同状态 duplicate。
+- Idempotence：同 package 二次、mixed vault 二次、Developer 二次、parent
+  semantic dedupe child insert 二次。
+- Transactionality：failure halfway → complete rollback；Developer insert
+  失败 → Authenticator changes rollback；ImportRecord rollback；blocked
+  plan 不写 record；no partial DB state。
+- Concurrency：两并发 import 串行提交无重复/半完成。
+- Shared boundary：`applySnapshot` 走同一事务路径；ImportRecord 无明文
+  secret。
+- Persistence：apply → close/reopen → imported state 仍在。
+
+### 11.14 Remaining Phase 3D scope
+
+- SAF / file picker / Export UI / Import UI / package PIN dialog / preview
+  screen / conflict resolution UI / Developer UI / Selective Import UI；
+  ImportRecord 报告展示；Android export 端把 `buildDestinationSnapshot`
+  接到 3B codec。

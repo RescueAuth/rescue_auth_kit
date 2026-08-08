@@ -10,6 +10,50 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase3c transactional-import-merge] - 2026-08-08（Phase 3C：Transactional Import / Merge Apply，PR OPEN）
+
+Phase 3C 独立 PR：把 Phase 3A 的 `MergePlan` 以事务方式应用到本地 encrypted
+Vault，并使 Developer Vault 五类条目首次真实落库（schema v2→v3）。
+
+### Added
+
+- **Developer persistence（schema v2→v3）**：新增 `developer_entry` 单表 +
+  typed payload（`DeveloperEntryEntity` / `DeveloperEntryDao`）；五类 Developer
+  Entry（Android Signing Key / API Credential / SSH Key / Env Var Set /
+  Generic Secret）可真实落库；`stableId` first-class（UNIQUE）；secret 只存于
+  SQLCipher DB，无明文 sidecar，不写日志。
+- **`MergePlanApplicator`**：唯一执行 `MergePlan` 的边界 —— 单 Room 事务内
+  INSERT / DUPLICATE no-op / CONFLICT 阻止 / destination-only 不删；
+  parent/child identity mapping（ResolvedProvider / ResolvedAccount）；
+  新对象保留 source stableId（Room id 为本地主键）。
+- **`VaultRepository.applyMergePlan(payload)`**（Native Package Import 完整
+  链路：validate → plan → preflight → apply）+ **`applySnapshot(snapshot)`**
+  （shared 事务 boundary，future Legacy / otpauth adapter 复用）；
+  `buildDestinationSnapshot()`（当前 Vault → logical snapshot）。
+- **`ImportOutcome.Applied / Blocked`**：CONFLICT 与 Recovery used/unused
+  state divergence 保守阻止 apply，由 Phase 3D 呈现，不静默解决。
+- **migration v2→v3**：非 destructive，仅建 `developer_entry` 表 + 索引；
+  既有 Authenticator / Recovery / ImportRecord 数据与 stableId lineage 保留。
+- 文档：ADR-0008 / PHASE3_REPORT §11 / ROADMAP / AGENTS。
+
+### Tests
+
+- `:app:testDebugUnitTest` 新增 96 个断言（`MergePlanApplyTest` 93 +
+  `RescueAuthDatabaseMigrationTest2To3` 3）：五类 Developer round-trip /
+  keystore binary exact round-trip / migration 保留既有数据；basic apply
+  （empty / Auth-only / Dev-only / selected-items）；parent resolution
+  （duplicate Provider+Account、semantic dedupe 后 child 指向正确 destination、
+  不创建重复 parent）；merge behavior（INSERT / DUPLICATE no-op / CONFLICT
+  blocks / destination-only preserved / Developer stableId 语义）；Recovery
+  used/unused divergence 双向 block；idempotence（同 package / mixed vault /
+  Developer / parent dedupe child 二次）；transactionality（failure halfway
+  → complete rollback、Developer 失败 → Authenticator rollback、ImportRecord
+  rollback、无 partial state）；concurrency（两并发 import 串行提交）；
+  `applySnapshot` shared boundary；close/reopen persistence。
+- `:core:test` / `:app:testDebugUnitTest` / `:app:lintDebug` /
+  `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 全部 PASS。
+
+
 ## [v2 phase4-p1 totp-compat] - 2026-08-08（PR #23 merge 前 TOTP compatibility CR）
 
 Phase 4 P1 merge 前的最小 TOTP 兼容性修正（Issue #20）。**冻结 v1 Authenticator
