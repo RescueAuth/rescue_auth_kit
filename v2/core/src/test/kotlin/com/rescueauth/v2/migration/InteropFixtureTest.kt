@@ -1,7 +1,9 @@
 package com.rescueauth.v2.migration
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -119,17 +121,17 @@ class InteropFixtureTest {
     }
 
     @Test
-    fun `protoc fixture urlsafe no padding parses identically`() {
+    fun `protoc fixture urlsafe no padding rejected strict contract`() {
+        // URL-safe no-padding is NOT part of the verified Google Authenticator
+        // wire contract → explicit malformed migration payload. This particular
+        // fixture's URL-safe form contains no `-`/`_` (its bytes decode to a
+        // pure-alphabet string), so it is rejected as an unpadded form:
+        // `malformed-base64`.
         val uri = "otpauth-migration://offline?data=${percentEncode(InteropFixtures.PROTOC_FIXTURE_URLSAFE_NOPAD)}"
-        val result = parse(uri)
-        assertEquals(2, result.importableCount)
-        assertEquals(1, result.unsupportedCount)
-        assertEquals(InteropFixtures.PROTOC_FIXTURE_BATCH_SIZE, result.batchSize)
-        assertEquals(InteropFixtures.PROTOC_FIXTURE_BATCH_INDEX, result.batchIndex)
-        assertEquals(InteropFixtures.PROTOC_FIXTURE_BATCH_ID, result.batchId)
-        val totp = result.entries.filter { it.status == MigrationEntryStatus.IMPORTABLE }
-        val expected = InteropFixtures.PROTOC_FIXTURE_EXPECTED.filter { it.type == "TOTP" }
-        expected.zip(totp).forEach { (exp, act) -> assertEntry(exp, act) }
+        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
+            parse(uri)
+        }
+        assertEquals("malformed-base64", ex.reason)
     }
 
     // ------------------------------------------------------------------
@@ -152,15 +154,53 @@ class InteropFixtureTest {
     }
 
     @Test
-    fun `ga v6 multi qr batch metadata comes from protobuf only`() {
-        // Real Google multi-QR URIs carry batch metadata ONLY in the decoded
-        // payload — there are no &batch_* query parameters.
-        val uri = InteropFixtures.GA_TEST2_QR1_URI
-        assertTrue(!uri.contains("batch_size="))
-        val result = parse(uri)
-        assertEquals(2, result.batchSize)
-        assertEquals(0, result.batchIndex)
-        assertEquals(27091391, result.batchId)
+    fun `ga v6 multi qr parts assemble into complete batch`() {
+        // Real GA v6.0 multi-QR export (batch_size=2, batch_id=27091391):
+        // part 1 (index 0, 10 entries) + part 2 (index 1, 2 entries).
+        // The session must collect out of order and yield the full ordered
+        // candidate list (12 entries = 11 TOTP + 1 HOTP).
+        val session = MigrationBatchSession()
+
+        // Part 2 arrives first (out of order).
+        val p2 = parse(InteropFixtures.GA_TEST2_QR2_URI)
+        assertEquals(2, p2.batchSize)
+        assertEquals(1, p2.batchIndex)
+        assertEquals(InteropFixtures.GA_TEST2_BATCH_ID, p2.batchId)
+        var collected = session.addPart(
+            batchId = p2.batchId,
+            batchIndex = p2.batchIndex,
+            batchSize = p2.batchSize,
+            candidates = p2.entries,
+            rawPayload = InteropFixtures.GA_TEST2_QR2_URI,
+        )
+        assertTrue(collected.isEmpty())
+        assertFalse(session.isComplete)
+        assertEquals(MigrationBatchSession.Progress(1, 2), session.progress)
+
+        // Part 1 arrives.
+        val p1 = parse(InteropFixtures.GA_TEST2_QR1_URI)
+        assertEquals(2, p1.batchSize)
+        assertEquals(0, p1.batchIndex)
+        assertEquals(InteropFixtures.GA_TEST2_BATCH_ID, p1.batchId)
+        collected = session.addPart(
+            batchId = p1.batchId,
+            batchIndex = p1.batchIndex,
+            batchSize = p1.batchSize,
+            candidates = p1.entries,
+            rawPayload = InteropFixtures.GA_TEST2_QR1_URI,
+        )
+        assertTrue(session.isComplete)
+        assertEquals(12, collected.size)
+
+        // Correct batch assembly: index-0 entries then index-1 entries.
+        val expected = InteropFixtures.GA_TEST2_QR1_EXPECTED + InteropFixtures.GA_TEST2_QR2_EXPECTED
+        val totp = collected.filter { it.status == MigrationEntryStatus.IMPORTABLE }
+        val expectedTotp = expected.filter { it.type == "TOTP" }
+        assertEquals(expectedTotp.size, totp.size)
+        expectedTotp.zip(totp).forEach { (exp, act) -> assertEntry(exp, act) }
+
+        // HOTP still classified unsupported after assembly.
+        assertEquals(1, collected.count { it.status == MigrationEntryStatus.UNSUPPORTED })
     }
 
     private fun percentEncode(s: String): String {

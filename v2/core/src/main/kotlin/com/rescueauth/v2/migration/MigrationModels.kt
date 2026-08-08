@@ -78,11 +78,11 @@ data class MigrationTotpCandidate(
             MigrationTotpCandidate(status = MigrationEntryStatus.INVALID, reason = reason)
 
         private fun algorithmToken(wireAlgorithm: Int): String? = when (wireAlgorithm) {
-            0 -> "MD5"
+            0 -> "UNSPECIFIED"
             1 -> "SHA1"
             2 -> "SHA256"
             3 -> "SHA512"
-            4 -> "SHA224"
+            4 -> "MD5"
             else -> null
         }
     }

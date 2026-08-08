@@ -45,14 +45,22 @@ protoc --python_out=. google_auth_migration.proto
 python3 generate_fixture.py
 ```
 
-The script prints the serialized bytes (hex), the standard-padded and
-URL-safe-no-padding Base64 forms, and the expected decoded values that the
+The script prints the serialized bytes (hex), the standard-padded Base64
+form, the URL-safe-no-padding form, and the expected decoded values that the
 `InteropFixtures.PROTOC_FIXTURE_*` constants freeze.
+
+> **Strict protocol note (final convergence):** the parser only accepts the
+> **standard padded Base64** form (the real Google Authenticator wire form).
+> The URL-safe-no-padding strings below are frozen as **negative contract**
+> fixtures (`PROTOC_FIXTURE_URLSAFE_NOPAD`, `ALPHABET_DISTINGUISHING_URLSAFE`)
+> that the parser must **reject** (`invalid-data-character`); they are kept in
+> `InteropFixtures` so the reject behavior stays locked by tests.
 
 `InteropFixtures.ALPHABET_DISTINGUISHING_*` is a single-entry payload chosen so
 that its **standard** Base64 contains both `+` and `/` (and its URL-safe form
 differs) — it locks the decoder's alphabet handling with data that genuinely
-distinguishes standard from URL-safe Base64.
+distinguishes standard from URL-safe Base64 (standard accepted, URL-safe
+rejected).
 
 ## Verification
 

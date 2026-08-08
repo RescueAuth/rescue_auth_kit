@@ -59,12 +59,17 @@ Authenticator
 
 - `core/.../migration/MigrationPayloadParser.kt` + `MigrationModels.kt` + `MinimalProtobuf.kt`。
 - 纯 Kotlin / 纯 JVM：**不依赖 Camera / Compose / Room / Android Context / legacy models**。
-- 解析：`otpauth-migration://offline?data=<base64>[&batch_*]`
-  - `data` → percent-decode → Base64 解码 → protobuf wire 解码 → 每条 `OtpParameters`
-    （secret bytes / name / issuer / algorithm / digits / type / counter / id）
-    + batch metadata（version / batchSize / batchIndex / batchId）。
+- 解析：`otpauth-migration://offline?data=<base64>`（**仅 `data=`，无 `batch_*`
+  query 参数**）
+  - `data` → percent-decode → standard Base64 解码 → protobuf wire 解码 → 每条
+    `OtpParameters`（secret bytes / name / issuer / algorithm / digits / type /
+    counter / id）+ batch metadata（version / batchSize / batchIndex / batchId）。
   - 最终 secret 转 Native v2 Base32 representation（RFC 4648，no padding，
     大写）。
+- **adapter 定位**：`MigrationPayloadParser` 是 **Google Authenticator
+  migration compatibility adapter**，不是通用 OTP migration parser；只实现
+  已经验证的 GA wire contract。未来如需支持其它工具，应新建明确 adapter /
+  compatibility decision，而不是无证据放宽当前 parser。
 - **wire enum 语义（compatibility CR 修正，已对真实 GA v6.0 export 验证）**：
   `OtpParameters` 的 algorithm / digits / type 是 **protobuf enum**，不是 raw int：
   - `Algorithm`：0=UNSPECIFIED(→SHA1)，1=SHA1，2=SHA256，3=SHA512，4=MD5(→unsupported)；
@@ -73,20 +78,42 @@ Authenticator
 - 日志安全：**不输出** raw migration URI、secret、decoded protobuf payload、
   generated Base32 secret。错误只带稳定 reason token。
 
-## 5.1 data decoding rule（compatibility CR 冻结）
+## 5.1 data decoding rule（严格收敛后冻结 — 仅真实 GA 协议）
+
+处理流程固定为：
+
+```
+URL percent-decode → standard RFC 4648 Base64 decode → MigrationPayload protobuf decode
+```
 
 1. `data` 值先做 **URL percent-decoding**。真实 Google export 会把 `+` 编码为
    `%2B`、`/` 编码为 `%2F`、`=` 编码为 `%3D`；percent-decode 后的 `+` `/` `=`
    **绝不能**误判为 malformed。
-2. percent-decode 后按 **Base64** 解释，同时接受两个 alphabet：
-   - **standard Base64**（RFC 4648 §4，`A–Z a–z 0–9 + /`）—— Google
-     Authenticator 实际输出；
-   - **URL-safe Base64**（RFC 4648 §5，`- _`）—— 对非 Google 工具兼容。
-   逐字符归一化（`-`→`+`，`_`→`/`），因此同时含 `+`/`/` 与 `-`/`_` 的 payload
-   也能正确解码。
-3. **padding**：`=` padding 接受；no-padding（合法 unpadded）也接受（Java
-   严格 RFC 4648 decoder 两种都接受）。非法 Base64（错位/超长 padding、非法
-   字符）**明确拒绝**（`malformed-base64` / `invalid-data-character`）。
+2. percent-decode 后按 **standard RFC 4648 §4 Base64** 解释：`A–Z a–z 0–9 + /`。
+   这是真实 Google Authenticator 实际输出的 alphabet。
+3. **RFC 4648 `=` padding 必需**（严格 decoder 拒绝任何长度非 4 倍数即缺 padding
+   的形式，并拒绝错位 / 超长 `=`）。
+4. 任何不符合真实格式的 `data` → **explicit malformed migration payload**：
+   - Base64URL alphabet（`-` / `_`）→ `invalid-data-character`；
+   - standard/Base64URL 混合 alphabet → `invalid-data-character`（不做
+     mixed-alphabet normalization）；
+   - 无 padding（no-padding）形式 → `malformed-base64`；
+   - 错位 / 超长 padding（`ab=c`、`aGVsbG8====`）→ `malformed-base64`；
+   - 其它非 alphabet 字符（`!!!!`）→ `invalid-data-character`。
+
+**不为“兼容第三方工具”扩大 parser contract**：只接受已经验证的 GA wire form。
+
+## 5.1.1 已删除的兼容扩展（严格收敛）
+
+以下为上一轮为兼容非 Google 工具而加入、本轮按产品原则删除的能力：
+
+- ~~Base64URL（`-` / `_`）接受~~ → 拒绝（`invalid-data-character`）；
+- ~~自行接受 no-padding~~ → 拒绝（`malformed-base64`）；
+- ~~standard/Base64URL 混合 alphabet normalization~~ → 拒绝
+  （`invalid-data-character`）；
+- ~~`&batch_size=` / `&batch_index=` / `&batch_id=` query 扩展容忍~~ → 拒绝
+  （`unknown-query-parameter`，正式 URI 只允许 `data=`）；
+- 其它未由真实 GA 协议证明的 fallback → 一律不实现。
 
 ## 5.2 independent interoperability fixtures（compatibility CR）
 
@@ -96,9 +123,12 @@ Authenticator
   QR URI，只含 disposable synthetic credentials。
 - **B. protoc 独立生成 fixture**：`tools/interop-fixture/` 用 `protoc` 3.21.12
   + Python `google.protobuf` 从确认过的 `MigrationPayload` schema 生成，
-  **不调用本项目 MinimalProtobuf / ProtoFixture**。
+  **不调用本项目 MinimalProtobuf / ProtoFixture**。其中
+  `PROTOC_FIXTURE_URLSAFE_NOPAD` / `ALPHABET_DISTINGUISHING_URLSAFE` 是
+  **negative contract**（严格协议下必须被拒绝的 Base64URL / no-padding 形式）。
 - `InteropFixtureTest` 断言 external fixture → `MigrationPayloadParser` →
-  issuer/name/algorithm/digits/secret Base32/batch metadata 全部得到预期值。
+  issuer/name/algorithm/digits/secret Base32/batch metadata 全部得到预期值；
+  并对真实 GA multi-QR fixture 做完整 batch assembly 验证。
 
 ## 6. protobuf strategy
 
@@ -120,14 +150,23 @@ Authenticator
 - 每条独立分类：5 条合法 + 1 条 unsupported 不会悄悄丢弃；UI 明确报告
   “5 importable / 1 unsupported”。绝不把 unsupported 静默转成错误 TOTP。
 
-## 7.1 batch metadata source（compatibility CR 冻结）
+## 7.1 batch metadata authoritative source（严格收敛后冻结）
 
-- 真实-compatible URI **仅需 `data=...`**：batchSize / batchIndex / batchId
-  从 decoded `MigrationPayload`（protobuf 字段 3/4/5）读取。
-- `&batch_size=` / `&batch_index=` / `&batch_id=` query 参数只是本项目额外的
-  容忍扩展（present 时覆盖 protobuf 值）；**正式 Google migration compatibility
-  不依赖它们**。测试锁定了两条真实 GA 多 QR fixture 无 query 参数也能恢复 batch
-  metadata。
+- **唯一 authoritative source 是 decoded `MigrationPayload` protobuf 字段**
+  （`batch_size`=字段3 / `batch_index`=字段4 / `batch_id`=字段5）。
+- 正式 URI 只需要 `data=`。**已删除**对自定义 query 参数
+  `batch_size` / `batch_index` / `batch_id` 的正式支持：
+  - 不再 override protobuf；
+  - 不再 fallback 到 query；
+  - matching 时不再额外接受。
+- 如出现 `batch_*` query 参数 → 按严格 URI contract **拒绝**
+  （`unknown-query-parameter`），避免歧义（选择“拒绝未知协议参数”而非
+  “忽略”）。
+- Parser contract 保持单一、无歧义：
+
+  ```
+  URI → data → protobuf → batch metadata
+  ```
 
 ## 8. multi-entry import
 

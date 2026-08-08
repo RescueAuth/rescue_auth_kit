@@ -8,22 +8,34 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Base64
 
-/** Pure-core tests for the otpauth-migration payload parser (synthetic fixtures). */
+/**
+ * Pure-core tests for the otpauth-migration payload parser (synthetic fixtures).
+ *
+ * These tests use the project's own [ProtoFixture] builder for ordinary unit
+ * coverage. The **real protocol definition source** is the independent
+ * interoperability contract in [InteropFixtures] / [InteropFixtureTest]
+ * (real Google Authenticator v6.0 exports + protoc-generated fixture).
+ */
 class MigrationPayloadParserTest {
 
-    private fun base64url(bytes: ByteArray): String =
-        Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-
+    /** Standard RFC 4648 §4 Base64 (padded) — the real GA wire form. */
     private fun base64std(bytes: ByteArray): String =
         Base64.getEncoder().encodeToString(bytes)
 
     private fun uri(data: ByteArray, query: String = ""): String {
-        val base = "otpauth-migration://offline?data=${base64url(data)}"
+        val base = "otpauth-migration://offline?data=${base64std(data)}"
         return if (query.isEmpty()) base else "$base&$query"
     }
 
     // RFC 4648 test vectors for raw-secret -> Base32 (no padding).
     private fun base32(bytes: ByteArray): String = MigrationPayloadParser.encodeBase32NoPadding(bytes)
+
+    private fun assertMalformed(uri: String, reason: String? = null) {
+        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
+            MigrationPayloadParser.parseUri(uri)
+        }
+        if (reason != null) assertEquals(reason, ex.reason)
+    }
 
     @Test
     fun `01 single totp parses as importable`() {
@@ -116,8 +128,8 @@ class MigrationPayloadParserTest {
 
     @Test
     fun `10 malformed protobuf rejected`() {
-        // Valid base64 but garbage bytes: 0xFF 0xFF is not a valid message.
-        val bad = "otpauth-migration://offline?data=${base64url(byteArrayOf(0xff.toByte(), 0xff.toByte()))}"
+        // Valid standard base64 but garbage bytes: 0xFF 0xFF is not a valid message.
+        val bad = "otpauth-migration://offline?data=${base64std(byteArrayOf(0xff.toByte(), 0xff.toByte()))}"
         assertThrows(MinimalProtobuf.MalformedPayloadException::class.java) {
             MigrationPayloadParser.parseUri(bad)
         }
@@ -135,7 +147,7 @@ class MigrationPayloadParserTest {
 
     @Test
     fun `12 hotp marked unsupported`() {
-        // Google OtpType: 1 = HOTP (not the old raw-int 0)
+        // Google OtpType: 1 = HOTP (protobuf enum, not raw-int 0)
         val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(type = ProtoFixture.TYPE_HOTP)))
         val result = MigrationPayloadParser.parseUri(uri(data))
         val e = result.entries[0]
@@ -145,11 +157,22 @@ class MigrationPayloadParserTest {
 
     @Test
     fun `13 md5 algorithm marked unsupported`() {
-        // Google Algorithm: 4 = MD5 (not SHA224)
+        // Google Algorithm: 4 = MD5 (protobuf enum, not SHA224)
         val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = ProtoFixture.ALGO_MD5)))
         val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
         assertEquals(MigrationEntryStatus.UNSUPPORTED, e.status)
         assertEquals("unsupported-algorithm", e.reason)
+        // Display token carries the real GA enum name, never a guessed value.
+        assertEquals("MD5", e.algorithm)
+    }
+
+    @Test
+    fun `13b unspecified algorithm maps to sha1 default`() {
+        // Google Algorithm.UNSPECIFIED = 0 → SHA1 (native v2 default).
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = ProtoFixture.ALGO_UNSPECIFIED)))
+        val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
+        assertEquals(MigrationEntryStatus.IMPORTABLE, e.status)
+        assertEquals("SHA1", e.algorithm)
     }
 
     @Test
@@ -194,17 +217,24 @@ class MigrationPayloadParserTest {
     }
 
     @Test
-    fun `batch metadata query wins over protobuf`() {
+    fun `batch query params rejected unknown protocol parameter`() {
+        // batch_* query extensions are NOT part of the real GA wire contract.
+        // The strict URI contract only accepts `data=`. Appearing in the URI
+        // → explicit malformed migration payload.
         val data = ProtoFixture.payload(
             listOf(ProtoFixture.otpEntry()),
             batchSize = 4,
             batchIndex = 2,
             batchId = 99,
         )
-        val result = MigrationPayloadParser.parseUri(uri(data, "batch_size=3&batch_index=1&batch_id=7"))
-        assertEquals(3, result.batchSize)
-        assertEquals(1, result.batchIndex)
-        assertEquals(7, result.batchId)
+        assertMalformed(uri(data, "batch_size=3&batch_index=1&batch_id=7"), "unknown-query-parameter")
+    }
+
+    @Test
+    fun `any unknown query parameter rejected`() {
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
+        assertMalformed(uri(data, "foo=bar"), "unknown-query-parameter")
+        assertMalformed(uri(data, "batch_size=1"), "unknown-query-parameter")
     }
 
     @Test
@@ -219,13 +249,6 @@ class MigrationPayloadParserTest {
         assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
             MigrationPayloadParser.parseUri("otpauth://totp/x")
         }
-    }
-
-    @Test
-    fun `invalid batch query values fall back to protobuf defaults`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()), batchSize = 0)
-        val result = MigrationPayloadParser.parseUri(uri(data, "batch_size=abc"))
-        assertEquals(0, result.batchSize)
     }
 
     @Test
@@ -246,7 +269,7 @@ class MigrationPayloadParserTest {
     }
 
     // ------------------------------------------------------------------
-    // Base64 / URI compatibility (Phase 4 P2 compatibility CR)
+    // Strict Base64 / URI contract (final protocol convergence)
     // ------------------------------------------------------------------
 
     @Test
@@ -281,59 +304,91 @@ class MigrationPayloadParserTest {
     }
 
     @Test
-    fun `standard and urlsafe alphabets decode to the same payload`() {
-        // The same bytes encoded as standard (`+` `/`) and URL-safe (`-` `_`)
-        // must decode identically; this test uses a payload whose two encodings
-        // are genuinely different (not an encoding that happens to coincide).
+    fun `raw standard base64 in data query accepted without percent encoding`() {
+        // `+` `/` `=` passed raw (not percent-encoded) in the query still
+        // decode correctly — the decoder treats them as standard Base64.
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
+        val std = base64std(data)
+        assertTrue(std.endsWith("="))
+        val result = MigrationPayloadParser.parseUri("otpauth-migration://offline?data=$std")
+        assertEquals(1, result.importableCount)
+        assertEquals("alice@example.com", result.entries[0].name)
+    }
+
+    @Test
+    fun `urlsafe base64 payload rejected`() {
+        // Base64URL (`-`/`_`) is NOT part of the verified Google Authenticator
+        // wire contract → explicit malformed migration payload. Use the
+        // alphabet-distinguishing fixture whose URL-safe form genuinely
+        // contains `-`/`_`.
+        val urlsafe = InteropFixtures.ALPHABET_DISTINGUISHING_URLSAFE
+        assertTrue(urlsafe.contains('-') || urlsafe.contains('_'))
+        assertMalformed(
+            "otpauth-migration://offline?data=${percentEncode(urlsafe)}",
+            "invalid-data-character",
+        )
+    }
+
+    @Test
+    fun `alphabet distinguishing urlsafe form rejected`() {
+        // Same bytes whose URL-safe encoding genuinely differs from the
+        // standard form must be REJECTED (standard accepted, URL-safe not).
         val std = InteropFixtures.ALPHABET_DISTINGUISHING_STANDARD
         val urlsafe = InteropFixtures.ALPHABET_DISTINGUISHING_URLSAFE
         assertTrue(std != urlsafe)
+        // Standard (percent-encoded) → accepted.
         val fromStd = MigrationPayloadParser.parseUri("otpauth-migration://offline?data=${percentEncode(std)}")
-        val fromUrl = MigrationPayloadParser.parseUri("otpauth-migration://offline?data=${percentEncode(urlsafe)}")
         assertEquals(1, fromStd.importableCount)
-        assertEquals(1, fromUrl.importableCount)
         assertEquals("G2MGKTV7KIAKL6QJHG4Z26Q5PMUCX6BD", fromStd.entries[0].secretBase32)
-        assertEquals("G2MGKTV7KIAKL6QJHG4Z26Q5PMUCX6BD", fromUrl.entries[0].secretBase32)
-        assertEquals("H-w-", fromUrl.entries[0].name)
+        // URL-safe → rejected.
+        assertMalformed(
+            "otpauth-migration://offline?data=${percentEncode(urlsafe)}",
+            "invalid-data-character",
+        )
     }
 
     @Test
-    fun `urlsafe base64 with dashes and underscores accepted`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
-        val urlSafe = base64url(data)
-        assertTrue(!urlSafe.contains('+') && !urlSafe.contains('/'))
-        val uri = "otpauth-migration://offline?data=${percentEncode(urlSafe)}"
-        val result = MigrationPayloadParser.parseUri(uri)
-        assertEquals(1, result.importableCount)
+    fun `mixed standard and urlsafe alphabet rejected`() {
+        // A payload that mixes `+`/`/` with `-`/`_` is not a single-alphabet
+        // standard encoding → rejected (no mixed-alphabet normalization).
+        // Use the alphabet-distinguishing fixture (standard form contains +
+        // and /), then replace + with - to produce a genuinely mixed string.
+        val std = InteropFixtures.ALPHABET_DISTINGUISHING_STANDARD
+        assertTrue(std.contains('+'))
+        val mixed = std.replace('+', '-')
+        assertTrue(mixed.contains('-'))
+        assertTrue(mixed.contains('/'))
+        assertMalformed(
+            "otpauth-migration://offline?data=${percentEncode(mixed)}",
+            "invalid-data-character",
+        )
     }
 
     @Test
-    fun `no padding standard base64 accepted`() {
+    fun `no padding standard base64 rejected`() {
+        // Real GA always emits RFC 4648 `=` padding. An unpadded form is not
+        // part of the wire contract → explicit malformed migration payload
+        // (rejected as `malformed-base64` by the length/padding check).
         val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
         val std = base64std(data).trimEnd('=')
         assertFalse(std.endsWith("="))
-        val uri = "otpauth-migration://offline?data=${percentEncode(std)}"
-        val result = MigrationPayloadParser.parseUri(uri)
-        assertEquals(1, result.importableCount)
+        assertMalformed(
+            "otpauth-migration://offline?data=${percentEncode(std)}",
+            "malformed-base64",
+        )
     }
 
     @Test
     fun `misplaced equals padding rejected`() {
         // `=` in the middle (ab=c) is not valid terminal padding.
-        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
-            MigrationPayloadParser.parseUri("otpauth-migration://offline?data=ab=c")
-        }
-        assertTrue(ex.reason == "malformed-base64" || ex.reason == "invalid-data-character")
+        assertMalformed("otpauth-migration://offline?data=ab=c", "malformed-base64")
     }
 
     @Test
     fun `overlong padding rejected`() {
         // A data char count that cannot be represented with 4 chars of
         // padding (a===) is invalid for the RFC 4648 decoder.
-        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
-            MigrationPayloadParser.parseUri("otpauth-migration://offline?data=a===")
-        }
-        assertTrue(ex.reason == "malformed-base64" || ex.reason == "invalid-data-character")
+        assertMalformed("otpauth-migration://offline?data=a===", "malformed-base64")
     }
 
     @Test
@@ -341,7 +396,7 @@ class MigrationPayloadParserTest {
         val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
             MigrationPayloadParser.parseUri("otpauth-migration://offline?data=!!!!")
         }
-        assertTrue(ex.reason.isNotEmpty())
+        assertEquals("invalid-data-character", ex.reason)
     }
 
     @Test

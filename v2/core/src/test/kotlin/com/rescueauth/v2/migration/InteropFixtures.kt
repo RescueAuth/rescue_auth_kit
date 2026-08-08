@@ -148,14 +148,24 @@ internal object InteropFixtures {
      */
     const val PROTOC_FIXTURE_STANDARD_PADDED = "CjgKCkhlbGwPId6tvugSFWZpeHR1cmUtYUBleGFtcGxlLmNvbRoNRml4dHVyZUlzc3VlciABKAEwAgpCChQ9Y8EU4CusUxigNIHU1mhjHm8ZkxIVZml4dHVyZS1iQGV4YW1wbGUuY29tGg1GaXh0dXJlU2hhNTEyIAMoAjACCjsKCgBEjWxkLzvjHR8SGGZpeHR1cmUtaG90cEBleGFtcGxlLmNvbRoLRml4dHVyZUhvdHAgASgBMAE4BxABGAMgASiy8hk="
 
-    /** Same payload, URL-safe no-padding form (accepted leniency). */
+    /**
+     * Same payload as [PROTOC_FIXTURE_STANDARD_PADDED] but in **URL-safe
+     * no-padding** form. This is NOT part of the verified Google Authenticator
+     * wire contract and must be **rejected** (used by the strict-contract
+     * reject test in [InteropFixtureTest]).
+     */
     const val PROTOC_FIXTURE_URLSAFE_NOPAD = "CjgKCkhlbGwPId6tvugSFWZpeHR1cmUtYUBleGFtcGxlLmNvbRoNRml4dHVyZUlzc3VlciABKAEwAgpCChQ9Y8EU4CusUxigNIHU1mhjHm8ZkxIVZml4dHVyZS1iQGV4YW1wbGUuY29tGg1GaXh0dXJlU2hhNTEyIAMoAjACCjsKCgBEjWxkLzvjHR8SGGZpeHR1cmUtaG90cEBleGFtcGxlLmNvbRoLRml4dHVyZUhvdHAgASgBMAE4BxABGAMgASiy8hk"
 
     /**
      * Alphabet-distinguishing fixture: a single SHA1/6/TOTP entry whose
-     * **standard** Base64 form contains both `+` and `/` (and whose URL-safe
-     * form differs by using `-`/`_`). Frozen from a protoc-generated payload
-     * (secret `3698654ebf…f823`, name `H-w-`, issuer `I`).
+     * **standard** Base64 form contains both `+` and `/` (frozen from a
+     * protoc-generated payload, secret `3698654ebf…f823`, name `H-w-`,
+     * issuer `I`).
+     *
+     * [ALPHABET_DISTINGUISHING_URLSAFE] is the same bytes encoded URL-safe
+     * (genuinely different string) and is used by the strict-contract test
+     * to assert the **URL-safe form is rejected** while the standard form is
+     * accepted.
      */
     const val ALPHABET_DISTINGUISHING_STANDARD = "CiUKFDaYZU6/UgCl+gk5uZ16HXsoK/gjEgRILXctGgFJIAEoATAC"
     const val ALPHABET_DISTINGUISHING_URLSAFE = "CiUKFDaYZU6_UgCl-gk5uZ16HXsoK_gjEgRILXctGgFJIAEoATAC"

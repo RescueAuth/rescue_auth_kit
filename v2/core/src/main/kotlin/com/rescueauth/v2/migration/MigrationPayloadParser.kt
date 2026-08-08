@@ -22,20 +22,31 @@ import java.util.Base64
  * ## URI format
  *
  * ```
- * otpauth-migration://offline?data=<base64>[&batch_size=<n>&batch_index=<i>&batch_id=<id>]
+ * otpauth-migration://offline?data=<base64>
  * ```
  *
- * - `data` is the Base64 encoding of the protobuf `MigrationPayload`
- *   (see [MinimalProtobuf]). Google Authenticator emits **standard** Base64
- *   (RFC 4648 §4, with `+` `/` and `=` padding) percent-encoded into the
- *   query string. The decoder accepts standard and URL-safe alphabets, with
- *   and without padding (see [decodeData]).
- * - The only batch metadata a real Google export needs is carried **inside
- *   the decoded `MigrationPayload`** (`batch_size` / `batch_index` /
- *   `batch_id` fields). The `&batch_size=` / `&batch_index=` / `&batch_id=`
- *   query parameters are **optional legacy extensions** of this project; the
- *   parser tolerates them when present, but a Google-compatible URI must
- *   never depend on them.
+ * `data` is the Base64 encoding of the protobuf `MigrationPayload`
+ * (see [MinimalProtobuf]). This adapter implements **only the verified real
+ * Google Authenticator wire contract**:
+ *
+ * - `data` must be **standard** Base64 (RFC 4648 §4, `A–Z a–z 0–9 + /`) with
+ *   **RFC 4648 `=` padding**, percent-encoded into the query string (real
+ *   exports encode `+` as `%2B`, `/` as `%2F`, `=` as `%3D`). Anything else
+ *   (Base64URL `-`/`_`, unpadded encodings, mixed alphabets) is rejected as
+ *   a malformed migration payload — we do **not** widen the parser contract
+ *   for third-party tooling.
+ * - The **only** query parameter accepted is `data`. Any other parameter
+ *   (including the non-protocol `batch_size` / `batch_index` / `batch_id`
+ *   extensions) is rejected as `unknown-query-parameter` so the contract
+ *   stays single and unambiguous:
+ *
+ *   ```
+ *   URI → data → protobuf → batch metadata
+ *   ```
+ *
+ *   Batch metadata is always read from the decoded `MigrationPayload`
+ *   protobuf fields (`batch_size`/`batch_index`/`batch_id`), never from the
+ *   query string.
  *
  * ## Wire semantics (verified against real Google Authenticator exports)
  *
@@ -89,8 +100,12 @@ object MigrationPayloadParser {
     class MigrationParseException(val reason: String) : Exception("migration payload invalid ($reason)")
 
     /**
-     * Parses a full `otpauth-migration://` URI (with or without query batch
-     * metadata) into a per-entry classification + batch metadata.
+     * Parses a full `otpauth-migration://offline?data=<base64>` URI into a
+     * per-entry classification + batch metadata.
+     *
+     * Batch metadata is read from the decoded `MigrationPayload` protobuf
+     * fields (the only authoritative source). Any query parameter other than
+     * `data` is rejected (`unknown-query-parameter`).
      *
      * @throws MigrationParseException when the URI structure, base64 payload
      *   or protobuf body is malformed (a single malformed *entry* is reported
@@ -118,18 +133,26 @@ object MigrationPayloadParser {
         val params = parseQuery(query)
         val data = params["data"] ?: throw MigrationParseException("missing-data")
 
+        // Strict URI contract: the only query parameter this adapter accepts
+        // is `data`. The non-protocol `batch_*` extensions are NOT part of the
+        // real Google Authenticator wire format; rejecting them keeps the
+        // parser contract single and unambiguous (URI → data → protobuf →
+        // batch metadata) and prevents query params from overriding / falling
+        // back to protobuf values.
+        val unknownParams = params.keys - "data"
+        if (unknownParams.isNotEmpty()) {
+            throw MigrationParseException("unknown-query-parameter")
+        }
+
         val bytes = decodeData(data)
 
-        // Batch metadata: the authoritative source is the decoded
-        // MigrationPayload (this is where real Google exports carry it).
-        // The &batch_size= / &batch_index= / &batch_id= query parameters are
-        // tolerated as a project-local legacy extension and override the
-        // payload fields when present, but a Google-compatible URI must never
-        // depend on them.
+        // Batch metadata: the single authoritative source is the decoded
+        // MigrationPayload protobuf fields. Real Google exports never carry
+        // batch metadata in the query string.
         val wire = MinimalProtobuf.decodeMigrationPayload(bytes)
-        val batchSize = params["batch_size"]?.toIntOrNull() ?: wire.batchSize
-        val batchIndex = params["batch_index"]?.toIntOrNull() ?: wire.batchIndex
-        val batchIdRaw = params["batch_id"]?.let { runCatching { it.toInt() }.getOrNull() } ?: wire.batchId
+        val batchSize = wire.batchSize
+        val batchIndex = wire.batchIndex
+        val batchIdRaw = wire.batchId
 
         val entries = wire.entries.map { classify(it) }
 
@@ -246,51 +269,48 @@ object MigrationPayloadParser {
     /**
      * Decodes the `data` query parameter into the raw protobuf payload.
      *
-     * ## Final data decoding rule (frozen)
+     * ## Final data decoding rule (frozen — strict Google Authenticator only)
      *
      * 1. The `data` value is **percent-decoded** first (URI query semantics).
      *    A real Google export encodes `+` as `%2B`, `/` as `%2F` and `=` as
      *    `%3D`; a percent-decoded `+`/`/`/`=` must never be treated as an
      *    invalid character.
-     * 2. After percent-decoding, the value is interpreted as **Base64**. Both
-     *    alphabets are accepted:
-     *      - **standard Base64** (RFC 4648 §4): `A–Z a–z 0–9 + /` — this is
-     *        what Google Authenticator actually emits;
-     *      - **URL-safe Base64** (RFC 4648 §5): `A–Z a–z 0–9 - _` — accepted
-     *        as a leniency for non-Google tooling.
-     *    The alphabet is detected per-character, so a payload containing
-     *    both `+`/`/` and `-`/`_` is decoded correctly.
-     * 3. **Padding**: `=` padding is accepted (and required by the standard
-     *    alphabet when the length demands it). Unpadded encodings are also
-     *    accepted by re-padding the length to a multiple of 4 — a valid
-     *    no-padding form is **not** rejected.
-     * 4. Anything else (illegal Base64 characters, misplaced/over-long
-     *    padding, non-canonical length after re-padding) is rejected as
-     *    malformed.
+     * 2. After percent-decoding, the value is interpreted as **standard**
+     *    RFC 4648 §4 Base64 only: `A–Z a–z 0–9 + /`. This is the alphabet real
+     *    Google Authenticator emits.
+     * 3. **RFC 4648 `=` padding** is required (the strict decoder below
+     *    rejects any length that is not a multiple of 4, i.e. missing
+     *    padding, and any misplaced / over-long `=`).
+     * 4. Anything outside that contract is **rejected as malformed**:
+     *    - Base64URL alphabet (`-` / `_`) → `invalid-data-character`;
+     *    - mixed standard/Base64URL alphabet → `invalid-data-character`;
+     *    - unpadded (no-padding) forms → `malformed-base64`;
+     *    - misplaced / over-long padding (`ab=c`, `aGVsbG8====`) →
+     *      `malformed-base64`;
+     *    - any other non-alphabet character (`!!!!`) →
+     *      `invalid-data-character`.
      *
-     * The strict RFC 4648 decoder used below enforces that `=` may only
-     * appear as proper terminal padding and that the decoded bit-length is
-     * exactly representable, so `ab=c` / `aGVsbG8====` / `!!!!` are rejected.
+     * We deliberately do **not** widen the contract for third-party tools:
+     * only the verified Google Authenticator wire form is accepted.
      */
     internal fun decodeData(data: String): ByteArray {
         val normalized = data.trim()
         if (normalized.isEmpty()) throw MigrationParseException("empty-data")
-        // Normalise a URL-safe alphabet to standard and keep `=` (both
-        // alphabets share the same padding character). Java's strict RFC 4648
-        // decoder then validates padding placement and accepts both padded
-        // and unpadded forms, so a valid no-padding standard/URL-safe string
-        // is never mis-rejected and misplaced / over-long `=` is rejected.
-        val sb = StringBuilder(normalized.length)
+        // Standard RFC 4648 §4 alphabet only: A–Z a–z 0–9 + / =.
         for (c in normalized) {
-            when {
-                c == '-' -> sb.append('+')
-                c == '_' -> sb.append('/')
-                c == '+' || c == '/' || c == '=' || c.isLetterOrDigit() -> sb.append(c)
-                else -> throw MigrationParseException("invalid-data-character")
-            }
+            val inAlphabet = (c in 'A'..'Z') || (c in 'a'..'z') || (c in '0'..'9') ||
+                c == '+' || c == '/' || c == '='
+            if (!inAlphabet) throw MigrationParseException("invalid-data-character")
         }
+        // Real GA always emits RFC 4648 `=` padding, so the encoded length
+        // must be a multiple of 4. This rejects unpadded (no-padding) forms
+        // even when the bytes would otherwise decode (Java's strict decoder
+        // tolerates valid unpadded quanta).
+        if (normalized.length % 4 != 0) throw MigrationParseException("malformed-base64")
+        // Java's strict RFC 4648 decoder: rejects misplaced / over-long `=`
+        // and enforces a canonical bit-length.
         return try {
-            Base64.getDecoder().decode(sb.toString())
+            Base64.getDecoder().decode(normalized)
         } catch (e: IllegalArgumentException) {
             throw MigrationParseException("malformed-base64")
         }

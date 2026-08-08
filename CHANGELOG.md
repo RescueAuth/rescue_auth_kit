@@ -10,6 +10,53 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p2 strict-protocol-convergence] - 2026-08-08（P2 最终严格协议收敛，PR #25 rebase 最新 main）
+
+Issue #20 产品原则明确：本项目只实现真实 Google Authenticator
+`otpauth-migration://` 协议，不自行增加未被真实协议支持的兼容扩展。
+
+### Changed（严格收敛，删除未由真实 GA 协议证明的兼容逻辑）
+
+- **data decoding 只实现真实 GA 协议**：固定流程
+  `URL percent-decode → standard RFC 4648 Base64 decode → MigrationPayload
+  protobuf decode`。保留 percent-decoding、standard Base64、正常 RFC4648
+  padding；**删除** Base64URL（`-`/`_`）接受、自行接受 no-padding、
+  standard/Base64URL 混合 alphabet normalization。不符合真实格式的 data →
+  explicit malformed migration payload（`invalid-data-character` /
+  `malformed-base64`）。
+- **batch metadata 只来自 protobuf**：batchSize / batchIndex / batchId 唯一
+  authoritative source 是 decoded `MigrationPayload` protobuf 字段；**删除**
+  对 `batch_size` / `batch_index` / `batch_id` 自定义 query 参数的正式支持
+  （不再 override / fallback / 额外接受）。正式 URI 只允许 `data=`，出现
+  `batch_*` query → `unknown-query-parameter` 拒绝。Parser contract 单一无歧义：
+  `URI → data → protobuf → batch metadata`。
+- **protobuf enum 严格按真实 schema**：保持已修正的 enum semantics，不把
+  raw number 当业务值；未知/unsupported enum → UNSUPPORTED / INVALID。
+  `MigrationModels.algorithmToken` 修正显示映射：4=MD5（非 SHA224）、
+  0=UNSPECIFIED（非 MD5）。
+- **adapter 定位写入文档**：`MigrationPayloadParser` 是 Google Authenticator
+  migration compatibility adapter，不是通用 OTP migration parser；未来如需
+  支持其它工具应新建明确 adapter / compatibility decision，不无证据放宽。
+
+### Added（协议锁）
+
+- 测试明确锁定：real GA percent-encoded standard Base64 + padding → accepted；
+  Base64URL payload → rejected；no-padding → rejected；batch metadata from
+  protobuf → accepted；`batch_*` query → rejected；real GA multi-QR fixture →
+  正确 batch assembly；real GA enum semantics → 正确 TOTP/HOTP/algorithm/digits。
+
+### Rebase
+
+- PR #25 已 rebase / merge 到最新 main（含 Phase 3C：Room schema v3 /
+  Developer persistence / transactional apply），仅 CHANGELOG.md 与
+  v2/AGENTS.md 出现文档冲突并已解决；无代码冲突。
+
+### Tests（全部通过）
+
+- `:core:test` / `:app:testDebugUnitTest` / `:app:lintDebug` /
+  `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 全部 PASS。
+
+
 ## [v2 phase4-p2 interop-cr] - 2026-08-08（P2 merge 前 interoperability compatibility CR）
 
 Issue #20 P2 整体 review 后的 merge 前 interop blocker 修复（**不 merge**，已推 PR #25 源分支）。

@@ -90,9 +90,14 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
    Merge Engine / MergeResult）。未来删除 Legacy Import 不得要求重构
    Native Package Import。UI 必须区分 “Import Rescue Auth Package” 与
    “Import from Legacy Rescue Auth”（`ROADMAP.md §9`）。
-2. **otpauth-migration 是 External Import Adapter，IMPORT ONLY**：解析后
-   转内部 logical credential 进入正常 validation/dedupe/merge；该格式
-   **不得进入核心 Vault domain**（`ROADMAP.md §4.3`）。
+2. **otpauth-migration 是 Google Authenticator migration compatibility
+   adapter，IMPORT ONLY**：`MigrationPayloadParser` 只实现已经验证的 GA
+   wire contract（standard Base64 + `=` padding、protobuf enum semantics、
+   batch metadata 只来自 decoded protobuf），**不是通用 OTP migration
+   parser**；解析后转内部 logical credential 进入正常
+   validation/dedupe/merge；该格式**不得进入核心 Vault domain**
+   （`ROADMAP.md §4.3`）。不为“兼容第三方工具”扩大 parser contract——未来
+   如需支持其它工具，应新建明确 adapter / compatibility decision。
 3. **Package schema 独立于 Room**：portable package 使用 platform-neutral
    逻辑 schema（`VaultSnapshot`），**不得**用 Room entity 直接序列化；
    必须覆盖完整 Vault（Authenticator + Developer 五类，含 binary keystore）。

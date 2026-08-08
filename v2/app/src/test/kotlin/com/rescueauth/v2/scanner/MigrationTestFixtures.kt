@@ -101,7 +101,7 @@ internal object MigrationTestFixtures {
         batchIndex: Int = 0,
         batchId: Int = 0,
         query: String = "",
-        encoder: (ByteArray) -> String = { Base64.getUrlEncoder().withoutPadding().encodeToString(it) },
+        encoder: (ByteArray) -> String = { Base64.getEncoder().encodeToString(it) },
     ): String {
         val data = encoder(payload(entries, batchSize = batchSize, batchIndex = batchIndex, batchId = batchId))
         var uri = "otpauth-migration://offline?data=$data"
