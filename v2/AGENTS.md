@@ -13,11 +13,12 @@
   **Authenticator（Provider/Account/TOTP/Recovery Codes）**、
   **Developer Vault（五类 Developer Entry，完整保留 v1.2.0，不再视为 removed）**、
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
-- v2 代码位于 `v2/` 目录；`databaseSchemaVersion = 1`（Phase 3A 已升 **2**），
+- v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A 已实现**
-  （Package + Merge Foundation，PR #18，见 `docs/PHASE3_REPORT.md` /
-  `docs/PACKAGE_FORMAT.md` / `ROADMAP.md §5.2`）；3A 已与 PR #19 最新
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C 已实现**
+  （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
+  Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
+  `docs/ADRS/ADR-0008`）；3A 已与 PR #19 最新
   PRODUCT / ROADMAP 对齐（Developer Vault 五类进入 portable logical
   schema + merge foundation；binary keystore base64；selective snapshot
   scope；Recovery used/unused divergence 显式输出）。
@@ -35,6 +36,12 @@
   **Phase 4 P2 已实现**（QR Scan + otpauth-migration Import，见
   `docs/PHASE4_P2_REPORT.md`：CameraX + ML Kit 扫码、独立纯 Kotlin migration
   adapter、多 QR batch session、repository batch import；IMPORT ONLY）。
+  **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
+  MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
+  首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
+  parent/child identity mapping（ResolvedProvider/ResolvedAccount）；
+  CONFLICT / Recovery state divergence 保守阻止 apply；`applyMergePlan` /
+  `applySnapshot` 共享事务边界供 Native + future Legacy adapter 复用）。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。
@@ -123,7 +130,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - [ ] 阶段 3：Package + Merge（**STARTED**）
   - [x] **3A Package + Merge Foundation**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + 纯 merge planner + schema v1→v2 + 自动备份抽象清理，PR #18）
   - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）
-  - [ ] 3C Transactional Import / Merge（MergePlan → Room apply + rollback + 幂等）
+  - [x] **3C Transactional Import / Merge Apply**（MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类落库（schema v2→v3）；parent/child identity mapping；CONFLICT / Recovery state divergence 保守阻止；`applyMergePlan` / `applySnapshot` 共享事务边界；见 ADR-0008 / PHASE3_REPORT §11）
   - [ ] 3D Android Export / Import + Package Preview（SAF + PIN + Import all）
 - [ ] 阶段 4：Daily-use vertical slices
   - [x] **P1 TOTP usable loop**（otpauth paste / manual / countdown / copy / delete+Undo，真实 production storage，PR 见 docs/PHASE4_P1_REPORT.md；QR 后续补）
@@ -153,4 +160,5 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - `docs/ADRS/ADR-0005-merge-first-planner.md`（merge-first import + 纯 merge planner，Phase 3A）
 - `docs/ADRS/ADR-0006-sensitive-action-reauth.md`（Sensitive Action Re-authentication，正式产品能力）
 - `docs/ADRS/ADR-0007-portable-package-codec.md`（v2 Portable Package 加密 Codec，Phase 3B：per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / AAD / 错误分类 / best-effort zeroization）
+- `docs/ADRS/ADR-0008-phase3c-transactional-apply.md`（Phase 3C：MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer persistence schema v2→v3；parent/child identity mapping；CONFLICT / Recovery divergence 保守阻止；applyMergePlan / applySnapshot 共享事务边界）
 

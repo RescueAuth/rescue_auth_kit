@@ -408,7 +408,7 @@ Developer Entry 五类全部进入 shared merge foundation，每类至少具备*
   - 任何情况下 planner **不静默保留 destination 状态、也不静默覆盖为
     source 状态**。
 - `MergePlan` 输出 `RecoveryCodeStateDivergence`，`MergeSummary` 计数
-  `stateDivergences`；Phase 3C/3D 必须向用户呈现。
+  `stateDivergences`；Phase 3C 已实现（blocked apply，见 ADR-0008）；Phase 3D 呈现给用户。
 - 本轮不做复杂 CRDT / timestamp merge（保留 future 空间）。
 
 强制不变式（已用 JVM 测试锁定）：

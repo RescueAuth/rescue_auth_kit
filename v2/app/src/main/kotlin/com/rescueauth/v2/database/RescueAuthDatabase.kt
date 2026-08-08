@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 /**
- * v2 encrypted database (schema version 1).
+ * v2 encrypted database (schema version 3).
  *
  * Encryption: SQLCipher (Zetetic `sqlcipher-android`), opened with a
  * `SupportOpenHelperFactory` that receives the unwrapped [VaultKey] as the
@@ -33,8 +33,9 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         RecoveryCodeSetEntity::class,
         RecoveryCodeEntity::class,
         ImportRecordEntity::class,
+        DeveloperEntryEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class RescueAuthDatabase : RoomDatabase() {
@@ -44,10 +45,11 @@ abstract class RescueAuthDatabase : RoomDatabase() {
     abstract fun recoveryCodeSetDao(): RecoveryCodeSetDao
     abstract fun recoveryCodeDao(): RecoveryCodeDao
     abstract fun importRecordDao(): ImportRecordDao
+    abstract fun developerEntryDao(): DeveloperEntryDao
 
     companion object {
         const val DB_NAME = "rescueauth_v2.db"
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
 
         /**
          * Builds the encrypted database. [vaultKey] must be the unwrapped
@@ -72,7 +74,7 @@ abstract class RescueAuthDatabase : RoomDatabase() {
             }
             return Room.databaseBuilder(context, RescueAuthDatabase::class.java, DB_NAME)
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
         }
@@ -109,6 +111,35 @@ abstract class RescueAuthDatabase : RoomDatabase() {
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_import_record_stableId ON import_record(stableId)")
 
                 db.execSQL("DROP TABLE IF EXISTS backup_record")
+            }
+        }
+
+        /**
+         * v2 → v3 (Phase 3C): adds the Developer Vault persistence table.
+         *
+         * Non-destructive: all existing Authenticator / Recovery / ImportRecord
+         * rows and their stableId lineage are untouched. Only the new
+         * `developer_entry` table (and its indexes) is created. The Phase 2
+         * SQLCipher / VaultKey security model is unchanged.
+         */
+        val MIGRATION_2_3: androidx.room.migration.Migration = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `developer_entry` (
+                        `id` TEXT NOT NULL,
+                        `stableId` TEXT NOT NULL,
+                        `entryType` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `notes` TEXT,
+                        `payloadJson` TEXT NOT NULL,
+                        `createdAt` TEXT NOT NULL,
+                        `updatedAt` TEXT NOT NULL,
+                        `sortOrder` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )""".trimIndent(),
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_developer_entry_stableId` ON `developer_entry` (`stableId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_developer_entry_entryType` ON `developer_entry` (`entryType`)")
             }
         }
 
