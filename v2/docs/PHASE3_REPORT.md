@@ -316,17 +316,64 @@ Developer merge 保守化 CR 再新增 5 个 keep-both 用例；
   payload / nonce、AAD/header tamper、tampered version、headerLength、
   truncated、trailing garbage、bad magic、no partial plaintext、future
   version rejection、错误信息不区分 wrong PIN vs corruption。
-- `PortablePackageCodecFormatTest`（21）：malicious huge memory/iterations/
+- `PortablePackageCodecFormatTest`（20）：malicious huge memory/iterations/
   parallelism 在 KDF 前拒绝（`InvalidKdfParameters`）、KDF range 边界、
-  异常长度、oversized package / wrapped key / payload、truncated header、
+  cryptoVersion=1 的 `kdfOutputLength` 必须 == 32（16 / 64 拒绝）、异常长度、
+  oversized package / wrapped key / payload、truncated header、
   无效逻辑 payload（`LogicalPayloadInvalid`）、非法 logical schema version。
-- `PortablePackageCodecKdfPolicyTest`（9）：encode 写入默认参数；decode 读取
+- `PortablePackageCodecKdfPolicyTest`（7）：encode 写入默认参数；decode 读取
   package 内参数（更强参数可解密）；range 边界拒绝。
 - `PortablePackageCodecPinRepresentationTest`（4）：String/CharArray/ByteArray
   PIN 互换；wrong PIN 失败。
 - `PortablePackageCodecGoldenFixtureTest`（4）：golden fixture 与 codec 输出
   逐字节一致；fixture 可解密为预期 payload；wrong PIN 失败；deterministic
   seam 稳定。
+
+### 9.3 merge 前 blocker 修正（codec contract，Phase 3B CR）
+
+merge 前 review 提出的 3 个 codec contract blocker 已按最小修正完成，
+未进入 Phase 3C：
+
+**1. KDF output length（cryptoVersion=1 固定 32）**
+
+- 确认 **cryptoVersion=1 不存在额外的 “KDF-output → 32-byte KEK” 派生步骤**：
+  Argon2id 输出直接作为 XChaCha20-Poly1305 wrapping KEK。
+- `kdfOutputLength` 现按 cryptoVersion 分派校验，cryptoVersion=1 **只接受 32**
+  （`PackageFormat.KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1`）；旧 loose range 16..64
+  已删除 —— 16 / 64 等 codec 无法消费的长度在 KDF 前以
+  `InvalidKdfParameters` 拒绝。
+- 写入 PACKAGE_FORMAT §Key derivation / ADR-0007 §5；未来若新增 cryptoVersion
+  并引入真正派生步骤，必须定义规则 + 补 compatibility tests + fixture。
+
+**2. Package capacity consistency（logical ↔ package 一致）**
+
+- 新增 `PackageCapacity`（单一来源）：整包 16 MiB、header 4 KiB、ciphertext
+  16 MiB − 4 KiB、序列化 payload ciphertext − 16B tag、wrapped key 512B。
+- `PackageFormat` 全部委托 `PackageCapacity`；`PackageValidator` 新增
+  `MAX_SERIALIZED_PAYLOAD_BUDGET`，用 `estimateSerializedSize`（可证明上界）
+  在编码前拒绝超预算 payload —— **validator 接受 ⇒ 必然可编码**。
+- `PortablePackageCodec.encode` 序列化后精确守卫，超限抛
+  `PackageCodecException.PackageTooLarge`（显式、安全失败，绝不 OOM）。
+- 包上限保持 16 MiB（encode 峰值内存 ≈ 50–60 MiB，手动 export 可接受；提到
+  32 MiB 会翻倍峰值且无安全收益）；逻辑限制调整为与包上限一致。
+- 边界测试：single 12 MiB keystore 预算内；两个 8 MiB keystore 超预算被
+  validator 拒绝；18 MiB keystore（bypass validator）encode 抛
+  `PackageTooLarge`；ciphertext / 整包超上限 → `MalformedPackage`。
+
+**3. Argon2 runtime DoS budget（FORMAT HARD LIMIT ≠ RUNTIME POLICY）**
+
+- 新增 `PackageRuntimePolicy`（production default decoder 资源预算）：
+  memoryKiB ≤ 128 MiB、iterations ≤ 8、memoryKiB×iterations ≤ 512K units
+  （≈ 4× 默认 38912）、parallelism ≤ 8。
+- `decode` 在 **Argon2 之前** 调 `checkDecodeBudget`；结构合法且在格式硬限制内
+  但超预算的参数（如 200 MiB/2 iter、12 iter/19 MiB、100 MiB×6 iter）以
+  `InvalidKdfParameters` 拒绝，绝不执行。
+- app-generated default（19 MiB / 2 iterations）**永远通过**，正常兼容；
+  预算内更强参数（64 MiB / 3 iter）正常解码。
+
+**新增测试（:core 173 → 193）**：`PortablePackageCodecCapacityTest`（6）、
+`PortablePackageCodecRuntimePolicyTest`（9）、`PackageCapacityTest`（4）、
+`PortablePackageCodecFormatTest` 的 outputLength 用例改造（1 拆 2）。
 
 ## 10. Current roadmap
 

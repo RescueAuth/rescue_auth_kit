@@ -39,7 +39,9 @@
 | Keystore 密钥失效 | 不得删库；引导用户用恢复套件/备份恢复 |
 | 恶意/损坏备份文件 | AEAD 先验 MAC；KDF 参数上限校验（防 OOM）；大小上限 |
 | 恶意 `.rakvault` | header 校验（magic/version/KDF 上限）后再执行 Argon2 |
-| **恶意 v2 Export Package** | **header-is-untrusted**：magic/version/KDF 参数/长度在 Argon2 前全部校验（`PackageHeaderParser`）；格式级硬限制（16 MiB 总包、4 KiB header、KDF accepted range）；恶意 memoryKiB/iterations/parallelism/长度/大小在 KDF 前以 `InvalidKdfParameters`/`MalformedPackage` 拒绝，杜绝 OOM/CPU DoS/ANR/过度分配 |
+| **恶意 v2 Export Package** | **header-is-untrusted**：magic/version/KDF 参数/长度在 Argon2 前全部校验（`PackageHeaderParser`）；格式级硬限制（FORMAT HARD LIMIT：16 MiB 总包、4 KiB header、KDF accepted range、cryptoVersion=1 的 `kdfOutputLength` 必须 == 32）；恶意 memoryKiB/iterations/parallelism/长度/大小在 KDF 前以 `InvalidKdfParameters`/`MalformedPackage` 拒绝，杜绝 OOM/CPU DoS/ANR/过度分配 |
+| **v2 Package runtime 资源耗尽** | **FORMAT HARD LIMIT ≠ RUNTIME DECODE RESOURCE POLICY**：结构合法且在格式硬限制内的参数，只要超过移动端解码预算（memoryKiB ≤ 128 MiB、iterations ≤ 8、memoryKiB×iterations ≤ 512K units），默认 decoder 就在 **Argon2 之前**以 `InvalidKdfParameters` 拒绝（`PackageRuntimePolicy.checkDecodeBudget`）——格式 accepted range 绝不自动等价于实际执行成本 |
+| **v2 Package 容量不一致** | logical validator 与 codec 共享 `PackageCapacity` 预算：validator 接受 ⇒ 必然可编码；encode 超限以 `PackageTooLarge` 显式失败，绝不 OOM |
 | **v2 Package header / AAD 篡改** | format/crypto/KDF metadata 全部纳入 AEAD AAD（wrap AAD 绑定 header 前缀，payload AAD 绑定完整 header 前缀）；任何 header 字段篡改 → AEAD 认证失败，无法被解释为另一种合法语义 |
 | **wrong PIN / 密文损坏** | AEAD 认证失败统一为 `AuthenticationFailed`（不做精确区分），不返回 partial plaintext，不进入 MergePlanner |
 | 更新源被篡改 | Ed25519 签名验证 `latest.json`；APK 校验大小+SHA-256+签名证书 |

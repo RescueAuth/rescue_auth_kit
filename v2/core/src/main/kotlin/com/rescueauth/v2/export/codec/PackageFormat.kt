@@ -1,5 +1,7 @@
 package com.rescueauth.v2.export.codec
 
+import com.rescueauth.v2.export.PackageCapacity
+
 /**
  * v2 Portable Package wire format — constants, hard limits, error taxonomy.
  *
@@ -127,25 +129,69 @@ object PackageFormat {
     const val MAX_ITERATIONS = 16
     const val MIN_PARALLELISM = 1
     const val MAX_PARALLELISM = 8
-    const val MIN_OUTPUT_LENGTH = 16
-    const val MAX_OUTPUT_LENGTH = 64
     const val MIN_SALT_BYTES = 8
     const val MAX_SALT_BYTES = 64
 
     // ------------------------------------------------------------------
+    // KDF output length — cryptoVersion-scoped (cryptoVersion=1)
+    // ------------------------------------------------------------------
+    // For cryptoVersion=1 the Argon2id output IS the XChaCha20-Poly1305
+    // wrapping KEK directly (no extra KDF-output → 32-byte-KEK derivation
+    // step exists). XChaCha20-Poly1305 requires a 32-byte key, therefore a
+    // cryptoVersion=1 package MUST declare kdfOutputLength == 32.
+    //
+    // The historical loose 16..64 accepted range is deliberately removed:
+    // the codec cannot consume any other output length — accepting one would
+    // either create an unusable KEK or silently truncate/pad it, which is an
+    // undefined and unsafe state. If a future cryptoVersion adds a key
+    // derivation step, it must define its own output-length rule; the
+    // version-scoped validation below must be extended with it.
+    const val KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1 = PACKAGE_KEY_BYTES
+
+    // ------------------------------------------------------------------
     // Package-level hard limits (format-level, overflow-safe parsing)
     // ------------------------------------------------------------------
+    // The byte caps are defined ONCE in [PackageCapacity] (shared with the
+    // logical validator via [PackageCapacity.MAX_SERIALIZED_PAYLOAD_SIZE]) so
+    // the logical and package contracts cannot drift apart
+    // (PACKAGE_FORMAT.md §Capacity).
+
     /** Total package byte size cap. */
-    const val MAX_PACKAGE_SIZE = 16 * 1024 * 1024
+    const val MAX_PACKAGE_SIZE = PackageCapacity.MAX_PACKAGE_SIZE
 
     /** Header region cap (well above the current ~150-byte header). */
-    const val MAX_HEADER_LENGTH = 4 * 1024
+    const val MAX_HEADER_LENGTH = PackageCapacity.MAX_HEADER_LENGTH
 
-    /** Payload ciphertext size cap. */
-    const val MAX_PAYLOAD_CIPHERTEXT_SIZE = MAX_PACKAGE_SIZE
+    /** Payload ciphertext size cap (package minus the header region). */
+    const val MAX_PAYLOAD_CIPHERTEXT_SIZE = PackageCapacity.MAX_PAYLOAD_CIPHERTEXT_SIZE
+
+    /** Serialized plaintext payload cap (ciphertext minus the AEAD tag). */
+    const val MAX_SERIALIZED_PAYLOAD_SIZE = PackageCapacity.MAX_SERIALIZED_PAYLOAD_SIZE
 
     /** Wrapped-key region cap (defensive; the current value is 48). */
-    const val MAX_WRAPPED_KEY_BYTES = 512
+    const val MAX_WRAPPED_KEY_BYTES = PackageCapacity.MAX_WRAPPED_KEY_BYTES
+
+    // ------------------------------------------------------------------
+    // RUNTIME DECODE RESOURCE POLICY (Android decoder budget)
+    // ------------------------------------------------------------------
+    // This is deliberately SEPARATE from the FORMAT HARD LIMITS above and from
+    // the ACCEPTABLE DECODE RANGE. A package may be structurally valid and
+    // inside the format hard limits, yet still demand an Argon2id cost that is
+    // unsafe on a mobile device. The production/default decoder therefore
+    // refuses parameters above this runtime budget BEFORE running Argon2id
+    // (PortablePackageCodec.decode → [PackageRuntimePolicy.checkDecodeBudget]).
+    //
+    // Budget is measured in Argon2id memory-time cost units: costUnits =
+    // memoryKiB * iterations. The default encode parameters
+    // (19456 KiB × 2 iters ≈ 38 912 units) are always accepted; the budget is
+    // set at 4× the default to leave headroom for stronger future exports
+    // while keeping the worst-case single Argon2id allocation ≈ 128 MiB on a
+    // mobile process.
+    const val RUNTIME_MAX_MEMORY_KIB = 128 * 1024       // 128 MiB working set
+    const val RUNTIME_MAX_ITERATIONS = 8
+    const val RUNTIME_MAX_COST_UNITS = 512 * 1024        // memoryKiB × iterations
+    const val RUNTIME_DEFAULT_COST_UNITS =
+        DEFAULT_MEMORY_KIB.toLong() * DEFAULT_ITERATIONS // ≈ 38 912 (default encode)
 }
 
 /**
@@ -229,4 +275,14 @@ sealed class PackageCodecException(message: String, cause: Throwable? = null) : 
 
     /** Crypto succeeded but the inner payload failed JSON parse or logical validation. */
     class LogicalPayloadInvalid(message: String, cause: Throwable? = null) : PackageCodecException(message)
+
+    /**
+     * Encode-side explicit capacity failure: the payload is logical-valid but
+     * the serialized bytes exceed the package budget. The encoder fails
+     * explicitly and safely BEFORE any oversized allocation — never OOM
+     * (PACKAGE_FORMAT.md §Capacity). The logical validator already rejects
+     * over-budget payloads via [com.rescueauth.v2.export.PackageValidator], so
+     * this is a defense-in-depth guard for the exact post-serialization size.
+     */
+    class PackageTooLarge(message: String) : PackageCodecException(message)
 }

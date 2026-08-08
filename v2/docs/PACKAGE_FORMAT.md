@@ -130,7 +130,29 @@ payload**；plaintext header 只包含解密和版本分派真正必要的数据
 | 概念 | 值 |
 | --- | --- |
 | **DEFAULT PARAMETERS**（encode 使用） | Argon2id, memoryKiB=19456 (19 MiB), iterations=2, parallelism=1, outputLength=32, salt=16 bytes |
-| **ACCEPTABLE DECODE RANGE**（decode 接受） | memoryKiB 64..262144 (64 KiB..256 MiB)，iterations 1..16，parallelism 1..8，outputLength 16..64，salt 8..64 bytes，且 memoryKiB ≥ 8×parallelism |
+| **ACCEPTABLE DECODE RANGE**（decode 接受的格式范围） | memoryKiB 64..262144 (64 KiB..256 MiB)，iterations 1..16，parallelism 1..8，salt 8..64 bytes，且 memoryKiB ≥ 8×parallelism |
+| **RUNTIME DECODE RESOURCE POLICY**（Android decoder 实际执行预算） | memoryKiB ≤ 128 MiB，iterations ≤ 8，memoryKiB×iterations ≤ 512K（≈ 4× 默认 38912）；超预算在 Argon2 前拒绝 |
+
+### Key derivation（cryptoVersion=1，KDF output → KEK）
+
+**cryptoVersion=1 不存在额外的 “KDF-output → 32-byte KEK” 派生步骤**：
+Argon2id 的输出**直接作为** XChaCha20-Poly1305 wrapping key（KEK）。
+
+因此 **cryptoVersion=1 的 `kdfOutputLength` 必须 == 32**（`PACKAGE_KEY_BYTES`）：
+
+- XChaCha20-Poly1305 需要 32-byte key；Argon2id 输出直接就是这个 key；
+- 任何其他长度（包括旧 loose range 16..64 内的 16 / 64）都是 codec **无法消费**的
+  长度 —— 接受它要么产生不可用的 KEK，要么需要未定义的截断/补齐；
+- 历史遗留的 `outputLength 16..64` 范围已**删除**；`PackageHeaderParser` 按
+  cryptoVersion 分派校验，cryptoVersion=1 只接受 32（KDF 前拒绝，见
+  `PackageFormat.KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1`）。
+
+未来若新增 cryptoVersion 且引入真正的 KDF-output → 32-byte KEK 派生步骤
+（例如 HKDF 或密钥截断契约），**必须**：
+
+1. 在新 cryptoVersion 中定义其 output-length 规则；
+2. 将该派生步骤写入本文档与 ADR；
+3. 补齐 compatibility tests + golden fixture。
 
 - encode 使用当前推荐参数；decode **读取 package 中存储的参数**（支持未来
   升级 / 更强参数），但只接受安全且资源可控的范围（已用 KDF policy 测试
@@ -142,11 +164,12 @@ payload**；plaintext header 只包含解密和版本分派真正必要的数据
 
 Header 是**不可信输入**。Decoder 在真正执行 Argon2id 或分配大块内存之前，
 必须验证 package header 中所有 attacker-controlled 参数（
-`PackageHeaderParser`）。格式级硬限制：
+`PackageHeaderParser`）。**格式级硬限制**（FORMAT HARD LIMIT）：
 
 - `MAX_PACKAGE_SIZE = 16 MiB`（总包大小上限，读取前先拒绝）；
 - `MAX_HEADER_LENGTH = 4 KiB`；
-- `MAX_PAYLOAD_CIPHERTEXT_SIZE = MAX_PACKAGE_SIZE`；
+- `MAX_PAYLOAD_CIPHERTEXT_SIZE = 16 MiB − 4 KiB header`；
+- `MAX_SERIALIZED_PAYLOAD_SIZE = MAX_PAYLOAD_CIPHERTEXT_SIZE − 16B tag`；
 - `MAX_WRAPPED_KEY_BYTES = 512`；
 - KDF 参数 accepted range（见上）；长度一致性校验（headerLength 字段与
   实际 computed 一致）；uint32/uint16 全部以无符号读取，杜绝 integer
@@ -157,6 +180,84 @@ parallelism=极大值 / 异常长度 / 超大 ciphertext 会在 **Argon2 之前*
 `InvalidKdfParameters` / `MalformedPackage` 被拒绝（已用 DoS 测试锁定），
 不可能造成 OOM / CPU DoS / 崩溃 / ANR / 过度分配。
 
+## Runtime decode resource policy（Phase 3B 强制）
+
+**FORMAT HARD LIMIT ≠ RUNTIME DECODE RESOURCE POLICY。**
+
+“格式能表达的范围”不等于“Android decoder 会实际执行这个成本”。一个 package
+的参数可能**结构合法且在格式硬限制内**，但仍超过移动端资源安全预算（ANR /
+OOM / 电池烧毁）。因此生产默认 decoder 在真正执行 Argon2 **之前**通过纯参数
+检查 `PackageRuntimePolicy.checkDecodeBudget` 拒绝超预算参数：
+
+| 预算轴 | 值 |
+| --- | --- |
+| memoryKiB | ≤ 128 MiB |
+| iterations | ≤ 8 |
+| memoryKiB × iterations | ≤ 512K units（≈ 4× 默认 19456×2=38912） |
+| parallelism | ≤ 8（格式上限，防 CPU 倍增） |
+
+- **app-generated default（19 MiB / 2 iterations ≈ 38912 units）永远通过**，
+  正常兼容；
+- 更强但仍在预算内的参数（例如 64 MiB / 3 iter）正常解码；
+- 结构合法、格式硬限制内但超预算（例如 200 MiB / 2 iter、12 iter / 19 MiB、
+  100 MiB × 6 iter）→ 在 KDF 前以 `InvalidKdfParameters` 拒绝（已用
+  runtime policy 测试锁定）；
+- 格式硬限制极值（256 MiB / 16 iter）必然超预算并被拒绝，绝不自动执行。
+
+该策略是 production default。未来如需导入“很强但合法”的旧 export，可提供
+**用户确认的高成本解码路径**，但默认 decoder 绝不静默运行超预算成本。
+
+## Capacity contract（Phase 3B 强制）
+
+**Logical/package 容量必须彼此一致**：不允许 “validator 接受，但正常 Full
+Vault Export 必然无法编码”的无说明状态。
+
+### 容量选择与 Android 内存理由
+
+- **包上限保持 16 MiB（不提高）**。encode 峰值内存 ≈ 序列化 JSON + ciphertext
+  + Argon2id working set（默认 19 MiB）+ 瞬时 base64 缓冲 ≈ 50–60 MiB；对
+  **手动、用户触发的 export** 在现代 Android 上可接受。提到 32 MiB 会把峰值
+  内存翻倍，明显增加低内存设备的 ANR/OOM 风险且无安全收益。
+- **逻辑限制调整为与包上限一致（而非提高包上限）**：per-asset keystore 上限
+  保持慷慨（单个真实 Android keystore 即使很大也能装下），但**整个 snapshot
+  的总预算**保证整包能装下。装不下的组合（例如多个 Multi-MiB keystore）在
+  validation/encode 时以明确、文档化的错误拒绝。
+
+### 单一来源（single source of truth）
+
+`PackageCapacity` 定义包/header/tag/序列化 payload 的全部字节上限：
+
+| 常量 | 值 | 说明 |
+| --- | --- | --- |
+| `MAX_PACKAGE_SIZE` | 16 MiB | 整包上限 |
+| `MAX_HEADER_LENGTH` | 4 KiB | header 上限 |
+| `MAX_PAYLOAD_CIPHERTEXT_SIZE` | 16 MiB − 4 KiB | ciphertext 上限 |
+| `MAX_SERIALIZED_PAYLOAD_SIZE` | ciphertext − 16B tag | 明文序列化 payload 上限 |
+| `MAX_WRAPPED_KEY_BYTES` | 512 B | wrapped key 上限 |
+
+`PackageFormat` 的对应常量全部委托给 `PackageCapacity`（`PortablePackageCodec`
+与 `PackageHeaderParser` 使用），`PackageValidator.MAX_SERIALIZED_PAYLOAD_BUDGET`
+引用同一来源，因此 logical 与 package 契约**不会漂移**。
+
+### 编码前验证链
+
+1. `PackageValidator.validate(payload)`：结构校验 + **总量预算校验**——
+   `PackageCapacity.estimateSerializedSize(payload)`（可证明的序列化大小上界，
+   覆盖 JSON 引号/转义/字段名/分隔符的 worst case）≤
+   `MAX_SERIALIZED_PAYLOAD_BUDGET`，否则以 `ValidationException` 拒绝。
+2. `PortablePackageCodec.encode`：序列化后**精确尺寸校验**（defense-in-depth）——
+   若仍超限，以 `PackageCodecException.PackageTooLarge` **显式安全失败**，
+   绝不在超大分配时 OOM。
+
+### 边界测试
+
+- single max keystore（12 MiB base64）→ 预算内，validator 接受、encode/decode
+  成功；
+- 两个 8 MiB keystore → 总量超预算，validator 拒绝（不再出现“validator 接受
+  但无法 export”）；
+- bypass validator 的 18 MiB keystore → encode 精确守卫抛 `PackageTooLarge`；
+- ciphertext 超上限 / 整包超上限 → `MalformedPackage` 拒绝。
+
 ## 错误分类（Phase 3B error taxonomy）
 
 | 异常 | 语义 |
@@ -164,9 +265,10 @@ parallelism=极大值 / 异常长度 / 超大 ciphertext 会在 **Argon2 之前*
 | `UnsupportedFormat` | 坏 magic / 未知 reserved flags / 不支持的 formatVersion |
 | `UnsupportedCrypto` | 不支持的 cryptoVersion / 算法 id |
 | `InvalidKdfParameters` | KDF 参数超出 accepted decode range（KDF 前拒绝） |
-| `MalformedPackage` | 结构损坏：截断 / 长度不一致 / trailing garbage / headerLength mismatch |
+| `MalformedPackage` | 结构损坏：截断 / 长度不一致 / trailing garbage / headerLength mismatch / 超容量 |
 | `AuthenticationFailed` | AEAD 失败 —— wrong PIN 或 corrupted package（**不做精确区分**） |
 | `LogicalPayloadInvalid` | crypto 成功但 inner payload JSON 解析失败或 `PackageValidator` 校验失败 |
+| `PackageTooLarge` | **encode 侧**显式容量失败：序列化后超包预算（defense-in-depth；正常路径 validator 已先拒绝） |
 
 要求：任何 authentication failure **不得**返回 partial plaintext、
 **不得**返回 partially parsed `VaultSnapshot`、**不得**继续进入

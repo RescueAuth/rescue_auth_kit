@@ -164,6 +164,17 @@ object PortablePackageCodec {
         // 2. Serialize the logical payload (platform-neutral JSON).
         val plaintext = PayloadJson.encode(payload)
         try {
+            // 2a. Exact post-serialization capacity guard (defense-in-depth).
+            // The logical validator already rejects over-budget payloads via
+            // PackageCapacity; this exact check makes an over-limit encode fail
+            // EXPLICITLY with PackageTooLarge before any oversized allocation —
+            // never OOM (PACKAGE_FORMAT.md §Capacity).
+            if (plaintext.size > PackageFormat.MAX_SERIALIZED_PAYLOAD_SIZE) {
+                throw PackageCodecException.PackageTooLarge(
+                    "serialized payload is ${plaintext.size} bytes, exceeding the package budget " +
+                        "${PackageFormat.MAX_SERIALIZED_PAYLOAD_SIZE} bytes (16 MiB package cap minus header/tag)",
+                )
+            }
             // 3. Fresh random material per export.
             val salt = PackageCrypto.newSalt()
             val wrapNonce = PackageCrypto.newNonce()
@@ -277,6 +288,17 @@ object PortablePackageCodec {
 
         // 2. Parse + validate the untrusted header (before KDF, before big allocations).
         val envelope = PackageHeaderParser.parse(packageBytes)
+
+        // 2a. RUNTIME DECODE RESOURCE POLICY — reject parameters that are
+        // structurally valid and inside the format hard limits but above the
+        // mobile decode budget, BEFORE Argon2id runs (PACKAGE_FORMAT.md
+        // §Runtime decode resource policy). The default encode parameters
+        // (19 MiB / 2 iterations) always pass.
+        PackageRuntimePolicy.checkDecodeBudget(
+            envelope.kdfMemoryKiB,
+            envelope.kdfIterations,
+            envelope.kdfParallelism,
+        )
 
         // 3. Derive the wrapping key from the header's KDF parameters.
         val kek = try {

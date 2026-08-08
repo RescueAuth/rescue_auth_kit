@@ -77,7 +77,7 @@ internal object PackageHeaderParser {
         val outputLength = bytes[PackageLayout.OFF_KDF_OUTPUT_LENGTH].toInt() and 0xff
         val saltLength = bytes[PackageLayout.OFF_KDF_SALT_LENGTH].toInt() and 0xff
 
-        validateKdfParameters(memoryKiB, iterations, parallelism, outputLength, saltLength)
+        validateKdfParameters(memoryKiB, iterations, parallelism, outputLength, saltLength, cryptoVersion)
 
         // Salt region.
         val salt = sliceChecked(bytes, PackageLayout.OFF_KDF_SALT, saltLength, "kdfSalt")
@@ -192,6 +192,7 @@ internal object PackageHeaderParser {
         parallelism: Int,
         outputLength: Int,
         saltLength: Int,
+        cryptoVersion: Int,
     ) {
         // memoryKiB must be at least 8 * parallelism (Argon2 constraint) and
         // within the accepted decode range. Read as Long first to avoid overflow.
@@ -218,10 +219,24 @@ internal object PackageHeaderParser {
                 "kdf memoryKiB $memoryKiB too small for parallelism $parallelism (Argon2 constraint)",
             )
         }
-        if (outputLength < PackageFormat.MIN_OUTPUT_LENGTH || outputLength > PackageFormat.MAX_OUTPUT_LENGTH) {
-            throw PackageCodecException.InvalidKdfParameters(
-                "kdf outputLength out of safe range: $outputLength (accepted " +
-                    "${PackageFormat.MIN_OUTPUT_LENGTH}..${PackageFormat.MAX_OUTPUT_LENGTH})",
+        // cryptoVersion-scoped output length. cryptoVersion=1 derives the
+        // XChaCha20-Poly1305 wrapping KEK directly from the Argon2id output,
+        // so the output length MUST equal the 32-byte XChaCha20 key size.
+        // There is no extra "KDF output → 32-byte KEK" derivation step that
+        // would justify any other value (PACKAGE_FORMAT.md §Key derivation /
+        // ADR-0007 §5).
+        when (cryptoVersion) {
+            PackageFormat.CURRENT_CRYPTO_VERSION -> {
+                if (outputLength != PackageFormat.KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1) {
+                    throw PackageCodecException.InvalidKdfParameters(
+                        "kdfOutputLength must be " +
+                            "${PackageFormat.KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1} bytes for cryptoVersion=$cryptoVersion " +
+                            "(XChaCha20-Poly1305 wrapping key), got $outputLength",
+                    )
+                }
+            }
+            else -> throw PackageCodecException.UnsupportedCrypto(
+                "unsupported cryptoVersion $cryptoVersion (no output-length contract defined)",
             )
         }
         if (saltLength < PackageFormat.MIN_SALT_BYTES || saltLength > PackageFormat.MAX_SALT_BYTES) {

@@ -47,7 +47,8 @@ Phase 3B 独立 PR（不进入 3C/3D）：纯 Kotlin/JVM 加密 package codec。
 
 ### Tests
 
-- `:core:test`：112 → **173**（+61 Phase 3B codec 测试）全绿：
+- `:core:test`：112 → **173**（+61 Phase 3B codec 测试）全绿；
+  merge 前 CR 后 **173 → 193**（+20：capacity / runtime policy / output-length）。
   - Round-trip（12）：empty / authenticator-only / developer-only /
     selected-items / full vault（五类 Developer）；binary keystore exact byte
     round-trip；recovery used/unused；同 payload 同 PIN 两次 export 不同但
@@ -56,14 +57,21 @@ Phase 3B 独立 PR（不进入 3C/3D）：纯 Kotlin/JVM 加密 package codec。
   - Auth（15）：wrong PIN / corrupted wrapped key / payload / nonce / AAD
     tamper；tampered version；truncated / trailing garbage；no partial
     plaintext；future version rejection；错误信息不区分 wrong PIN vs corruption。
-  - Format/DoS（21）：malicious huge memory/iterations/parallelism 在 KDF 前拒绝；
-    KDF range 边界；异常长度 / oversized package / wrapped key / payload；
+  - Format/DoS（20）：malicious huge memory/iterations/parallelism 在 KDF 前拒绝；
+    KDF range 边界；cryptoVersion=1 的 `kdfOutputLength` 必须 == 32（16 / 64
+    拒绝）；异常长度 / oversized package / wrapped key / payload；
     invalid logical payload（LogicalPayloadInvalid）；invalid logical schema
     version。
-  - KDF policy（9）：encode 写默认参数；decode 读 package 内参数；range 边界拒绝。
+  - KDF policy（7）：encode 写默认参数；decode 读 package 内参数；range 边界拒绝。
   - PIN representation（4）：String / CharArray / ByteArray 互换；wrong PIN。
   - Golden fixture（4）：fixture 与 codec 输出逐字节一致；fixture 解密为预期
     payload；wrong PIN 失败；deterministic seam 稳定。
+  - **Capacity（6）**：codec 与 validator 共享 `PackageCapacity` 预算；
+    validator 接受 ⇒ 必然可编码；encode 超限抛 `PackageTooLarge`（不 OOM）。
+  - **Runtime policy（9）**：FORMAT HARD LIMIT ≠ RUNTIME DECODE RESOURCE
+    POLICY；格式内但超预算参数在 Argon2 前拒绝；默认 19 MiB/2 iter 永远通过。
+  - **PackageCapacity（4）**：estimateSerializedSize 为可证明上界；single max
+    keystore 预算内；multi 大 keystore 超预算 validator 拒绝；常量一致。
 
 ## [v2 phase3a full-logical-equivalence] - 2026-08-07（PR #18 Developer merge blocker 最终修正）
 

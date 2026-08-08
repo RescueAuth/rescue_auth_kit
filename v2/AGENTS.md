@@ -24,7 +24,12 @@
   **3B Encrypted Package Codec 已实现**（`core/.../export/codec/`，见
   `docs/PHASE3_REPORT.md` §9 / ADR-0007：per-export PIN → Argon2id → KEK →
   wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range /
-  DoS 保护；golden fixture）。
+  DoS 保护；golden fixture）。merge 前 CR 已修正 3 个 codec contract blocker：
+  **cryptoVersion=1 的 `kdfOutputLength` 固定 32**（Argon2id 输出直接作为
+  XChaCha20 KEK，旧 16..64 range 删除）、**logical ↔ package 容量一致**
+  （`PackageCapacity` 单一来源 + validator 预算 + encode 显式 `PackageTooLarge`）、
+  **RUNTIME DECODE RESOURCE POLICY 与 FORMAT HARD LIMIT 分离**（超预算在
+  Argon2 前拒绝，默认 19 MiB/2 iter 永远兼容）。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。
@@ -112,7 +117,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [ ] 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏行为等**仍待真机验证**（non-blocking）
 - [ ] 阶段 3：Package + Merge（**STARTED**）
   - [x] **3A Package + Merge Foundation**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + 纯 merge planner + schema v1→v2 + 自动备份抽象清理，PR #18）
-  - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN）
+  - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）
   - [ ] 3C Transactional Import / Merge（MergePlan → Room apply + rollback + 幂等）
   - [ ] 3D Android Export / Import + Package Preview（SAF + PIN + Import all）
 - [ ] 阶段 4：Daily-use vertical slices

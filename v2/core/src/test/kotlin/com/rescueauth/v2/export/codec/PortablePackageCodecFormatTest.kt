@@ -139,9 +139,24 @@ class PortablePackageCodecFormatTest {
     }
 
     @Test
-    fun `oversized output length rejected before KDF`() {
+    fun `non-32 output length rejected before KDF (cryptoVersion-scoped)`() {
+        // cryptoVersion=1 derives the XChaCha20-Poly1305 wrapping KEK directly
+        // from the Argon2id output, so the output length MUST be 32. A value
+        // that is structurally valid but not consumable by the codec (e.g. 64
+        // or 16, inside the old loose 16..64 range) must be rejected BEFORE
+        // the KDF runs — the codec cannot consume it.
         assertThrows(PackageCodecException.InvalidKdfParameters::class.java) {
-            PortablePackageCodec.decode(withOutputLength(256), pin)
+            PortablePackageCodec.decode(withOutputLength(64), pin)
+        }
+        assertThrows(PackageCodecException.InvalidKdfParameters::class.java) {
+            PortablePackageCodec.decode(withOutputLength(16), pin)
+        }
+    }
+
+    @Test
+    fun `output length zero rejected before KDF`() {
+        assertThrows(PackageCodecException.InvalidKdfParameters::class.java) {
+            PortablePackageCodec.decode(withOutputLength(0), pin)
         }
     }
 

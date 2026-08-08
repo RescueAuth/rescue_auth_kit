@@ -39,8 +39,21 @@ object PackageValidator {
      * 8 MiB of raw keystore ≈ 11.2 MiB of base64 — comfortably above any real
      * Android keystore while still guarding against pathological payloads
      * (ROADMAP §8.2: "base64 或等价编码 + 大小上限").
+     *
+     * This is the **per-asset** cap only. The **whole-snapshot** capacity is
+     * enforced separately via [PackageCapacity] so that a validator-accepted
+     * payload is always encodable within the 16 MiB package limit
+     * (PACKAGE_FORMAT.md §Capacity).
      */
     const val MAX_KEYSTORE_BASE64_LENGTH = 12 * 1024 * 1024
+
+    /**
+     * Whole-snapshot serialized-payload budget shared with the codec
+     * ([PackageCapacity.MAX_SERIALIZED_PAYLOAD_SIZE]). A payload whose
+     * estimated serialized size exceeds this budget is rejected here so the
+     * "validator accepts but Full Export can never encode" state is impossible.
+     */
+    const val MAX_SERIALIZED_PAYLOAD_BUDGET = PackageCapacity.MAX_SERIALIZED_PAYLOAD_SIZE
 
     class ValidationException(message: String) : Exception(message)
 
@@ -58,6 +71,24 @@ object PackageValidator {
         if (payload.packageId.isBlank()) throw ValidationException("packageId must not be blank")
         if (payload.createdAt.isBlank()) throw ValidationException("createdAt must not be blank")
         validateSnapshot(payload.snapshot)
+        validateCapacityBudget(payload)
+    }
+
+    /**
+     * Enforces the whole-payload capacity contract: the estimated serialized
+     * size must fit the codec's package budget. Without this, a logical-valid
+     * FULL_VAULT could exceed the 16 MiB package limit and be impossible to
+     * export (PACKAGE_FORMAT.md §Capacity).
+     */
+    private fun validateCapacityBudget(payload: VaultPackagePayload) {
+        val estimated = PackageCapacity.estimateSerializedSize(payload)
+        if (estimated > MAX_SERIALIZED_PAYLOAD_BUDGET) {
+            throw ValidationException(
+                "payload exceeds the package capacity budget: estimated serialized size " +
+                    "$estimated bytes > max $MAX_SERIALIZED_PAYLOAD_BUDGET bytes " +
+                    "(16 MiB package cap minus header/tag; reduce Developer Entry assets or account volume)",
+            )
+        }
     }
 
     private fun validateSnapshot(snapshot: VaultSnapshot) {

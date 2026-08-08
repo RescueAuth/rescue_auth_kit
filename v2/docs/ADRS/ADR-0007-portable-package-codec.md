@@ -57,15 +57,32 @@ portable package bytes → parse envelope → decrypt with PIN → authenticate 
 5. **KDF policy**：
    - DEFAULT PARAMETERS（encode）= Argon2id, 19 MiB, 2 iter, p1, 32B,
      salt 16B（与 legacy 默认 / OWASP 交互登录推荐同量级）；
-   - ACCEPTABLE DECODE RANGE = memoryKiB 64..262144, iterations 1..16,
-     parallelism 1..8, outputLength 16..64, salt 8..64, memoryKiB ≥ 8×p；
-   - decode 读取 package 内参数（支持未来更强参数），但只接受安全范围。
+   - ACCEPTABLE DECODE RANGE（格式范围）= memoryKiB 64..262144, iterations
+     1..16, parallelism 1..8, salt 8..64, memoryKiB ≥ 8×p；
+   - **cryptoVersion=1 的 `kdfOutputLength` 必须 == 32**：Argon2id 输出
+     **直接作为** XChaCha20-Poly1305 wrapping KEK，不存在额外的
+     “KDF-output → 32-byte KEK” 派生步骤；历史 loose range 16..64 已删除
+     （codec 无法消费非 32 的输出）；
+   - **RUNTIME DECODE RESOURCE POLICY**（Android decoder 预算）与 FORMAT
+     HARD LIMIT 分离：memoryKiB ≤ 128 MiB、iterations ≤ 8、
+     memoryKiB×iterations ≤ 512K units（≈ 4× 默认 38912）；结构合法且在
+     格式硬限制内但超预算的参数在 **Argon2 之前**以 `InvalidKdfParameters`
+     拒绝（`PackageRuntimePolicy.checkDecodeBudget`），默认 encode 参数永远通过。
 6. **恶意 header 防护**（KDF 前）：格式级硬限制（总包 16 MiB、header 4 KiB、
-   payload ciphertext 16 MiB、wrapped key 512B）+ KDF accepted range +
-   无符号 uint32/uint16 读取 + headerLength 交叉校验 + trailing garbage 拒绝。
+   payload ciphertext 16 MiB − 4 KiB、wrapped key 512B，`MAX_SERIALIZED_PAYLOAD_SIZE`
+   = ciphertext − 16B tag）+ KDF accepted range + 无符号 uint32/uint16 读取 +
+   headerLength 交叉校验 + trailing garbage 拒绝。
+7. **Capacity contract（logical ↔ package 一致）**：`PackageCapacity` 为唯一
+   来源定义包/header/tag/序列化 payload 上限；`PackageValidator` 用
+   `estimateSerializedSize`（可证明上界）在编码前拒绝超预算 payload，
+   `PortablePackageCodec` 序列化后再做精确守卫，超限以 `PackageTooLarge`
+   **显式安全失败**（绝不 OOM）。包上限保持 16 MiB（encode 峰值 ≈ 50–60 MiB，
+   手动 export 可接受；提到 32 MiB 会翻倍峰值内存且无安全收益），逻辑限制
+   调整为与包上限一致。
 7. **错误分类**：`UnsupportedFormat` / `UnsupportedCrypto` /
    `InvalidKdfParameters` / `MalformedPackage` / `AuthenticationFailed` /
-   `LogicalPayloadInvalid`。wrong PIN 与 corruption 统一为
+   `LogicalPayloadInvalid` / `PackageTooLarge`（encode 侧显式容量失败）。
+   wrong PIN 与 corruption 统一为
    `AuthenticationFailed`（AEAD 层无法安全区分，UI 决定文案）。
 8. **序列化**：`VaultPackagePayload` JSON（kotlinx.serialization，
    encodeDefaults=true），platform-neutral；不序列化 Room entity / SQLite /
@@ -80,7 +97,10 @@ portable package bytes → parse envelope → decrypt with PIN → authenticate 
     export 不同）、认证失败（wrong PIN / wrapped key / payload / nonce /
     AAD tamper / no partial plaintext）、格式（bad magic / truncation /
     unsupported version / 长度 / oversized / invalid KDF / malicious huge
-    Argon2 在 KDF 前拒绝）、KDF policy（decode 读 package 参数）、golden
+    Argon2 在 KDF 前拒绝）、KDF policy（decode 读 package 参数，
+    cryptoVersion=1 只接受 outputLength=32）、runtime policy（格式内但超
+    预算在 KDF 前拒绝）、capacity（validator 与 codec 共享预算、encode 超限
+    显式 `PackageTooLarge`）、golden
     fixture（deterministic randomness seam，仅测试用，生产默认路径用
     SecureRandom）。
 
@@ -102,8 +122,11 @@ portable package bytes → parse envelope → decrypt with PIN → authenticate 
 
 - 好处：format 自 Phase 3B 起具有兼容性意义；golden fixture 锁定；恶意
   package 无法 DoS；wrong PIN/corruption 安全失败；selective snapshot
-  复用同一 codec。
+  复用同一 codec；KDF output length 与 runtime 预算明确分离，
+  logical/package 容量不再漂移。
 - 代价：envelope 为自定义二进制布局（非标准格式），需严格版本化与 fixture
-  维护；JVM zeroization 只能 best-effort。
+  维护；JVM zeroization 只能 best-effort；cryptoVersion=1 的 `kdfOutputLength`
+  被严格约束为 32（未来若需其它输出长度必须新增 cryptoVersion 并定义派生步骤）。
 - 不可逆点：`formatVersion=1` / `cryptoVersion=1` 的字节布局、AAD 设计、
-  KDF DEFAULT / decode range、错误分类在发布后不得在同一版本下改变。
+  KDF DEFAULT / decode range、runtime 预算、capacity 预算、错误分类在发布后
+  不得在同一版本下改变。
