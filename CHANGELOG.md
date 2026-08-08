@@ -10,6 +10,38 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p2 interop-cr] - 2026-08-08（P2 merge 前 interoperability compatibility CR）
+
+Issue #20 P2 整体 review 后的 merge 前 interop blocker 修复（**不 merge**，已推 PR #25 源分支）。
+
+### Fixed（真实 Google Authenticator wire format interop）
+
+- **wire enum 语义修正**：`MigrationPayload.OtpParameters` 的 `algorithm` /
+  `digits` / `type` 是 **protobuf enum**（经真实 GA v6.0 export + Aegis / ente /
+  Go otpauth 三份独立实现验证），不是 raw int。修复后：
+  - `type`：`2`=TOTP（此前误读 raw `1`），`1`=HOTP（→unsupported），`0`=UNSPECIFIED（→TOTP）；
+  - `digits`：`1`=SIX(6)、`2`=EIGHT(8)、`0`=UNSPECIFIED(→6)（此前误读 raw 值）；
+  - `algorithm`：`4`=MD5（→unsupported，此前误标 SHA224）。
+- **Base64 / URI decoding**：`data` 先 percent-decode（真实 export 的 `%2B`/
+  `%2F`/`%3D` 不误判 malformed）；standard Base64（`+` `/` `=`，GA 实际输出）与
+  URL-safe Base64（`-` `_`）都接受；合法 no-padding 接受；非法 Base64 明确拒绝。
+- **batch metadata source**：真实-compatible URI 仅需 `data=...`，batchSize /
+  batchIndex / batchId 从 decoded `MigrationPayload` 读取；`&batch_size=` 等
+  query 参数只是额外容忍，不依赖。
+
+### Added
+
+- **独立 interop fixtures**：`InteropFixtures`（真实 GA v6.0 test export URI，
+  synthetic test accounts）+ `tools/interop-fixture/`（protoc + Python
+  google.protobuf 独立生成，不调用本项目 MinimalProtobuf/ProtoFixture）+
+  `InteropFixtureTest` 断言全部解码值。
+
+### Tests（全部通过）
+
+- `:core:test` / `:app:testDebugUnitTest` / `:app:lintDebug` /
+  `:app:assembleDebug` / `:app:assembleDebugAndroidTest`。
+
+
 ## [v2 phase4-p2 qr-migration] - 2026-08-08（Phase 4 P2：QR Scan + otpauth-migration Import）
 
 Phase 4 P2（Issue #20）——让用户通过摄像头扫码添加 TOTP：普通

@@ -59,14 +59,46 @@ Authenticator
 
 - `core/.../migration/MigrationPayloadParser.kt` + `MigrationModels.kt` + `MinimalProtobuf.kt`。
 - 纯 Kotlin / 纯 JVM：**不依赖 Camera / Compose / Room / Android Context / legacy models**。
-- 解析：`otpauth-migration://offline?data=<base64url>[&batch_*]`
-  - `data` → base64url 解码 → protobuf wire 解码 → 每条 `OtpParameters`
+- 解析：`otpauth-migration://offline?data=<base64>[&batch_*]`
+  - `data` → percent-decode → Base64 解码 → protobuf wire 解码 → 每条 `OtpParameters`
     （secret bytes / name / issuer / algorithm / digits / type / counter / id）
     + batch metadata（version / batchSize / batchIndex / batchId）。
   - 最终 secret 转 Native v2 Base32 representation（RFC 4648，no padding，
     大写）。
+- **wire enum 语义（compatibility CR 修正，已对真实 GA v6.0 export 验证）**：
+  `OtpParameters` 的 algorithm / digits / type 是 **protobuf enum**，不是 raw int：
+  - `Algorithm`：0=UNSPECIFIED(→SHA1)，1=SHA1，2=SHA256，3=SHA512，4=MD5(→unsupported)；
+  - `DigitCount`：0=UNSPECIFIED(→6)，1=SIX(6)，2=EIGHT(8)；其它值 unsupported；
+  - `OtpType`：0=UNSPECIFIED(→TOTP)，1=HOTP(→unsupported)，2=TOTP。
 - 日志安全：**不输出** raw migration URI、secret、decoded protobuf payload、
   generated Base32 secret。错误只带稳定 reason token。
+
+## 5.1 data decoding rule（compatibility CR 冻结）
+
+1. `data` 值先做 **URL percent-decoding**。真实 Google export 会把 `+` 编码为
+   `%2B`、`/` 编码为 `%2F`、`=` 编码为 `%3D`；percent-decode 后的 `+` `/` `=`
+   **绝不能**误判为 malformed。
+2. percent-decode 后按 **Base64** 解释，同时接受两个 alphabet：
+   - **standard Base64**（RFC 4648 §4，`A–Z a–z 0–9 + /`）—— Google
+     Authenticator 实际输出；
+   - **URL-safe Base64**（RFC 4648 §5，`- _`）—— 对非 Google 工具兼容。
+   逐字符归一化（`-`→`+`，`_`→`/`），因此同时含 `+`/`/` 与 `-`/`_` 的 payload
+   也能正确解码。
+3. **padding**：`=` padding 接受；no-padding（合法 unpadded）也接受（Java
+   严格 RFC 4648 decoder 两种都接受）。非法 Base64（错位/超长 padding、非法
+   字符）**明确拒绝**（`malformed-base64` / `invalid-data-character`）。
+
+## 5.2 independent interoperability fixtures（compatibility CR）
+
+- **A. 真实 Google Authenticator v6.0 export（synthetic test accounts）**：
+  `InteropFixtures.GA_*` 是 `krissrex/google-authenticator-exporter`
+  `test-assets/test-qr-codes.json`（MIT，`usingAppVersion: "6.0"`）里的真实
+  QR URI，只含 disposable synthetic credentials。
+- **B. protoc 独立生成 fixture**：`tools/interop-fixture/` 用 `protoc` 3.21.12
+  + Python `google.protobuf` 从确认过的 `MigrationPayload` schema 生成，
+  **不调用本项目 MinimalProtobuf / ProtoFixture**。
+- `InteropFixtureTest` 断言 external fixture → `MigrationPayloadParser` →
+  issuer/name/algorithm/digits/secret Base32/batch metadata 全部得到预期值。
 
 ## 6. protobuf strategy
 
@@ -79,12 +111,23 @@ Authenticator
 
 ## 7. supported / unsupported OTP semantics
 
-- **IMPORTABLE**：TOTP（type=1）、SHA1/SHA256/SHA512、digits 6..10
-  （默认 6）、period 30s（Google Authenticator 固定；Native 支持 1..120）。
-- **UNSUPPORTED**：HOTP、MD5/SHA224/未知 algorithm、digits 超出 6..10。
+- **IMPORTABLE**：TOTP（OtpType=2，UNSPECIFIED 视为 TOTP）、SHA1/SHA256/SHA512、
+  digits 6/8（Google 定义值；默认 6）、period 30s（Google Authenticator 固定；
+  Native 支持 1..120）。
+- **UNSUPPORTED**：HOTP（OtpType=1）、MD5/未知 algorithm、Google 未定义的
+  digits 值。
 - **INVALID**：missing/empty/undecodable secret。
 - 每条独立分类：5 条合法 + 1 条 unsupported 不会悄悄丢弃；UI 明确报告
   “5 importable / 1 unsupported”。绝不把 unsupported 静默转成错误 TOTP。
+
+## 7.1 batch metadata source（compatibility CR 冻结）
+
+- 真实-compatible URI **仅需 `data=...`**：batchSize / batchIndex / batchId
+  从 decoded `MigrationPayload`（protobuf 字段 3/4/5）读取。
+- `&batch_size=` / `&batch_index=` / `&batch_id=` query 参数只是本项目额外的
+  容忍扩展（present 时覆盖 protobuf 值）；**正式 Google migration compatibility
+  不依赖它们**。测试锁定了两条真实 GA 多 QR fixture 无 query 参数也能恢复 batch
+  metadata。
 
 ## 8. multi-entry import
 

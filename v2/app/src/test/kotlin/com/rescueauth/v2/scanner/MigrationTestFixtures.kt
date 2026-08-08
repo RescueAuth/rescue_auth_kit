@@ -4,11 +4,32 @@ import java.util.Base64
 
 /**
  * Minimal otpauth-migration payload builder for app-layer tests (Phase 4 P2).
+ *
  * Produces the same wire format as the core ProtoFixture so the app scanner /
  * ViewModel tests can exercise real synthetic migration URIs without a
  * protobuf library or any real Google Authenticator credential.
+ *
+ * The enum values match the **real Google migration schema** (verified
+ * against real GA v6.0 exports and independent implementations):
+ *
+ * ```
+ * Algorithm  : 0 = UNSPECIFIED, 1 = SHA1, 2 = SHA256, 3 = SHA512, 4 = MD5
+ * DigitCount : 0 = UNSPECIFIED, 1 = SIX(6), 2 = EIGHT(8)
+ * OtpType    : 0 = UNSPECIFIED, 1 = HOTP, 2 = TOTP
+ * ```
  */
 internal object MigrationTestFixtures {
+
+    const val ALGO_SHA1 = 1
+    const val ALGO_SHA256 = 2
+    const val ALGO_SHA512 = 3
+    const val ALGO_MD5 = 4
+
+    const val DIGITS_SIX = 1
+    const val DIGITS_EIGHT = 2
+
+    const val TYPE_HOTP = 1
+    const val TYPE_TOTP = 2
 
     fun varint(value: Long): ByteArray {
         var v = value
@@ -44,9 +65,9 @@ internal object MigrationTestFixtures {
         secret: ByteArray = "Hello!".toByteArray(Charsets.UTF_8),
         name: String? = "alice@example.com",
         issuer: String? = "GitHub",
-        algorithm: Int = 1,
-        digits: Int = 6,
-        type: Int = 1,
+        algorithm: Int = ALGO_SHA1,
+        digits: Int = DIGITS_SIX,
+        type: Int = TYPE_TOTP,
     ): ByteArray {
         var body = ByteArray(0)
         body += bytesField(1, secret)
@@ -80,9 +101,9 @@ internal object MigrationTestFixtures {
         batchIndex: Int = 0,
         batchId: Int = 0,
         query: String = "",
+        encoder: (ByteArray) -> String = { Base64.getUrlEncoder().withoutPadding().encodeToString(it) },
     ): String {
-        val data = Base64.getUrlEncoder().withoutPadding()
-            .encodeToString(payload(entries, batchSize = batchSize, batchIndex = batchIndex, batchId = batchId))
+        val data = encoder(payload(entries, batchSize = batchSize, batchIndex = batchIndex, batchId = batchId))
         var uri = "otpauth-migration://offline?data=$data"
         if (query.isNotEmpty()) uri += "&$query"
         return uri

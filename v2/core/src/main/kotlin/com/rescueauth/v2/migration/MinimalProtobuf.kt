@@ -112,13 +112,16 @@ internal object MinimalProtobuf {
      *   bytes secret = 1;
      *   string name = 2;
      *   string issuer = 3;
-     *   int32 algorithm = 4;   // 0 = MD5, 1 = SHA1, 2 = SHA256, 3 = SHA512, 4 = SHA224
-     *   int32 digits = 5;
-     *   int32 type = 6;        // 0 = HOTP, 1 = TOTP
+     *   Algorithm algorithm = 4;   // 0=UNSPECIFIED, 1=SHA1, 2=SHA256, 3=SHA512, 4=MD5
+     *   DigitCount digits = 5;      // 0=UNSPECIFIED, 1=SIX(6), 2=EIGHT(8)
+     *   OtpType type = 6;           // 0=UNSPECIFIED, 1=HOTP, 2=TOTP
      *   int64 counter = 7;
-     *   string otp_parameters_id = 8;
      * }
      * ```
+     *
+     * The enum semantics above are verified against real Google Authenticator
+     * exports and independent implementations (Aegis / ente auth / Go otpauth);
+     * they are **not** raw integer semantics.
      *
      * Returns the raw entries + batch metadata without interpreting any OTP
      * semantics; interpretation/validation belongs to [MigrationPayloadParser].

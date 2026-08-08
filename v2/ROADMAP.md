@@ -169,6 +169,10 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 - 迁移字段映射（Google 命名 → 内部）：`issuer` → serviceName、`email` →
   accountName、`secret` / `algorithm` / `digits` / `period` → TOTP 参数，
   其余按正常 validation。
+- wire 语义（merge 前 interop CR 已冻结）：`algorithm`/`digits`/`type` 是
+  **protobuf enum**（type=2 TOTP / digits=1 SIX、2 EIGHT / algorithm=4 MD5）；
+  `data` 为 percent-encoded **standard Base64**（兼容 URL-safe），batch
+  metadata 从 decoded payload 读取，不依赖 `&batch_*` query 参数。
 - 与 Selective Import 一致：批量导入后走同一 Merge Engine 预览。
 
 ---

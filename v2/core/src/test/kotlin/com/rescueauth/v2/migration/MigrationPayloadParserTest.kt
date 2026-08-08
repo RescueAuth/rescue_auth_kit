@@ -14,6 +14,9 @@ class MigrationPayloadParserTest {
     private fun base64url(bytes: ByteArray): String =
         Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 
+    private fun base64std(bytes: ByteArray): String =
+        Base64.getEncoder().encodeToString(bytes)
+
     private fun uri(data: ByteArray, query: String = ""): String {
         val base = "otpauth-migration://offline?data=${base64url(data)}"
         return if (query.isEmpty()) base else "$base&$query"
@@ -73,29 +76,33 @@ class MigrationPayloadParserTest {
 
     @Test
     fun `05 sha1 algorithm`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = 1)))
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = ProtoFixture.ALGO_SHA1)))
         assertEquals("SHA1", MigrationPayloadParser.parseUri(uri(data)).entries[0].algorithm)
     }
 
     @Test
     fun `06 sha256 algorithm`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = 2)))
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = ProtoFixture.ALGO_SHA256)))
         assertEquals("SHA256", MigrationPayloadParser.parseUri(uri(data)).entries[0].algorithm)
     }
 
     @Test
     fun `07 sha512 algorithm`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = 3)))
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = ProtoFixture.ALGO_SHA512)))
         assertEquals("SHA512", MigrationPayloadParser.parseUri(uri(data)).entries[0].algorithm)
     }
 
     @Test
-    fun `08 supported digits carried`() {
-        for (digits in listOf(6, 7, 8, 9, 10)) {
-            val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(digits = digits)))
-            val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
-            assertEquals(digits, e.digits)
-        }
+    fun `08 enum digits six and eight mapped`() {
+        // Google DigitCount: 0=UNSPECIFIED, 1=SIX(6), 2=EIGHT(8)
+        val six = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(digits = ProtoFixture.DIGITS_SIX)))
+        assertEquals(6, MigrationPayloadParser.parseUri(uri(six)).entries[0].digits)
+
+        val eight = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(digits = ProtoFixture.DIGITS_EIGHT)))
+        assertEquals(8, MigrationPayloadParser.parseUri(uri(eight)).entries[0].digits)
+
+        val unspecified = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(digits = ProtoFixture.DIGITS_UNSPECIFIED)))
+        assertEquals(6, MigrationPayloadParser.parseUri(uri(unspecified)).entries[0].digits)
     }
 
     @Test
@@ -128,7 +135,8 @@ class MigrationPayloadParserTest {
 
     @Test
     fun `12 hotp marked unsupported`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(type = 0)))
+        // Google OtpType: 1 = HOTP (not the old raw-int 0)
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(type = ProtoFixture.TYPE_HOTP)))
         val result = MigrationPayloadParser.parseUri(uri(data))
         val e = result.entries[0]
         assertEquals(MigrationEntryStatus.UNSUPPORTED, e.status)
@@ -136,14 +144,12 @@ class MigrationPayloadParserTest {
     }
 
     @Test
-    fun `13 unsupported algorithm marked unsupported`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = 0))) // MD5
+    fun `13 md5 algorithm marked unsupported`() {
+        // Google Algorithm: 4 = MD5 (not SHA224)
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = ProtoFixture.ALGO_MD5)))
         val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
         assertEquals(MigrationEntryStatus.UNSUPPORTED, e.status)
         assertEquals("unsupported-algorithm", e.reason)
-        // SHA224 also unsupported
-        val data2 = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(algorithm = 4)))
-        assertEquals(MigrationEntryStatus.UNSUPPORTED, MigrationPayloadParser.parseUri(uri(data2)).entries[0].status)
     }
 
     @Test
@@ -151,8 +157,8 @@ class MigrationPayloadParserTest {
         val data = ProtoFixture.payload(
             listOf(
                 ProtoFixture.otpEntry(name = "good", issuer = "GitHub"),
-                ProtoFixture.otpEntry(name = "hotp", issuer = "X", type = 0),
-                ProtoFixture.otpEntry(name = "md5", issuer = "Y", algorithm = 0),
+                ProtoFixture.otpEntry(name = "hotp", issuer = "X", type = ProtoFixture.TYPE_HOTP),
+                ProtoFixture.otpEntry(name = "md5", issuer = "Y", algorithm = ProtoFixture.ALGO_MD5),
                 ProtoFixture.otpEntry(secret = null, name = "bad"),
             )
         )
@@ -164,7 +170,9 @@ class MigrationPayloadParserTest {
     }
 
     @Test
-    fun `unsupported digits marked unsupported`() {
+    fun `unsupported raw digits value rejected`() {
+        // Google only defines 0/1/2 for DigitCount; a raw value outside the
+        // format (e.g. 5) is UNSUPPORTED.
         val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(digits = 5)))
         val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
         assertEquals(MigrationEntryStatus.UNSUPPORTED, e.status)
@@ -222,7 +230,7 @@ class MigrationPayloadParserTest {
 
     @Test
     fun `secret never exposed through status for unsupported entries`() {
-        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(type = 0)))
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(type = ProtoFixture.TYPE_HOTP)))
         val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
         assertNull(e.secretBase32)
     }
@@ -235,5 +243,127 @@ class MigrationPayloadParserTest {
         val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
         val rendered = e.toString()
         assertFalse(rendered.contains("JBSWY3DP"))
+    }
+
+    // ------------------------------------------------------------------
+    // Base64 / URI compatibility (Phase 4 P2 compatibility CR)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `padded standard base64 with equals accepted`() {
+        // Real Google Authenticator emits standard base64 with `=` padding
+        // percent-encoded as %3D in the URI query.
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
+        val std = base64std(data)
+        assertTrue(std.endsWith("="))
+        val uri = "otpauth-migration://offline?data=${percentEncode(std)}"
+        val result = MigrationPayloadParser.parseUri(uri)
+        assertEquals(1, result.importableCount)
+        assertEquals("alice@example.com", result.entries[0].name)
+    }
+
+    @Test
+    fun `percent encoded plus and slash are accepted as standard base64`() {
+        // Real Google Authenticator standard-base64 output contains `+` and
+        // `/`; these MUST survive percent-decoding and be treated as Base64
+        // alphabet, not as malformed characters.
+        val std = InteropFixtures.ALPHABET_DISTINGUISHING_STANDARD
+        assertTrue("standard base64 must contain + and / for this fixture", std.contains('+') && std.contains('/'))
+        val uri = "otpauth-migration://offline?data=${percentEncode(std)}"
+        val result = MigrationPayloadParser.parseUri(uri)
+        assertEquals(1, result.importableCount)
+        val e = result.entries[0]
+        assertEquals("H-w-", e.name)
+        assertEquals("I", e.issuer)
+        assertEquals("SHA1", e.algorithm)
+        assertEquals(6, e.digits)
+        assertEquals("G2MGKTV7KIAKL6QJHG4Z26Q5PMUCX6BD", e.secretBase32)
+    }
+
+    @Test
+    fun `standard and urlsafe alphabets decode to the same payload`() {
+        // The same bytes encoded as standard (`+` `/`) and URL-safe (`-` `_`)
+        // must decode identically; this test uses a payload whose two encodings
+        // are genuinely different (not an encoding that happens to coincide).
+        val std = InteropFixtures.ALPHABET_DISTINGUISHING_STANDARD
+        val urlsafe = InteropFixtures.ALPHABET_DISTINGUISHING_URLSAFE
+        assertTrue(std != urlsafe)
+        val fromStd = MigrationPayloadParser.parseUri("otpauth-migration://offline?data=${percentEncode(std)}")
+        val fromUrl = MigrationPayloadParser.parseUri("otpauth-migration://offline?data=${percentEncode(urlsafe)}")
+        assertEquals(1, fromStd.importableCount)
+        assertEquals(1, fromUrl.importableCount)
+        assertEquals("G2MGKTV7KIAKL6QJHG4Z26Q5PMUCX6BD", fromStd.entries[0].secretBase32)
+        assertEquals("G2MGKTV7KIAKL6QJHG4Z26Q5PMUCX6BD", fromUrl.entries[0].secretBase32)
+        assertEquals("H-w-", fromUrl.entries[0].name)
+    }
+
+    @Test
+    fun `urlsafe base64 with dashes and underscores accepted`() {
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
+        val urlSafe = base64url(data)
+        assertTrue(!urlSafe.contains('+') && !urlSafe.contains('/'))
+        val uri = "otpauth-migration://offline?data=${percentEncode(urlSafe)}"
+        val result = MigrationPayloadParser.parseUri(uri)
+        assertEquals(1, result.importableCount)
+    }
+
+    @Test
+    fun `no padding standard base64 accepted`() {
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry()))
+        val std = base64std(data).trimEnd('=')
+        assertFalse(std.endsWith("="))
+        val uri = "otpauth-migration://offline?data=${percentEncode(std)}"
+        val result = MigrationPayloadParser.parseUri(uri)
+        assertEquals(1, result.importableCount)
+    }
+
+    @Test
+    fun `misplaced equals padding rejected`() {
+        // `=` in the middle (ab=c) is not valid terminal padding.
+        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
+            MigrationPayloadParser.parseUri("otpauth-migration://offline?data=ab=c")
+        }
+        assertTrue(ex.reason == "malformed-base64" || ex.reason == "invalid-data-character")
+    }
+
+    @Test
+    fun `overlong padding rejected`() {
+        // A data char count that cannot be represented with 4 chars of
+        // padding (a===) is invalid for the RFC 4648 decoder.
+        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
+            MigrationPayloadParser.parseUri("otpauth-migration://offline?data=a===")
+        }
+        assertTrue(ex.reason == "malformed-base64" || ex.reason == "invalid-data-character")
+    }
+
+    @Test
+    fun `illegal base64 characters rejected`() {
+        val ex = assertThrows(MigrationPayloadParser.MigrationParseException::class.java) {
+            MigrationPayloadParser.parseUri("otpauth-migration://offline?data=!!!!")
+        }
+        assertTrue(ex.reason.isNotEmpty())
+    }
+
+    @Test
+    fun `type unspecified treated as totp`() {
+        // Google OtpType.UNSPECIFIED (0) is treated as TOTP by Google/Aegis/
+        // ente; native v2 maps it to an importable 30s TOTP.
+        val data = ProtoFixture.payload(listOf(ProtoFixture.otpEntry(type = ProtoFixture.TYPE_UNSPECIFIED)))
+        val e = MigrationPayloadParser.parseUri(uri(data)).entries[0]
+        assertEquals(MigrationEntryStatus.IMPORTABLE, e.status)
+        assertEquals("SHA1", e.algorithm)
+        assertEquals(6, e.digits)
+        assertEquals(30, e.periodSeconds)
+    }
+
+    private fun percentEncode(s: String): String {
+        val sb = StringBuilder()
+        for (c in s) {
+            when {
+                c.isLetterOrDigit() || c == '-' || c == '_' || c == '.' || c == '~' -> sb.append(c)
+                else -> sb.append('%').append(String.format("%02X", c.code and 0xff))
+            }
+        }
+        return sb.toString()
     }
 }

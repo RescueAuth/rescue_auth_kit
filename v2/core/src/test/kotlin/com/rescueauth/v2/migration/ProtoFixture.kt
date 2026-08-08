@@ -7,6 +7,16 @@ package com.rescueauth.v2.migration
  * Google Authenticator's `otpauth-migration` format uses, from raw bytes, so
  * the parser can be tested without a protobuf library and without any real
  * Google Authenticator credential.
+ *
+ * The enum values below match the **real Google migration schema** (verified
+ * against real GA v6.0 exports and independent implementations Aegis / ente
+ * auth / Go otpauth):
+ *
+ * ```
+ * Algorithm  : 0 = UNSPECIFIED, 1 = SHA1, 2 = SHA256, 3 = SHA512, 4 = MD5
+ * DigitCount : 0 = UNSPECIFIED, 1 = SIX(6), 2 = EIGHT(8)
+ * OtpType    : 0 = UNSPECIFIED, 1 = HOTP, 2 = TOTP
+ * ```
  */
 internal object ProtoFixture {
 
@@ -42,15 +52,30 @@ internal object ProtoFixture {
     fun bytesField(fieldNumber: Int, value: ByteArray): ByteArray =
         lengthDelimited(fieldNumber, value)
 
+    // ---- Google migration enum values (verified, see class comment) ----
+    const val ALGO_UNSPECIFIED = 0
+    const val ALGO_SHA1 = 1
+    const val ALGO_SHA256 = 2
+    const val ALGO_SHA512 = 3
+    const val ALGO_MD5 = 4
+
+    const val DIGITS_UNSPECIFIED = 0
+    const val DIGITS_SIX = 1
+    const val DIGITS_EIGHT = 2
+
+    const val TYPE_UNSPECIFIED = 0
+    const val TYPE_HOTP = 1
+    const val TYPE_TOTP = 2
+
     fun otpEntry(
         secret: ByteArray? = byteArrayOf(
             0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x21, 0xde.toByte(), 0xad.toByte(), 0xbe.toByte(), 0xef.toByte(),
         ),
         name: String? = "alice@example.com",
         issuer: String? = "GitHub",
-        algorithm: Int = 1,
-        digits: Int = 6,
-        type: Int = 1,
+        algorithm: Int = ALGO_SHA1,
+        digits: Int = DIGITS_SIX,
+        type: Int = TYPE_TOTP,
         counter: Long = 0,
         id: String? = null,
     ): ByteArray {

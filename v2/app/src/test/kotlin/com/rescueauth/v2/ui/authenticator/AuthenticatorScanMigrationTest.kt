@@ -125,7 +125,7 @@ class AuthenticatorScanMigrationTest {
             MigrationTestFixtures.migrationUri(
                 listOf(
                     MigrationTestFixtures.otpEntry(name = "good@x.com", issuer = "GitHub"),
-                    MigrationTestFixtures.otpEntry(name = "hotp@x.com", issuer = "X", type = 0),
+                    MigrationTestFixtures.otpEntry(name = "hotp@x.com", issuer = "X", type = MigrationTestFixtures.TYPE_HOTP),
                 )
             )
         )
@@ -256,7 +256,7 @@ class AuthenticatorScanMigrationTest {
         vm.onQrScanned(
             MigrationTestFixtures.migrationUri(
                 listOf(
-                    MigrationTestFixtures.otpEntry(name = "hotp@x.com", type = 0),
+                    MigrationTestFixtures.otpEntry(name = "hotp@x.com", type = MigrationTestFixtures.TYPE_HOTP),
                     MigrationTestFixtures.otpEntry(name = "good@x.com", issuer = "GitHub"),
                 )
             )
