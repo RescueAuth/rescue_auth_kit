@@ -29,6 +29,23 @@
     <string name="totp_code_copied">Code copied</string>
     <string name="totp_copy_code">Copy code</string>
     <string name="totp_copy_code_description">Copy the current one-time password</string>
+    <string name="totp_delete">Delete</string>
+    <string name="totp_added_message">TOTP added</string>
+    <string name="totp_restored_message">TOTP restored</string>
+
+    <!-- Add TOTP sheet -->
+    <string name="add_totp_title">Add TOTP</string>
+    <string name="add_totp_mode_paste">Paste URI</string>
+    <string name="add_totp_mode_manual">Manual</string>
+    <string name="add_totp_uri_label">otpauth:// URI</string>
+    <string name="add_totp_provider_label">Provider / issuer</string>
+    <string name="add_totp_account_label">Account name</string>
+    <string name="add_totp_secret_label">Secret (Base32)</string>
+    <string name="add_totp_algorithm_label">Algorithm</string>
+    <string name="add_totp_digits_label">Digits</string>
+    <string name="add_totp_period_label">Period</string>
+    <string name="add_totp_confirm">Add</string>
+    <string name="common_cancel">Cancel</string>
 
     <!-- Recovery codes -->
     <string name="recovery_codes_title">Recovery codes</string>

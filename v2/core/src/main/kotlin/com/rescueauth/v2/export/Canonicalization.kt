@@ -93,7 +93,7 @@ object Canonicalization {
     /** TOTP algorithm token. */
     fun canonicalAlgorithm(value: String): String = value.trim().uppercase()
 
-    /** TOTP digits (allowed 6..8 per legacy validator; kept verbatim here). */
+    /** TOTP digits (frozen v1 contract 6..10; kept verbatim here). */
     fun canonicalDigits(value: Int): Int = value
 
     fun canonicalPeriod(value: Int): Int = value

@@ -80,6 +80,72 @@ class PackageValidatorTest {
     }
 
     @Test
+    fun outOfRangeHighDigitsRejected() {
+        val bad = SnapshotBuilder.account(
+            "acc-1", "GitHub", "alice",
+            totps = listOf(SnapshotBuilder.totp("totp-1", digits = 11)),
+        )
+        try {
+            PackageValidator.validate(VaultSnapshot(listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("digits"))
+        }
+    }
+
+    @Test
+    fun digitsNineAndTenAccepted() {
+        val account = SnapshotBuilder.account(
+            "acc-1", "GitHub", "alice",
+            totps = listOf(
+                SnapshotBuilder.totp("totp-1", digits = 9),
+                SnapshotBuilder.totp("totp-2", digits = 10),
+            ),
+        )
+        PackageValidator.validate(VaultSnapshot(listOf(account)))
+    }
+
+    @Test
+    fun outOfRangePeriodRejected() {
+        val bad = SnapshotBuilder.account(
+            "acc-1", "GitHub", "alice",
+            totps = listOf(SnapshotBuilder.totp("totp-1", period = 0)),
+        )
+        try {
+            PackageValidator.validate(VaultSnapshot(listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("period"))
+        }
+    }
+
+    @Test
+    fun outOfRangeHighPeriodRejected() {
+        val bad = SnapshotBuilder.account(
+            "acc-1", "GitHub", "alice",
+            totps = listOf(SnapshotBuilder.totp("totp-1", period = 121)),
+        )
+        try {
+            PackageValidator.validate(VaultSnapshot(listOf(bad)))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("period"))
+        }
+    }
+
+    @Test
+    fun periodOneAndOneTwentyAccepted() {
+        val account = SnapshotBuilder.account(
+            "acc-1", "GitHub", "alice",
+            totps = listOf(
+                SnapshotBuilder.totp("totp-1", period = 1),
+                SnapshotBuilder.totp("totp-2", period = 120),
+            ),
+        )
+        PackageValidator.validate(VaultSnapshot(listOf(account)))
+    }
+
+    @Test
     fun invalidBase32SecretRejected() {
         val bad = SnapshotBuilder.account(
             "acc-1", "GitHub", "alice",

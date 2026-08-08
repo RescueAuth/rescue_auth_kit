@@ -9,6 +9,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
 import com.rescueauth.v2.security.VaultKeyManager
+import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.session.SessionManager
 import com.rescueauth.v2.ui.RescueAuthApp
@@ -63,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         stateMachine = SecureSessionStateMachine()
         sessionManager = sessionManagerFactory?.invoke(this)
             ?: SessionManager(this, stateMachine, scope)
+        VaultAccess.sessionManager = sessionManager
 
         // Compose host for the app shell. The shell is presentation-only and
         // does not need the unlocked session; it never reads Vault data.
@@ -206,6 +208,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         sessionManager.lock()
+        VaultAccess.clear()
         scope.cancel()
     }
 }

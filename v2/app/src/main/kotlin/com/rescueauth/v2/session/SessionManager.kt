@@ -49,6 +49,12 @@ class SessionManager(
     /** @return the open database (null if not unlocked). */
     fun databaseOrNull(): RescueAuthDatabase? = database
 
+    /** Read-only access to the session state machine (used by repository wiring). */
+    val sessionState: SecureSessionStateMachine get() = stateMachine
+
+    /** Observable session state flow (used by UI collection). */
+    val sessionStateFlow: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> get() = stateMachine.state
+
     /** @return true if a wrapped VaultKey exists (first-run check). */
     fun needsFirstRunSetup(): Boolean = !vaultKeyManager.hasVaultKey
 

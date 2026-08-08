@@ -29,6 +29,23 @@
     <string name="totp_code_copied">验证码已复制</string>
     <string name="totp_copy_code">复制验证码</string>
     <string name="totp_copy_code_description">复制当前一次性密码</string>
+    <string name="totp_delete">删除</string>
+    <string name="totp_added_message">已添加 TOTP</string>
+    <string name="totp_restored_message">已恢复 TOTP</string>
+
+    <!-- Add TOTP sheet -->
+    <string name="add_totp_title">添加 TOTP</string>
+    <string name="add_totp_mode_paste">粘贴 URI</string>
+    <string name="add_totp_mode_manual">手动</string>
+    <string name="add_totp_uri_label">otpauth:// URI</string>
+    <string name="add_totp_provider_label">服务商 / 签发者</string>
+    <string name="add_totp_account_label">账户名</string>
+    <string name="add_totp_secret_label">密钥（Base32）</string>
+    <string name="add_totp_algorithm_label">算法</string>
+    <string name="add_totp_digits_label">位数</string>
+    <string name="add_totp_period_label">周期</string>
+    <string name="add_totp_confirm">添加</string>
+    <string name="common_cancel">取消</string>
 
     <!-- Recovery codes -->
     <string name="recovery_codes_title">恢复码</string>

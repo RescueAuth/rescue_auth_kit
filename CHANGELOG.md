@@ -10,6 +10,36 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p1 totp-compat] - 2026-08-08（PR #23 merge 前 TOTP compatibility CR）
+
+Phase 4 P1 merge 前的最小 TOTP 兼容性修正（Issue #20）。**冻结 v1 Authenticator
+契约：digits 6..10、period 1..120**（默认仍为 SHA1 / 6 / 30）。避免后续
+Legacy Import 产生无法正常使用的已迁移 credential。
+
+### Changed
+
+- `TotpParameters`：`SUPPORTED_DIGITS` 扩为 **6..10**；新增
+  `MIN_DIGITS` / `MAX_DIGITS` / `MIN_PERIOD_SECONDS` / `MAX_PERIOD_SECONDS`
+  （1..120）作为正式 domain contract 单一来源。
+- `TotpCore.generate`：支持 **9/10-digit** 生成（`mod 1e9 / 1e10`）；
+  `validate` / `remainingSeconds` 的 period 校验改为 **1..120**。
+- `OtpauthParser`：接受 digits 6..10、period 1..120；超范围拒绝。
+- `AuthenticatorRepository.addTotpCredential`（Manual Entry validation）对齐
+  正式 domain contract（digits 6..10、period 1..120）。
+- `AddTotpSheet`：Manual Entry 的 Digits 选择器覆盖 6..10，Period 选择器覆盖
+  1 / 30 / 60 / 120（`FlowRow` 换行）。
+- `PackageValidator` / `Canonicalization` 注释同步正式契约；period 校验对齐 1..120。
+- `ROADMAP.md §4.2` / `PHASE4_P1_REPORT.md` 同步 digits/period 契约描述。
+
+### Tests（全部通过）
+
+- `:core:test`：TotpCore 9/10-digit generation、period=1/120、超范围
+  digits(5/11)/period(0/121) 拒绝；Parser digits=9/10、period=1/120 解析、
+  超范围拒绝；PackageValidator 新边界。
+- `:app:testDebugUnitTest`：Repository 新增 9/10-digit、period 1/120 持久化；
+  **已有 Provider+Account 再添加第二个 TOTP 复用 Account、不创建重复
+  Provider/Account** 确认测试。
+- `:app:lintDebug` / `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 均 PASS。
 ## [v2 phase3b encrypted-package-codec] - 2026-08-08（Phase 3B：Encrypted Portable Package Codec）
 
 Phase 3B 独立 PR（不进入 3C/3D）：纯 Kotlin/JVM 加密 package codec。

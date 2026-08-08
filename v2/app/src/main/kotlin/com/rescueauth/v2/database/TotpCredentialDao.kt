@@ -18,6 +18,15 @@ interface TotpCredentialDao {
     @Query("SELECT * FROM totp_credential")
     suspend fun listAll(): List<TotpCredentialEntity>
 
+    @Query("SELECT * FROM totp_credential ORDER BY createdAt")
+    fun observeAll(): Flow<List<TotpCredentialEntity>>
+
+    @Query("SELECT * FROM totp_credential WHERE id = :id")
+    suspend fun getById(id: String): TotpCredentialEntity?
+
+    @Query("SELECT * FROM totp_credential WHERE stableId = :stableId")
+    suspend fun getByStableId(stableId: String): TotpCredentialEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(credentials: List<TotpCredentialEntity>)
 
@@ -26,4 +35,7 @@ interface TotpCredentialDao {
 
     @Query("DELETE FROM totp_credential WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT COUNT(*) FROM totp_credential WHERE accountId = :accountId")
+    suspend fun countByAccount(accountId: String): Int
 }

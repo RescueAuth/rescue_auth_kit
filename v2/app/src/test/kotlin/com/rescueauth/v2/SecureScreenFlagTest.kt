@@ -77,5 +77,11 @@ class SecureScreenFlagTest {
                 flags.toString(16) + ")",
             flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
         )
+
+        // Tear the activity down so its Compose / background coroutines are
+        // cancelled — otherwise the zombie resumed activity keeps the Compose
+        // idling system busy for later UI tests in the same JVM.
+        controller.pause().stop().destroy()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 }

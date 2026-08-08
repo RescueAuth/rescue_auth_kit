@@ -21,9 +21,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rescueauth.v2.ui.components.UndoSnackbarHost
+import com.rescueauth.v2.ui.authenticator.AuthenticatorRoute
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
-import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
 
@@ -51,7 +51,6 @@ object RescueAuthTestTags {
 fun RescueAuthApp(
     modifier: Modifier = Modifier,
     versionName: String? = null,
-    onAuthenticatorAdd: (() -> Unit)? = null,
     onDeveloperAdd: (() -> Unit)? = null,
 ) {
     val navController = rememberNavController()
@@ -99,8 +98,7 @@ fun RescueAuthApp(
             modifier = Modifier.padding(padding),
         ) {
             composable(RescueAuthRoutes.AUTHENTICATOR) {
-                AuthenticatorScreen(
-                    onAddClick = onAuthenticatorAdd,
+                AuthenticatorRoute(
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR),
                 )
             }

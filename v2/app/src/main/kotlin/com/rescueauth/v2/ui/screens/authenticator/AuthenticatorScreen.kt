@@ -11,6 +11,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -18,36 +20,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.authenticator.AuthenticatorUiState
+import com.rescueauth.v2.ui.authenticator.TotpCardUi
 import com.rescueauth.v2.ui.components.EmptyState
-import com.rescueauth.v2.ui.components.ProviderAccountListItem
+import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.TotpCard
-import com.rescueauth.v2.ui.model.AccountUi
-import com.rescueauth.v2.ui.model.ProviderUi
-import com.rescueauth.v2.ui.model.TotpCredentialUi
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
- * Authenticator top-level screen.
+ * Authenticator top-level screen — production data path (Phase 4 P1).
  *
- * Future structure (contract only, no persistence):
- * Provider → Account → TOTP / Recovery Codes.
- * This foundation shows provider/account groups with TOTP cards; the add
- * action and detail navigation belong to later vertical slices.
+ * Renders the real TOTP list ([uiState]) with live codes + countdown, an
+ * EmptyState for an empty vault and a FAB that opens the Add TOTP flow (owned
+ * by the caller/Route). Composable never touches Room entities; it only
+ * consumes UI models and callbacks.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthenticatorScreen(
     modifier: Modifier = Modifier,
-    providers: List<ProviderUi> = emptyList(),
+    uiState: AuthenticatorUiState = AuthenticatorUiState(),
+    snackbarHostState: SnackbarHostState? = null,
     onAddClick: (() -> Unit)? = null,
-    onAccountClick: ((AccountUi) -> Unit)? = null,
+    onCopyClick: ((TotpCardUi) -> Unit)? = null,
+    onDeleteClick: ((TotpCardUi) -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.authenticator_title)) })
         },
+        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = {
             if (onAddClick != null) {
                 FloatingActionButton(onClick = onAddClick) {
@@ -59,40 +63,39 @@ fun AuthenticatorScreen(
             }
         },
     ) { padding ->
-        if (providers.isEmpty()) {
-            EmptyState(
-                title = stringResource(R.string.authenticator_empty_title),
-                body = stringResource(R.string.authenticator_empty_body),
-                modifier = Modifier.padding(padding),
-            )
-        } else {
-            // Flatten providers -> accounts -> totps into ordered list entries so
-            // the LazyColumn DSL can call item()/items() from a composable scope.
-            val entries = providers.flatMap { provider ->
-                provider.accounts.flatMap { account ->
-                    val accountEntry = AuthenticatorListEntry.Account(account)
-                    val totpEntries = account.totpCredentials.map { AuthenticatorListEntry.Totp(it) }
-                    listOf(accountEntry) + totpEntries
-                }
+        when {
+            uiState.loading -> {
+                LoadingState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                )
             }
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                entries.forEach { entry ->
-                    when (entry) {
-                        is AuthenticatorListEntry.Account -> item(key = "account-${entry.account.id}") {
-                            ProviderAccountListItem(
-                                account = entry.account,
-                                onClick = onAccountClick?.let { { it(entry.account) } },
-                            )
-                        }
-                        is AuthenticatorListEntry.Totp -> item(key = "totp-${entry.totp.id}") {
-                            TotpCard(credential = entry.totp)
-                        }
+            uiState.isEmpty -> {
+                EmptyState(
+                    title = stringResource(R.string.authenticator_empty_title),
+                    body = stringResource(R.string.authenticator_empty_body),
+                    modifier = Modifier.padding(padding),
+                )
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    items(
+                        count = uiState.totpCards.size,
+                        key = { index -> uiState.totpCards[index].credentialId },
+                    ) { index ->
+                        val card = uiState.totpCards[index]
+                        TotpCard(
+                            credential = card,
+                            onCopyClick = onCopyClick?.let { { it(card) } },
+                            onDeleteClick = onDeleteClick?.let { { it(card) } },
+                        )
                     }
                 }
             }
@@ -100,47 +103,41 @@ fun AuthenticatorScreen(
     }
 }
 
-/** Internal list entry type (avoids composing inside a non-composable forEach). */
-private sealed interface AuthenticatorListEntry {
-    data class Account(val account: AccountUi) : AuthenticatorListEntry
-    data class Totp(val totp: TotpCredentialUi) : AuthenticatorListEntry
-}
-
-/** Preview fixture — never injected into production flows. */
-private val previewProviders = listOf(
-    ProviderUi(
-        id = "p1",
-        serviceName = "GitHub",
-        accounts = listOf(
-            AccountUi(
-                id = "a1",
-                providerName = "GitHub",
-                accountName = "alice@example.com",
-                totpCredentials = listOf(
-                    TotpCredentialUi(
-                        id = "t1",
-                        issuer = "GitHub",
-                        accountName = "alice@example.com",
-                        currentCode = "123 456",
-                    ),
-                ),
-            ),
-        ),
-    ),
-)
-
 @Preview(showBackground = true)
 @Composable
-private fun AuthenticatorScreenWithDataPreview() {
+private fun AuthenticatorScreenEmptyPreview() {
     RescueAuthTheme {
-        AuthenticatorScreen(providers = previewProviders)
+        AuthenticatorScreen(
+            uiState = AuthenticatorUiState(loading = false, totpCards = emptyList()),
+            onAddClick = {},
+        )
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun AuthenticatorScreenEmptyPreview() {
+private fun AuthenticatorScreenWithDataPreview() {
     RescueAuthTheme {
-        AuthenticatorScreen(providers = emptyList())
+        AuthenticatorScreen(
+            uiState = AuthenticatorUiState(
+                loading = false,
+                totpCards = listOf(
+                    TotpCardUi(
+                        credentialId = "t1",
+                        stableId = "t1",
+                        accountId = "a1",
+                        issuer = "GitHub",
+                        accountName = "alice@example.com",
+                        algorithm = "SHA1",
+                        digits = 6,
+                        periodSeconds = 30,
+                        currentCode = "123 456",
+                        remainingSeconds = 24,
+                        progressFraction = 0.8f,
+                    ),
+                ),
+            ),
+            onAddClick = {},
+        )
     }
 }

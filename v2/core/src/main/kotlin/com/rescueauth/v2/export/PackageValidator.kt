@@ -172,7 +172,8 @@ object PackageValidator {
             algo.isEmpty() -> throw ValidationException("missing TOTP algorithm for ${t.stableId}")
             algo !in SUPPORTED_ALGORITHMS -> throw ValidationException("unknown TOTP algorithm '$algo' for ${t.stableId}")
             t.digits !in SUPPORTED_DIGITS -> throw ValidationException("invalid TOTP digits '${t.digits}' for ${t.stableId}")
-            t.periodSeconds <= 0 -> throw ValidationException("invalid TOTP period '${t.periodSeconds}' for ${t.stableId}")
+            t.periodSeconds !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS ->
+                throw ValidationException("invalid TOTP period '${t.periodSeconds}' for ${t.stableId}")
         }
         if (!TotpParameters.isValidBase32(t.secretBase32)) {
             throw ValidationException("invalid base32 secret for ${t.stableId}")
