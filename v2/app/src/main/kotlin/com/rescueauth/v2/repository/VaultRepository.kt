@@ -122,6 +122,29 @@ class VaultRepository(
     }
 
     /**
+     * Phase 3D: builds a **consistent** logical snapshot of the CURRENT local
+     * Vault for Full Vault Export (Issue #1 §17).
+     *
+     * Same serialized boundary as [buildDestinationSnapshot] (single mutex + a
+     * single Room transaction) so an export never observes an interleaved
+     * mutation — it cannot read Provider A, then have the user delete Account B
+     * mid-snapshot, then read a stale/missing child.
+     *
+     * Unlike [buildDestinationSnapshot] (a merge internal helper), this is the
+     * dedicated **export** boundary. It does not mint new identities and does
+     * not write anything; it returns a snapshot whose records carry the real
+     * stableIds, exactly as they will be re-imported on another device.
+     */
+    suspend fun buildConsistentExportSnapshot(): VaultSnapshot {
+        checkUnlocked()
+        return mutex.withLock {
+            db.withTransaction {
+                buildDestinationSnapshot()
+            }
+        }
+    }
+
+    /**
      * Phase 3C: transactional import/merge entry point.
      *
      * ```

@@ -101,10 +101,79 @@
     <string name="settings_title">Settings</string>
     <string name="settings_security_section">Security</string>
     <string name="settings_about_section">About</string>
-    <string name="settings_export_package">Export package</string>
-    <string name="settings_import_package">Import package</string>
-    <string name="settings_export_import_notice">Export and import are part of a later vertical slice and are shown here as placeholders only.</string>
+    <string name="settings_backup_transfer_section">Backup / Transfer</string>
+    <string name="settings_export_vault">Export Vault</string>
+    <string name="settings_export_vault_subtitle">Create an encrypted package of your entire vault</string>
+    <string name="settings_import_native">Import Native Package</string>
+    <string name="settings_import_native_subtitle">Import a Rescue Auth package (merge-first)</string>
+    <string name="settings_backup_transfer_notice">Export is manual. Each package is protected by its own PIN, and importing always merges into your existing vault.</string>
     <string name="settings_version">Version %1$s</string>
+
+    <!-- Phase 3D Export / Import -->
+    <string name="export_title">Export Vault</string>
+    <string name="export_intro">Create an encrypted portable package of your entire vault — Authenticator, Recovery Codes and Developer Vault.</string>
+    <string name="export_full_vault_notice">This exports the full vault (FULL_VAULT scope). Selective export will come in a later release.</string>
+    <string name="export_start">Choose destination</string>
+    <string name="export_pin_title">Set a PIN for this package</string>
+    <string name="export_pin_policy">This PIN protects only this export. It is not stored and does not change your vault unlock.</string>
+    <string name="export_success">Export complete</string>
+    <string name="export_success_detail">Your encrypted package was saved. Keep the PIN you chose — you will need it to import this package.</string>
+    <string name="export_done">Done</string>
+    <string name="export_error_title">Export failed</string>
+
+    <string name="import_title">Import Native Package</string>
+    <string name="import_intro">Choose a Rescue Auth package file to preview and merge into your vault. Importing never overwrites your existing data.</string>
+    <string name="import_pick_file">Choose package file</string>
+    <string name="import_pin_title">Enter package PIN</string>
+    <string name="import_pin_policy">Enter the PIN that was set when this package was exported.</string>
+    <string name="import_error_title">Import failed</string>
+
+    <!-- PIN entry -->
+    <string name="pin_label">PIN</string>
+    <string name="pin_confirm_label">Confirm PIN</string>
+    <string name="pin_submit">Continue</string>
+    <string name="pin_show">Show</string>
+    <string name="pin_hide">Hide</string>
+    <string name="pin_policy_error">PIN must be %1$d–%2$d digits.</string>
+    <string name="pin_mismatch_error">PINs do not match.</string>
+
+    <!-- Import preview -->
+    <string name="preview_title">Import preview</string>
+    <string name="preview_package_meta">Package</string>
+    <string name="preview_scope">Scope</string>
+    <string name="preview_created">Exported</string>
+    <string name="preview_source">Source</string>
+    <string name="preview_content_title">Contents</string>
+    <string name="preview_accounts">Providers / accounts</string>
+    <string name="preview_totp">TOTP credentials</string>
+    <string name="preview_recovery_sets">Recovery code sets</string>
+    <string name="preview_recovery_codes">Recovery codes</string>
+    <string name="preview_developer">Developer entries</string>
+    <string name="preview_dev_signing">Android signing keys</string>
+    <string name="preview_dev_api">API credentials</string>
+    <string name="preview_dev_ssh">SSH keys</string>
+    <string name="preview_dev_env">Environment variable sets</string>
+    <string name="preview_dev_generic">Generic secrets</string>
+    <string name="preview_merge_title">Merge summary</string>
+    <string name="preview_inserts">To add</string>
+    <string name="preview_duplicates">Duplicates (skipped)</string>
+    <string name="preview_conflicts">Conflicts</string>
+    <string name="preview_unchanged">Unchanged</string>
+    <string name="preview_divergences">Recovery state divergences</string>
+    <string name="preview_blocked_title">Import cannot be applied automatically</string>
+    <string name="preview_blocked_body">This package conflicts with your current vault or has recovery-code state differences. No data will be imported.</string>
+    <string name="preview_blocked_hint">You can go back and choose a different package.</string>
+    <string name="preview_confirm_import">Confirm import</string>
+
+    <!-- Import result -->
+    <string name="import_result_title">Import complete</string>
+    <string name="import_result_nothing_new">Nothing new to import.</string>
+    <string name="import_result_summary">Imported %1$d item(s). Duplicates skipped: %2$d. Developer entries imported: %3$d.</string>
+    <string name="import_result_blocked_title">Import not applied</string>
+    <string name="import_result_blocked_body">This package could not be applied automatically because it has %1$d conflict(s) and %2$d recovery-state divergence(s). Nothing was imported.</string>
+
+    <string name="common_working">Working…</string>
+    <string name="common_close">Close</string>
 
     <!-- Common states -->
     <string name="common_loading">Loading…</string>

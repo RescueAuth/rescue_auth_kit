@@ -101,10 +101,79 @@
     <string name="settings_title">设置</string>
     <string name="settings_security_section">安全</string>
     <string name="settings_about_section">关于</string>
-    <string name="settings_export_package">导出数据包</string>
-    <string name="settings_import_package">导入数据包</string>
-    <string name="settings_export_import_notice">导出与导入属于后续垂直切片，此处仅为占位入口。</string>
+    <string name="settings_backup_transfer_section">备份 / 迁移</string>
+    <string name="settings_export_vault">导出保险库</string>
+    <string name="settings_export_vault_subtitle">创建整个保险库的加密数据包</string>
+    <string name="settings_import_native">导入原生数据包</string>
+    <string name="settings_import_native_subtitle">导入 Rescue Auth 数据包（合并优先）</string>
+    <string name="settings_backup_transfer_notice">导出为手动操作。每个数据包由独立 PIN 保护，导入始终与现有保险库合并。</string>
     <string name="settings_version">版本 %1$s</string>
+
+    <!-- Phase 3D Export / Import -->
+    <string name="export_title">导出保险库</string>
+    <string name="export_intro">创建整个保险库的加密便携数据包，包含认证器、恢复码和开发者保险库。</string>
+    <string name="export_full_vault_notice">本操作导出完整保险库（FULL_VAULT 范围）。选择性导出将在后续版本提供。</string>
+    <string name="export_start">选择保存位置</string>
+    <string name="export_pin_title">为此数据包设置 PIN</string>
+    <string name="export_pin_policy">该 PIN 仅保护本次导出，不会保存，也不会改变保险库解锁方式。</string>
+    <string name="export_success">导出完成</string>
+    <string name="export_success_detail">加密数据包已保存。请牢记您设置的 PIN，导入此数据包时需要用到。</string>
+    <string name="export_done">完成</string>
+    <string name="export_error_title">导出失败</string>
+
+    <string name="import_title">导入原生数据包</string>
+    <string name="import_intro">选择 Rescue Auth 数据包文件进行预览并合并到保险库。导入绝不会覆盖现有数据。</string>
+    <string name="import_pick_file">选择数据包文件</string>
+    <string name="import_pin_title">输入数据包 PIN</string>
+    <string name="import_pin_policy">请输入导出此数据包时设置的 PIN。</string>
+    <string name="import_error_title">导入失败</string>
+
+    <!-- PIN entry -->
+    <string name="pin_label">PIN</string>
+    <string name="pin_confirm_label">确认 PIN</string>
+    <string name="pin_submit">继续</string>
+    <string name="pin_show">显示</string>
+    <string name="pin_hide">隐藏</string>
+    <string name="pin_policy_error">PIN 必须为 %1$d–%2$d 位数字。</string>
+    <string name="pin_mismatch_error">两次输入的 PIN 不一致。</string>
+
+    <!-- Import preview -->
+    <string name="preview_title">导入预览</string>
+    <string name="preview_package_meta">数据包</string>
+    <string name="preview_scope">范围</string>
+    <string name="preview_created">导出时间</string>
+    <string name="preview_source">来源</string>
+    <string name="preview_content_title">内容</string>
+    <string name="preview_accounts">服务 / 账户</string>
+    <string name="preview_totp">TOTP 凭据</string>
+    <string name="preview_recovery_sets">恢复码组</string>
+    <string name="preview_recovery_codes">恢复码</string>
+    <string name="preview_developer">开发者条目</string>
+    <string name="preview_dev_signing">Android 签名密钥</string>
+    <string name="preview_dev_api">API 凭据</string>
+    <string name="preview_dev_ssh">SSH 密钥</string>
+    <string name="preview_dev_env">环境变量集</string>
+    <string name="preview_dev_generic">通用机密</string>
+    <string name="preview_merge_title">合并摘要</string>
+    <string name="preview_inserts">将新增</string>
+    <string name="preview_duplicates">重复（跳过）</string>
+    <string name="preview_conflicts">冲突</string>
+    <string name="preview_unchanged">保持不变</string>
+    <string name="preview_divergences">恢复码状态差异</string>
+    <string name="preview_blocked_title">无法自动应用导入</string>
+    <string name="preview_blocked_body">此数据包与当前保险库存在冲突或恢复码状态差异，不会导入任何数据。</string>
+    <string name="preview_blocked_hint">您可以返回并选择其他数据包。</string>
+    <string name="preview_confirm_import">确认导入</string>
+
+    <!-- Import result -->
+    <string name="import_result_title">导入完成</string>
+    <string name="import_result_nothing_new">没有需要导入的新内容。</string>
+    <string name="import_result_summary">已导入 %1$d 项。跳过重复 %2$d 项。开发者条目导入 %3$d 项。</string>
+    <string name="import_result_blocked_title">未应用导入</string>
+    <string name="import_result_blocked_body">此数据包无法自动应用，因为存在 %1$d 处冲突和 %2$d 处恢复码状态差异。未导入任何数据。</string>
+
+    <string name="common_working">处理中…</string>
+    <string name="common_close">关闭</string>
 
     <!-- Common states -->
     <string name="common_loading">正在加载…</string>

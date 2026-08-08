@@ -1,9 +1,12 @@
 package com.rescueauth.v2.ui.screens.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -47,19 +50,21 @@ fun SettingsScreen(
                 .padding(horizontal = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            SettingsSectionLabel(stringResource(R.string.settings_security_section))
+            SettingsSectionLabel(stringResource(R.string.settings_backup_transfer_section))
             SettingsRow(
-                title = stringResource(R.string.settings_export_package),
+                title = stringResource(R.string.settings_export_vault),
+                subtitle = stringResource(R.string.settings_export_vault_subtitle),
                 enabled = onExportClick != null,
                 onClick = onExportClick,
             )
             SettingsRow(
-                title = stringResource(R.string.settings_import_package),
+                title = stringResource(R.string.settings_import_native),
+                subtitle = stringResource(R.string.settings_import_native_subtitle),
                 enabled = onImportClick != null,
                 onClick = onImportClick,
             )
             Text(
-                text = stringResource(R.string.settings_export_import_notice),
+                text = stringResource(R.string.settings_backup_transfer_notice),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = Spacing.sm),
@@ -91,6 +96,7 @@ private fun SettingsSectionLabel(text: String) {
 @Composable
 private fun SettingsRow(
     title: String,
+    subtitle: String? = null,
     enabled: Boolean,
     onClick: (() -> Unit)?,
 ) {
@@ -99,14 +105,26 @@ private fun SettingsRow(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Text(
-        text = title,
-        style = MaterialTheme.typography.bodyLarge,
-        color = contentColor,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = { onClick?.invoke() })
             .padding(vertical = Spacing.sm),
-    )
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = contentColor,
+        )
+        if (subtitle != null) {
+            Spacer(modifier = Modifier.height(Spacing.xxs))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Preview(showBackground = true)

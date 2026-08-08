@@ -25,6 +25,8 @@ import com.rescueauth.v2.ui.authenticator.AuthenticatorRoute
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
+import com.rescueauth.v2.ui.screens.exportimport.ExportImportMode
+import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
 
 object RescueAuthTestTags {
@@ -111,7 +113,23 @@ fun RescueAuthApp(
             composable(RescueAuthRoutes.SETTINGS) {
                 SettingsScreen(
                     versionName = versionName,
+                    onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
+                    onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_SETTINGS),
+                )
+            }
+            composable(RescueAuthRoutes.EXPORT) {
+                ExportImportRoute(
+                    mode = ExportImportMode.EXPORT,
+                    onBack = { navController.popBackStack() },
+                    modifier = Modifier.testTag("screen_export"),
+                )
+            }
+            composable(RescueAuthRoutes.IMPORT) {
+                ExportImportRoute(
+                    mode = ExportImportMode.IMPORT,
+                    onBack = { navController.popBackStack() },
+                    modifier = Modifier.testTag("screen_import"),
                 )
             }
         }

@@ -1,9 +1,10 @@
-# PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A/3B/3C 实现报告
+# PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A/3B/3C/3D 实现报告
 
-> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B + Phase 3C 的实现报告，也是后续
-> 3D 的唯一事实依据。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
+> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B + Phase 3C + Phase 3D 的实现报告，也是后续
+> 3D 验收 / Phase 4 的唯一事实依据。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
 > Encrypted Package Codec 已实现（PR #22）；Phase 3C Transactional Import /
-> Merge Apply 已实现（独立 PR）。
+> Merge Apply 已实现（独立 PR）；Phase 3D Android Export / Import + Package
+> Preview 已实现（独立 PR，见 §12）。
 
 ## 1. Phase 3 architecture reset
 
@@ -386,13 +387,13 @@ merge 前 review 提出的 3 个 codec contract blocker 已按最小修正完成
 | Phase 3 | **STARTED** |
 | Phase 3A | **PACKAGE + MERGE FOUNDATION**（已实现，PR #18，**CLOSED**） |
 | Phase 3B | **ENCRYPTED PACKAGE CODEC**（已实现，PR #22，**CLOSED**） |
-| Phase 3C | **TRANSACTIONAL IMPORT / MERGE APPLY**（本轮实现，PR OPEN，见 §11 / ADR-0008） |
-| Phase 3D | NOT STARTED（Android manual Export/Import UI + SAF + import preview + conflict resolution） |
+| Phase 3C | **TRANSACTIONAL IMPORT / MERGE APPLY**（已实现，PR CLOSED，见 §11 / ADR-0008） |
+| Phase 3D | **IMPLEMENTED / PR OPEN**（Android manual Export/Import UI + SAF + import preview，见 §12） |
 | Phase 4+ | P1 CLOSED；其余 NOT STARTED |
 
-## 11. Phase 3C — Transactional Import / Merge Apply（已实现，PR OPEN）
+## 11. Phase 3C — Transactional Import / Merge Apply（已实现，PR CLOSED）
 
-> 状态：**Phase 3A CLOSED / 3B CLOSED / 3C IMPLEMENTED / 3D NOT STARTED**。
+> 状态：**Phase 3A CLOSED / 3B CLOSED / 3C CLOSED / 3D IMPLEMENTED**。
 > 本轮不做 SAF / Export UI / Import UI / PIN dialog / preview / conflict
 > resolution UI / Developer UI（均属 3D 或后续 slice）。
 
@@ -548,9 +549,195 @@ VaultPackagePayload → PackageValidator → MergePlanner
   secret。
 - Persistence：apply → close/reopen → imported state 仍在。
 
-### 11.14 Remaining Phase 3D scope
+### 11.14 Remaining Phase 3D scope（已交付，见 §12）
 
-- SAF / file picker / Export UI / Import UI / package PIN dialog / preview
-  screen / conflict resolution UI / Developer UI / Selective Import UI；
-  ImportRecord 报告展示；Android export 端把 `buildDestinationSnapshot`
-  接到 3B codec。
+Phase 3D 已实现：SAF / file picker / Export UI / Import UI / package PIN
+对话框 / preview screen / Import all（走同一 Merge Engine）。
+
+仍属 3D 之后的 scope（不提前实现）：conflict resolution UI / Developer
+UI / Selective Import UI；ImportRecord 报告展示；Sensitive-action fresh
+re-auth → Phase 4 P4。
+
+## 12. Phase 3D — Android Export / Import + Package Preview（已实现，PR OPEN）
+
+> 状态：**Phase 3A CLOSED / 3B CLOSED / 3C CLOSED / 3D IMPLEMENTED / PR OPEN**。
+> 本轮把 3A/3B/3C 接成真正的 Android 用户闭环（SAF 文件 + per-export PIN
+> 对话框 + import preview + confirm transactional apply）。完整 PR 报告见
+> PR body。
+
+### 12.1 Architecture（strict boundary，Issue #1 §1）
+
+```
+Compose
+  → ExportImportViewModel（coordinator，纯 JVM 可测）
+  → ExportImportService（use-case，app 模块）
+  → VaultRepository / PortablePackageCodec（复用 3A/3B/3C）
+```
+
+- UI 不直接访问 DAO；Composable 不直接调用 codec / Room。
+- 复用：`PortablePackageCodec`（3B）、`PackageValidator` / `MergePlanner` /
+  `PackageIdentifier`（3A）、`VaultRepository.applyMergePlan` /
+  `buildConsistentExportSnapshot`（3C）。
+- 未重新实现：crypto / package format / Argon2 / XChaCha20 / serialization /
+  semantic fingerprint / merge rules / transactional apply。
+- 未创建 GenericImporter / GenericEncryptedFileImporter —— Native 与 Legacy
+  import 完全隔离（ROADMAP §9）。
+
+### 12.2 SAF export flow（Issue #1 §5 / §8）
+
+```
+Export Vault（Settings → Backup/Transfer）
+  → SAF CreateDocument（.rakpkg，MIME hint）
+  → per-export PIN 对话框（输入 + 确认，隐藏/短暂 reveal）
+  → ExportImportService.encodeFullVaultExport
+      = VaultRepository.buildConsistentExportSnapshot（FULL_VAULT scope）
+        → VaultPackagePayload（packageId/createdAt/source metadata）
+        → PortablePackageCodec.encode(pin)
+  → SAF OutputStream 只写 encrypted package bytes
+  → success/failure
+```
+
+- 快照一致性：`buildConsistentExportSnapshot` 在 repository mutex + 单
+  Room 事务内构造（Issue #1 §17）。
+- 只允许 encrypted package bytes 离开 App：不写 plaintext 临时文件、
+  不把 decrypted snapshot 写 cache、不把 PackageKey/KEK/PIN 落盘、不写日志。
+- 写失败：明确返回 export failure；best-effort delete 部分 document
+  （provider 支持时），不 crash、不宣称成功（Issue #1 §8）。
+- 取消任一步（SAF 取消 / PIN 取消）→ 不产生 error 状态。
+
+### 12.3 SAF import flow（Issue #1 §5 / §7 / §11 / §24）
+
+```
+Import Native Package（Settings → Backup/Transfer）
+  → SAF OpenDocument（*/*）
+  → readPrefix → PackageIdentifier（native magic 检查，非 native 立即拒绝）
+  → package PIN 对话框（输入一次）
+  → BoundedPackageReader.readBounded（流式增量读取，最多 16 MiB + 1，超限即拒）
+  → PortablePackageCodec.decode(pin)
+  → PackageValidator
+  → VaultRepository.buildDestinationSnapshot（当前真实 destination）
+  → MergePlanner.plan → safe ImportPreview
+  → user confirm → VaultRepository.applyMergePlan（Phase 3C 最终 authority）
+  → result
+```
+
+- SAF input 是不可信数据：不信任 MIME / displayName / extension /
+  `OpenableColumns.SIZE`；最终以实际 package bytes + codec validation 为准
+  （Issue #1 §7）。
+- bounded reader 是纯 Kotlin / JVM 可测 utility（`:core`），SAF adapter
+  保持很薄（Issue #1 §24）。
+- wrong PIN / corruption 统一为 `AuthenticationFailed`，UI 文案为
+  “Wrong PIN or corrupted package”，绝不显示底层 crypto exception。
+
+### 12.4 Preview 模型 + secret-redaction（Issue #1 §12 / §25）
+
+- `ImportPreview` 只含安全 summary：package metadata（scope / createdAt /
+  source）、内容计数（Provider/Account / TOTP / recovery sets/codes /
+  Developer 五类 counts）、merge summary（inserts / duplicates / conflicts /
+  unchanged / stateDivergences）。
+- Developer 条目只展示非敏感 metadata（type / title / project/service/key
+  name），**不展示** TOTP secret / recovery values / API keys / SSH key
+  内容 / passwords / env values / generic values / keystore bytes。
+- 测试锁定：preview 的字符串形式不包含任何 secret。
+
+### 12.5 Conflict / divergence UX（Issue #1 §13）
+
+- preview 有 unresolved CONFLICT 或 recovery used/unused divergence →
+  `blocked`：显示“Import cannot be applied automatically” + N conflicts /
+  N state divergences；用户只能 Cancel / Back，不能点 Import 强推
+  source/destination wins / overwrite all。
+- confirm 时仍由 Phase 3C `applyMergePlan` 重新 validate / plan / preflight /
+  apply —— preview plan 从不直接写库（Issue #1 §14）。若 destination 在
+  preview 与 confirm 之间变化，最终 apply 会安全 replan / block。
+
+### 12.6 Import session 敏感生命周期（Issue #1 §15 / §16 / §27）
+
+- decode 后的 `VaultPackagePayload`（含完整 plaintext secret）只存在于
+  `ExportImportService` 的内存 activeImportSession 中。
+- cancel import / successful apply / session LOCKED → 清除引用。
+- 不放入 SavedStateHandle / Bundle / rememberSaveable / disk cache /
+  DataStore / Room 临时表；process/state recreation 不恢复 plaintext。
+- App 在 import preview 期间 auto-lock → decrypted package session 失效，
+  unlock 后要求重新执行完整 import decode 流程。
+
+### 12.7 Per-export PIN UX / policy（Issue #1 §9）
+
+- Export：输入 PIN + 确认，两次一致才能继续；Import：只输入一次。
+- PIN 字段默认隐藏、可短暂 reveal；不写日志、不进 SavedStateHandle /
+  Bundle / rememberSaveable / 持久化；优先 CharArray，完成/取消/failure 后
+  best-effort 清理。
+- 具体 charset / min length：PACKAGE_FORMAT 未正式定义 → **不写入 codec
+  format**，只在 Android UI 层建立 `PinPolicy`（Product Policy constant）：
+  6–128 位纯数字（保守最小安全策略）。最终报告中明确列出，不作为
+  package-format requirement。
+
+### 12.8 Sensitive-action re-auth boundary（Issue #1 §10）
+
+- 本轮**不实现**完整 Sensitive Action Re-auth subsystem。
+- Export orchestration 有清晰单一入口（`ExportImportViewModel` 的 export
+  flow），以后 Phase 4 P4 可在 build snapshot / encode / write **之前**插入
+  fresh Biometric/Device-credential re-auth gate，无需重写 Export flow。
+- UI / 文档明确：fresh re-auth integration remains P4 dependency。
+- **不把 Phase 3D 宣称为最终 security-complete export UX。**
+
+### 12.9 Error taxonomy → Android UX（Issue #1 §19）
+
+`ExportImportError` 覆盖：user cancelled / cannot open document / read failed
+/ package too large / write failed / unsupported format / unsupported crypto /
+malformed package / invalid KDF params / authentication failed / logical
+payload invalid / session locked / unknown。UI 文案简洁、安全、可操作；
+不显示 stack trace / raw URI / secret / ciphertext / KDF internals。
+
+### 12.10 测试（Issue #1 §23–§27）
+
+`:core` 新增：`BoundedPackageReaderTest`（9，含 16 MiB 边界 / 超限 / 空文档
+/ lying SIZE / read failure）、`PackageIdentifierTest`（6，native/legacy
+隔离）。合计 422 tests，0 failures。
+
+`:app` 新增：
+
+- `ExportImportServiceTest`（31）：empty vault Full Export；Authenticator
+  export；Recovery export；五类 Developer export；binary keystore exact
+  round-trip；entered PIN decode；wrong PIN 不能 decode；同 vault 同 PIN 两次
+  export 不同字节；exported scope == FULL_VAULT；VaultKey 不在 package；写失败
+  返回 error；PIN confirm mismatch（policy 层）；valid package read；16 MiB
+  边界；>limit 拒绝；corrupted；wrong PIN；unsupported version；malformed；
+  各种 preview（empty destination inserts / duplicate-only / mixed /
+  conflict block / recovery divergence block / five-type counts / no secrets
+  / selected-scope / authenticator-only / developer-only）；apply（preview→
+  confirm→success；duplicate-only no-op；conflict block；apply failure 无
+  部分 DB 变更；重复导入幂等；**preview 后 destination 变化 → confirm 重新
+  plan 并安全 block**；**ImportRecord 只在成功路径写入**）；敏感生命周期
+  （cancel clears session / apply clears session / lock invalidates / PIN 不
+  进持久化 / 不序列化 payload）。
+- `ExportImportViewModelTest`（15）：export cancel 无 success；export 只写
+  encrypted bytes；write failure error；PIN policy；valid package → preview；
+  invalid magic；empty document；user cancel；read failure；preview→confirm→
+  apply；conflict block；duplicate-only；cancel/apply clears session；lock
+  invalidates；PIN 不进 UI state。
+
+> #43（apply → close/reopen DB → state persists）由 Phase 3C
+> `MergePlanApplyTest`（`apply then close reopen keeps imported state`）已覆盖；
+> #44/#45/#46 由 service + ViewModel 测试共同锁定。
+
+### 12.11 FTL 期望
+
+- 本轮修改 SAF / Compose / ContentResolver / 真实产品流程。本地已跑：
+  `:core:test`、`:app:testDebugUnitTest`、`:app:lintDebug`、
+  `:app:assembleDebug`、`:app:assembleDebugAndroidTest` 全绿。
+- 不主动运行 Firebase Test Lab；合入 main 后 changed-file gate 预计自动
+  触发 FTL。
+- instrumented 优先：ViewModel/orchestrator wiring、lock/session boundary
+  （不自动化真实系统文件 picker）。
+
+### 12.12 剩余依赖
+
+- Sensitive-action fresh re-auth → Phase 4 P4
+- Selective Export / Import UI → Phase 4 P5（同一 codec / package model，
+  复用 `VaultPackagePayload` / `SnapshotScope`）
+- Legacy Import UI → Phase 5
+- conflict resolution 产品策略 → 后续单独设计
+
+### 12.13 Changed files
+
+见 PR body（Phase 3D Final Report §16）。
