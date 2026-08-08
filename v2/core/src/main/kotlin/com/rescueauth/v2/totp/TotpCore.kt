@@ -40,8 +40,8 @@ object TotpCore {
      * @param secretBase32 RFC 4648 Base32 secret (case-insensitive; whitespace
      *   and `-` separators are ignored).
      * @param algorithm one of [SUPPORTED_ALGORITHMS].
-     * @param digits one of [SUPPORTED_DIGITS] (6/7/8).
-     * @param periodSeconds positive time step in seconds.
+     * @param digits one of [SUPPORTED_DIGITS] (6..10).
+     * @param periodSeconds time step in seconds (1..120).
      */
     fun generate(
         secretBase32: String,
@@ -82,6 +82,8 @@ object TotpCore {
             6 -> 1_000_000L
             7 -> 10_000_000L
             8 -> 100_000_000L
+            9 -> 1_000_000_000L
+            10 -> 10_000_000_000L
             else -> throw TotpException("invalid digits: $digits")
         }
         return (binary % modulo).toString().padStart(digits, '0')
@@ -92,7 +94,9 @@ object TotpCore {
      * `1..periodSeconds` (a freshly rotated code reports the full period).
      */
     fun remainingSeconds(unixTimeSeconds: Long, periodSeconds: Int): Int {
-        if (periodSeconds <= 0) throw TotpException("period must be positive")
+        if (periodSeconds !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS) {
+            throw TotpException("invalid period: $periodSeconds")
+        }
         val within = (unixTimeSeconds % periodSeconds).toInt() // 0..period-1
         return periodSeconds - within
     }
@@ -103,12 +107,17 @@ object TotpCore {
         return remaining.toFloat() / periodSeconds
     }
 
-    /** Validates algorithm / digits / period; throws [TotpException] on error. */
+    /**
+     * Validates algorithm / digits / period; throws [TotpException] on error.
+     * Digits must be in 6..10 and period in 1..120 (frozen v1 contract).
+     */
     fun validate(algorithm: String, digits: Int, periodSeconds: Int) {
         val algo = algorithm.trim().uppercase()
         if (algo !in SUPPORTED_ALGORITHMS) throw TotpException("unsupported algorithm: $algorithm")
         if (digits !in SUPPORTED_DIGITS) throw TotpException("invalid digits: $digits")
-        if (periodSeconds <= 0) throw TotpException("invalid period: $periodSeconds")
+        if (periodSeconds !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS) {
+            throw TotpException("invalid period: $periodSeconds")
+        }
     }
 
     /** True when [secretBase32] decodes to a non-empty valid Base32 payload. */

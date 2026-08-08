@@ -142,8 +142,8 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 - issuer / account name
 - Base32 secret
 - SHA1 / SHA256 / SHA512
-- digits（6/7/8，与 legacy validator 一致）
-- period
+- digits（6..10，冻结 v1 Authenticator 契约；默认 6）
+- period（1..120，默认 30）
 - code display + countdown
 - copy
 - delete

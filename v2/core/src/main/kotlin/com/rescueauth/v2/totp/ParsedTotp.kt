@@ -16,8 +16,8 @@ data class ParsedTotp(
     val secretBase32: String,
     /** SHA1 | SHA256 | SHA512 (defaults to SHA1). */
     val algorithm: String,
-    /** 6/7/8 (defaults to 6). */
+    /** 6..10 (defaults to 6). */
     val digits: Int,
-    /** positive seconds (defaults to 30). */
+    /** seconds in 1..120 (defaults to 30). */
     val periodSeconds: Int,
 )

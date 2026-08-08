@@ -29,7 +29,7 @@
   `javax.crypto.Mac`（与 legacy cross-check 同一 primitive，不重新实现
   crypto）。
 - 支持：Base32 secret（含 `=` 填充/大小写/分隔符归一化）、SHA1/SHA256/
-  SHA512、digits 6/7/8、period、timestamp 生成、
+  SHA512、digits 6..10、period 1..120（默认 6 / 30）、timestamp 生成、
   countdown（remainingSeconds / progressFraction）、validation。
 - 测试：RFC 4226 / RFC 6238 known vectors（SHA1/SHA256/SHA512）、digits、
   period boundary、countdown boundary。

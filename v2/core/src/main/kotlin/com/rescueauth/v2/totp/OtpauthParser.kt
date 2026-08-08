@@ -1,5 +1,7 @@
 package com.rescueauth.v2.totp
 
+import com.rescueauth.v2.export.TotpParameters
+
 /**
  * Pure Kotlin `otpauth://` URI parser for TOTP (Phase 4 P1).
  *
@@ -13,7 +15,7 @@ package com.rescueauth.v2.totp
  * Semantics follow the current product contract and old v1 behaviour:
  * - `issuer` query parameter wins over the `issuer:` label prefix;
  * - `algorithm` is case-insensitive (SHA1 default);
- * - `digits` / `period` are validated (6/7/8; positive integer);
+ * - `digits` (6..10) / `period` (1..120) are validated;
  * - secret must be present and valid Base32;
  * - `HOTP` and `otpauth-migration` are rejected.
  */
@@ -89,7 +91,9 @@ object OtpauthParser {
 
         val period = params["period"]?.let { parsePositiveInt(it, "period") }
             ?: TotpCore.DEFAULT_PERIOD_SECONDS
-        if (period <= 0) throw OtpauthParseException("invalid period '$period'")
+        if (period !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS) {
+            throw OtpauthParseException("invalid period '$period'")
+        }
 
         // issuer query parameter wins over the label prefix.
         val issuer = params["issuer"]?.let { percentDecode(it) }?.ifBlank { null }

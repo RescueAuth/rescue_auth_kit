@@ -68,20 +68,43 @@ class TotpCoreTest {
     }
 
     @Test
-    fun `digits 6 7 8 all work`() {
-        for (digits in listOf(6, 7, 8)) {
+    fun `digits 6 through 10 all work`() {
+        for (digits in 6..10) {
             val code = TotpCore.generate(RFC_SECRET, "SHA1", digits, 30, 59)
             assertEquals(digits, code.length)
         }
     }
 
     @Test
-    fun `invalid digits rejected`() {
+    fun `digits 9 generation known value`() {
+        // RFC 4226 secret, count 59 (period 30): 8-digit "94287082".
+        // The 9-digit value is the 8-digit value zero-padded to width 9.
+        val code = TotpCore.generate(RFC_SECRET, "SHA1", 9, 30, 59)
+        assertEquals("094287082", code)
+    }
+
+    @Test
+    fun `digits 10 generation known value`() {
+        // RFC 4226 secret, count 59 (period 30): 8-digit "94287082".
+        // The 10-digit value is the 8-digit value zero-padded to width 10.
+        val code = TotpCore.generate(RFC_SECRET, "SHA1", 10, 30, 59)
+        assertEquals("1094287082", code)
+    }
+
+    @Test
+    fun `digits 9 and 10 zero pad short binary`() {
+        // count 0 (period 30): 8-digit "84755224"; padded to 9/10 digits.
+        assertEquals("284755224", TotpCore.generate(RFC_SECRET, "SHA1", 9, 30, 0))
+        assertEquals("1284755224", TotpCore.generate(RFC_SECRET, "SHA1", 10, 30, 0))
+    }
+
+    @Test
+    fun `out of range digits rejected`() {
         assertThrows(TotpCore.TotpException::class.java) {
             TotpCore.generate(RFC_SECRET, "SHA1", 5, 30, 59)
         }
         assertThrows(TotpCore.TotpException::class.java) {
-            TotpCore.generate(RFC_SECRET, "SHA1", 9, 30, 59)
+            TotpCore.generate(RFC_SECRET, "SHA1", 11, 30, 59)
         }
     }
 
@@ -93,9 +116,31 @@ class TotpCoreTest {
     }
 
     @Test
-    fun `invalid period rejected`() {
+    fun `period 1 boundary`() {
+        // period=1: every second rotates. t=59 -> counter 59.
+        val code = TotpCore.generate(RFC_SECRET, "SHA1", 6, 1, 59)
+        assertEquals("083773", code)
+        assertEquals(1, TotpCore.remainingSeconds(59, 1))
+    }
+
+    @Test
+    fun `period 120 boundary`() {
+        // period=120: t=59 -> counter 0 (same as t=0), t=120 -> counter 1.
+        assertEquals(
+            TotpCore.generate(RFC_SECRET, "SHA1", 6, 120, 0),
+            TotpCore.generate(RFC_SECRET, "SHA1", 6, 120, 59),
+        )
+        assertEquals("287082", TotpCore.generate(RFC_SECRET, "SHA1", 6, 120, 120))
+        assertEquals(61, TotpCore.remainingSeconds(59, 120))
+    }
+
+    @Test
+    fun `out of range period rejected`() {
         assertThrows(TotpCore.TotpException::class.java) {
             TotpCore.generate(RFC_SECRET, "SHA1", 6, 0, 59)
+        }
+        assertThrows(TotpCore.TotpException::class.java) {
+            TotpCore.generate(RFC_SECRET, "SHA1", 6, 121, 59)
         }
     }
 

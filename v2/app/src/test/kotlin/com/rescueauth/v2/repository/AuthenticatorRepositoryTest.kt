@@ -94,8 +94,59 @@ class AuthenticatorRepositoryTest {
             runBlocking { repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 5, 30) }
         }
         assertThrows(AuthenticatorRepository.ValidationException::class.java) {
+            runBlocking { repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 11, 30) }
+        }
+        assertThrows(AuthenticatorRepository.ValidationException::class.java) {
             runBlocking { repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 6, 0) }
         }
+        assertThrows(AuthenticatorRepository.ValidationException::class.java) {
+            runBlocking { repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 6, 121) }
+        }
+    }
+
+    @Test
+    fun `digits 9 and 10 persist via repository`() = runBlocking {
+        val account = repo.findOrCreateAccount("GitHub", "alice@example.com")
+        val cred9 = repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 9, 30)
+        val cred10 = repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 10, 60)
+        assertEquals(9, cred9.digits)
+        assertEquals(10, cred10.digits)
+
+        val cards = repo.observeTotpCredentials().first()
+        assertEquals(setOf(9, 10), cards.map { it.digits }.toSet())
+    }
+
+    @Test
+    fun `period 1 and 120 persist via repository`() = runBlocking {
+        val account = repo.findOrCreateAccount("GitHub", "alice@example.com")
+        val cred1 = repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 6, 1)
+        val cred120 = repo.addTotpCredential(account.id, "JBSWY3DPEHPK3PXP", "SHA1", 6, 120)
+        assertEquals(1, cred1.periodSeconds)
+        assertEquals(120, cred120.periodSeconds)
+
+        val cards = repo.observeTotpCredentials().first()
+        assertEquals(setOf(1, 120), cards.map { it.periodSeconds }.toSet())
+    }
+
+    @Test
+    fun `second totp on same provider account reuses account no duplicates`() = runBlocking {
+        // First TOTP under GitHub / alice@example.com creates the Provider+Account.
+        val firstAccount = repo.findOrCreateAccount("GitHub", "alice@example.com")
+        repo.addTotpCredential(firstAccount.id, "JBSWY3DPEHPK3PXP", "SHA1", 6, 30)
+
+        // Adding a second TOTP to the SAME provider+account reuses the account.
+        val secondAccount = repo.findOrCreateAccount("GitHub", "alice@example.com")
+        assertEquals(firstAccount.id, secondAccount.id)
+        assertEquals(firstAccount.stableId, secondAccount.stableId)
+        repo.addTotpCredential(secondAccount.id, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", "SHA1", 6, 30)
+
+        val accounts = repo.observeAccounts().first()
+        assertEquals("must not create a duplicate Account", 1, accounts.size)
+        assertEquals(firstAccount.id, accounts.single().id)
+
+        val creds = repo.observeTotpCredentials().first()
+        assertEquals("both TOTPs live under the same Account", 2, creds.size)
+        assertTrue(creds.all { it.accountId == firstAccount.id })
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.rescueauth.v2.database.AuthAccountEntity
 import com.rescueauth.v2.database.TotpCredentialEntity
 import com.rescueauth.v2.domain.AuthAccount
 import com.rescueauth.v2.domain.TotpCredential
+import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -56,8 +57,12 @@ class AuthenticatorRepository(
     ): TotpCredential {
         if (secretBase32.isBlank()) throw ValidationException("secret is required")
         if (algorithm.isBlank()) throw ValidationException("algorithm is required")
-        if (digits !in 6..8) throw ValidationException("digits must be 6, 7 or 8")
-        if (periodSeconds <= 0) throw ValidationException("period must be positive")
+        if (digits !in TotpParameters.SUPPORTED_DIGITS) {
+            throw ValidationException("digits must be in ${TotpParameters.MIN_DIGITS}..${TotpParameters.MAX_DIGITS}")
+        }
+        if (periodSeconds !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS) {
+            throw ValidationException("period must be in ${TotpParameters.MIN_PERIOD_SECONDS}..${TotpParameters.MAX_PERIOD_SECONDS}")
+        }
 
         val now = java.time.Instant.now().toString()
         val id = UUID.randomUUID().toString()

@@ -57,6 +57,34 @@ class OtpauthParserTest {
     }
 
     @Test
+    fun `digits 9 parsed`() {
+        val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&digits=9"
+        val parsed = OtpauthParser.parse(uri)
+        assertEquals(9, parsed.digits)
+    }
+
+    @Test
+    fun `digits 10 parsed`() {
+        val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&digits=10"
+        val parsed = OtpauthParser.parse(uri)
+        assertEquals(10, parsed.digits)
+    }
+
+    @Test
+    fun `period 1 parsed`() {
+        val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&period=1"
+        val parsed = OtpauthParser.parse(uri)
+        assertEquals(1, parsed.periodSeconds)
+    }
+
+    @Test
+    fun `period 120 parsed`() {
+        val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&period=120"
+        val parsed = OtpauthParser.parse(uri)
+        assertEquals(120, parsed.periodSeconds)
+    }
+
+    @Test
     fun `lowercase algorithm is normalised`() {
         val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&algorithm=sha512"
         assertEquals("SHA512", OtpauthParser.parse(uri).algorithm)
@@ -152,6 +180,14 @@ class OtpauthParserTest {
     }
 
     @Test
+    fun `out of range high digits rejected`() {
+        val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&digits=11"
+        assertThrows(OtpauthParser.OtpauthParseException::class.java) {
+            OtpauthParser.parse(uri)
+        }
+    }
+
+    @Test
     fun `non numeric digits rejected`() {
         val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&digits=abc"
         assertThrows(OtpauthParser.OtpauthParseException::class.java) {
@@ -162,6 +198,14 @@ class OtpauthParserTest {
     @Test
     fun `invalid period rejected`() {
         val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&period=0"
+        assertThrows(OtpauthParser.OtpauthParseException::class.java) {
+            OtpauthParser.parse(uri)
+        }
+    }
+
+    @Test
+    fun `out of range high period rejected`() {
+        val uri = "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&period=121"
         assertThrows(OtpauthParser.OtpauthParseException::class.java) {
             OtpauthParser.parse(uri)
         }

@@ -15,8 +15,10 @@ package com.rescueauth.v2.export
  * native package codec
  * ```
  *
- * The set of supported algorithms/digits mirrors the v1 legacy validator
- * (`legacy/LegacyTotpValidator`) — same rules, no dependency.
+ * Supported algorithms / digits / period follow the **frozen v1 Authenticator
+ * contract**: digits 6..10, period 1..120 (defaults SHA1 / 6 / 30). This is the
+ * single source of truth for the production TOTP core / parser / manual entry.
+ * It is independent of the legacy-import compatibility validator.
  */
 object TotpParameters {
 
@@ -30,7 +32,12 @@ object TotpParameters {
         ALGORITHM_SHA512,
     )
 
-    val SUPPORTED_DIGITS = setOf(6, 7, 8)
+    const val MIN_DIGITS = 6
+    const val MAX_DIGITS = 10
+    const val MIN_PERIOD_SECONDS = 1
+    const val MAX_PERIOD_SECONDS = 120
+
+    val SUPPORTED_DIGITS: Set<Int> = (MIN_DIGITS..MAX_DIGITS).toSet()
 
     private val BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 

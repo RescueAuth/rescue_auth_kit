@@ -2,10 +2,11 @@ package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
+import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.ui.authenticator.AddMode
 import com.rescueauth.v2.ui.authenticator.AddTotpFormState
 import com.rescueauth.v2.ui.theme.Spacing
@@ -38,7 +40,7 @@ import com.rescueauth.v2.ui.theme.Spacing
  * confirm button. The sheet is presentation-only — state flows through
  * callbacks so it can be unit-tested without a repository.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddTotpSheet(
     form: AddTotpFormState,
@@ -187,44 +189,51 @@ private fun AlgorithmSelector(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DigitSelector(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
-    ) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         Text(
             text = stringResource(R.string.add_totp_digits_label),
             style = MaterialTheme.typography.labelMedium,
         )
-        listOf(6, 7, 8).forEach { d ->
-            FilterChip(selected = selected == d, onClick = { onSelect(d) }, label = { Text("$d") })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+            (TotpParameters.MIN_DIGITS..TotpParameters.MAX_DIGITS).forEach { d ->
+                FilterChip(
+                    selected = selected == d,
+                    onClick = { onSelect(d) },
+                    label = { Text("$d") },
+                )
+            }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PeriodSelector(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
-    ) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         Text(
             text = stringResource(R.string.add_totp_period_label),
             style = MaterialTheme.typography.labelMedium,
         )
-        listOf(30, 60).forEach { p ->
-            FilterChip(selected = selected == p, onClick = { onSelect(p) }, label = { Text("${p}s") })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+            // Preset steps covering the full frozen contract range (1..120).
+            listOf(1, 30, 60, 120).forEach { p ->
+                FilterChip(
+                    selected = selected == p,
+                    onClick = { onSelect(p) },
+                    label = { Text("${p}s") },
+                )
+            }
         }
     }
 }
