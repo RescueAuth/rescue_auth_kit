@@ -21,6 +21,15 @@
   PRODUCT / ROADMAP 对齐（Developer Vault 五类进入 portable logical
   schema + merge foundation；binary keystore base64；selective snapshot
   scope；Recovery used/unused divergence 显式输出）。
+  **3B Encrypted Package Codec 已实现**（`core/.../export/codec/`，见
+  `docs/PHASE3_REPORT.md` §9 / ADR-0007：per-export PIN → Argon2id → KEK →
+  wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range /
+  DoS 保护；golden fixture）。merge 前 CR 已修正 3 个 codec contract blocker：
+  **cryptoVersion=1 的 `kdfOutputLength` 固定 32**（Argon2id 输出直接作为
+  XChaCha20 KEK，旧 16..64 range 删除）、**logical ↔ package 容量一致**
+  （`PackageCapacity` 单一来源 + validator 预算 + encode 显式 `PackageTooLarge`）、
+  **RUNTIME DECODE RESOURCE POLICY 与 FORMAT HARD LIMIT 分离**（超预算在
+  Argon2 前拒绝，默认 19 MiB/2 iter 永远兼容）。
   **Phase 4 P1 已实现**（TOTP Daily-Use Loop，见
   `docs/PHASE4_P1_REPORT.md`；真实 production storage，QR 暂未实现）。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
@@ -110,7 +119,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [ ] 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏行为等**仍待真机验证**（non-blocking）
 - [ ] 阶段 3：Package + Merge（**STARTED**）
   - [x] **3A Package + Merge Foundation**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + 纯 merge planner + schema v1→v2 + 自动备份抽象清理，PR #18）
-  - [ ] 3B Encrypted Package Codec（per-export PIN → KDF → PackageKey → AEAD）
+  - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）
   - [ ] 3C Transactional Import / Merge（MergePlan → Room apply + rollback + 幂等）
   - [ ] 3D Android Export / Import + Package Preview（SAF + PIN + Import all）
 - [ ] 阶段 4：Daily-use vertical slices
@@ -140,3 +149,5 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - `docs/ADRS/ADR-0004-stable-identity-fingerprint.md`（stable record identity + semantic fingerprint，Phase 3A）
 - `docs/ADRS/ADR-0005-merge-first-planner.md`（merge-first import + 纯 merge planner，Phase 3A）
 - `docs/ADRS/ADR-0006-sensitive-action-reauth.md`（Sensitive Action Re-authentication，正式产品能力）
+- `docs/ADRS/ADR-0007-portable-package-codec.md`（v2 Portable Package 加密 Codec，Phase 3B：per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / AAD / 错误分类 / best-effort zeroization）
+

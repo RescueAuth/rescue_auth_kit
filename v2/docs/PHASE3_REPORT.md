@@ -1,7 +1,8 @@
-# PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A 实现报告
+# PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A/3B 实现报告
 
-> 本文档是 Phase 3 架构重置 + Phase 3A 的实现报告，也是后续 3B/3C/3D 的
-> 唯一事实依据。Phase 3A 已实现并合入评审 PR。
+> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B 的实现报告，也是后续
+> 3C/3D 的唯一事实依据。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
+> Encrypted Package Codec 已实现（独立 PR）。
 
 ## 1. Phase 3 architecture reset
 
@@ -276,11 +277,105 @@ Developer merge 保守化 CR 再新增 5 个 keep-both 用例；
 ### 原有测试
 
 - `:core:test`：34（legacy）→ 70（+36 初始）→ **101（+31 本轮）** →
-  **106（+5 CR 修正）** → **112（+6 full-logical-equivalence blocker 修复）** 全绿。
+  **106（+5 CR 修正）** → **112（+6 full-logical-equivalence blocker 修复）**
+  → **173（+61 Phase 3B codec）** 全绿。
 - `:app:testDebugUnitTest`：35 → 36（+1 migration）全绿。
 - `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest` 成功。
 
-## 9. Current roadmap
+## 9. Phase 3B — Encrypted Portable Package Codec（已实现）
+
+见 `docs/PACKAGE_FORMAT.md`（Phase 3B 契约）、`docs/ADRS/ADR-0007-portable-package-codec.md`、
+`docs/THREAT_MODEL.md`。实现位于 `core/.../export/codec/`。
+
+### 9.1 交付内容
+
+- **`PackageFormat`**：字节布局常量、magic `RAKVPKG2`、版本号、算法 id、
+  KDF DEFAULT PARAMETERS / ACCEPTABLE DECODE RANGE、格式级硬限制、
+  `PackageCodecException` 错误分类。
+- **`PackageLayout`**：字节偏移计算。
+- **`PackageHeaderParser`**：header-is-untrusted 解析；magic/version/KDF 参数/
+  长度在 Argon2 **之前**全部校验；无符号读取杜绝 overflow；trailing garbage 拒绝。
+- **`PackageCrypto`**：SecureRandom 随机源 + 测试用 deterministic seam、
+  Argon2id(v1.3)、XChaCha20-Poly1305 AEAD（wrap + payload）、best-effort zeroize。
+- **`PortablePackageCodec`**：单一 codec（全部 SnapshotScope），
+  `encode(payload, pin: String|CharArray|ByteArray): ByteArray` /
+  `decode(bytes, pin): VaultPackagePayload`；纯 Kotlin/JVM，无 Android 依赖。
+- **`PackageEnvelope`** / **`PayloadJson`**：parsed envelope（含 AAD 区域）与
+  逻辑 payload JSON 序列化。
+- **golden fixture**：`core/src/test/resources/codec-fixtures/v2_package_fixture_v1.bin`
+  （test-only PIN，synthetic fake secrets）。
+
+### 9.2 测试（Phase 3B 新增 61 个，`:core` 累计 173）
+
+- `PortablePackageCodecRoundTripTest`（12）：empty / authenticator-only /
+  developer-only / selected-items / full vault（五类 Developer）round-trip；
+  binary keystore exact byte round-trip；recovery used/unused round-trip；
+  同 payload 同 PIN 两次 export 不同但 decrypt 相同；salt/nonce 每 export
+  重新随机；plaintext header 不泄漏 secret / 业务 metadata。
+- `PortablePackageCodecAuthTest`（15）：wrong PIN、corrupted wrapped key /
+  payload / nonce、AAD/header tamper、tampered version、headerLength、
+  truncated、trailing garbage、bad magic、no partial plaintext、future
+  version rejection、错误信息不区分 wrong PIN vs corruption。
+- `PortablePackageCodecFormatTest`（20）：malicious huge memory/iterations/
+  parallelism 在 KDF 前拒绝（`InvalidKdfParameters`）、KDF range 边界、
+  cryptoVersion=1 的 `kdfOutputLength` 必须 == 32（16 / 64 拒绝）、异常长度、
+  oversized package / wrapped key / payload、truncated header、
+  无效逻辑 payload（`LogicalPayloadInvalid`）、非法 logical schema version。
+- `PortablePackageCodecKdfPolicyTest`（7）：encode 写入默认参数；decode 读取
+  package 内参数（更强参数可解密）；range 边界拒绝。
+- `PortablePackageCodecPinRepresentationTest`（4）：String/CharArray/ByteArray
+  PIN 互换；wrong PIN 失败。
+- `PortablePackageCodecGoldenFixtureTest`（4）：golden fixture 与 codec 输出
+  逐字节一致；fixture 可解密为预期 payload；wrong PIN 失败；deterministic
+  seam 稳定。
+
+### 9.3 merge 前 blocker 修正（codec contract，Phase 3B CR）
+
+merge 前 review 提出的 3 个 codec contract blocker 已按最小修正完成，
+未进入 Phase 3C：
+
+**1. KDF output length（cryptoVersion=1 固定 32）**
+
+- 确认 **cryptoVersion=1 不存在额外的 “KDF-output → 32-byte KEK” 派生步骤**：
+  Argon2id 输出直接作为 XChaCha20-Poly1305 wrapping KEK。
+- `kdfOutputLength` 现按 cryptoVersion 分派校验，cryptoVersion=1 **只接受 32**
+  （`PackageFormat.KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1`）；旧 loose range 16..64
+  已删除 —— 16 / 64 等 codec 无法消费的长度在 KDF 前以
+  `InvalidKdfParameters` 拒绝。
+- 写入 PACKAGE_FORMAT §Key derivation / ADR-0007 §5；未来若新增 cryptoVersion
+  并引入真正派生步骤，必须定义规则 + 补 compatibility tests + fixture。
+
+**2. Package capacity consistency（logical ↔ package 一致）**
+
+- 新增 `PackageCapacity`（单一来源）：整包 16 MiB、header 4 KiB、ciphertext
+  16 MiB − 4 KiB、序列化 payload ciphertext − 16B tag、wrapped key 512B。
+- `PackageFormat` 全部委托 `PackageCapacity`；`PackageValidator` 新增
+  `MAX_SERIALIZED_PAYLOAD_BUDGET`，用 `estimateSerializedSize`（可证明上界）
+  在编码前拒绝超预算 payload —— **validator 接受 ⇒ 必然可编码**。
+- `PortablePackageCodec.encode` 序列化后精确守卫，超限抛
+  `PackageCodecException.PackageTooLarge`（显式、安全失败，绝不 OOM）。
+- 包上限保持 16 MiB（encode 峰值内存 ≈ 50–60 MiB，手动 export 可接受；提到
+  32 MiB 会翻倍峰值且无安全收益）；逻辑限制调整为与包上限一致。
+- 边界测试：single 12 MiB keystore 预算内；两个 8 MiB keystore 超预算被
+  validator 拒绝；18 MiB keystore（bypass validator）encode 抛
+  `PackageTooLarge`；ciphertext / 整包超上限 → `MalformedPackage`。
+
+**3. Argon2 runtime DoS budget（FORMAT HARD LIMIT ≠ RUNTIME POLICY）**
+
+- 新增 `PackageRuntimePolicy`（production default decoder 资源预算）：
+  memoryKiB ≤ 128 MiB、iterations ≤ 8、memoryKiB×iterations ≤ 512K units
+  （≈ 4× 默认 38912）、parallelism ≤ 8。
+- `decode` 在 **Argon2 之前** 调 `checkDecodeBudget`；结构合法且在格式硬限制内
+  但超预算的参数（如 200 MiB/2 iter、12 iter/19 MiB、100 MiB×6 iter）以
+  `InvalidKdfParameters` 拒绝，绝不执行。
+- app-generated default（19 MiB / 2 iterations）**永远通过**，正常兼容；
+  预算内更强参数（64 MiB / 3 iter）正常解码。
+
+**新增测试（:core 173 → 193）**：`PortablePackageCodecCapacityTest`（6）、
+`PortablePackageCodecRuntimePolicyTest`（9）、`PackageCapacityTest`（4）、
+`PortablePackageCodecFormatTest` 的 outputLength 用例改造（1 拆 2）。
+
+## 10. Current roadmap
 
 | Phase | 状态 |
 | --- | --- |
@@ -288,8 +383,8 @@ Developer merge 保守化 CR 再新增 5 个 keep-both 用例；
 | Phase 1 | CLOSED |
 | Phase 2 | CLOSED |
 | Phase 3 | **STARTED** |
-| Phase 3A | **PACKAGE + MERGE FOUNDATION**（本轮实现） |
-| Phase 3B | NOT STARTED（encrypted package codec：Argon2id + XChaCha20-Poly1305 + package header） |
+| Phase 3A | **PACKAGE + MERGE FOUNDATION**（已实现，PR #18） |
+| Phase 3B | **ENCRYPTED PACKAGE CODEC**（本轮实现，PR OPEN） |
 | Phase 3C | NOT STARTED（transactional import/merge：MergePlan → Room apply + rollback + idempotency） |
 | Phase 3D | NOT STARTED（Android manual Export/Import UI + SAF） |
 | Phase 4+ | NOT STARTED |
