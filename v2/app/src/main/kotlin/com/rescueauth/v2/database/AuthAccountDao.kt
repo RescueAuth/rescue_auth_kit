@@ -12,6 +12,9 @@ interface AuthAccountDao {
     @Query("SELECT * FROM auth_account ORDER BY sortOrder")
     fun observeAll(): Flow<List<AuthAccountEntity>>
 
+    @Query("SELECT * FROM auth_account ORDER BY sortOrder")
+    suspend fun listAll(): List<AuthAccountEntity>
+
     @Query("SELECT * FROM auth_account WHERE id = :id")
     suspend fun getById(id: String): AuthAccountEntity?
 
@@ -44,4 +47,10 @@ interface AuthAccountDao {
 
     @Query("SELECT id FROM auth_account ORDER BY sortOrder")
     suspend fun listAllIds(): List<String>
+
+    @Query("SELECT id, stableId FROM auth_account")
+    suspend fun listIdAndStableId(): List<IdStableIdRow>
+
+    /** Lightweight row projection used by the merge applicator parent mapping. */
+    data class IdStableIdRow(val id: String, val stableId: String)
 }
