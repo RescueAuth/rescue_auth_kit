@@ -10,6 +10,69 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase3b encrypted-package-codec] - 2026-08-08（Phase 3B：Encrypted Portable Package Codec）
+
+Phase 3B 独立 PR（不进入 3C/3D）：纯 Kotlin/JVM 加密 package codec。
+
+### Added
+
+- `core/.../export/codec/`：
+  - `PackageFormat`：字节布局常量、magic `RAKVPKG2`、formatVersion/cryptoVersion=1、
+    KDF DEFAULT PARAMETERS（Argon2id 19 MiB / 2 / p1 / 32B / salt 16B）与
+    ACCEPTABLE DECODE RANGE（memoryKiB 64..262144 / iterations 1..16 /
+    parallelism 1..8 / outputLength 16..64 / salt 8..64）、格式级硬限制（总包
+    16 MiB / header 4 KiB / payload 16 MiB / wrapped key 512B）、错误分类
+    `PackageCodecException`（UnsupportedFormat / UnsupportedCrypto /
+    InvalidKdfParameters / MalformedPackage / AuthenticationFailed /
+    LogicalPayloadInvalid）。
+  - `PackageHeaderParser`：header-is-untrusted；magic/version/KDF 参数/长度在
+    Argon2 **之前**全部校验；无符号读取杜绝 overflow；headerLength 交叉校验；
+    trailing garbage 拒绝。
+  - `PackageCrypto`：SecureRandom（CSPRNG）+ 测试用 deterministic seam、
+    Argon2id(v1.3)、XChaCha20-Poly1305 AEAD（wrap + payload）、best-effort
+    zeroize。
+  - `PortablePackageCodec`：单一 codec（全部 SnapshotScope），
+    `encode(payload, pin: String|CharArray|ByteArray): ByteArray` /
+    `decode(bytes, pin): VaultPackagePayload`；纯 Kotlin/JVM，无 Android 依赖。
+  - `PackageEnvelope` / `PayloadJson`：parsed envelope（含 wrap/payload AAD 区域）
+    与逻辑 payload JSON 序列化（kotlinx.serialization，platform-neutral）。
+- **AAD 设计**：wrap AAD = header 前缀（magic → wrapped key 前）；payload AAD =
+  完整 header 前缀（magic → payload ciphertext 前）；format/crypto/KDF metadata
+  全部受认证保护，无法被篡改成另一种合法语义。
+- **golden fixture**：`core/src/test/resources/codec-fixtures/v2_package_fixture_v1.bin`
+  （test-only PIN `fixture-pin-0000`，synthetic fake secrets，无真实 credential）。
+- 文档：`PACKAGE_FORMAT.md`（Phase 3B 契约）、`THREAT_MODEL.md`、
+  `ADRS/ADR-0007-portable-package-codec.md`、`PHASE3_REPORT.md` §9、
+  `ROADMAP.md` §5.2、`AGENTS.md`。
+
+### Tests
+
+- `:core:test`：112 → **173**（+61 Phase 3B codec 测试）全绿；
+  merge 前 CR 后 **173 → 193**（+20：capacity / runtime policy / output-length）。
+  - Round-trip（12）：empty / authenticator-only / developer-only /
+    selected-items / full vault（五类 Developer）；binary keystore exact byte
+    round-trip；recovery used/unused；同 payload 同 PIN 两次 export 不同但
+    decrypt 相同；salt/nonce 每 export 重新随机；plaintext header 不泄漏 secret /
+    业务 metadata。
+  - Auth（15）：wrong PIN / corrupted wrapped key / payload / nonce / AAD
+    tamper；tampered version；truncated / trailing garbage；no partial
+    plaintext；future version rejection；错误信息不区分 wrong PIN vs corruption。
+  - Format/DoS（20）：malicious huge memory/iterations/parallelism 在 KDF 前拒绝；
+    KDF range 边界；cryptoVersion=1 的 `kdfOutputLength` 必须 == 32（16 / 64
+    拒绝）；异常长度 / oversized package / wrapped key / payload；
+    invalid logical payload（LogicalPayloadInvalid）；invalid logical schema
+    version。
+  - KDF policy（7）：encode 写默认参数；decode 读 package 内参数；range 边界拒绝。
+  - PIN representation（4）：String / CharArray / ByteArray 互换；wrong PIN。
+  - Golden fixture（4）：fixture 与 codec 输出逐字节一致；fixture 解密为预期
+    payload；wrong PIN 失败；deterministic seam 稳定。
+  - **Capacity（6）**：codec 与 validator 共享 `PackageCapacity` 预算；
+    validator 接受 ⇒ 必然可编码；encode 超限抛 `PackageTooLarge`（不 OOM）。
+  - **Runtime policy（9）**：FORMAT HARD LIMIT ≠ RUNTIME DECODE RESOURCE
+    POLICY；格式内但超预算参数在 Argon2 前拒绝；默认 19 MiB/2 iter 永远通过。
+  - **PackageCapacity（4）**：estimateSerializedSize 为可证明上界；single max
+    keystore 预算内；multi 大 keystore 超预算 validator 拒绝；常量一致。
+
 ## [v2 phase3a full-logical-equivalence] - 2026-08-07（PR #18 Developer merge blocker 最终修正）
 
 Phase 3A compatibility CR 的最后一个 merge blocker 修正（最小 scope，不进入 Phase 3B）：

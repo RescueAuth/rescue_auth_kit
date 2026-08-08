@@ -1,8 +1,9 @@
-# PACKAGE_FORMAT.md — v2 Export Package（逻辑契约）
+# PACKAGE_FORMAT.md — v2 Export Package（逻辑 + 加密契约）
 
-> 状态：**Phase 3A contract（已定稿）**；Phase 3B 实现加密 codec。
+> 状态：**Phase 3B contract（已定稿并实现）**；Phase 3A 逻辑契约保持不变，
+> 3B 实现加密 codec（`core/.../export/codec/PortablePackageCodec.kt`）。
 > 本文取代旧 `BACKUP_FORMAT.md` 的“自动备份”草案，定义新的
-> **Portable Export Package** 逻辑契约。
+> **Portable Export Package** 逻辑 + 加密契约。
 
 ## 产品定义（Phase 3 reset）
 
@@ -18,10 +19,10 @@ unwrap VaultKey
     ↓
 SQLCipher Vault
 
-Export Package（Phase 3）:
+Export Package（Phase 3B 已实现）:
 每次手动导出，用户为“这一份数据包”设置一个 Export PIN
     ↓
-PIN + random salt → KDF → Key Encryption Key（wrap PackageKey）
+PIN + random salt → Argon2id → Key Encryption Key（wrap PackageKey）
     ↓
 random 256-bit PackageKey → AEAD 加密逻辑 payload
 ```
@@ -51,100 +52,287 @@ Backup / Restore / Migration / Merge 最终统一到：
 **Export Package → Import Package → Merge Engine**。不存在
 replace-current-database 语义，不存在 delete-and-restore。
 
-## Envelope（Phase 3B 实现，契约预留）
+## Envelope（Phase 3B 已实现）
+
+### 字节布局（big-endian，无对齐 padding）
 
 ```
-magic
-formatVersion
-cryptoVersion
-KDF id
-KDF parameters
-salt
-wrapped PackageKey
-AEAD nonce
-encrypted payload        ← VaultPackagePayload JSON（AEAD）
-authenticated metadata / AAD
+offset   size  field
+0        8     magic        = "RAKVPKG2"
+8        1     formatVersion = 1
+9        1     cryptoVersion = 1
+10       1     flags         = 0
+11       4     headerLength  (uint32)
+15       1     kdfAlgorithm  (1 = ARGON2ID)
+16       4     kdfMemoryKiB  (uint32)
+20       4     kdfIterations (uint32)
+24       1     kdfParallelism
+25       1     kdfOutputLength (bytes)
+26       1     kdfSaltLength   (bytes)
+27       n     kdfSalt
+next     1     wrappingAlgorithm (1 = XCHACHA20_POLY1305)
+next     1     wrappingNonceLength (24)
+next     24    wrappingNonce
+next     2     wrappedKeyLength (uint16 = 48)
+next     48    wrappedKey (ciphertext || tag of the 32-byte PackageKey)
+next     1     payloadAlgorithm (1 = XCHACHA20_POLY1305)
+next     1     payloadNonceLength (24)
+next     24    payloadNonce
+next     4     payloadCiphertextLength (uint32 = plaintext + 16-byte tag)
+next     n     payloadCiphertext (AEAD ciphertext || tag)
 ```
 
 **禁止**直接把 Export PIN 作为 encryption key。每次 export 独立生成
-random salt / random PackageKey / random nonce —— 即使两个 package 使用
-相同 PIN，PackageKey 与 ciphertext 也必须不同。
+random salt / random 256-bit PackageKey / random wrapping nonce / random
+payload nonce —— 即使两个 package 使用相同 PIN 与相同 payload，PackageKey
+与 ciphertext 也必须不同（已用 JVM 测试锁定）。
 
-**敏感业务 metadata**（account list / issuer / account names / source
-information）必须放在 encrypted payload 内，不暴露在 plaintext header。
-
-**wrong PIN 与 corrupted package 必须安全失败**，不得输出部分可信
-plaintext。
-
-> 优先复用项目已验证的密码学栈：Argon2id + XChaCha20-Poly1305
-> （Phase 1 已锁定 BC 1.85 原生实现，见 ADR-0002）。
-
-## Logical payload（Phase 3A 已实现）
-
-`VaultPackagePayload`（`core/.../export/VaultPackagePayload.kt`）：
+### 密钥层级（key hierarchy）
 
 ```
-logicalSchemaVersion = 1
-packageId
-createdAt
-source（client / appVersion / vaultInstanceId）
-snapshot:
-  scope            FULL_VAULT | AUTHENTICATOR_ONLY | DEVELOPER_ONLY | SELECTED_ITEMS
-  accounts[]
-    stableId / serviceName / accountName / favorite / notes /
-    sortOrder / createdAt / updatedAt
-    totpCredentials[]   stableId / secretBase32 / algorithm / digits / periodSeconds / createdAt
-    recoveryCodeSets[]  stableId / title / createdAt / codes[]
-      recoveryCodes[]   stableId / value / status / usedAt / sortOrder
-  developerEntries[]
-    (五类，sealed 子类型)
-    android_signing_key        stableId / projectName / packageName /
-                               keystoreFileName / keystoreBase64 / storePassword /
-                               keyAlias / keyPassword / title / notes / createdAt / updatedAt
-    api_credential             stableId / serviceName / accountName / apiKey /
-                               apiSecret / title / notes / createdAt / updatedAt
-    ssh_key                    stableId / keyName / publicKey / privateKey /
-                               passphrase / title / notes / createdAt / updatedAt
-    environment_variable_set   stableId / projectName / variables[key,value][] /
-                               title / notes / createdAt / updatedAt
-    generic_secret             stableId / fields[key,value][] /
-                               title / notes / createdAt / updatedAt
+per-export PIN + random salt
+        ↓ Argon2id (v1.3)
+PIN-derived wrapping key / KEK
+        ↓ XChaCha20-Poly1305  (wrap AEAD, AAD = header 前缀至 wrapped key)
+wrapped random 256-bit PackageKey
+        ↓ XChaCha20-Poly1305  (payload AEAD, AAD = 完整 header 前缀)
+encrypted serialized VaultPackagePayload
 ```
 
-> **Developer Vault 五类是正式 v2 核心资产**（ROADMAP §8.2）：`snapshot`
-> 必须能表达完整 Vault（Authenticator + Developer 五类），不只是 TOTP +
-> Recovery Codes。`developerEntries` 是 first-class 字段，不是 optional
-> extension。
+### Authenticated metadata / AAD（Phase 3B 设计）
 
-> **Android keystore 是 binary asset**（ROADMAP §6 / §8.2）：keystore
-> 内容以 `keystoreBase64`（RFC 4648 base64）携带，`PackageValidator` 校验
-> base64 有效性 + 大小上限（`MAX_KEYSTORE_BASE64_LENGTH`）。binary
-> keystore **只能**属于 encrypted payload，不得暴露在 plaintext package
-> header。
+- **Wrap AAD** = 从 magic 到 wrapped-key ciphertext 之前的全部 header 字节。
+  它把 magic / formatVersion / cryptoVersion / flags / 全部 KDF 参数 /
+  wrapping metadata 绑定到 wrapped PackageKey。
+- **Payload AAD** = 从 magic 到 payload ciphertext 之前的**完整** header 字节
+  （含 wrapped key、payload 算法 id、payload nonce、payload 长度）。它把每个
+  影响“如何解析 / 如何解密”的字段绑定到明文。
 
-> **Selective snapshot**（ROADMAP §8.4 / §17）：`scope` 声明快照携带的
-> section。partial / selected-items 快照是 first-class 契约；
-> `PackageValidator` 校验 scope 与实际内容一致（AUTHENTICATOR_ONLY 不得
-> 携带 developer entries，反之亦然）。Selective Import 走同一 Merge
-> Engine，不产生第二套实现。
+因此攻击者无法修改 format/crypto/KDF metadata（例如把 cryptoVersion 改掉、
+把 memoryKiB 改小、把 nonce 长度改掉）而仍然得到合法 package —— 任何 header
+字段篡改都会导致 AEAD 认证失败（已用 tamper 测试锁定）。**所有用户业务敏感
+信息**（provider/account 名、issuer、account identity、TOTP secret、恢复码、
+Developer Entry title/details、API key/secret、SSH key、keystore filename/
+内容、project/package metadata、export selection 细节）**全部留在 encrypted
+payload**；plaintext header 只包含解密和版本分派真正必要的数据。
 
-## Identity（Phase 3A 已实现，见 ADR-0004）
+## 加密栈（Phase 3B 复用 Phase 1 已验证实现，见 ADR-0002）
 
-- **Stable record identity**：`stableId` 是逻辑记录 ID，跨 Export→Import→
-  Export 保持。Room primary key 是 per-install 随机 UUID，**不是**跨设备
-  稳定 identity。schema v1→v2 migration 把 pre-Phase-3A 行的 `stableId`
-  回填为 `id`。
-- **Semantic fingerprint**：两台设备独立扫描同一个 TOTP QR 时 stableId
-  不同，但 canonical fingerprint（secret + algorithm + digits + period）
-  相同 → 判定 duplicate。指纹只按需在 merge/import 时计算，**绝不落库**，
-  **绝不放入 plaintext header**。
+- **Argon2id**（version 13）— Bouncy Castle 1.85，与 legacy importer 同一实现；
+- **XChaCha20-Poly1305** — Bouncy Castle 1.85 原生 AEAD，已通过
+  IETF draft-irtf-cfrg-xchacha-03 §2.2.1 官方向量 + legacy Dart 交叉向量 +
+  随机属性测试。
+
+不引入新的 crypto dependency，不自行实现任何 primitive。
+
+## KDF policy（Phase 3B 已锁定）
+
+| 概念 | 值 |
+| --- | --- |
+| **DEFAULT PARAMETERS**（encode 使用） | Argon2id, memoryKiB=19456 (19 MiB), iterations=2, parallelism=1, outputLength=32, salt=16 bytes |
+| **ACCEPTABLE DECODE RANGE**（decode 接受的格式范围） | memoryKiB 64..262144 (64 KiB..256 MiB)，iterations 1..16，parallelism 1..8，salt 8..64 bytes，且 memoryKiB ≥ 8×parallelism |
+| **RUNTIME DECODE RESOURCE POLICY**（Android decoder 实际执行预算） | memoryKiB ≤ 128 MiB，iterations ≤ 8，memoryKiB×iterations ≤ 512K（≈ 4× 默认 38912）；超预算在 Argon2 前拒绝 |
+
+### Key derivation（cryptoVersion=1，KDF output → KEK）
+
+**cryptoVersion=1 不存在额外的 “KDF-output → 32-byte KEK” 派生步骤**：
+Argon2id 的输出**直接作为** XChaCha20-Poly1305 wrapping key（KEK）。
+
+因此 **cryptoVersion=1 的 `kdfOutputLength` 必须 == 32**（`PACKAGE_KEY_BYTES`）：
+
+- XChaCha20-Poly1305 需要 32-byte key；Argon2id 输出直接就是这个 key；
+- 任何其他长度（包括旧 loose range 16..64 内的 16 / 64）都是 codec **无法消费**的
+  长度 —— 接受它要么产生不可用的 KEK，要么需要未定义的截断/补齐；
+- 历史遗留的 `outputLength 16..64` 范围已**删除**；`PackageHeaderParser` 按
+  cryptoVersion 分派校验，cryptoVersion=1 只接受 32（KDF 前拒绝，见
+  `PackageFormat.KDF_OUTPUT_LENGTH_FOR_CRYPTO_V1`）。
+
+未来若新增 cryptoVersion 且引入真正的 KDF-output → 32-byte KEK 派生步骤
+（例如 HKDF 或密钥截断契约），**必须**：
+
+1. 在新 cryptoVersion 中定义其 output-length 规则；
+2. 将该派生步骤写入本文档与 ADR；
+3. 补齐 compatibility tests + golden fixture。
+
+- encode 使用当前推荐参数；decode **读取 package 中存储的参数**（支持未来
+  升级 / 更强参数），但只接受安全且资源可控的范围（已用 KDF policy 测试
+  锁定）。
+- 这样未来可以：format v1 旧 package → 旧合理参数；format v1 更新的 export →
+  更强参数；decoder 保持兼容且资源可控。
+
+## 恶意 header / DoS 保护（Phase 3B 强制）
+
+Header 是**不可信输入**。Decoder 在真正执行 Argon2id 或分配大块内存之前，
+必须验证 package header 中所有 attacker-controlled 参数（
+`PackageHeaderParser`）。**格式级硬限制**（FORMAT HARD LIMIT）：
+
+- `MAX_PACKAGE_SIZE = 16 MiB`（总包大小上限，读取前先拒绝）；
+- `MAX_HEADER_LENGTH = 4 KiB`；
+- `MAX_PAYLOAD_CIPHERTEXT_SIZE = 16 MiB − 4 KiB header`；
+- `MAX_SERIALIZED_PAYLOAD_SIZE = MAX_PAYLOAD_CIPHERTEXT_SIZE − 16B tag`；
+- `MAX_WRAPPED_KEY_BYTES = 512`；
+- KDF 参数 accepted range（见上）；长度一致性校验（headerLength 字段与
+  实际 computed 一致）；uint32/uint16 全部以无符号读取，杜绝 integer
+  overflow / allocation abuse。
+
+因此恶意 package 声称 memoryKiB=极大值 / iterations=极大值 /
+parallelism=极大值 / 异常长度 / 超大 ciphertext 会在 **Argon2 之前**以
+`InvalidKdfParameters` / `MalformedPackage` 被拒绝（已用 DoS 测试锁定），
+不可能造成 OOM / CPU DoS / 崩溃 / ANR / 过度分配。
+
+## Runtime decode resource policy（Phase 3B 强制）
+
+**FORMAT HARD LIMIT ≠ RUNTIME DECODE RESOURCE POLICY。**
+
+“格式能表达的范围”不等于“Android decoder 会实际执行这个成本”。一个 package
+的参数可能**结构合法且在格式硬限制内**，但仍超过移动端资源安全预算（ANR /
+OOM / 电池烧毁）。因此生产默认 decoder 在真正执行 Argon2 **之前**通过纯参数
+检查 `PackageRuntimePolicy.checkDecodeBudget` 拒绝超预算参数：
+
+| 预算轴 | 值 |
+| --- | --- |
+| memoryKiB | ≤ 128 MiB |
+| iterations | ≤ 8 |
+| memoryKiB × iterations | ≤ 512K units（≈ 4× 默认 19456×2=38912） |
+| parallelism | ≤ 8（格式上限，防 CPU 倍增） |
+
+- **app-generated default（19 MiB / 2 iterations ≈ 38912 units）永远通过**，
+  正常兼容；
+- 更强但仍在预算内的参数（例如 64 MiB / 3 iter）正常解码；
+- 结构合法、格式硬限制内但超预算（例如 200 MiB / 2 iter、12 iter / 19 MiB、
+  100 MiB × 6 iter）→ 在 KDF 前以 `InvalidKdfParameters` 拒绝（已用
+  runtime policy 测试锁定）；
+- 格式硬限制极值（256 MiB / 16 iter）必然超预算并被拒绝，绝不自动执行。
+
+该策略是 production default。未来如需导入“很强但合法”的旧 export，可提供
+**用户确认的高成本解码路径**，但默认 decoder 绝不静默运行超预算成本。
+
+## Capacity contract（Phase 3B 强制）
+
+**Logical/package 容量必须彼此一致**：不允许 “validator 接受，但正常 Full
+Vault Export 必然无法编码”的无说明状态。
+
+### 容量选择与 Android 内存理由
+
+- **包上限保持 16 MiB（不提高）**。encode 峰值内存 ≈ 序列化 JSON + ciphertext
+  + Argon2id working set（默认 19 MiB）+ 瞬时 base64 缓冲 ≈ 50–60 MiB；对
+  **手动、用户触发的 export** 在现代 Android 上可接受。提到 32 MiB 会把峰值
+  内存翻倍，明显增加低内存设备的 ANR/OOM 风险且无安全收益。
+- **逻辑限制调整为与包上限一致（而非提高包上限）**：per-asset keystore 上限
+  保持慷慨（单个真实 Android keystore 即使很大也能装下），但**整个 snapshot
+  的总预算**保证整包能装下。装不下的组合（例如多个 Multi-MiB keystore）在
+  validation/encode 时以明确、文档化的错误拒绝。
+
+### 单一来源（single source of truth）
+
+`PackageCapacity` 定义包/header/tag/序列化 payload 的全部字节上限：
+
+| 常量 | 值 | 说明 |
+| --- | --- | --- |
+| `MAX_PACKAGE_SIZE` | 16 MiB | 整包上限 |
+| `MAX_HEADER_LENGTH` | 4 KiB | header 上限 |
+| `MAX_PAYLOAD_CIPHERTEXT_SIZE` | 16 MiB − 4 KiB | ciphertext 上限 |
+| `MAX_SERIALIZED_PAYLOAD_SIZE` | ciphertext − 16B tag | 明文序列化 payload 上限 |
+| `MAX_WRAPPED_KEY_BYTES` | 512 B | wrapped key 上限 |
+
+`PackageFormat` 的对应常量全部委托给 `PackageCapacity`（`PortablePackageCodec`
+与 `PackageHeaderParser` 使用），`PackageValidator.MAX_SERIALIZED_PAYLOAD_BUDGET`
+引用同一来源，因此 logical 与 package 契约**不会漂移**。
+
+### 编码前验证链
+
+1. `PackageValidator.validate(payload)`：结构校验 + **总量预算校验**——
+   `PackageCapacity.estimateSerializedSize(payload)`（可证明的序列化大小上界，
+   覆盖 JSON 引号/转义/字段名/分隔符的 worst case）≤
+   `MAX_SERIALIZED_PAYLOAD_BUDGET`，否则以 `ValidationException` 拒绝。
+2. `PortablePackageCodec.encode`：序列化后**精确尺寸校验**（defense-in-depth）——
+   若仍超限，以 `PackageCodecException.PackageTooLarge` **显式安全失败**，
+   绝不在超大分配时 OOM。
+
+### 边界测试
+
+- single max keystore（12 MiB base64）→ 预算内，validator 接受、encode/decode
+  成功；
+- 两个 8 MiB keystore → 总量超预算，validator 拒绝（不再出现“validator 接受
+  但无法 export”）；
+- bypass validator 的 18 MiB keystore → encode 精确守卫抛 `PackageTooLarge`；
+- ciphertext 超上限 / 整包超上限 → `MalformedPackage` 拒绝。
+
+## 错误分类（Phase 3B error taxonomy）
+
+| 异常 | 语义 |
+| --- | --- |
+| `UnsupportedFormat` | 坏 magic / 未知 reserved flags / 不支持的 formatVersion |
+| `UnsupportedCrypto` | 不支持的 cryptoVersion / 算法 id |
+| `InvalidKdfParameters` | KDF 参数超出 accepted decode range（KDF 前拒绝） |
+| `MalformedPackage` | 结构损坏：截断 / 长度不一致 / trailing garbage / headerLength mismatch / 超容量 |
+| `AuthenticationFailed` | AEAD 失败 —— wrong PIN 或 corrupted package（**不做精确区分**） |
+| `LogicalPayloadInvalid` | crypto 成功但 inner payload JSON 解析失败或 `PackageValidator` 校验失败 |
+| `PackageTooLarge` | **encode 侧**显式容量失败：序列化后超包预算（defense-in-depth；正常路径 validator 已先拒绝） |
+
+要求：任何 authentication failure **不得**返回 partial plaintext、
+**不得**返回 partially parsed `VaultSnapshot`、**不得**继续进入
+MergePlanner。wrong PIN 与 ciphertext corruption 在 AEAD 层无法安全区分，
+统一为 `AuthenticationFailed`（“wrong PIN or corrupted package”），UI 后续
+决定文案。
+
+## 序列化（Phase 3B 已实现）
+
+- 复用 Phase 3A 的 `VaultPackagePayload` / `VaultSnapshot` / Developer
+  logical model / `SnapshotScope`；不序列化 Room entity / SQLite / Bundle /
+  Java 对象序列化。
+- portable schema 保持 platform-neutral（JSON，kotlinx.serialization）。
+- 外层 `formatVersion` / `cryptoVersion` 与内层 `logicalSchemaVersion` 是
+  **两个不同概念**，不得混成一个版本号（已分别校验）。
 
 ## 版本化与兼容
 
-- `logicalSchemaVersion`：读取方必须拒绝未知新版本，不得猜测解析
-  （与 legacy import 的 version 校验同一策略）。
-- `formatVersion` / `cryptoVersion`：Phase 3B 在 envelope 中版本化；
-  一旦以某个版本发布，算法不得在同一版本下改变。
+- `logicalSchemaVersion`：读取方必须拒绝未知新版本，不得猜测解析。
+- `formatVersion` / `cryptoVersion`：在 envelope 中版本化；一旦以某个版本
+  发布，算法不得在同一版本下改变。
+- 未来 format/crypto 升级：新增版本号，decoder 按版本分派；旧版本 package
+  仍可解密（golden fixture 锁定）。
+
+## Selective snapshot（Phase 3B codec 一视同仁）
+
+只有 **`PortablePackageCodec`** 一个 codec。`FULL_VAULT` /
+`AUTHENTICATOR_ONLY` / `DEVELOPER_ONLY` / `SELECTED_ITEMS` 全部走同一
+encode/decode；payload 里是什么由 `VaultPackagePayload` / `SnapshotScope`
+决定。**不创建** `FullBackupCodec` / `SelectiveBackupCodec` 两套格式。
+
+## PIN 表示 / zeroization（Phase 3B 已实现）
+
+- Crypto core 不长期保存 PIN `String`；codec 接受 `String` / `CharArray` /
+  `ByteArray` 三种 PIN 表示，内部统一复制为 owned `ByteArray` 供 KDF 使用，
+  用后 `zeroize()`（覆盖为 0）。
+- 敏感临时材料（PIN bytes / KEK / unwrapped PackageKey / plaintext
+  serialized payload / 临时 secret buffers）在生命周期结束后 best-effort
+  zeroize。
+- **JVM 无法提供绝对内存擦除保证** —— 文档如实描述为 **best-effort
+  zeroization**，不声称物理内存中绝无残留。
+- PIN 是否必须纯数字 / 最短位数属 Phase 3D 产品输入策略；本轮 codec **不**
+  把 crypto API 写死成 6/8 位数字 regex。Codec 只处理“本次 package secret”。
+
+## API boundary（Phase 3B 已实现）
+
+纯 Kotlin API（`:core`）：
+
+```
+PortablePackageCodec.encode(payload: VaultPackagePayload, pin: String|CharArray|ByteArray): ByteArray
+PortablePackageCodec.decode(packageBytes: ByteArray, pin: String|CharArray|ByteArray): VaultPackagePayload
+```
+
+不暴露 Room / Android Context / SAF / Uri / Activity / BiometricPrompt；
+Phase 3B 完全在 JVM 测试中验证。
+
+## 确定性测试向量 / golden fixture（Phase 3B 已实现）
+
+- 生产默认路径使用 `SecureRandom`（CSPRNG），**不使用** deterministic RNG。
+- 测试提供 `PackageCrypto.withDeterministicRandom` seam（仅测试用），用于
+  生成**固定 golden fixture**：
+  `core/src/test/resources/codec-fixtures/v2_package_fixture_v1.bin`
+  （test-only PIN `fixture-pin-0000`，synthetic fake secrets，无真实
+  credential）。future codec 重构时可用它验证旧 package 仍能解密。
 
 ## Legacy 边界（保持 Phase 1 不变）
 
@@ -252,6 +440,6 @@ native package codec          （Phase 3B，`export`/codec）
   MergeResult。
 - **shared logical / merge 层不得依赖 legacy 类型**：`export` 包不 import
   `com.rescueauth.v2.legacy` 任何类型（`LegacyIsolationTest` 在 source 级
-  锁定）。
+  锁定，`codec` 子包同样遵守）。
 - 未来删除 Legacy Import ⇒ 删除 legacy compatibility layer，**不得要求
   重构 Native Package Import**。
