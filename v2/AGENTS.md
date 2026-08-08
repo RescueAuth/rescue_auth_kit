@@ -31,7 +31,10 @@
   **RUNTIME DECODE RESOURCE POLICY 与 FORMAT HARD LIMIT 分离**（超预算在
   Argon2 前拒绝，默认 19 MiB/2 iter 永远兼容）。
   **Phase 4 P1 已实现**（TOTP Daily-Use Loop，见
-  `docs/PHASE4_P1_REPORT.md`；真实 production storage，QR 暂未实现）。
+  `docs/PHASE4_P1_REPORT.md`；真实 production storage）。
+  **Phase 4 P2 已实现**（QR Scan + otpauth-migration Import，见
+  `docs/PHASE4_P2_REPORT.md`：CameraX + ML Kit 扫码、独立纯 Kotlin migration
+  adapter、多 QR batch session、repository batch import；IMPORT ONLY）。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。

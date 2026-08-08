@@ -2,7 +2,13 @@ package com.rescueauth.v2.ui.authenticator
 
 import com.rescueauth.v2.domain.AuthAccount
 import com.rescueauth.v2.domain.TotpCredential
+import com.rescueauth.v2.migration.MigrationBatchSession
+import com.rescueauth.v2.migration.MigrationEntryStatus
+import com.rescueauth.v2.migration.MigrationPayloadParser
+import com.rescueauth.v2.migration.MigrationTotpCandidate
 import com.rescueauth.v2.repository.AuthenticatorRepository
+import com.rescueauth.v2.repository.TotpImportItem
+import com.rescueauth.v2.scanner.ScannerResultRouter
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.totp.TotpCore
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +66,33 @@ data class AddTotpFormState(
     val isPaste: Boolean get() = mode == AddMode.PASTE
 }
 
-enum class AddMode { PASTE, MANUAL }
+enum class AddMode { SCAN, PASTE, MANUAL }
+
+/** UI state of the otpauth-migration import flow (Phase 4 P2). */
+data class MigrationImportUiState(
+    /** Full-screen camera open (add flow Scan QR). */
+    val scannerVisible: Boolean = false,
+    /** Multi-QR collection progress (collected / total), when active. */
+    val batchProgress: Pair<Int, Int>? = null,
+    /** Fully collected migration candidates awaiting confirmation. */
+    val candidates: List<MigrationTotpCandidate> = emptyList(),
+    /** Counts reported after a completed import (null = not yet imported). */
+    val result: MigrationImportResultUi? = null,
+    /** Import in flight. */
+    val importing: Boolean = false,
+    /** User-facing scan/import error (never a raw exception / secret). */
+    val error: String? = null,
+) {
+    val isPreviewVisible: Boolean get() = candidates.isNotEmpty()
+}
+
+/** Aggregated import result shown to the user. */
+data class MigrationImportResultUi(
+    val imported: Int,
+    val duplicates: Int,
+    val unsupported: Int,
+    val invalid: Int,
+)
 
 /**
  * One-shot user events for the Authenticator screen. Android-only side effects
@@ -78,6 +110,12 @@ sealed interface AuthenticatorEvent {
 
     /** A new TOTP credential was added. */
     data class Added(val label: String) : AuthenticatorEvent
+
+    /** A migration batch was imported. */
+    data class MigrationImported(val imported: Int, val duplicates: Int) : AuthenticatorEvent
+
+    /** A scanned QR could not be used (message resource key). */
+    data class ScanError(val messageKey: String) : AuthenticatorEvent
 }
 
 /**
@@ -114,6 +152,11 @@ class AuthenticatorViewModel(
 
     private val _events = MutableStateFlow<AuthenticatorEvent?>(null)
     val events: StateFlow<AuthenticatorEvent?> = _events.asStateFlow()
+
+    private val _migrationState = MutableStateFlow(MigrationImportUiState())
+    val migrationState: StateFlow<MigrationImportUiState> = _migrationState.asStateFlow()
+
+    private val batchSession = MigrationBatchSession()
 
     private val tickSeconds = MutableStateFlow(clock.currentTimeSeconds())
 
@@ -232,6 +275,7 @@ class AuthenticatorViewModel(
         _formState.update { it.copy(submitting = true, error = null) }
         return try {
             val result = when (form.mode) {
+                AddMode.SCAN -> false // scan has its own flow; no direct submit
                 AddMode.PASTE -> addFromUri(form.uri)
                 AddMode.MANUAL -> addManual(form)
             }
@@ -296,6 +340,182 @@ class AuthenticatorViewModel(
         _formState.value = AddTotpFormState(mode = AddMode.MANUAL)
         _events.value = AuthenticatorEvent.Added("$provider · $account")
         return true
+    }
+
+    // ------------------------------------------------------------------
+    // QR scan + otpauth-migration import (Phase 4 P2)
+    // ------------------------------------------------------------------
+
+    fun openScanner() {
+        _migrationState.update { it.copy(scannerVisible = true, error = null) }
+    }
+
+    /** Closes the camera screen and releases scanner state (cancel). */
+    fun closeScanner() {
+        batchSession.reset()
+        _migrationState.update {
+            it.copy(
+                scannerVisible = false,
+                batchProgress = null,
+                error = null,
+            )
+        }
+    }
+
+    fun dismissMigrationPreview() {
+        batchSession.reset()
+        _migrationState.update {
+            it.copy(
+                candidates = emptyList(),
+                result = null,
+                importing = false,
+                error = null,
+                scannerVisible = false,
+                batchProgress = null,
+            )
+        }
+    }
+
+    fun onScanErrorShown() {
+        _events.value = null
+    }
+
+    /**
+     * Routes one scanned raw string through [ScannerResultRouter]. Handles
+     * single TOTP QR, migration single/multi-batch collection, and distinct
+     * error states. Called on the main thread from the camera screen.
+     */
+    fun onQrScanned(raw: String) {
+        val current = _migrationState.value
+        // Do not re-route while a preview is already awaiting confirmation.
+        if (current.isPreviewVisible || current.importing) return
+
+        when (val result = ScannerResultRouter.route(raw)) {
+            is ScannerResultRouter.ScanResult.Totp -> {
+                val parsed = result.parsed
+                _migrationState.update {
+                    it.copy(
+                        candidates = listOf(
+                            MigrationTotpCandidate.importable(
+                                secretBase32 = parsed.secretBase32,
+                                name = parsed.accountName,
+                                issuer = parsed.issuer,
+                                algorithm = parsed.algorithm,
+                                digits = parsed.digits,
+                                periodSeconds = parsed.periodSeconds,
+                            )
+                        ),
+                        scannerVisible = false,
+                        batchProgress = null,
+                        error = null,
+                    )
+                }
+            }
+            is ScannerResultRouter.ScanResult.Migration -> {
+                handleMigrationScan(result.parsed, result.raw)
+            }
+            is ScannerResultRouter.ScanResult.NotSupported -> {
+                _events.value = AuthenticatorEvent.ScanError("scan_error_not_supported")
+            }
+            is ScannerResultRouter.ScanResult.MalformedOtpauth -> {
+                _events.value = AuthenticatorEvent.ScanError("scan_error_malformed")
+            }
+            is ScannerResultRouter.ScanResult.MalformedMigration -> {
+                _events.value = AuthenticatorEvent.ScanError("scan_error_malformed_migration")
+            }
+        }
+    }
+
+    private fun handleMigrationScan(parsed: com.rescueauth.v2.migration.MigrationParseResult, raw: String) {
+        val batchSize = parsed.batchSize
+        val batchIndex = parsed.batchIndex
+        val batchId = parsed.batchId
+
+        if (batchSize <= 1) {
+            // Single QR migration: go straight to preview.
+            _migrationState.update {
+                it.copy(
+                    candidates = parsed.entries,
+                    scannerVisible = false,
+                    batchProgress = null,
+                    error = null,
+                )
+            }
+            return
+        }
+
+        // Multi-QR batch collection session.
+        try {
+            val candidates = batchSession.addPart(
+                batchId = batchId,
+                batchIndex = batchIndex,
+                batchSize = batchSize,
+                candidates = parsed.entries,
+                rawPayload = raw,
+            )
+            val progress = batchSession.progress
+            _migrationState.update {
+                it.copy(
+                    batchProgress = progress?.let { p -> p.collected to p.total },
+                    scannerVisible = true,
+                    error = null,
+                )
+            }
+            if (candidates.isNotEmpty()) {
+                // Batch complete → leave camera and show the full preview.
+                _migrationState.update {
+                    it.copy(
+                        candidates = candidates,
+                        scannerVisible = false,
+                        batchProgress = null,
+                    )
+                }
+            }
+        } catch (e: MigrationBatchSession.BatchError) {
+            _events.value = AuthenticatorEvent.ScanError("scan_error_batch_conflict")
+        }
+    }
+
+    /** Imports the confirmed migration candidates into the real Vault. */
+    suspend fun confirmMigrationImport(): Boolean {
+        val state = _migrationState.value
+        val repo = repositoryProvider() ?: return false
+        if (state.importing) return false
+        val candidates = state.candidates.filter { it.status == MigrationEntryStatus.IMPORTABLE }
+        if (candidates.isEmpty()) return false
+
+        _migrationState.update { it.copy(importing = true, error = null) }
+        return try {
+            val items = candidates.map {
+                TotpImportItem(
+                    issuer = it.issuer ?: "Unknown",
+                    accountName = it.name ?: it.issuer ?: "Unknown",
+                    secretBase32 = it.secretBase32 ?: "",
+                    algorithm = it.algorithm ?: TotpCore.DEFAULT_ALGORITHM,
+                    digits = it.digits ?: TotpCore.DEFAULT_DIGITS,
+                    periodSeconds = it.periodSeconds ?: TotpCore.DEFAULT_PERIOD_SECONDS,
+                )
+            }
+            val result = repo.importTotpBatch(items)
+            _migrationState.update {
+                it.copy(
+                    importing = false,
+                    result = MigrationImportResultUi(
+                        imported = result.importedCount,
+                        duplicates = result.duplicateCount,
+                        unsupported = state.candidates.count { it.status == MigrationEntryStatus.UNSUPPORTED },
+                        invalid = state.candidates.count { it.status == MigrationEntryStatus.INVALID },
+                    ),
+                )
+            }
+            _events.value = AuthenticatorEvent.MigrationImported(result.importedCount, result.duplicateCount)
+            true
+        } catch (e: Exception) {
+            _migrationState.update {
+                it.copy(importing = false, error = "migration_import_failed")
+            }
+            false
+        }
     }
 
     // ------------------------------------------------------------------

@@ -109,6 +109,15 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    // CameraX + ML Kit barcode scanning (Phase 4 P2 QR scanner).
+    // Mature stack: CameraX lifecycle-aware camera + ML Kit on-device barcode
+    // decoding. No network, no image upload, no analytics.
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
+
     // Room + SQLCipher (Zetetic current artifact)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

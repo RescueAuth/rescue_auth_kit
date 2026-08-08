@@ -10,6 +10,57 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p2 qr-migration] - 2026-08-08（Phase 4 P2：QR Scan + otpauth-migration Import）
+
+Phase 4 P2（Issue #20）——让用户通过摄像头扫码添加 TOTP：普通
+`otpauth://totp/...` QR 与 Google Authenticator 风格 `otpauth-migration://`
+批量 QR。**IMPORT ONLY**，不实现 migration export。
+
+### Added
+
+- **QR scanner**：CameraX（core/camera2/lifecycle/view 1.4.1）+ ML Kit
+  `barcode-scanning` 17.3.0；权限仅在 Scan QR 时请求（granted / denied /
+  permanently-denied 明确 UI）；lifecycle-aware（页面离开/后台自动 release）；
+  torch 切换；不保存/上传图像；同 QR 防重复触发（last-value + cooldown）。
+- **otpauth-migration parser（core，纯 Kotlin）**：
+  `migration/MinimalProtobuf.kt`（边界严格的最小 protobuf wire decoder，
+  零新增依赖）、`migration/MigrationPayloadParser.kt`（URI → 分类 entries +
+  batch metadata）、`migration/MigrationModels.kt`（IMPORTABLE / UNSUPPORTED /
+  INVALID per-entry status）。不依赖 Camera/Compose/Room/Android Context/legacy。
+- **多 QR batch session（core）**：`migration/MigrationBatchSession.kt`，支持
+  batchId / batchIndex / batchSize、乱序收齐、重复帧幂等、冲突明确拒绝；
+  内存态，app kill 不恢复。
+- **ScannerResultRouter（app）**：raw String → otpauth（复用 P1 OtpauthParser）/
+  migration / not-supported / malformed 分类路由。
+- **Repository batch import**：`AuthenticatorRepository.importTotpBatch`
+  （单事务，Provider/Account 复用，stableId 生成，TOTP semantic fingerprint
+  dedupe；不碰 Phase 3C Merge）。
+- **UI**：Add 菜单三选（Scan QR / Paste URI / Manual）；全屏 camera preview；
+  扫描完成后进入 Compose confirmation state（MigrationImportSheet：预览每项
+  issuer/account/algorithm/digits，**不显示 secret**；多 QR 进度；结果计数
+  Imported / duplicates / unsupported / invalid）。
+- 文档：`docs/PHASE4_P2_REPORT.md`；ROADMAP §5.3 P2 标记已实现。
+
+### Changed
+
+- `AndroidManifest.xml`：新增 CAMERA 权限 + camera feature（required=false）。
+- `build.gradle.kts` / `libs.versions.toml`：CameraX 1.4.1 + ML Kit 17.3.0。
+- `AuthenticatorViewModel` / `AuthenticatorRoute` / `AddTotpSheet`：scan +
+  migration import 状态机与 UI 接线。
+- strings en + zh-CN。
+
+### Tests（全部通过）
+
+- `:core:test`：migration parser（single/multi、issuer/name、secret→Base32
+  exact、SHA1/256/512、digits、malformed base64/protobuf、missing secret、
+  HOTP、unsupported algorithm、mixed）+ batch session（single、1/3→3/3、
+  乱序、重复幂等、duplicate-index、batchId/size 冲突、incomplete）。
+- `:app:testDebugUnitTest`：ScannerResultRouter、ViewModel scan/migration
+  （preview / multi-QR progress / import result / duplicate / cancel release）、
+  repository batch import（3→3、Provider/Account 复用、duplicate skip、mixed、
+  unsupported 不落库、restart reopen）、Add menu（Scan/Paste/Manual）。
+- `:app:lintDebug` / `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 均 PASS。
+
 ## [v2 phase4-p1 totp-compat] - 2026-08-08（PR #23 merge 前 TOTP compatibility CR）
 
 Phase 4 P1 merge 前的最小 TOTP 兼容性修正（Issue #20）。**冻结 v1 Authenticator

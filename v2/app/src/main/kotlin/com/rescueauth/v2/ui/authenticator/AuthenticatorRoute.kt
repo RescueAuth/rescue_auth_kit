@@ -25,6 +25,8 @@ import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
 import com.rescueauth.v2.ui.screens.authenticator.AddTotpSheet
 import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen
+import com.rescueauth.v2.ui.screens.authenticator.MigrationImportSheet
+import com.rescueauth.v2.ui.screens.authenticator.QrScannerScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -71,6 +73,7 @@ fun AuthenticatorRoute(
     val uiState by viewModel.uiState.collectAsState()
     val formState by viewModel.formState.collectAsState()
     val events by viewModel.events.collectAsState()
+    val migrationState by viewModel.migrationState.collectAsState()
 
     // Shared 1s tick: wall-clock based, driven from a background scope so it
     // never holds the main-looper / compose idling system busy. It only runs
@@ -141,6 +144,26 @@ fun AuthenticatorRoute(
                     message = context.getString(R.string.totp_added_message),
                 )
             }
+            is AuthenticatorEvent.MigrationImported -> {
+                snackbarHostState.showSnackbar(
+                    message = context.getString(
+                        R.string.migration_imported_message,
+                        event.imported,
+                        event.duplicates,
+                    ),
+                )
+            }
+            is AuthenticatorEvent.ScanError -> {
+                val message = when (event.messageKey) {
+                    "scan_error_not_supported" -> context.getString(R.string.scan_error_not_supported)
+                    "scan_error_malformed" -> context.getString(R.string.scan_error_malformed)
+                    "scan_error_malformed_migration" -> context.getString(R.string.scan_error_malformed_migration)
+                    "scan_error_incomplete_batch" -> context.getString(R.string.scan_error_incomplete_batch)
+                    "scan_error_batch_conflict" -> context.getString(R.string.scan_error_batch_conflict)
+                    else -> context.getString(R.string.scan_error_malformed)
+                }
+                snackbarHostState.showSnackbar(message)
+            }
         }
         viewModel.onEventShown()
     }
@@ -159,6 +182,10 @@ fun AuthenticatorRoute(
             form = formState,
             onDismiss = { showAddSheet = false },
             onModeChange = { viewModel.setMode(it) },
+            onStartScan = {
+                showAddSheet = false
+                viewModel.openScanner()
+            },
             onUriChange = { viewModel.onUriChange(it) },
             onProviderChange = { viewModel.onProviderChange(it) },
             onAccountNameChange = { viewModel.onAccountNameChange(it) },
@@ -167,6 +194,25 @@ fun AuthenticatorRoute(
             onDigitsChange = { viewModel.onDigitsChange(it) },
             onPeriodChange = { viewModel.onPeriodChange(it) },
             onSubmit = { appScope.launch { viewModel.submitAdd() } },
+        )
+    }
+
+    // Full-screen camera QR scanner (Phase 4 P2).
+    if (migrationState.scannerVisible) {
+        QrScannerScreen(
+            onQrDetected = { raw ->
+                viewModel.onQrScanned(raw)
+            },
+            onDismiss = { viewModel.closeScanner() },
+        )
+    }
+
+    // Migration preview / result (Compose confirmation state, not camera).
+    if (migrationState.isPreviewVisible || migrationState.result != null) {
+        MigrationImportSheet(
+            state = migrationState,
+            onConfirm = { appScope.launch { viewModel.confirmMigrationImport() } },
+            onDismiss = { viewModel.dismissMigrationPreview() },
         )
     }
 }
