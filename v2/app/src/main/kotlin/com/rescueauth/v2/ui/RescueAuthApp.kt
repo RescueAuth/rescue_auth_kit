@@ -33,6 +33,7 @@ import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportMode
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
+import com.rescueauth.v2.ui.screens.legacyimport.LegacyImportRoute
 
 object RescueAuthTestTags {
     const val NAV_AUTHENTICATOR = "nav_authenticator"
@@ -185,6 +186,7 @@ fun RescueAuthApp(
                     versionName = versionName,
                     onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
                     onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
+                    onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_SETTINGS),
                 )
             }
@@ -200,6 +202,12 @@ fun RescueAuthApp(
                     mode = ExportImportMode.IMPORT,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_import"),
+                )
+            }
+            composable(RescueAuthRoutes.LEGACY_IMPORT) {
+                LegacyImportRoute(
+                    onBack = { navController.popBackStack() },
+                    modifier = Modifier.testTag("screen_legacy_import"),
                 )
             }
         }

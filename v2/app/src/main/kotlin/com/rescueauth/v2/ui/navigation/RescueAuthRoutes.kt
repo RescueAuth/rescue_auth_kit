@@ -24,6 +24,9 @@ object RescueAuthRoutes {
     const val EXPORT = "export"
     const val IMPORT = "import"
 
+    // --- Phase 5B: Legacy v1 `.rakvault` import (separate entry point) ---
+    const val LEGACY_IMPORT = "legacy-import"
+
     // --- Authenticator structure ---
     // Phase 4 P3: the Account detail destination is wired (Recovery Codes).
     const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{accountId}"

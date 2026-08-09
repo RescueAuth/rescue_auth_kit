@@ -36,6 +36,7 @@ fun SettingsScreen(
     versionName: String? = null,
     onExportClick: (() -> Unit)? = null,
     onImportClick: (() -> Unit)? = null,
+    onLegacyImportClick: (() -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -62,6 +63,12 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.settings_import_native_subtitle),
                 enabled = onImportClick != null,
                 onClick = onImportClick,
+            )
+            SettingsRow(
+                title = stringResource(R.string.settings_import_legacy),
+                subtitle = stringResource(R.string.settings_import_legacy_subtitle),
+                enabled = onLegacyImportClick != null,
+                onClick = onLegacyImportClick,
             )
             Text(
                 text = stringResource(R.string.settings_backup_transfer_notice),

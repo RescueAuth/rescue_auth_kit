@@ -10,6 +10,66 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase5b legacy-import-ui] - 2026-08-09（Phase 5B Legacy v1 Android Import UI，IMPLEMENTED / PR OPEN）
+
+Issue #1 Phase 5B：把 Phase 5A 的 Legacy v1 Core Adapter 正式接到 Android
+daily-use import flow。Legacy `.rakvault` 是 IMPORT ONLY；不改 Frozen protocol，
+不改 Native `.rakpkg` format。
+
+### Added
+
+- **`LegacyImportService`（app）**：`.rakvault` → `LegacyRakVaultImporter` →
+  `LegacyImportBundle`（短暂）→ `LegacyVaultSnapshotMapper` → shared
+  `VaultSnapshot` → `PackageValidator.validateSnapshot`（纯 logical）→
+  `MergePlanner`（preview）→ `VaultRepository.applySnapshot`（final re-plan /
+  preflight / 单事务 apply）。明文 bundle/snapshot 只存在于内存 session，
+  cancel / apply / lock / new-file / error 时清除。
+- **`SafLegacyFileIo`（app）**：SAF OpenDocument + `BoundedPackageReader`，
+  **64 MiB + 1 检测**（与 Native 16 MiB 解耦），超限 decrypt 前拒绝；
+  filename/MIME 仅 UX hint。
+- **`LegacyImportViewModel`（app）**：单一 sealed state machine
+  （Idle / FileSelected / AwaitingPassword / Decrypting / Preview / Applying /
+  Success / Error）；Master Password 无 `>=10` 硬编码 gate，任意非空密码提交
+  decoder，与 Native 6-digit PIN policy 独立；session lock / cancel / new-file
+  清除全部明文状态；错误区分 RETRY_PASSWORD / RESTART / BLOCKED。
+- **`LegacyImportRoute` / `LegacyImportScreen`（app）**：独立入口
+  “Import Legacy v1 Vault”（Settings → Backup / Transfer），与 “Import Native
+  Package” 明确分开；safe preview（schemaVersion / counts / Developer 五类 /
+  merge summary，无任何 secret）。
+- **ImportRecord wiring**：`sourceType="LEGACY_RAKVAULT"` +
+  `sourceFingerprint`（原始加密字节 SHA-256 base64url）；仅成功事务后记录。
+  Room schema **不变**（无 migration）。
+- **`LegacyRakVaultImporter.ErrorKind`（core）**：非破坏性 typed failure
+  category（AUTHENTICATION_FAILED / UNSUPPORTED_SCHEMA / UNSUPPORTED_FORMAT /
+  INVALID_ENVELOPE / MALFORMED_PAYLOAD / FILE_TOO_LARGE …），UI 映射到明确
+  safe error。
+- **测试**：frozen-v1/schema1/3 integration（apply / recovery UNUSED /
+  Developer 五类持久化 + keystore exact bytes / 同文件与跨备份幂等 / Developer
+  conflict block / Recovery divergence block / final re-plan / rollback /
+  ImportRecord-on-success）；UI/security（picker cancel / oversized before
+  decrypt / no >=10 gate / password not persisted / wrong-password safe error /
+  preview no secrets / session lock clears / new file clears）；Native/Legacy
+  isolation（VaultRepository、MergePlanApplicator、exportimport、legacyimport
+  双向）；Legacy 入口与 Native 分开导航测试。
+
+### Changed
+
+- `VaultRepository`：**删除** Phase-1 `importLegacy(LegacyImportBundle)` spike
+  （架构清债）；`applySnapshot` 新增可选 `sourceType` 参数
+  （默认 `"V2_PACKAGE"` 保持 Native 语义）。
+- `MergePlanApplicator.apply`：新增可选 `sourceType` 参数（ImportRecord 写入）。
+- `VaultAccess`：`legacyImportService()` 生产 wiring。
+- `RescueAuthRoutes` / `RescueAuthApp` / `SettingsScreen`：Legacy import 入口
+  接线（与 Native 分开）。
+- strings（en / zh-CN）：Legacy import 文案。
+- `docs/PHASE5B_REPORT.md`（新）、`docs/LEGACY_IMPORT.md` §10、ROADMAP /
+  AGENTS / CHANGELOG 最小状态更新。
+
+Phase 5B = **IMPLEMENTED / PR OPEN**；Phase 5A = **CLOSED**；M2（Developer
+数据处理）**NOT STARTED**。未修改 PortablePackageCodec / .rakpkg /
+MergePlanner / Native ExportImportViewModel / Developer UI /
+SensitiveActionGate。
+
 ## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，IMPLEMENTED）
 
 Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 logical

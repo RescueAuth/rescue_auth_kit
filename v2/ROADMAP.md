@@ -252,12 +252,22 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 > 防御上限与 Native 16 MiB 解耦（输入 64 MiB）；只走纯 logical validation；
 > 独立 Python-provenance fixture + **frozen v1 producer fixture** 锁定幂等与
 > actual producer interop。
-> 详见 `docs/PHASE5A_REPORT.md`。M1（UI）/ M2（Developer 数据处理）**NOT
-> STARTED**。
+> 详见 `docs/PHASE5A_REPORT.md`。
+>
+> **Phase 5B（2026-08-09，Issue #1）**：Legacy v1 Android Import UI 已实现
+> （IMPLEMENTED / PR OPEN）——`LegacyImportService` / `LegacyImportViewModel` /
+> `LegacyImportRoute` / `LegacyImportScreen`；SAF OpenDocument + 64 MiB bounded
+> read（decrypt 前拒绝超限）；Master Password（无 `>=10` 硬编码 gate，与
+> Native PIN 独立）；safe preview（无 secret）；MergePlanner / final re-plan /
+> transactional apply 完全复用 shared engine；跨备份幂等 UI→DB 贯通；
+> ImportRecord `sourceType="LEGACY_RAKVAULT"` + source fingerprint；session /
+> plaintext lifecycle（lock/cancel/new-file 清明文）；`VaultRepository` 移除
+> 对 `LegacyImportBundle` 的 Phase-1 spike 依赖（架构清债）。
+> 详见 `docs/PHASE5B_REPORT.md`。M2（Developer 数据处理）**NOT STARTED**。
 
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
-| **M1 — Legacy Import UI 完整流程** | 选 `.rakvault` → 一次旧密码 → Argon2id/XChaCha20 解密 → 预览 → 单事务写入 → 报告；与“Import Rescue Auth Package”在 UI 上明确区分 | 用户可从旧版 v1.2.0 一次性迁移 | 3C（共享 Merge Engine）+ P1 | M |
+| **M1 — Legacy Import UI 完整流程** | ✅ 已实现（Phase 5B，见 `docs/PHASE5B_REPORT.md`）选 `.rakvault` → 一次旧密码 → Argon2id/XChaCha20 解密 → 预览 → 单事务写入 → 报告；与“Import Rescue Auth Package”在 UI 上明确区分 | 用户可从旧版 v1.2.0 一次性迁移 | 3C（共享 Merge Engine）+ P1 | M |
 | **M2 — Developer 数据处理（legacy）** | 预览显示 Developer 数量；默认“未导入 + 报告”，可选转只读 secure note；禁止静默丢弃 | 旧 Developer 数据有明确去向 | M1 | S |
 
 > Legacy Import 与 Native Package Import 的**强制隔离边界**见 §9。

@@ -181,6 +181,8 @@
     <string name="settings_export_vault_subtitle">创建整个保险库的加密数据包</string>
     <string name="settings_import_native">导入原生数据包</string>
     <string name="settings_import_native_subtitle">导入 Rescue Auth 数据包（合并优先）</string>
+    <string name="settings_import_legacy">导入旧版 v1 保险库</string>
+    <string name="settings_import_legacy_subtitle">从 RescueAuth v1 导入旧版 .rakvault 文件</string>
     <string name="settings_backup_transfer_notice">导出为手动操作。每个数据包由独立 PIN 保护，导入始终与现有保险库合并。</string>
     <string name="settings_version">版本 %1$s</string>
 
@@ -205,6 +207,22 @@
     <string name="import_pin_title">输入数据包 PIN</string>
     <string name="import_pin_policy">请输入导出此数据包时设置的 PIN。</string>
     <string name="import_error_title">导入失败</string>
+
+    <!-- Phase 5B Legacy v1 import -->
+    <string name="legacy_import_title">导入旧版 v1 保险库</string>
+    <string name="legacy_import_intro">选择旧版保险库（.rakvault）文件以迁移到当前保险库。导入始终合并，绝不会覆盖现有数据。</string>
+    <string name="legacy_import_notice">旧版保险库使用 v1 格式并带主密码。这与原生数据包导入和应用解锁相互独立。</string>
+    <string name="legacy_import_pick_file">选择 .rakvault 文件</string>
+    <string name="legacy_import_file_selected">已选择文件</string>
+    <string name="legacy_import_error_title">旧版导入失败</string>
+    <string name="legacy_password_title">输入旧版主密码</string>
+    <string name="legacy_password_policy">此密码仅用于解密此旧版保险库，不会被保存。</string>
+    <string name="legacy_password_label">主密码</string>
+    <string name="legacy_preview_title">旧版保险库预览</string>
+    <string name="legacy_preview_schema">Schema 版本</string>
+    <string name="legacy_preview_blocked_title">无法自动应用导入</string>
+    <string name="legacy_preview_blocked_body">此旧版保险库与当前保险库存在冲突或恢复码状态差异，不会导入任何数据。</string>
+    <string name="legacy_preview_blocked_hint">您可以返回并选择其他文件。</string>
 
     <!-- PIN entry -->
     <string name="pin_label">PIN</string>

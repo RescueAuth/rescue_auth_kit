@@ -181,6 +181,8 @@
     <string name="settings_export_vault_subtitle">Create an encrypted package of your entire vault</string>
     <string name="settings_import_native">Import Native Package</string>
     <string name="settings_import_native_subtitle">Import a Rescue Auth package (merge-first)</string>
+    <string name="settings_import_legacy">Import Legacy v1 Vault</string>
+    <string name="settings_import_legacy_subtitle">Import an old .rakvault file from RescueAuth v1</string>
     <string name="settings_backup_transfer_notice">Export is manual. Each package is protected by its own PIN, and importing always merges into your existing vault.</string>
     <string name="settings_version">Version %1$s</string>
 
@@ -205,6 +207,22 @@
     <string name="import_pin_title">Enter package PIN</string>
     <string name="import_pin_policy">Enter the PIN that was set when this package was exported.</string>
     <string name="import_error_title">Import failed</string>
+
+    <!-- Phase 5B Legacy v1 import -->
+    <string name="legacy_import_title">Import Legacy v1 Vault</string>
+    <string name="legacy_import_intro">Choose a legacy vault (.rakvault) file to migrate into this vault. Importing always merges — it never overwrites your existing data.</string>
+    <string name="legacy_import_notice">Legacy vaults use the v1 format with a Master Password. This is separate from native package imports and the app unlock.</string>
+    <string name="legacy_import_pick_file">Choose .rakvault file</string>
+    <string name="legacy_import_file_selected">File selected</string>
+    <string name="legacy_import_error_title">Legacy import failed</string>
+    <string name="legacy_password_title">Enter Legacy Master Password</string>
+    <string name="legacy_password_policy">This password only decrypts this legacy vault. It is not stored.</string>
+    <string name="legacy_password_label">Master Password</string>
+    <string name="legacy_preview_title">Legacy vault preview</string>
+    <string name="legacy_preview_schema">Schema version</string>
+    <string name="legacy_preview_blocked_title">Import cannot be applied automatically</string>
+    <string name="legacy_preview_blocked_body">This legacy vault conflicts with your current vault or has recovery-code state differences. No data will be imported.</string>
+    <string name="legacy_preview_blocked_hint">You can go back and choose a different file.</string>
 
     <!-- PIN entry -->
     <string name="pin_label">PIN</string>

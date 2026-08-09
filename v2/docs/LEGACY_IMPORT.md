@@ -306,3 +306,55 @@ Legacy 映射后走**纯 logical `VaultSnapshot` validation**（
 `PackageValidator.validate(VaultSnapshot)` / `validateSnapshot`），不经过
 Native package capacity budget；capacity 只属于 Native package
 `validate(VaultPackagePayload)`。不改 `.rakpkg` format / 16 MiB contract。
+
+---
+
+## 10. Phase 5B — Android Legacy Import UI（接线契约）
+
+Phase 5B 把 Phase 5A core adapter 接到 Android daily-use import flow。详见
+`docs/PHASE5B_REPORT.md`。
+
+### 10.1 入口
+
+- **Settings → Backup / Transfer → Import Legacy v1 Vault**（与 “Import Native
+  Package” 明确分开，ROADMAP §9）。
+- 独立 route `legacy-import`，独立 `LegacyImportRoute` / `LegacyImportScreen`。
+
+### 10.2 流程
+
+```
+Settings → Import Legacy v1 Vault → Choose .rakvault (SAF OpenDocument)
+→ bounded read (≤ 64 MiB + 1) → Enter Legacy Master Password → Decode
+→ Safe Preview → Merge Preview → Confirm Import → Success summary
+```
+
+### 10.3 与 Native 的边界
+
+- **共享**：`VaultSnapshot` / `PackageValidator.validateSnapshot` /
+  `MergePlanner` / `VaultRepository.applySnapshot`（事务 apply）。
+- **不共享**：password/PIN validator、decoder、error enum、format
+  identification state machine。
+- `VaultRepository` **不再 import** `LegacyImportBundle`；旧 `importLegacy`
+  spike 已删除，Legacy 一律走 `applySnapshot(..., sourceType="LEGACY_RAKVAULT")`。
+
+### 10.4 Legacy password 策略
+
+- **不硬编码 `password.length >= 10`**（v1 creation UI policy，非 decoder
+  要求）。任意非空密码提交给 Legacy decoder。
+- 不复用 Native 6-digit PIN policy。
+- 密码不进入 SavedStateHandle / Bundle / rememberSaveable / DataStore /
+  Room / logs；Char/ByteArray best-effort zeroize。
+
+### 10.5 大小上限
+
+- Legacy SAF bounded read 使用 **64 MiB**（`LegacyRakVaultImporter
+.DEFAULT_MAX_INPUT_BYTES`），与 Native `.rakpkg` 16 MiB 解耦。
+- 超限在 decrypt 前拒绝（`LegacyFileError.FileTooLarge`）。
+
+### 10.6 ImportRecord
+
+- `sourceType = "LEGACY_RAKVAULT"`。
+- `sourceFingerprint = b64url(SHA-256(原始加密 .rakvault 字节))`（Phase 5A
+  §11），仅作 source identity，不参与 object identity。
+- 仅 successful transactional apply 后记录（cancel / decode failure / merge
+  blocked / rollback 不记录）。Room schema 不变。

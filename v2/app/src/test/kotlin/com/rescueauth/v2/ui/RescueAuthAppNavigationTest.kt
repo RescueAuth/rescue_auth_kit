@@ -3,6 +3,7 @@ package com.rescueauth.v2.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
@@ -60,6 +61,27 @@ class RescueAuthAppNavigationTest {
         setAppContent()
         composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
         composeRule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsShowsLegacyImportEntrySeparateFromNativeImport() {
+        setAppContent()
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        // Both import entries are visible: Native and Legacy are distinct.
+        composeRule.onNodeWithText("Import Native Package").assertIsDisplayed()
+        composeRule.onNodeWithText("Import Legacy v1 Vault").assertIsDisplayed()
+        // Opening the Legacy entry navigates to the Legacy import screen.
+        composeRule.onNodeWithText("Import Legacy v1 Vault").performClick()
+        composeRule.onNodeWithTag(com.rescueauth.v2.ui.screens.legacyimport.LegacyImportTestTags.SCREEN).assertIsDisplayed()
+    }
+
+    @Test
+    fun legacyImportEntryIsNotHiddenInsideDeveloper() {
+        setAppContent()
+        // The Legacy import entry is under Settings → Import/Export (an import
+        // hub), NOT hidden inside the Developer destination.
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_DEVELOPER).performClick()
+        composeRule.onNodeWithText("Import Legacy v1 Vault", substring = true).assertDoesNotExist()
     }
 
     @Test

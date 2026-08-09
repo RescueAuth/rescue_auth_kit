@@ -3,6 +3,7 @@ package com.rescueauth.v2.repository
 import com.rescueauth.v2.BuildConfig
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.exportimport.ExportImportService
+import com.rescueauth.v2.legacyimport.LegacyImportService
 import com.rescueauth.v2.session.SessionManager
 
 /**
@@ -47,6 +48,9 @@ object VaultAccess {
     @Volatile
     private var cachedExportImportService: ExportImportService? = null
 
+    @Volatile
+    private var cachedLegacyImportService: LegacyImportService? = null
+
     /** Drops cached state (called on app teardown). */
     fun clear() {
         cachedDb = null
@@ -55,6 +59,7 @@ object VaultAccess {
         cachedRecoveryRepository = null
         cachedDeveloperRepository = null
         cachedExportImportService = null
+        cachedLegacyImportService = null
         sessionManager = null
     }
 
@@ -134,6 +139,23 @@ object VaultAccess {
         val svc = ExportImportService(vault, BuildConfig.VERSION_NAME)
         cachedDb = db
         cachedExportImportService = svc
+        return svc
+    }
+
+    /**
+     * Phase 5B — the Legacy v1 `.rakvault` import use-case service for the
+     * current open DB, or null while locked. Shares the single [VaultRepository]
+     * mutex (serialized with Export/Import and all daily-use CRUD).
+     */
+    fun legacyImportService(): LegacyImportService? {
+        val vault = vaultRepository() ?: return null
+        val sm = sessionManager ?: return null
+        val db = sm.databaseOrNull() ?: return null
+        val cached = cachedLegacyImportService
+        if (cached != null && cachedDb === db) return cached
+        val svc = LegacyImportService(vault)
+        cachedDb = db
+        cachedLegacyImportService = svc
         return svc
     }
 }
