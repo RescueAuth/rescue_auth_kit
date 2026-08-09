@@ -243,6 +243,18 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 
 ### 5.4 Phase 5 — Migration（legacy import 收口）
 
+> **Phase 5A（2026-08-09，Issue #1）**：Legacy v1 Core Adapter 已实现
+> （PR OPEN，含 merge 前 CR 修复）——`LegacyVaultSnapshotMapper` 把解密后的
+> `LegacyImportBundle` 映射为 shared `VaultSnapshot`，复用 `PackageValidator` /
+> `MergePlanner` / `VaultRepository.applySnapshot`；**durable-id-first** 确定性
+> stableId（基于 legacy durable UUID，不依赖 source fingerprint）+ source
+> fingerprint（仅作 source identity）+ 五类 Developer 逐字段映射；Legacy
+> 防御上限与 Native 16 MiB 解耦（输入 64 MiB）；只走纯 logical validation；
+> 独立 Python-provenance fixture + **frozen v1 producer fixture** 锁定幂等与
+> actual producer interop。
+> 详见 `docs/PHASE5A_REPORT.md`。M1（UI）/ M2（Developer 数据处理）**NOT
+> STARTED**。
+
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
 | **M1 — Legacy Import UI 完整流程** | 选 `.rakvault` → 一次旧密码 → Argon2id/XChaCha20 解密 → 预览 → 单事务写入 → 报告；与“Import Rescue Auth Package”在 UI 上明确区分 | 用户可从旧版 v1.2.0 一次性迁移 | 3C（共享 Merge Engine）+ P1 | M |

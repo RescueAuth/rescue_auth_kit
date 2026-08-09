@@ -10,6 +10,55 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，PR OPEN）
+
+Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 logical
+`VaultSnapshot`**，复用 `PackageValidator` / `MergePlanner` /
+`VaultRepository.applySnapshot` 单一验证与事务 apply 路径。只做 core
+适配，不做 Android Legacy UI（Phase 5B）。
+
+### Added
+
+- **`LegacyVaultSnapshotMapper`（core）**：`LegacyImportBundle` →
+  `VaultSnapshot`（FULL_VAULT）。schema 1/2 entry-centric、schema 3
+  account-centric；TOTP 原样映射（非法参数不静默替换）；Recovery →
+  `UNUSED` / `usedAt=null` 明确默认；五类 Developer 逐字段映射（keystore
+  exact byte round-trip）。
+- **确定性 stableId（CR 修复：durable-id-first）**：
+  `legacy:<kind>:<sha256("legacy\0kind\0durablePath")>` —— 基于 legacy
+  durable persisted id（UUID v4），同一对象在不同加密备份 → 相同 stableId；
+  **不依赖 source fingerprint**；不含明文 secret。
+- **Source fingerprint**：原始加密 `.rakvault` 字节 SHA-256（base64url），
+  角色 = legacy import source identity，供 Phase 5B `ImportRecord` 使用；
+  不参与 object identity。
+- **独立 provenance fixture**：`legacy-fixtures/phase5a/` 由 Python
+  （argon2-cffi + PyNaCl）按 frozen v1.2.0 wire protocol 独立生成
+  （schema1/2/3 + Unicode），非 Dart 工具/非 Kotlin test-encoder。
+- **frozen v1 producer fixture（CR 新增）**：`tools/legacy_fixtures_frozen/`
+  逐字节复制 frozen v1.2.0 `vault_crypto.dart` + `vault_models.dart`，实际
+  生产 `.rakvault`（含另一份不同 salt/nonce 的 alt-backup），锁 actual
+  producer interoperability。
+- **Legacy 防御上限（CR 修复）**：输入 16→64 MiB，与 Native `.rakpkg`
+  16 MiB contract 解耦（frozen v1 无大小上限）。
+- **logical validator 边界（CR 修复）**：提取
+  `PackageValidator.validateSnapshot` 公共 logical 入口；Legacy 只走纯
+  logical validation，不经 Native package capacity budget。
+- **测试**：映射逐字段断言、幂等（同一 fixture 二次 import → MergePlanner
+  inserted=0）、跨备份幂等（不同加密备份同一逻辑 vault → 全 DUPLICATE）、
+  不同 durable id 不碰撞、frozen v1 interop（TOTP/Recovery/五类 Developer）、
+  logical/capacity 边界、Native/Legacy 双向隔离。
+
+### Changed
+
+- `docs/LEGACY_IMPORT.md`：新增 §9 Phase 5A 契约（CR 修复：durable-id-first
+  stableId / source fingerprint 角色 / Developer 映射 / fixture provenance /
+  Legacy 防御上限 / logical validator 边界）。
+- `docs/PHASE5A_REPORT.md`（新）、ROADMAP / AGENTS / CHANGELOG 最小状态更新。
+
+Phase 5A = **IMPLEMENTED / PR OPEN**；Phase 5B（Legacy Android UI）= **NOT
+STARTED**。未修改 PortablePackageCodec / .rakpkg / MergePlanner / Developer
+UI / SensitiveActionGate / Export/Recovery UI。
+
 ## [v2 phase4-p3 recovery-codes] - 2026-08-09（Phase 4 P3 Recovery Codes Daily-Use Slice，PR OPEN）
 
 Issue #1 P3：让 Recovery Codes 从“底层已经存在的数据类型”变成真正可
