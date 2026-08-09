@@ -7,6 +7,10 @@
     <string name="unlock_subtitle">Use your fingerprint, face, or device credential</string>
     <string name="unlock_cancel">Cancel</string>
 
+    <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
+    <string name="reauth_title">Authenticate to continue</string>
+    <string name="reauth_subtitle">Use your fingerprint, face, or device credential to authorize this action</string>
+
     <!-- App shell / navigation -->
     <string name="nav_authenticator">Authenticator</string>
     <string name="nav_developer">Developer</string>
@@ -126,6 +130,47 @@
     <string name="developer_reveal">Reveal</string>
     <string name="developer_hide">Hide</string>
     <string name="developer_reveal_hint">Show or hide the sensitive value</string>
+    <string name="developer_add">Add</string>
+    <string name="developer_add_title">Add entry</string>
+    <string name="developer_edit">Edit</string>
+    <string name="developer_edit_title">Edit entry</string>
+    <string name="developer_delete">Delete</string>
+    <string name="developer_copy">Copy</string>
+    <string name="developer_copied">Secret copied</string>
+    <string name="developer_saved_message">Developer entry saved</string>
+    <string name="developer_deleted_message">%1$s deleted</string>
+    <string name="developer_detail_title">Developer entry</string>
+    <string name="developer_entry_missing">This entry no longer exists.</string>
+    <string name="developer_field_title">Title</string>
+    <string name="developer_field_notes">Notes</string>
+    <string name="developer_field_service">Service</string>
+    <string name="developer_field_account">Account name</string>
+    <string name="developer_field_api_key">API Key</string>
+    <string name="developer_field_api_secret">API Secret</string>
+    <string name="developer_field_key_name">Key name</string>
+    <string name="developer_field_private_key">Private Key</string>
+    <string name="developer_field_passphrase">Passphrase</string>
+    <string name="developer_field_public_key">Public Key</string>
+    <string name="developer_field_label">Field label</string>
+    <string name="developer_field_value">Field value</string>
+    <string name="developer_add_field">Add field</string>
+    <string name="developer_remove_field">Remove field</string>
+    <string name="developer_public_key_present">Public key is stored.</string>
+    <string name="developer_save">Save</string>
+    <string name="developer_delete_confirm_title">Delete %1$s?</string>
+    <string name="developer_delete_confirm_message">This entry and all its secrets will be permanently deleted. This action cannot be undone.</string>
+    <string name="developer_error_title">Enter a title.</string>
+    <string name="developer_error_service">Enter a service name.</string>
+    <string name="developer_error_account">Enter an account name.</string>
+    <string name="developer_error_api_key">Enter an API key.</string>
+    <string name="developer_error_api_secret">Enter an API secret.</string>
+    <string name="developer_error_private_key">Enter a private key.</string>
+    <string name="developer_error_field">Add at least one field with a label and value.</string>
+    <string name="developer_error_field_label">Every field needs a label.</string>
+
+    <!-- Sensitive re-auth status (Phase 4 P4) -->
+    <string name="auth_unavailable">Authentication is unavailable on this device. No sensitive value can be revealed or copied.</string>
+    <string name="auth_cancelled">Authentication cancelled.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -144,6 +189,7 @@
     <string name="export_intro">Create an encrypted portable package of your entire vault — Authenticator, Recovery Codes and Developer Vault.</string>
     <string name="export_full_vault_notice">This exports the full vault (FULL_VAULT scope). Selective export will come in a later release.</string>
     <string name="export_start">Choose destination</string>
+    <string name="export_reauth_hint">Authenticating with your device… exporting will continue after this step.</string>
     <string name="export_pin_accepted">PIN accepted</string>
     <string name="export_choose_destination_hint">Now choose where to save this encrypted package.</string>
     <string name="export_pin_title">Set a PIN for this package</string>

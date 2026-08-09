@@ -45,16 +45,6 @@ fun DeveloperEntryType.icon(): ImageVector = when (this) {
     DeveloperEntryType.GENERIC_SECRET -> Icons.Filled.Key
 }
 
-/** Human-readable label for a [DeveloperEntryType]. */
-@Composable
-fun DeveloperEntryType.label(): String = when (this) {
-    DeveloperEntryType.ANDROID_SIGNING_KEY -> stringResource(R.string.developer_type_signing_key)
-    DeveloperEntryType.API_CREDENTIAL -> stringResource(R.string.developer_type_api_credential)
-    DeveloperEntryType.SSH_KEY -> stringResource(R.string.developer_type_ssh_key)
-    DeveloperEntryType.ENVIRONMENT_VARIABLE_SET -> stringResource(R.string.developer_type_env_var)
-    DeveloperEntryType.GENERIC_SECRET -> stringResource(R.string.developer_type_generic)
-}
-
 /**
  * Developer Entry card.
  *

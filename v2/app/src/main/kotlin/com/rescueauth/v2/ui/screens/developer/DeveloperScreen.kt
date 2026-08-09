@@ -11,38 +11,43 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.DeveloperEntryCard
 import com.rescueauth.v2.ui.components.EmptyState
-import com.rescueauth.v2.ui.components.SensitiveValueRow
+import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.developer.DeveloperListUiState
+import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
 import com.rescueauth.v2.ui.model.DeveloperPreviewData
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
- * Developer Vault top-level screen — a **first-class product module** (never
- * hidden inside Settings).
+ * Developer Vault top-level screen (Phase 4 P4) — a first-class product module.
  *
- * Future structure (contract only, no persistence): Android Signing Key / API
- * Credential / SSH Key / Environment Variable Set / Generic Secret.
- *
- * In this foundation the list hosts [DeveloperEntryCard] instances; sensitive
- * fields are rendered through [SensitiveValueRow] (hidden by default). The add
- * action and detail CRUD belong to later vertical slices (Phase 4 P4/P6).
+ * Renders the real production Developer list (metadata only, never secrets):
+ * type grouping/filter, entry title + non-secret metadata, and an Add action
+ * that offers the three P4 types (API Credential / SSH Key / Generic Secret).
+ * Android Signing Key / Env Var Set are NOT shown as clickable fake features —
+ * they are P6 (Issue #20 §19, §31).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperScreen(
     modifier: Modifier = Modifier,
-    entries: List<DeveloperEntryUi> = emptyList(),
+    uiState: DeveloperListUiState = DeveloperListUiState(),
     onAddClick: (() -> Unit)? = null,
     onEntryClick: ((DeveloperEntryUi) -> Unit)? = null,
 ) {
@@ -56,42 +61,82 @@ fun DeveloperScreen(
                 FloatingActionButton(onClick = onAddClick) {
                     Icon(
                         imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.nav_developer),
+                        contentDescription = stringResource(R.string.developer_add),
                     )
                 }
             }
         },
     ) { padding ->
-        if (entries.isEmpty()) {
-            EmptyState(
-                title = stringResource(R.string.developer_empty_title),
-                body = stringResource(R.string.developer_empty_body),
-                modifier = Modifier.padding(padding),
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                items(entries, key = { it.id }) { entry ->
-                    DeveloperEntryCard(
-                        entry = entry,
-                        onClick = onEntryClick?.let { { it(entry) } },
-                    ) {
-                        entry.sensitiveFields.take(2).forEach { field ->
-                            SensitiveValueRow(
-                                label = field.label,
-                                value = field.value,
-                            )
-                        }
-                    }
+        when {
+            uiState.loading -> {
+                LoadingState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                )
+            }
+            uiState.isEmpty -> {
+                EmptyState(
+                    title = stringResource(R.string.developer_empty_title),
+                    body = stringResource(R.string.developer_empty_body),
+                    modifier = Modifier.padding(padding),
+                )
+            }
+            else -> {
+                val supported = uiState.entries.filter {
+                    it.type == DeveloperEntryType.API_CREDENTIAL ||
+                        it.type == DeveloperEntryType.SSH_KEY ||
+                        it.type == DeveloperEntryType.GENERIC_SECRET
                 }
+                DeveloperEntryList(
+                    entries = supported,
+                    onEntryClick = onEntryClick,
+                    modifier = Modifier.padding(padding),
+                )
             }
         }
     }
+}
+
+@Composable
+private fun DeveloperEntryList(
+    entries: List<DeveloperEntryUi>,
+    onEntryClick: ((DeveloperEntryUi) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        // Group by type (simple grouping/filter per Issue #20 §19).
+        val groups = entries.groupBy { it.type }
+        groups.forEach { (type, typeEntries) ->
+            item(key = "header-$type") {
+                Text(
+                    text = typeLabel(type),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = Spacing.xs),
+                )
+            }
+            items(typeEntries, key = { it.stableId }) { entry ->
+                DeveloperEntryCard(
+                    entry = entry,
+                    onClick = onEntryClick?.let { { it(entry) } },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun typeLabel(type: DeveloperEntryType): String = when (type) {
+    DeveloperEntryType.API_CREDENTIAL -> stringResource(R.string.developer_type_api_credential)
+    DeveloperEntryType.SSH_KEY -> stringResource(R.string.developer_type_ssh_key)
+    DeveloperEntryType.GENERIC_SECRET -> stringResource(R.string.developer_type_generic)
+    DeveloperEntryType.ANDROID_SIGNING_KEY -> stringResource(R.string.developer_type_signing_key)
+    DeveloperEntryType.ENVIRONMENT_VARIABLE_SET -> stringResource(R.string.developer_type_env_var)
 }
 
 @Preview(showBackground = true)
@@ -99,11 +144,13 @@ fun DeveloperScreen(
 private fun DeveloperScreenWithDataPreview() {
     RescueAuthTheme {
         DeveloperScreen(
-            entries = listOf(
-                DeveloperPreviewData.signingKey,
-                DeveloperPreviewData.apiCredential,
-                DeveloperPreviewData.sshKey,
-                DeveloperPreviewData.envVarSet,
+            uiState = DeveloperListUiState(
+                loading = false,
+                entries = listOf(
+                    DeveloperPreviewData.apiCredential,
+                    DeveloperPreviewData.sshKey,
+                    DeveloperPreviewData.generic,
+                ),
             ),
         )
     }
@@ -113,6 +160,6 @@ private fun DeveloperScreenWithDataPreview() {
 @Composable
 private fun DeveloperScreenEmptyPreview() {
     RescueAuthTheme {
-        DeveloperScreen(entries = emptyList())
+        DeveloperScreen(uiState = DeveloperListUiState(loading = false))
     }
 }

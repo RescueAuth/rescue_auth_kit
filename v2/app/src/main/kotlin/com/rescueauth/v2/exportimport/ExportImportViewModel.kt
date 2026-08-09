@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.Uri
 import com.rescueauth.v2.repository.ImportOutcome
 import com.rescueauth.v2.repository.VaultRepository
+import com.rescueauth.v2.security.SensitiveAction
+import com.rescueauth.v2.security.SensitiveActionGate
+import com.rescueauth.v2.security.SensitiveActionResult
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -46,6 +49,7 @@ class ExportImportViewModel(
     private val fileIo: PackageFileIo,
     private val sessionState: StateFlow<SecureSessionStateMachine.State>,
     private val scope: CoroutineScope,
+    private val sensitiveActionGate: SensitiveActionGate? = null,
 ) {
 
     // ------------------------------------------------------------------
@@ -54,6 +58,8 @@ class ExportImportViewModel(
 
     sealed interface ExportState {
         object Idle : ExportState
+        /** Re-auth is required before the PIN flow (fresh Biometric/Device Credential). */
+        object AwaitingReauth : ExportState
         /** Waiting for the user to enter + confirm the per-export PIN (before CreateDocument). */
         object AwaitingPin : ExportState
         /** PIN accepted; waiting for the SAF CreateDocument destination. */
@@ -135,7 +141,7 @@ class ExportImportViewModel(
 
     private var sessionJob: Job? = null
 
-    init {
+        init {
         // Clear any active import session when the Vault locks or invalidates
         // (Issue #1 §16): a decrypted package must never survive a lock.
         sessionJob = scope.launch {
@@ -153,12 +159,16 @@ class ExportImportViewModel(
                     ) {
                         _importState.value = ImportState.Idle
                     }
-                    if (_exportState.value is ExportState.AwaitingPin ||
+                    if (_exportState.value is ExportState.AwaitingReauth ||
+                        _exportState.value is ExportState.AwaitingPin ||
                         _exportState.value is ExportState.AwaitingDestination ||
                         _exportState.value is ExportState.Working
                     ) {
                         _exportState.value = ExportState.Idle
                     }
+                    // The gate (if injected) invalidates its own pending
+                    // action via its session wiring; also reset any local
+                    // re-auth expectation.
                 }
             }
         }
@@ -176,12 +186,55 @@ class ExportImportViewModel(
     // ------------------------------------------------------------------
 
     /**
-     * Starts the export flow. This is the single entry point where Phase 4 P4
-     * will insert a fresh Biometric/Device-credential re-auth gate before any
-     * snapshot / encode / write work (Issue #1 §10).
+     * Starts the export flow.
+     *
+     * Phase 4 P4: the **first** step is a fresh Biometric/Device-credential
+     * re-auth ([ExportState.AwaitingReauth]). Only after a successful re-auth
+     * does the flow continue to the per-export PIN ([beginPinFlow]). An auth
+     * cancel / failure / unavailable leaves the export Idle — no PIN is
+     * collected, no SAF document is created and no snapshot is built.
      */
     fun beginExport() {
         if (_exportState.value is ExportState.Working) return
+        val gate = sensitiveActionGate
+        if (gate == null) {
+            // No gate registered (locked session / tests without re-auth
+            // wiring): stay Idle; the UI remains on the export intro.
+            return
+        }
+        _exportState.value = ExportState.AwaitingReauth
+        gate.authorize(
+            SensitiveAction.EXPORT_FULL_VAULT,
+            onResult = { result -> onExportReauthResult(result) },
+        )
+    }
+
+    private fun onExportReauthResult(result: SensitiveActionResult) {
+        when (result) {
+            is SensitiveActionResult.Success -> {
+                // Consume the one-shot authorization for exactly this action
+                // (Issue #20 §2/§8): the token is immediately spent. A follow-up
+                // Export request requires a fresh re-auth.
+                val gate = sensitiveActionGate
+                if (gate != null && gate.executePending(SensitiveAction.EXPORT_FULL_VAULT) { }) {
+                    beginPinFlow()
+                } else {
+                    _exportState.value = ExportState.Idle
+                }
+            }
+            SensitiveActionResult.Cancelled,
+            SensitiveActionResult.Failed,
+            SensitiveActionResult.Unavailable,
+            -> {
+                // Export must NOT continue: no PIN flow, no document, no
+                // snapshot (Issue #20 §5).
+                _exportState.value = ExportState.Idle
+            }
+        }
+    }
+
+    /** Moves to the per-export PIN step (after a successful fresh re-auth). */
+    private fun beginPinFlow() {
         _exportState.value = ExportState.AwaitingPin
     }
 
@@ -269,6 +322,10 @@ class ExportImportViewModel(
 
     /** Cancels the export flow — no document created, no error state. */
     fun cancelExport() {
+        if (_exportState.value is ExportState.AwaitingReauth) {
+            // A prompt may be showing: cancel the gate's pending action.
+            sensitiveActionGate?.cancelPending()
+        }
         pendingExportUri = null
         pendingExportPin?.fill('\u0000')
         pendingExportPin = null

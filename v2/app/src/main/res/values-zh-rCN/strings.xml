@@ -7,6 +7,10 @@
     <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
     <string name="unlock_cancel">取消</string>
 
+    <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
+    <string name="reauth_title">验证以继续</string>
+    <string name="reauth_subtitle">使用指纹、人脸或设备凭据授权此操作</string>
+
     <!-- App shell / navigation -->
     <string name="nav_authenticator">认证器</string>
     <string name="nav_developer">开发者</string>
@@ -126,6 +130,47 @@
     <string name="developer_reveal">显示</string>
     <string name="developer_hide">隐藏</string>
     <string name="developer_reveal_hint">显示或隐藏敏感值</string>
+    <string name="developer_add">添加</string>
+    <string name="developer_add_title">添加条目</string>
+    <string name="developer_edit">编辑</string>
+    <string name="developer_edit_title">编辑条目</string>
+    <string name="developer_delete">删除</string>
+    <string name="developer_copy">复制</string>
+    <string name="developer_copied">机密已复制</string>
+    <string name="developer_saved_message">开发者条目已保存</string>
+    <string name="developer_deleted_message">%1$s 已删除</string>
+    <string name="developer_detail_title">开发者条目</string>
+    <string name="developer_entry_missing">此条目已不存在。</string>
+    <string name="developer_field_title">标题</string>
+    <string name="developer_field_notes">备注</string>
+    <string name="developer_field_service">服务</string>
+    <string name="developer_field_account">账户名</string>
+    <string name="developer_field_api_key">API Key</string>
+    <string name="developer_field_api_secret">API Secret</string>
+    <string name="developer_field_key_name">密钥名称</string>
+    <string name="developer_field_private_key">私钥</string>
+    <string name="developer_field_passphrase">口令</string>
+    <string name="developer_field_public_key">公钥</string>
+    <string name="developer_field_label">字段标签</string>
+    <string name="developer_field_value">字段值</string>
+    <string name="developer_add_field">添加字段</string>
+    <string name="developer_remove_field">移除字段</string>
+    <string name="developer_public_key_present">已保存公钥。</string>
+    <string name="developer_save">保存</string>
+    <string name="developer_delete_confirm_title">删除 %1$s？</string>
+    <string name="developer_delete_confirm_message">此条目及其所有机密将被永久删除，且无法撤销。</string>
+    <string name="developer_error_title">请输入标题。</string>
+    <string name="developer_error_service">请输入服务名称。</string>
+    <string name="developer_error_account">请输入账户名。</string>
+    <string name="developer_error_api_key">请输入 API Key。</string>
+    <string name="developer_error_api_secret">请输入 API Secret。</string>
+    <string name="developer_error_private_key">请输入私钥。</string>
+    <string name="developer_error_field">请至少添加一个包含标签和值的字段。</string>
+    <string name="developer_error_field_label">每个字段都需要标签。</string>
+
+    <!-- Sensitive re-auth status (Phase 4 P4) -->
+    <string name="auth_unavailable">此设备无法进行身份验证。无法显示或复制敏感值。</string>
+    <string name="auth_cancelled">身份验证已取消。</string>
 
     <!-- Settings -->
     <string name="settings_title">设置</string>
@@ -144,6 +189,7 @@
     <string name="export_intro">创建整个保险库的加密便携数据包，包含认证器、恢复码和开发者保险库。</string>
     <string name="export_full_vault_notice">本操作导出完整保险库（FULL_VAULT 范围）。选择性导出将在后续版本提供。</string>
     <string name="export_start">选择保存位置</string>
+    <string name="export_reauth_hint">正在验证您的设备…验证完成后将继续导出。</string>
     <string name="export_pin_accepted">PIN 已确认</string>
     <string name="export_choose_destination_hint">现在选择此加密数据包的保存位置。</string>
     <string name="export_pin_title">为此数据包设置 PIN</string>

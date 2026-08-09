@@ -10,6 +10,7 @@ import com.rescueauth.v2.export.codec.PackageFormat
 import com.rescueauth.v2.export.codec.PortablePackageCodec
 import com.rescueauth.v2.repository.MergeTestData
 import com.rescueauth.v2.repository.VaultRepository
+import com.rescueauth.v2.security.SensitiveActionGate
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -73,14 +74,35 @@ class ExportImportViewModelTest {
             snapshot = snapshot,
         )
 
-    private fun newVm(fake: PackageFileIo): ExportImportViewModel =
+    private fun newVm(fake: PackageFileIo, gate: SensitiveActionGate? = autoApproveGate()): ExportImportViewModel =
         ExportImportViewModel(
             context = context,
             serviceProvider = { service() },
             fileIo = fake,
             sessionState = session.state,
             scope = CoroutineScope(Dispatchers.Unconfined),
+            sensitiveActionGate = gate,
         )
+
+    /**
+     * An auto-approving re-auth gate for the PIN/SAF flow tests (they do not
+     * exercise the re-auth itself). A fresh [SensitiveActionGate] is created
+     * per call because a gate is one-shot / single-pending-action by design.
+     */
+    private fun autoApproveGate(): SensitiveActionGate {
+        val prompt = com.rescueauth.v2.security.FakeSensitiveActionPrompt()
+        val gate = SensitiveActionGate(
+            prompt = prompt,
+            session = session,
+            titleProvider = { "Authenticate to continue" },
+            subtitleProvider = { null },
+        )
+        // Auto-approve on the next request.
+        prompt.autoResult = com.rescueauth.v2.security.SensitiveActionResult.Success(
+            com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+        )
+        return gate
+    }
 
     private val pin: CharArray get() = "123456".toCharArray()
 
@@ -234,6 +256,151 @@ class ExportImportViewModelTest {
         val reason = vm.submitExportPin("123456".toCharArray(), "654321".toCharArray())
         assertEquals(PinPolicy.Reason.MISMATCH, reason)
         assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
+    }
+
+    // ------------------------------------------------------------------
+    // Export re-auth gate (Issue #20 §24)
+    // ------------------------------------------------------------------
+
+    private fun controllableGate(): Pair<SensitiveActionGate, com.rescueauth.v2.security.FakeSensitiveActionPrompt> {
+        val prompt = com.rescueauth.v2.security.FakeSensitiveActionPrompt()
+        val gate = SensitiveActionGate(
+            prompt = prompt,
+            session = session,
+            titleProvider = { "Authenticate to continue" },
+            subtitleProvider = { null },
+        )
+        return gate to prompt
+    }
+
+    @Test
+    fun `export request requires a fresh re-auth first`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
+        assertEquals(1, prompt.startedActions.size)
+        assertEquals(
+            com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+            prompt.startedActions[0],
+        )
+        // No PIN / document before a successful re-auth.
+        assertTrue(fake.written.isEmpty())
+    }
+
+    @Test
+    fun `auth success continues to the PIN flow`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
+        prompt.deliver(
+            com.rescueauth.v2.security.SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+            ),
+        )
+        assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+    }
+
+    @Test
+    fun `auth cancel blocks the export - no PIN or document`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        prompt.deliver(com.rescueauth.v2.security.SensitiveActionResult.Cancelled)
+        assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+        assertTrue(fake.deletedUris.isEmpty())
+    }
+
+    @Test
+    fun `auth failure blocks the export`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        prompt.deliver(com.rescueauth.v2.security.SensitiveActionResult.Failed)
+        assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+    }
+
+    @Test
+    fun `unavailable authenticator blocks the export`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        prompt.autoResult = com.rescueauth.v2.security.SensitiveActionResult.Unavailable
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+    }
+
+    @Test
+    fun `successful auth is one-shot - second export needs fresh auth`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        // First export: re-auth → success → PIN.
+        vm.beginExport()
+        prompt.deliver(
+            com.rescueauth.v2.security.SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+            ),
+        )
+        assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
+        vm.cancelExport()
+
+        // Second export: a fresh prompt is required (one-shot consumed).
+        vm.beginExport()
+        assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
+        assertEquals(2, prompt.startedActions.size)
+        // It must NOT jump straight to PIN without a new success.
+        assertTrue(vm.exportState.value is ExportImportViewModel.ExportState.AwaitingReauth)
+    }
+
+    @Test
+    fun `session lock invalidates a pending export re-auth`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
+
+        // Session locks while the prompt is pending.
+        session.lock()
+        // MainActivity wiring invalidates the gate on lock; the VM session
+        // collector also resets the export state.
+        gate.invalidate()
+        awaitIdle(vm)
+        assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+    }
+
+    @Test
+    fun `no SAF document is created before successful re-auth`() = runBlocking {
+        val (gate, prompt) = controllableGate()
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake, gate)
+
+        vm.beginExport()
+        // Even after the user picked a destination while re-auth pending, no
+        // document is written until the PIN + SAF flow completes.
+        assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
+        // The UI cannot even reach the SAF picker while AwaitingReauth; assert
+        // the ViewModel ignores a stale destination call.
+        vm.onExportDestinationPicked(Uri.parse("content://dest/reauth"))
+        assertTrue(fake.written.isEmpty())
     }
 
     // ------------------------------------------------------------------
