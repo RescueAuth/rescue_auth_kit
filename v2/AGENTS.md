@@ -38,6 +38,12 @@
   **Phase 4 P2 已实现**（QR Scan + otpauth-migration Import，见
   `docs/PHASE4_P2_REPORT.md`：CameraX + ML Kit 扫码、独立纯 Kotlin migration
   adapter、多 QR batch session、repository batch import；IMPORT ONLY）。
+  **Phase 4 P3 已实现**（Recovery Codes Daily-Use Slice，见
+  `docs/PHASE4_P3_REPORT.md`：Account detail 恢复码页（正式 hierarchy）、batch
+  add 多行粘贴 + preview、展开/收起、reveal-hide、单条 copy、Copy All /
+  Copy Remaining、mark used/unused（remaining count 实时更新）、edit 最小
+  diff 保留 stableId + USED state、delete + Undo 恢复 exact stableIds/states；
+  Room schema 零改动，P3 数据自然进入 Full Vault Export/Import round-trip）。
   **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
   MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
   首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
@@ -157,8 +163,8 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] **3D Android Export / Import + Package Preview**（SAF CreateDocument/OpenDocument、per-export PIN 对话框、bounded untrusted-file reader、import preview（Authenticator/Developer 计数 + safe summary）、confirm 走 3C transactional apply；`.rakpkg` 扩展名/MIME contract；见 PHASE3_REPORT §12）
 - [ ] 阶段 4：Daily-use vertical slices
   - [x] **P1 TOTP usable loop**（otpauth paste / manual / countdown / copy / delete+Undo，真实 production storage，PR 见 docs/PHASE4_P1_REPORT.md；QR 后续补）
-  - [ ] P2 otpauth-migration import（IMPORT ONLY，External Import Adapter）
-  - [ ] P3 Recovery Codes slice（batch/expand/copy all/edit/delete/move + used-unused）
+  - [x] **P2 otpauth-migration import**（IMPORT ONLY，External Import Adapter，见 docs/PHASE4_P2_REPORT.md）
+  - [x] **P3 Recovery Codes slice**（Account detail 恢复码页：batch add / expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused + remaining count / edit（最小 diff 保留 stableId + USED state）/ delete + Undo；见 docs/PHASE4_P3_REPORT.md）
   - [ ] P4 Developer Vault 第一批（Android Signing Key + API Credential + re-auth 接入）
   - [ ] P5 Selective Export / Import（同一 Merge Engine）
   - [ ] P6 Developer Vault 第二批（SSH Key / Env Var Set / Generic Secret）

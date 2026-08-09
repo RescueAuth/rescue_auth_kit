@@ -26,8 +26,10 @@ object RescueAuthRoutes {
     const val EXPORT = "export"
     const val IMPORT = "import"
 
-    // --- Authenticator future structure (contract only) ---
-    const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{providerId}/{accountId}"
+    // --- Authenticator structure ---
+    // Phase 4 P3: the Account detail destination is wired (Recovery Codes).
+    // TOTP / Recovery-set sub-detail and Provider management stay contract-only.
+    const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{accountId}"
     const val AUTHENTICATOR_TOTP = "authenticator/totp/{credentialId}"
     const val AUTHENTICATOR_RECOVERY = "authenticator/recovery/{recoverySetId}"
 

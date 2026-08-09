@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -24,17 +25,22 @@ import com.rescueauth.v2.ui.authenticator.AuthenticatorUiState
 import com.rescueauth.v2.ui.authenticator.TotpCardUi
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.components.ProviderAccountListItem
 import com.rescueauth.v2.ui.components.TotpCard
+import com.rescueauth.v2.ui.model.AccountUi
+import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
- * Authenticator top-level screen — production data path (Phase 4 P1).
+ * Authenticator top-level screen — production data path (Phase 4 P1/P3).
  *
- * Renders the real TOTP list ([uiState]) with live codes + countdown, an
- * EmptyState for an empty vault and a FAB that opens the Add TOTP flow (owned
- * by the caller/Route). Composable never touches Room entities; it only
- * consumes UI models and callbacks.
+ * Renders the real Provider/Account list ([uiState.accounts]) with a recovery
+ * summary line (counts only, never secret values), plus the live TOTP list
+ * with codes + countdown, an EmptyState for an empty vault and a FAB that
+ * opens the Add TOTP flow (owned by the caller/Route). Tapping an account row
+ * opens its detail destination (Recovery Codes). Composable never touches
+ * Room entities; it only consumes UI models and callbacks.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +51,7 @@ fun AuthenticatorScreen(
     onAddClick: (() -> Unit)? = null,
     onCopyClick: ((TotpCardUi) -> Unit)? = null,
     onDeleteClick: ((TotpCardUi) -> Unit)? = null,
+    onOpenAccount: ((String) -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -86,6 +93,24 @@ fun AuthenticatorScreen(
                     contentPadding = PaddingValues(Spacing.md),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
+                    // Provider/Account rows with a recovery summary (P3). The
+                    // home list only shows counts — code values live in the
+                    // account detail screen and are never expanded here.
+                    items(
+                        count = uiState.accounts.size,
+                        key = { index -> uiState.accounts[index].id },
+                    ) { index ->
+                        val account = uiState.accounts[index]
+                        ProviderAccountListItem(
+                            account = account,
+                            onClick = onOpenAccount?.let { { it(account.id) } },
+                            trailingAction = {
+                                RecoverySummaryLabel(account)
+                            },
+                        )
+                    }
+
+                    // Live TOTP cards (P1) remain directly visible.
                     items(
                         count = uiState.totpCards.size,
                         key = { index -> uiState.totpCards[index].credentialId },
@@ -100,6 +125,20 @@ fun AuthenticatorScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RecoverySummaryLabel(account: AccountUi) {
+    if (account.recoverySets.isNotEmpty()) {
+        Text(
+            text = stringResource(
+                R.string.recovery_codes_account_summary,
+                account.remainingRecoveryCount,
+            ),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -121,6 +160,21 @@ private fun AuthenticatorScreenWithDataPreview() {
         AuthenticatorScreen(
             uiState = AuthenticatorUiState(
                 loading = false,
+                accounts = listOf(
+                    AccountUi(
+                        id = "a1",
+                        providerName = "GitHub",
+                        accountName = "alice@example.com",
+                        recoverySets = listOf(
+                            RecoveryCodeSetUi(
+                                id = "s1",
+                                title = "Backup codes",
+                                usedCount = 1,
+                                totalCount = 3,
+                            ),
+                        ),
+                    ),
+                ),
                 totpCards = listOf(
                     TotpCardUi(
                         credentialId = "t1",
@@ -138,6 +192,7 @@ private fun AuthenticatorScreenWithDataPreview() {
                 ),
             ),
             onAddClick = {},
+            onOpenAccount = {},
         )
     }
 }

@@ -39,6 +39,9 @@ object VaultAccess {
     private var cachedAuthRepository: AuthenticatorRepository? = null
 
     @Volatile
+    private var cachedRecoveryRepository: RecoveryCodeRepository? = null
+
+    @Volatile
     private var cachedExportImportService: ExportImportService? = null
 
     /** Drops cached state (called on app teardown). */
@@ -46,6 +49,7 @@ object VaultAccess {
         cachedDb = null
         cachedVaultRepository = null
         cachedAuthRepository = null
+        cachedRecoveryRepository = null
         cachedExportImportService = null
         sessionManager = null
     }
@@ -75,6 +79,24 @@ object VaultAccess {
         val repo = AuthenticatorRepository(vault, db, sm.sessionState)
         cachedDb = db
         cachedAuthRepository = repo
+        return repo
+    }
+
+    /**
+     * @return the production Recovery Codes repository for the current open DB,
+     *   or null while locked. Shares the single [VaultRepository] mutex so all
+     *   writes (Recovery CRUD, Authenticator CRUD, export/import) stay
+     *   serialized.
+     */
+    fun recoveryRepository(): RecoveryCodeRepository? {
+        val vault = vaultRepository() ?: return null
+        val sm = sessionManager ?: return null
+        val db = sm.databaseOrNull() ?: return null
+        val cached = cachedRecoveryRepository
+        if (cached != null && cachedDb === db) return cached
+        val repo = RecoveryCodeRepository(vault, db, sm.sessionState)
+        cachedDb = db
+        cachedRecoveryRepository = repo
         return repo
     }
 

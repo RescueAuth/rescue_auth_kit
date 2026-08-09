@@ -28,8 +28,10 @@ data class AuthenticatorUiState(
     val loading: Boolean = false,
     val error: String? = null,
     val totpCards: List<TotpCardUi> = emptyList(),
+    /** Provider/Account grouping (Phase 4 P3) — drives the account list UI. */
+    val accounts: List<com.rescueauth.v2.ui.model.AccountUi> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = !loading && error == null && totpCards.isEmpty()
+    val isEmpty: Boolean get() = !loading && error == null && totpCards.isEmpty() && accounts.isEmpty()
 }
 
 /**
@@ -102,6 +104,9 @@ sealed interface AuthenticatorEvent {
     /** Copy the given code to the Android clipboard + show "copied" snackbar. */
     data class CopyCode(val code: String, val label: String) : AuthenticatorEvent
 
+    /** The user opened an account detail destination (Phase 4 P3). */
+    data class OpenAccount(val accountId: String) : AuthenticatorEvent
+
     /** A credential was deleted; show a snackbar with an Undo action. */
     data class Deleted(val label: String, val credentialId: String) : AuthenticatorEvent
 
@@ -134,6 +139,7 @@ sealed interface AuthenticatorEvent {
  */
 class AuthenticatorViewModel(
     private val repositoryProvider: () -> AuthenticatorRepository?,
+    private val recoveryRepositoryProvider: () -> com.rescueauth.v2.repository.RecoveryCodeRepository? = { null },
     sessionState: StateFlow<SecureSessionStateMachine.State>,
     private val clock: Clock,
     private val scope: CoroutineScope,
@@ -187,16 +193,20 @@ class AuthenticatorViewModel(
     }
 
     private suspend fun collectCards(repo: AuthenticatorRepository) {
-        combine(repo.observeAccounts(), repo.observeTotpCredentials(), tickSeconds) { accounts, creds, now ->
+        val recoveryFlow = recoveryRepositoryProvider()?.observeAllSets()
+            ?: kotlinx.coroutines.flow.flowOf(emptyList())
+        combine(repo.observeAccounts(), repo.observeTotpCredentials(), recoveryFlow, tickSeconds) {
+            accounts, creds, sets, now ->
             credentialsById.clear()
             creds.forEach { credentialsById[it.id] = it }
-            buildCards(accounts, creds, now)
+            buildCards(accounts, creds, sets, now)
         }.collectLatest { state -> _uiState.value = state }
     }
 
     private fun buildCards(
         accounts: List<AuthAccount>,
         creds: List<TotpCredential>,
+        recoverySets: List<com.rescueauth.v2.domain.RecoveryCodeSet>,
         now: Long,
     ): AuthenticatorUiState {
         val accountById = accounts.associateBy { it.id }
@@ -233,10 +243,43 @@ class AuthenticatorViewModel(
                 progressFraction = progress,
             )
         }
+
+        // Provider/Account grouping with a recovery summary (P3) — accounts
+        // that hold recovery sets surface a one-line "Recovery codes · N
+        // remaining" summary so the home screen never expands secret values.
+        val setsByAccount = recoverySets.groupBy { it.accountId }
+        val accountUis = accounts.map { account ->
+            com.rescueauth.v2.ui.model.AccountUi(
+                id = account.id,
+                providerName = account.serviceName,
+                accountName = account.accountName,
+                isPinned = account.favorite,
+                totpCredentials = cards.filter { it.accountId == account.id }
+                    .map { card ->
+                        com.rescueauth.v2.ui.model.TotpCredentialUi(
+                            id = card.credentialId,
+                            issuer = card.issuer,
+                            accountName = card.accountName,
+                            digits = card.digits,
+                            periodSeconds = card.periodSeconds,
+                        )
+                    },
+                recoverySets = setsByAccount[account.id].orEmpty().map { set ->
+                    com.rescueauth.v2.ui.model.RecoveryCodeSetUi(
+                        id = set.id,
+                        title = set.title,
+                        usedCount = set.usedCount,
+                        totalCount = set.totalCount,
+                        codes = emptyList(), // secret values never shown on the home list
+                    )
+                },
+            )
+        }
         return AuthenticatorUiState(
             loading = false,
             error = null,
             totpCards = cards,
+            accounts = accountUis,
         )
     }
 
@@ -526,6 +569,11 @@ class AuthenticatorViewModel(
         if (card.currentCode.isNotBlank() && card.currentCode != "••••••") {
             _events.value = AuthenticatorEvent.CopyCode(card.currentCode, "${card.issuer} · ${card.accountName}")
         }
+    }
+
+    /** User tapped an account row — the caller navigates to its detail screen. */
+    fun openAccount(accountId: String) {
+        _events.value = AuthenticatorEvent.OpenAccount(accountId)
     }
 
     suspend fun deleteCard(card: TotpCardUi): Boolean {

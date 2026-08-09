@@ -81,6 +81,36 @@
     <string name="recovery_codes_used">Used</string>
     <string name="recovery_codes_unused">Unused</string>
     <string name="recovery_codes_copy_all">Copy all</string>
+    <string name="recovery_codes_remaining_count">%1$d remaining · %2$d total</string>
+    <string name="recovery_codes_used_count">%1$d used</string>
+    <string name="recovery_codes_copy_remaining">Copy remaining</string>
+    <string name="recovery_codes_mark_used">Mark used</string>
+    <string name="recovery_codes_mark_unused">Mark unused</string>
+    <string name="recovery_codes_reveal">Reveal</string>
+    <string name="recovery_codes_hide">Hide</string>
+    <string name="recovery_codes_copy">Copy</string>
+    <string name="recovery_codes_copied">Recovery code copied</string>
+    <string name="recovery_codes_all_copied">All recovery codes copied</string>
+    <string name="recovery_codes_remaining_copied">Remaining recovery codes copied</string>
+    <string name="recovery_codes_marked_used">Marked as used</string>
+    <string name="recovery_codes_marked_unused">Marked as unused</string>
+    <string name="recovery_codes_add_title">Add Recovery Codes</string>
+    <string name="recovery_codes_edit_title">Edit Recovery Codes</string>
+    <string name="recovery_codes_set_title_label">Title</string>
+    <string name="recovery_codes_values_label">Recovery codes</string>
+    <string name="recovery_codes_values_hint">One code per line. You can paste multiple codes at once.</string>
+    <string name="recovery_codes_preview">%1$d code(s) parsed</string>
+    <string name="recovery_codes_duplicate_error">Duplicate code: %1$s</string>
+    <string name="recovery_codes_empty_error">Enter at least one recovery code.</string>
+    <string name="recovery_codes_title_error">Enter a title.</string>
+    <string name="recovery_codes_save">Save</string>
+    <string name="recovery_codes_added_message">Recovery codes added</string>
+    <string name="recovery_codes_edited_message">Recovery codes updated</string>
+    <string name="recovery_codes_deleted_message">%1$s deleted</string>
+    <string name="recovery_codes_restored_message">Recovery codes restored</string>
+    <string name="recovery_codes_empty_state">No recovery codes yet. Add a set to store your backup codes here.</string>
+    <string name="recovery_codes_account_summary">Recovery codes · %1$d remaining</string>
+    <string name="recovery_codes_delete">Delete</string>
 
     <!-- Developer Vault -->
     <string name="developer_title">Developer</string>

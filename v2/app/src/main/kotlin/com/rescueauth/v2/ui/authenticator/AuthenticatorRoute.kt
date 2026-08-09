@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AuthenticatorRoute(
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    onOpenAccount: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -64,6 +65,7 @@ fun AuthenticatorRoute(
     val viewModel = remember {
         AuthenticatorViewModel(
             repositoryProvider = { VaultAccess.authenticatorRepository() },
+            recoveryRepositoryProvider = { VaultAccess.recoveryRepository() },
             sessionState = sessionState,
             clock = AuthenticatorViewModel.Clock { System.currentTimeMillis() / 1000L },
             scope = appScope,
@@ -122,6 +124,9 @@ fun AuthenticatorRoute(
                     message = context.getString(R.string.totp_code_copied),
                 )
             }
+            is AuthenticatorEvent.OpenAccount -> {
+                onOpenAccount?.invoke(event.accountId)
+            }
             is AuthenticatorEvent.Deleted -> {
                 val message = context.getString(R.string.undo_snackbar_message, event.label)
                 val actionLabel = context.getString(R.string.undo_snackbar_action)
@@ -174,6 +179,7 @@ fun AuthenticatorRoute(
         onAddClick = { showAddSheet = true },
         onCopyClick = { viewModel.copyCode(it) },
         onDeleteClick = { appScope.launch { viewModel.deleteCard(it) } },
+        onOpenAccount = onOpenAccount?.let { cb -> { accountId -> cb(accountId) } },
         modifier = modifier,
     )
 

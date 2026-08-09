@@ -10,6 +10,50 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p3 recovery-codes] - 2026-08-09（Phase 4 P3 Recovery Codes Daily-Use Slice，PR OPEN）
+
+Issue #1 P3：让 Recovery Codes 从“底层已经存在的数据类型”变成真正可
+日常使用的完整 Android 功能。Room schema 零改动（复用 Phase 3A 正式
+schema：RecoveryCodeSetEntity / RecoveryCodeEntity / stableId / status /
+usedAt）。
+
+### Added
+
+- **Account detail（Recovery Codes）正式 hierarchy**：Provider → Account →
+  Recovery Code Set → Recovery Code[]；首页 Provider/Account 分组列表 + 每组
+  recovery 摘要（counts，无 plaintext）。
+- **Create Recovery Code Set**：Add Recovery Codes sheet，title + 多行粘贴，
+  live preview（已解析 N 个），只做 trim / 空行过滤，不改写 code 内容
+  （opaque secret）。
+- **批量输入 & duplicate 策略**：exact whitespace-normalised duplicate →
+  明确 validation 错误；`ABC-123` vs `ABC123` 是不同 secret；不做跨 Set 全局
+  dedupe。
+- **展开/收起 + reveal/hide**：折叠卡片显示 remaining · total；展开后每条
+  code 默认 masked，可 reveal/hide（session lock 清空 reveal 状态）。
+- **单条 copy** + **Copy All** + **Copy Remaining**（每行一个 code 的纯文本）。
+- **USED / UNUSED**：mark used（usedAt=now）/ mark unused（usedAt 清空），
+  remaining count 实时更新；USED 是状态不是 delete；实时写入真实 Vault。
+- **Edit**：title + code list 最小 diff，未变 code 保留 stableId + USED +
+  usedAt，移除删除、新增新 stableId / UNUSED，code value 变更=删除+新建；
+  事务性保存。
+- **Delete + Undo**：UI 立即移除 → Snackbar → Undo 真正恢复 exact
+  stableIds / values / USED / usedAt / relation。
+- **Package 兼容**：未改 codec / MergePlanner / package format；P3 数据自然
+  进入 Full Vault Export/Import round-trip（含 used/unused + usedAt）。
+- **i18n**：本轮新增 UI 文案 en + zh-CN。
+
+### Changed
+
+- `v2/AGENTS.md` / `v2/ROADMAP.md`：P2 / P3 勾选为已实现，新增
+  `docs/PHASE4_P3_REPORT.md`；ROADMAP DAILY-USE READY 的 basic Recovery
+  Codes 勾选。
+
+### Tests（全部通过）
+
+- `:core:test` / `:app:testDebugUnitTest`（250 tests）/ `:app:lintDebug` /
+  `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 全部 PASS。
+
+
 ## [v2 phase4-p2 strict-protocol-convergence] - 2026-08-08（P2 最终严格协议收敛，PR #25 rebase 最新 main）
 
 Issue #20 产品原则明确：本项目只实现真实 Google Authenticator
