@@ -23,6 +23,10 @@ import androidx.navigation.compose.rememberNavController
 import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import com.rescueauth.v2.ui.authenticator.AuthenticatorRoute
 import com.rescueauth.v2.ui.authenticator.RecoveryCodesRoute
+import com.rescueauth.v2.ui.developer.DeveloperDetailRoute
+import com.rescueauth.v2.ui.developer.DeveloperFormRoute
+import com.rescueauth.v2.ui.developer.DeveloperFormType
+import com.rescueauth.v2.ui.developer.DeveloperRoute
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
@@ -54,7 +58,6 @@ object RescueAuthTestTags {
 fun RescueAuthApp(
     modifier: Modifier = Modifier,
     versionName: String? = null,
-    onDeveloperAdd: (() -> Unit)? = null,
 ) {
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -123,9 +126,58 @@ fun RescueAuthApp(
                 )
             }
             composable(RescueAuthRoutes.DEVELOPER) {
-                DeveloperScreen(
-                    onAddClick = onDeveloperAdd,
+                DeveloperRoute(
+                    onOpenEntry = { entry ->
+                        navController.navigate(RescueAuthRoutes.developerEntry(entry.stableId))
+                    },
+                    onAddTypeSelected = { type ->
+                        navController.navigate(
+                            RescueAuthRoutes.developerAdd(type.name),
+                        )
+                    },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_DEVELOPER),
+                )
+            }
+            composable(
+                route = RescueAuthRoutes.DEVELOPER_ENTRY,
+                arguments = listOf(
+                    androidx.navigation.navArgument(RescueAuthRoutes.ARG_ENTRY_ID) {
+                        type = androidx.navigation.NavType.StringType
+                    },
+                ),
+            ) { entry ->
+                val entryId = entry.arguments?.getString(RescueAuthRoutes.ARG_ENTRY_ID).orEmpty()
+                DeveloperDetailRoute(
+                    stableId = entryId,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { stableId ->
+                        navController.navigate(RescueAuthRoutes.developerEdit(stableId))
+                    },
+                )
+            }
+            composable(
+                route = RescueAuthRoutes.DEVELOPER_FORM,
+                arguments = listOf(
+                    androidx.navigation.navArgument(RescueAuthRoutes.ARG_EDIT_STABLE_ID) {
+                        type = androidx.navigation.NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    androidx.navigation.navArgument(RescueAuthRoutes.ARG_FORM_TYPE) {
+                        type = androidx.navigation.NavType.StringType
+                        defaultValue = "API_CREDENTIAL"
+                    },
+                ),
+            ) { entry ->
+                val editId = entry.arguments?.getString(RescueAuthRoutes.ARG_EDIT_STABLE_ID)
+                val type = entry.arguments?.getString(RescueAuthRoutes.ARG_FORM_TYPE)
+                    ?.let { runCatching { DeveloperFormType.valueOf(it) }.getOrNull() }
+                    ?: DeveloperFormType.API_CREDENTIAL
+                DeveloperFormRoute(
+                    editingStableId = editId,
+                    initialType = type,
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
                 )
             }
             composable(RescueAuthRoutes.SETTINGS) {

@@ -8,6 +8,9 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
+import com.rescueauth.v2.security.SensitiveActionAccess
+import com.rescueauth.v2.security.SensitiveActionController
+import com.rescueauth.v2.security.SensitiveActionGate
 import com.rescueauth.v2.security.VaultKeyManager
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
@@ -19,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Root activity — the Compose host for the RescueAuth v2 app shell.
@@ -50,6 +54,17 @@ class MainActivity : AppCompatActivity() {
     private var maskView: FrameLayout? = null
     private var authRequested = false
 
+    /**
+     * Phase 4 P4: the production sensitive-action re-auth gate.
+     *
+     * Owned by the Activity because the real [BiometricPrompt] needs a resumed
+     * FragmentActivity host. Recreated on every Activity create and destroyed
+     * on destroy — a pending sensitive authorization never survives
+     * Activity/process recreation (Issue #20 §6/§15).
+     */
+    private lateinit var sensitiveActionController: SensitiveActionController
+    private lateinit var sensitiveActionGate: SensitiveActionGate
+
     /** True between onResume() and onPause() — used to gate authenticate(). */
     private var isResumedFlag = false
 
@@ -65,6 +80,27 @@ class MainActivity : AppCompatActivity() {
         sessionManager = sessionManagerFactory?.invoke(this)
             ?: SessionManager(this, stateMachine, scope)
         VaultAccess.sessionManager = sessionManager
+
+        // Sensitive-action fresh re-auth gate (single orchestration path).
+        sensitiveActionController = SensitiveActionController(this)
+        sensitiveActionGate = SensitiveActionGate(
+            prompt = sensitiveActionController,
+            session = stateMachine,
+            titleProvider = { getString(R.string.reauth_title) },
+            subtitleProvider = { getString(R.string.reauth_subtitle) },
+        )
+        SensitiveActionAccess.gate = sensitiveActionGate
+
+        // Session lock invalidates any pending sensitive action / one-shot
+        // authorization (Issue #20 §6): a lock while a prompt is showing must
+        // not leave a stale authorized-but-unexecuted action behind.
+        scope.launch {
+            stateMachine.state.collect { state ->
+                if (state != SecureSessionStateMachine.State.UNLOCKED) {
+                    sensitiveActionGate.invalidate()
+                }
+            }
+        }
 
         // Compose host for the app shell. The shell is presentation-only and
         // does not need the unlocked session; it never reads Vault data.
@@ -105,6 +141,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         isResumedFlag = false
+        // A prompt that is still showing while the Activity pauses must never
+        // outlive the resumed host; its pending authorization is discarded.
+        if (::sensitiveActionGate.isInitialized) {
+            sensitiveActionGate.onLifecyclePause()
+        }
         super.onPause()
     }
 
@@ -206,6 +247,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (::sensitiveActionGate.isInitialized) {
+            sensitiveActionGate.onLifecycleDestroy()
+        }
+        SensitiveActionAccess.clear()
         super.onDestroy()
         sessionManager.lock()
         VaultAccess.clear()

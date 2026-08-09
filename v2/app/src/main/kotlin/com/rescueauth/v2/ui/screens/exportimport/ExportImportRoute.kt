@@ -15,6 +15,7 @@ import com.rescueauth.v2.exportimport.ExportImportViewModel
 import com.rescueauth.v2.exportimport.PackageFileContract
 import com.rescueauth.v2.exportimport.SafPackageFileIo
 import com.rescueauth.v2.repository.VaultAccess
+import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.flow.StateFlow
 
@@ -53,6 +54,7 @@ fun ExportImportRoute(
             fileIo = SafPackageFileIo(),
             sessionState = sessionState,
             scope = appScope,
+            sensitiveActionGate = SensitiveActionAccess.gate,
         )
     }
 

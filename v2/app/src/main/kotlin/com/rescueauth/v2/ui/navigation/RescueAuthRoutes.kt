@@ -8,11 +8,9 @@ package com.rescueauth.v2.ui.navigation
  * - [DEVELOPER]
  * - [SETTINGS]
  *
- * Nested routes are declared here as the **future navigation contract**
- * (Authenticator: Provider → Account → TOTP / Recovery Codes; Developer:
- * five entry types). They are not wired into the NavHost in this foundation PR
- * — no new product module is added, and the detail screens belong to later
- * vertical slices.
+ * Nested routes are declared here as the **navigation contract**:
+ * Authenticator: Provider → Account → TOTP / Recovery Codes; Developer:
+ * list → entry detail → create/edit form.
  */
 object RescueAuthRoutes {
     const val AUTHENTICATOR = "authenticator"
@@ -28,18 +26,33 @@ object RescueAuthRoutes {
 
     // --- Authenticator structure ---
     // Phase 4 P3: the Account detail destination is wired (Recovery Codes).
-    // TOTP / Recovery-set sub-detail and Provider management stay contract-only.
     const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{accountId}"
     const val AUTHENTICATOR_TOTP = "authenticator/totp/{credentialId}"
     const val AUTHENTICATOR_RECOVERY = "authenticator/recovery/{recoverySetId}"
 
-    // --- Developer future structure (contract only) ---
+    // --- Developer structure (Phase 4 P4) ---
+    /** Detail of one Developer entry (by stableId). */
     const val DEVELOPER_ENTRY = "developer/entry/{entryId}"
+    /** Create (ARG_EDIT_STABLE_ID = null) or edit (stableId set) form. */
+    const val DEVELOPER_FORM = "developer/form?editStableId={editStableId}&type={formType}"
 
-    // Argument keys for future routes.
+    // Argument keys for routes.
     const val ARG_PROVIDER_ID = "providerId"
     const val ARG_ACCOUNT_ID = "accountId"
     const val ARG_CREDENTIAL_ID = "credentialId"
     const val ARG_RECOVERY_SET_ID = "recoverySetId"
     const val ARG_ENTRY_ID = "entryId"
+    const val ARG_EDIT_STABLE_ID = "editStableId"
+    const val ARG_FORM_TYPE = "formType"
+
+    /** Builds the Developer detail route for [stableId]. */
+    fun developerEntry(stableId: String): String = "developer/entry/$stableId"
+
+    /** Builds the Developer create route for a new entry of [type]. */
+    fun developerAdd(type: String): String =
+        "developer/form?editStableId=&type=$type"
+
+    /** Builds the Developer edit route for [stableId]. */
+    fun developerEdit(stableId: String): String =
+        "developer/form?editStableId=$stableId&type=API_CREDENTIAL"
 }

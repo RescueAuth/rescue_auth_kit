@@ -90,6 +90,20 @@ fun ExportVaultScreen(
                         Text(stringResource(R.string.export_start))
                     }
                 }
+                is ExportImportViewModel.ExportState.AwaitingReauth -> {
+                    // Fresh Biometric / Device Credential re-auth is in progress
+                    // (the system prompt is showing). This screen only renders a
+                    // safe waiting hint; no PIN is collected here yet.
+                    Text(
+                        text = stringResource(R.string.reauth_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.export_reauth_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 is ExportImportViewModel.ExportState.AwaitingPin -> {
                     PinEntry(
                         mode = PinEntryMode.EXPORT,

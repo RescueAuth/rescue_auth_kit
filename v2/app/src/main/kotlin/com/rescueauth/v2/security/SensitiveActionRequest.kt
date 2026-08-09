@@ -1,0 +1,45 @@
+package com.rescueauth.v2.security
+
+/**
+ * An immutable, precise request for a sensitive operation.
+ *
+ * Binds the operation ([action]) to the original target ([target]) so that a
+ * successful fresh re-auth authorizes **exactly** this request and nothing
+ * else (Issue #20 P4 security-boundary CR §2).
+ *
+ * The [SensitiveActionGate] tracks the pending / authorized request by full
+ * value equality (action + target), so an authorization can never be applied
+ * to a different entry / field / operation selected later — even when the
+ * current selection, navigation or a same-type second request changes while
+ * the prompt is showing.
+ */
+data class SensitiveActionRequest(
+    val action: SensitiveAction,
+    val target: SensitiveActionTarget = SensitiveActionTarget.Global,
+)
+
+/**
+ * The immutable target of a [SensitiveActionRequest].
+ *
+ * Captures enough identity to prevent a successful authorization from being
+ * applied to a different target:
+ *
+ * - [Global] — operations with no finer-grained target (e.g. Full Vault
+ *   Export).
+ * - [DeveloperField] — a specific Developer entry field, identified by the
+ *   entry's **stableId** plus a stable non-secret **field key** (e.g.
+ *   `"apiSecret"`, `"privateKey"`, `"passphrase"`, `"field:<label>"`).
+ *
+ * The stableId is part of the target so a request for Entry A can never be
+ * satisfied by an auth result while the user is looking at Entry B.
+ */
+sealed interface SensitiveActionTarget {
+    /** No finer-grained target (e.g. Full Vault Export). */
+    object Global : SensitiveActionTarget
+
+    /** A specific Developer entry field (entry stableId + field key). */
+    data class DeveloperField(
+        val stableId: String,
+        val fieldKey: String,
+    ) : SensitiveActionTarget
+}

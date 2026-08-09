@@ -10,7 +10,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
-## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，PR OPEN）
+## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，IMPLEMENTED）
 
 Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 logical
 `VaultSnapshot`**，复用 `PackageValidator` / `MergePlanner` /
@@ -55,9 +55,53 @@ Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 log
   Legacy 防御上限 / logical validator 边界）。
 - `docs/PHASE5A_REPORT.md`（新）、ROADMAP / AGENTS / CHANGELOG 最小状态更新。
 
-Phase 5A = **IMPLEMENTED / PR OPEN**；Phase 5B（Legacy Android UI）= **NOT
+Phase 5A = **IMPLEMENTED / merged（#29）**；Phase 5B（Legacy Android UI）= **NOT
 STARTED**。未修改 PortablePackageCodec / .rakpkg / MergePlanner / Developer
 UI / SensitiveActionGate / Export/Recovery UI。
+
+## [v2 phase4-p4 reauth+developer] - 2026-08-09（Phase 4 P4 Sensitive Action Fresh Re-auth + Developer Vault First Batch，PR OPEN）
+
+Issue #20 P4：Sensitive Action Fresh Re-auth Foundation（P4A）+ Developer Vault
+第一批（P4B：API Credential / SSH Key / Generic Secret）。
+
+### Added
+
+- **Sensitive Action Re-auth Foundation**：`SensitiveAction` /
+  `SensitiveActionRequest` / `SensitiveActionTarget` / `SensitiveActionGate` /
+  `SensitiveActionResult` 单一 orchestration path，
+  fresh Biometric/Device Credential one-shot 语义（ADR-0011）；生产无
+  NoOp gate，unavailable → blocked。授权绑定原始 request
+  （action + stableId + fieldKey），reveal 与 copy 完全分离、各自独立
+  re-auth。
+- **Full Vault Export 接入 re-auth**：Export → fresh re-auth → PIN + confirm →
+  SAF CreateDocument → encode/write；auth cancel/failed/unavailable 不收集
+  PIN、不创建文档、不构造 snapshot（保持 Phase 3D PIN-first 语义）。
+- **Developer Vault 第一批**：API Credential / SSH Key / Generic Secret 全
+  CRUD（list/detail/create/edit/delete）；列表只展示非敏感 metadata；
+  reveal/copy 走 SensitiveActionGate；edit 保留 stableId；delete 用 destructive
+  confirmation（P4 不要求 Undo，P8 统一）。
+- **Room schema 零改动**：复用 Phase 3C `developer_entry` 单表 + typed
+  payload；P4 数据自然进入 Full Vault Export/Import round-trip。
+
+### Security
+
+- secret 不进入 SavedStateHandle / Bundle / rememberSaveable / DataStore /
+  logs；reveal 状态独立受控；敏感值 contentDescription 不含 plaintext。
+- 单 pending request + 串行请求，避免多 prompt / 跨 action 授权；
+  session lock / Activity pause/destroy 清空授权与 reveal 状态。
+- **security-boundary CR**：新增 `COPY_SSH_PASSPHRASE` / `COPY_GENERIC_SECRET`
+  action（每种 sensitive operation 都有独立一次性授权）；授权绑定原始
+  target（stableId + fieldKey + operation），prompt 期间 navigation / field
+  selection / 第二个同类型请求不会把成功结果作用于其它 entry / field；
+  reveal 授权绝不复用于 copy。
+
+### Tests
+
+- 新增 `SensitiveActionGateTest`、`DeveloperRepositoryTest`、
+  `DeveloperDetailViewModelTest`、`DeveloperFormViewModelTest`、
+  `DeveloperScreenTest`、`DeveloperPackageIntegrationTest`；
+  `ExportImportViewModelTest` 增加 re-auth gate 用例。
+- `:core:test` / `:app:testDebugUnitTest`（306 tests）/ lint / assemble 全 PASS。
 
 ## [v2 phase4-p3 recovery-codes] - 2026-08-09（Phase 4 P3 Recovery Codes Daily-Use Slice，PR OPEN）
 

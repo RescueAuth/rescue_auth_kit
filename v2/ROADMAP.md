@@ -232,9 +232,9 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 > `docs/PHASE4_P1_REPORT.md`）。
 | **P2 — otpauth-migration import** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P2_REPORT.md`）QR 扫描（CameraX + ML Kit）+ `otpauth-migration://` 批量导入（独立纯 Kotlin adapter + 多 QR batch session + repository batch import） | 可从 Google Authenticator 扫码批量迁入 | P1 | S |
 | **P3 — Recovery Codes slice** | ✅ 已实现（Issue #1，见 `docs/PHASE4_P3_REPORT.md`）Account detail 恢复码页：batch add（多行粘贴 + preview）/ expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused（remaining count 实时更新）/ edit（最小 diff 保留 stableId + USED state）/ delete + Undo（恢复 exact stableIds/states） | 恢复码可完整管理（一等 Vault credential），P3 数据自然进入 Full Vault Export/Import round-trip | P1 | M |
-| **P4 — Developer Vault slice（第一批）** | Android Signing Key + API Credential 全 CRUD / reveal-hide / copy / export keystore / key.properties 复制；Sensitive re-auth 接入 | 两种最常见的 Developer Entry 可日常使用 | 3D + re-auth（§5.6） | M |
+| **P4 — Developer Vault slice（第一批）** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P4_REPORT.md`）Sensitive Action Fresh Re-auth Foundation + Developer Vault 第一批（API Credential / SSH Key / Generic Secret 全 CRUD、reveal-hide、copy、re-auth 接入 Full Vault Export） | 三种最常见的 Developer Entry（API Credential / SSH Key / Generic Secret）可日常使用 | 3D + re-auth（§5.6） | M |
 | **P5 — Selective Export / Import** | Package domain 已支持 partial snapshot；UI：Entire Vault / Authenticator section / Developer section / Selected items；Import 支持 Select items（同一 Merge Engine） | 用户可按需迁移部分数据 | 3D + P3/P4 | M |
-| **P6 — Developer Vault slice（第二批）** | SSH Key / Env Var Set / Generic Secret 全 CRUD / copy / reveal | 五类 Developer Entry 全部可日常使用 | P4 | M |
+| **P6 — Developer Vault slice（第二批）** | Android Signing Key / Environment Variable Set 全 CRUD / copy / reveal + Developer completion（含 keystore import/export / key.properties 复制） | 五类 Developer Entry 全部可日常使用 | P4 | M |
 | **P7 — Search + Pin** | 全局搜索（Provider/Account/TOTP display/Developer title + 非敏感 metadata；不索引 secret）+ Pin/Unpin 置顶 | 快速定位常用项 | P1 + P6 | M |
 | **P8 — Delete Undo 完善** | 普通删除（TOTP / recovery set / 普通 Developer Entry / account）统一 SnackBar Undo；高破坏性操作（provider 级联、含 keystore 的 signing key、大规模 merge）保留确认 | 误删可恢复，破坏性操作仍受保护 | P1 起步，P3/P6 覆盖全类型 | S |
 
@@ -244,7 +244,7 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 ### 5.4 Phase 5 — Migration（legacy import 收口）
 
 > **Phase 5A（2026-08-09，Issue #1）**：Legacy v1 Core Adapter 已实现
-> （PR OPEN，含 merge 前 CR 修复）——`LegacyVaultSnapshotMapper` 把解密后的
+> （IMPLEMENTED，已 merge #29）——`LegacyVaultSnapshotMapper` 把解密后的
 > `LegacyImportBundle` 映射为 shared `VaultSnapshot`，复用 `PackageValidator` /
 > `MergePlanner` / `VaultRepository.applySnapshot`；**durable-id-first** 确定性
 > stableId（基于 legacy durable UUID，不依赖 source fingerprint）+ source
@@ -283,11 +283,16 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
   - Export selected sensitive package（含 keystore / SSH private key /
     API secret 的 section）
   - Export Android keystore file
-  - reveal SSH private key
-  - reveal API secret
+  - reveal / copy SSH private key、SSH passphrase、API secret / apiKey、
+    Generic Secret field value
   - reveal signing storePassword / keyPassword
   - 其他等价的高敏感长期 secret
 - **不覆盖**：TOTP 查看/复制（日常高频，走普通解锁）、普通 metadata 查看。
+- **授权语义（Phase 4 P4 + security-boundary CR）**：one-shot + 绑定原始
+  target。成功 re-auth 只授权恰好一个 `SensitiveActionRequest`
+  （`action` + `stableId` + `fieldKey`），并立即消费；reveal 授权绝不复用于
+  copy；prompt 期间 selection / navigation / 第二个同类型请求都不会把成功
+  结果作用于其它 entry / field（ADR-0010）。
 - **Roadmap 归属**：
   - 基础设施（认证会话复用、`resolveAvailableAuthenticators` 复用 Phase 2）
     → 放在 **Phase 4 P4**（首批 Developer slice）接入；
