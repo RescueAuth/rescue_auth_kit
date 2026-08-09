@@ -15,10 +15,12 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C 已实现**
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
-  `docs/ADRS/ADR-0008`）；3A 已与 PR #19 最新
+  `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
+  `docs/PHASE3_REPORT.md` §12 / PR body）。
+  Phase 3A 已与 PR #19 最新
   PRODUCT / ROADMAP 对齐（Developer Vault 五类进入 portable logical
   schema + merge foundation；binary keystore base64；selective snapshot
   scope；Recovery used/unused divergence 显式输出）。
@@ -42,6 +44,22 @@
   parent/child identity mapping（ResolvedProvider/ResolvedAccount）；
   CONFLICT / Recovery state divergence 保守阻止 apply；`applyMergePlan` /
   `applySnapshot` 共享事务边界供 Native + future Legacy adapter 复用）。
+  **Phase 3D 已实现**（Android Export / Import + Package Preview，独立 PR：
+  SAF CreateDocument/OpenDocument、per-export PIN 对话框（输入+确认，
+  隐藏/reveal）、bounded untrusted-file reader（`BoundedPackageReader`，
+  纯 JVM 可测，16 MiB 上限）、PackageIdentifier（native magic 检查，
+  Legacy 隔离）、safe import preview（无 secret 的 summary 模型）、
+  confirm 走 Phase 3C `applyMergePlan`（re-plan/preflight/apply 最终 authority）；
+  `.rakpkg` 扩展名 + MIME contract 同步 PACKAGE_FORMAT；Sensitive-action
+  fresh re-auth 保持为 Phase 4 P4 依赖，本轮不伪造）。
+  **Export PIN Product Policy 已锁定**（merge 前收尾）：Export = 纯数字
+  6–128 位 + 确认一致，集中在 `PinPolicy`（Product Policy constant，非
+  package-format requirement）；Import 只拒绝空 PIN（任意 codec 合法 PIN
+  均可解密，历史/第三方包不被 Export UI 策略拒绝）；**流程为 PIN + confirm
+  → CreateDocument → encode/write**，PIN cancel 不会创建文件，写失败
+  best-effort 清理不 crash；PIN/decoded payload 不进 SavedStateHandle /
+  Bundle / rememberSaveable / DataStore / Room，cancel / apply / lock 后
+  best-effort zeroize。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。
@@ -136,7 +154,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] **3A Package + Merge Foundation**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + 纯 merge planner + schema v1→v2 + 自动备份抽象清理，PR #18）
   - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）
   - [x] **3C Transactional Import / Merge Apply**（MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类落库（schema v2→v3）；parent/child identity mapping；CONFLICT / Recovery state divergence 保守阻止；`applyMergePlan` / `applySnapshot` 共享事务边界；见 ADR-0008 / PHASE3_REPORT §11）
-  - [ ] 3D Android Export / Import + Package Preview（SAF + PIN + Import all）
+  - [x] **3D Android Export / Import + Package Preview**（SAF CreateDocument/OpenDocument、per-export PIN 对话框、bounded untrusted-file reader、import preview（Authenticator/Developer 计数 + safe summary）、confirm 走 3C transactional apply；`.rakpkg` 扩展名/MIME contract；见 PHASE3_REPORT §12）
 - [ ] 阶段 4：Daily-use vertical slices
   - [x] **P1 TOTP usable loop**（otpauth paste / manual / countdown / copy / delete+Undo，真实 production storage，PR 见 docs/PHASE4_P1_REPORT.md；QR 后续补）
   - [ ] P2 otpauth-migration import（IMPORT ONLY，External Import Adapter）

@@ -5,6 +5,23 @@
 > 本文取代旧 `BACKUP_FORMAT.md` 的“自动备份”草案，定义新的
 > **Portable Export Package** 逻辑 + 加密契约。
 
+## 文件扩展名 / MIME contract（Phase 3D 正式定义）
+
+v2 Native Package 的文件扩展名与 MIME 在 Phase 3D 正式定义并实现
+（`app/.../exportimport/PackageFileContract`）：
+
+| 项 | 值 |
+| --- | --- |
+| 扩展名 | `.rakpkg`（与 legacy `.rakvault` 明确区分） |
+| 建议文件名 | `rescueauth-package-<epochMillis>.rakpkg` |
+| MIME hint | `application/vnd.rescueauth.v2-package` |
+| import 接受 | `*/*`（由实际 bytes + magic + codec 决定，不信任 MIME/扩展名） |
+
+扩展名 / MIME 只是 UX 与 SAF 选择器提示，**不是安全 gate**：文件是否合法
+由包字节的 magic（`RAKVPKG2`）、bounded reader 大小限制、header 校验与
+codec 认证决定（Issue #1 §5 / §7）。Native 与 Legacy 文件在视觉和代码上
+可区分（`.rakpkg` vs `.rakvault`），两个 import 路径保持隔离（ROADMAP §9）。
+
 ## 产品定义（Phase 3 reset）
 
 本机 Vault 与跨设备数据迁移是两个**独立安全域**：

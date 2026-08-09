@@ -22,6 +22,10 @@ object RescueAuthRoutes {
     /** Phase 4 P1: Add TOTP sheet hosted above the Authenticator screen. */
     const val AUTHENTICATOR_ADD = "authenticator/add"
 
+    // --- Phase 3D: Export / Import (Backup / Transfer) ---
+    const val EXPORT = "export"
+    const val IMPORT = "import"
+
     // --- Authenticator future structure (contract only) ---
     const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{providerId}/{accountId}"
     const val AUTHENTICATOR_TOTP = "authenticator/totp/{credentialId}"

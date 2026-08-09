@@ -140,10 +140,88 @@ Phase 4 P2（Issue #20）——让用户通过摄像头扫码添加 TOTP：普�
   unsupported 不落库、restart reopen）、Add menu（Scan/Paste/Manual）。
 - `:app:lintDebug` / `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 均 PASS。
 
+## [v2 phase3d android-export-import] - 2026-08-08（Phase 3D：Android Export / Import + Package Preview，PR OPEN）
+
+Phase 3D 独立 PR：把 3A/3B/3C 接成真正的 Android 用户闭环 —— SAF 文件 +
+per-export PIN 对话框 + import preview + confirm transactional apply。
+
+### Added
+
+- **Android Export / Import orchestration**（`app/.../exportimport/`）：
+  `ExportImportViewModel`（coordinator，纯 JVM 可测）+ `ExportImportService`
+  （use-case）→ 复用 `VaultRepository`（3C）/ `PortablePackageCodec`（3B）/
+  `PackageValidator` / `MergePlanner`（3A）。UI 不直接访问 DAO，Composable
+  不直接调用 codec / Room。
+- **SAF export flow**：`ActivityResultContracts.CreateDocument`（`.rakpkg`，
+  MIME hint `application/vnd.rescueauth.v2-package`）→ per-export PIN 对话框
+  （输入 + 确认，隐藏/reveal）→ `buildConsistentExportSnapshot`
+  （FULL_VAULT，mutex + 单 Room 事务内一致构造）→ `PortablePackageCodec.encode`
+  → SAF OutputStream 只写 encrypted bytes；写失败明确报错 + best-effort 清理，
+  不宣称成功。
+- **SAF import flow**：`ActivityResultContracts.OpenDocument` → `PackageIdentifier`
+  （native magic 检查，Legacy 隔离）→ PIN → `BoundedPackageReader`
+  （流式增量读取，最多 16 MiB + 1，超限即拒，纯 JVM 可测）→
+  `PortablePackageCodec.decode` → validate → plan → **safe preview** →
+  confirm 走 Phase 3C `applyMergePlan`（re-plan/preflight/apply 最终 authority）。
+- **safe import preview**：`ImportPreview` 只含非 secret summary（package
+  metadata / Authenticator 计数 / Developer 五类计数 / merge summary）；
+  Developer 只展示非敏感 metadata（type / title / project/service/key name）。
+  CONFLICT / recovery state divergence → blocked，用户只能 Cancel / Back，
+  不能强推 source/destination wins。
+- **bounded untrusted-file reading**：`BoundedPackageReader`（`:core`，纯
+  Kotlin）—— 不信任 MIME / displayName / extension / `OpenableColumns.SIZE`；
+  不预分配攻击者声称的巨大 size；不 OOM。
+- **per-export PIN UX / policy**：`PinPolicy`（Product Policy constant，
+  6–128 位纯数字，不写入 codec format）；PIN 默认隐藏、可短暂 reveal；
+  不写日志、不进 SavedStateHandle / Bundle / rememberSaveable / 持久化；
+  优先 CharArray，用后 best-effort 清理。
+- **import session 敏感生命周期**：decoded plaintext payload 只存在
+  `ExportImportService` 内存 session；cancel / apply / session lock → 清除；
+  process/state recreation 不恢复；auto-lock 后要求重新完整 decode。
+- **`.rakpkg` 扩展名 / MIME contract**：正式写入 PACKAGE_FORMAT.md（与
+  legacy `.rakvault` 视觉 + 代码可区分，两个 import 路径隔离）。
+- 文档：ADR-0009 / PHASE3_REPORT §12 / ROADMAP / AGENTS。
+
+### Tests
+
+- `:core` 新增 `BoundedPackageReaderTest`（9）+ `PackageIdentifierTest`（6）。
+- `:app` 新增 `ExportImportServiceTest`（28）+ `ExportImportViewModelTest`（15）：
+  empty vault Full Export / Authenticator+Recovery export / 五类 Developer
+  export / binary keystore exact round-trip / entered PIN decode / wrong PIN /
+  同 vault 同 PIN 两次 export 不同字节 / exported scope == FULL_VAULT /
+  VaultKey 不在 package / 写失败 error / PIN confirm mismatch；valid package
+  read / 16 MiB 边界 / >limit 拒绝 / invalid magic / corrupted / wrong PIN /
+  unsupported version / malformed / user cancel / read failure；preview
+  （inserts / duplicate-only / mixed / conflict block / divergence block /
+  five-type counts / no secrets / selected / auth-only / dev-only）；apply
+  （preview→confirm→success / duplicate-only no-op / conflict block / apply
+  failure 无部分 DB 变更 / 幂等 / preview 后 destination 变化安全 replan
+  block / ImportRecord 只在成功路径写入）；敏感生命周期（cancel / apply /
+  lock clears session、PIN 不进 UI state）。
+- 全量：`:core:test` + `:app:testDebugUnitTest` **422 tests / 0 failures**；
+  `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest`
+  成功。不主动运行 FTL（合入 main 后 changed-file gate 自动触发）。
+
+### Merge 前收尾（PR #26 rebase latest main + Export/PIN UX contract）
+
+- **Export PIN Product Policy 锁定**：新增 `PinPolicyTest`（19 tests）锁定
+  charset = ASCII 数字、minimum 6、maximum 128、confirm 一致；Import 只拒绝
+  空 PIN（历史/第三方包的任意 codec 合法 PIN 均可导入）。规则全部集中在
+  `PinPolicy.validateExportPin` / `validateImportPin`，Composable 不再内嵌
+  policy 常量。
+- **Export 流程重排为 PIN + confirm → CreateDocument → encode/write**：
+  PIN 取消不会创建文件；SAF destination 取消回到 AwaitingPin；写失败
+  best-effort 清理（provider 不支持删除时不 crash）。新增 ViewModel 测试：
+  PIN cancel 不创建文档、destination cancel 无文件、写失败清理、delete
+  抛异常不 crash、session lock 丢弃 pending PIN、短 PIN 导入仍可解密。
+- 保持范围：不实现 Sensitive Action Re-auth / selective export / Legacy
+  Import / conflict resolution / Phase 4 features。
+
 ## [v2 phase3c transactional-import-merge] - 2026-08-08（Phase 3C：Transactional Import / Merge Apply，PR #24 已 merge）
 
 Phase 3C 独立 PR：把 Phase 3A 的 `MergePlan` 以事务方式应用到本地 encrypted
 Vault，并使 Developer Vault 五类条目首次真实落库（schema v2→v3）。
+
 
 ### Added
 
