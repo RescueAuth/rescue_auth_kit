@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）IMPLEMENTED / PR OPEN（含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），M1/M2 NOT STARTED**（见 `docs/PHASE5A_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），M1/M2 NOT STARTED**（见 `docs/PHASE5A_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见

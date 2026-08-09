@@ -244,7 +244,7 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 ### 5.4 Phase 5 — Migration（legacy import 收口）
 
 > **Phase 5A（2026-08-09，Issue #1）**：Legacy v1 Core Adapter 已实现
-> （PR OPEN，含 merge 前 CR 修复）——`LegacyVaultSnapshotMapper` 把解密后的
+> （IMPLEMENTED，已 merge #29）——`LegacyVaultSnapshotMapper` 把解密后的
 > `LegacyImportBundle` 映射为 shared `VaultSnapshot`，复用 `PackageValidator` /
 > `MergePlanner` / `VaultRepository.applySnapshot`；**durable-id-first** 确定性
 > stableId（基于 legacy durable UUID，不依赖 source fingerprint）+ source

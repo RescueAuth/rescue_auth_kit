@@ -55,7 +55,7 @@ Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 log
   Legacy 防御上限 / logical validator 边界）。
 - `docs/PHASE5A_REPORT.md`（新）、ROADMAP / AGENTS / CHANGELOG 最小状态更新。
 
-Phase 5A = **IMPLEMENTED / PR OPEN**；Phase 5B（Legacy Android UI）= **NOT
+Phase 5A = **IMPLEMENTED / merged（#29）**；Phase 5B（Legacy Android UI）= **NOT
 STARTED**。未修改 PortablePackageCodec / .rakpkg / MergePlanner / Developer
 UI / SensitiveActionGate / Export/Recovery UI。
 
