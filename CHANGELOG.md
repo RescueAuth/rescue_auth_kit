@@ -66,9 +66,11 @@ daily-use import flow。Legacy `.rakvault` 是 IMPORT ONLY；不改 Frozen proto
   AGENTS / CHANGELOG 最小状态更新。
 
 Phase 5B = **IMPLEMENTED / PR OPEN**；Phase 5A = **CLOSED**；M2（Developer
-数据处理）**NOT STARTED**。未修改 PortablePackageCodec / .rakpkg /
-MergePlanner / Native ExportImportViewModel / Developer UI /
-SensitiveActionGate。
+数据处理）**已并入 Phase 5B**（Legacy v1 Developer Vault 五类全部正常迁移并
+持久化，不降级为只读 secure note、不默认跳过；P6 只补 Signing Key / Env Var
+Set 的 Android CRUD/UI，不是补 migration capability）。未修改
+PortablePackageCodec / .rakpkg / MergePlanner / Native ExportImportViewModel /
+Developer UI / SensitiveActionGate。
 
 ## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，IMPLEMENTED）
 

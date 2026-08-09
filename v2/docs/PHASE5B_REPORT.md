@@ -350,11 +350,15 @@ snapshot selection/filter。本轮 Phase 5B：
 
 ## 22. Remaining work after Phase 5
 
-- **M2 — Developer 数据处理（legacy）**：预览显示 Developer 数量；默认
-  “未导入 + 报告”，可选转只读 secure note；禁止静默丢弃（Phase 5B 已完整
-  带入五类并持久化，M2 为后续 UI/UX 增强）。
+- **M2 — Developer 数据处理（legacy）**：~~默认“未导入 + 报告”，可选转只读
+  secure note~~ **已废弃**。Phase 5B 正式契约：Legacy v1 Developer Vault 五类
+  （Android Signing Key / API Credential / SSH Key / Environment Variable Set /
+  Generic Secret）全部经 Legacy mapper → `VaultSnapshot` → shared merge/apply
+  正常迁移并持久化（见 §12），不降级、不默认跳过。M2 不再代表“未导入”，
+  仅作为后续 UI/UX 增强（例如迁移结果报告的呈现体验）保留。
 - P6 — Android Signing Key / Env Var Set 完整 CRUD UI（数据已可经 Legacy
-  import 与 Full Vault Export 持久化/携带）。
+  import 与 Full Vault Export 持久化/携带；P6 只补这两类的 Android CRUD/UI，
+  不是补 migration capability）。
 - Native Selective Export / Import（P5，并行 PR）。
 - Phase 6 L1/L2/L3 polish。
 

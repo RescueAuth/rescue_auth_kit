@@ -142,14 +142,24 @@ XChaCha20-Poly1305 解密（先验证 MAC）→ UTF-8 JSON。
 - `RecoveryCode.value` = 旧 codes 原样；`status` 全部 `UNUSED`（旧版无已使用状态）。
 - `RecoveryCodeSet.legacySourceId` = 旧 set id / credential id。
 
-### 5.4 Developer 数据（不静默丢弃）
+### 5.4 Developer 数据（完整迁移，不静默丢弃）
 
-v1 明确不做 Developer 密钥管理，因此：
+> **Phase 5A/5B 更新（2026-08-09）**：Developer 数据已从旧“暂不导入 / 只读
+> secure note”策略改为**完整迁移**。Legacy v1 Developer Vault 五类（
+> `androidSigningKey` / `apiCredential` / `sshKey` / `envVarSet` /
+> `genericSecret`）全部经 `LegacyVaultSnapshotMapper` → shared `VaultSnapshot`
+> → `MergePlanner` / `VaultRepository.applySnapshot` **正常迁移并持久化**到
+> SQLCipher DB（详见 `docs/PHASE5A_REPORT.md` §9 与
+> `docs/PHASE5B_REPORT.md` §12）。
 
-- 导入预览必须显示 Developer 数据数量。
-- 默认策略：**暂不导入**，写入 `ImportRecord.warningCount` 并生成"未导入报告"
-  （列出条目 id/type/title），保留原始 `.rakvault`。
-- 可选策略：转换为只读 `Legacy secure note`（不进 v1 主导航，仅只读展示）。
+因此：
+
+- 导入预览必须显示 Developer 数据数量（五类分项计数，仅安全 metadata）。
+- **正式契约**：全部五类正常导入、持久化；不降级为只读 secure note、不默认
+  跳过、不默认生成“未导入报告”。P6 只是补 Signing Key / Env Var Set 的
+  Android CRUD/UI，不是补 migration capability。
+- 迁移后数据进入 logical snapshot（`buildDestinationSnapshot` → Native Full
+  Vault Export 不丢失）。
 - 禁止将 Developer payload 写入任何日志、崩溃报告或截图 fixture。
 
 ## 6. 兼容性 Fixture 清单
