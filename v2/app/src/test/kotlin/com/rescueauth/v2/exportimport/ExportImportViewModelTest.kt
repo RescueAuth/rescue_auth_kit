@@ -88,23 +88,32 @@ class ExportImportViewModelTest {
      * An auto-approving re-auth gate for the PIN/SAF flow tests (they do not
      * exercise the re-auth itself). A fresh [SensitiveActionGate] is created
      * per call because a gate is one-shot / single-pending-action by design.
+     *
+     * The prompt echoes the STARTED request back as a Success so the gate's
+     * one-shot binding (action + target) is satisfied for whatever scope the
+     * flow chose.
      */
     private fun autoApproveGate(): SensitiveActionGate {
-        val prompt = com.rescueauth.v2.security.FakeSensitiveActionPrompt()
-        val gate = SensitiveActionGate(
+        val prompt = object : com.rescueauth.v2.security.FakeSensitiveActionPrompt() {
+            override fun tryStart(
+                request: com.rescueauth.v2.security.SensitiveActionRequest,
+                title: CharSequence,
+                subtitle: CharSequence?,
+                onResult: (com.rescueauth.v2.security.SensitiveActionResult) -> Unit,
+            ): Boolean {
+                startedRequests += request
+                if (!startResult) return false
+                // Auto-approve by echoing the started request.
+                onResult(com.rescueauth.v2.security.SensitiveActionResult.Success(request))
+                return true
+            }
+        }
+        return SensitiveActionGate(
             prompt = prompt,
             session = session,
             titleProvider = { "Authenticate to continue" },
             subtitleProvider = { null },
         )
-        // Auto-approve on the next request.
-        prompt.autoResult = com.rescueauth.v2.security.SensitiveActionResult.Success(
-            com.rescueauth.v2.security.SensitiveActionRequest(
-                action = com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
-                target = com.rescueauth.v2.security.SensitiveActionTarget.Global,
-            ),
-        )
-        return gate
     }
 
     private val pin: CharArray get() = "123456".toCharArray()
@@ -277,8 +286,11 @@ class ExportImportViewModelTest {
     }
 
     private fun exportRequest() = com.rescueauth.v2.security.SensitiveActionRequest(
-        action = com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
-        target = com.rescueauth.v2.security.SensitiveActionTarget.Global,
+        action = com.rescueauth.v2.security.SensitiveAction.EXPORT_PACKAGE,
+        target = com.rescueauth.v2.security.SensitiveActionTarget.ExportRequest(
+            scopeName = ExportScopeSpec.FullVault.name,
+            selectionDigest = null,
+        ),
     )
 
     private fun exportSuccess() = com.rescueauth.v2.security.SensitiveActionResult.Success(exportRequest())
@@ -424,6 +436,14 @@ class ExportImportViewModelTest {
 
         vm.decodeImportWithPin(pin)
         awaitIdle(vm)
+        assertTrue(
+            "state=${vm.importState.value}",
+            vm.importState.value is ExportImportViewModel.ImportState.ChoosingScope,
+        )
+
+        // Choose Everything → filtered preview (safe subset summary).
+        vm.chooseImportScope(ImportScopeSpec.Everything)
+        awaitIdle(vm)
         assertTrue("state=${vm.importState.value}", vm.importState.value is ExportImportViewModel.ImportState.Preview)
     }
 
@@ -483,6 +503,10 @@ class ExportImportViewModelTest {
         awaitIdle(vm)
         vm.decodeImportWithPin(pin)
         awaitIdle(vm)
+        assertTrue(vm.importState.value is ExportImportViewModel.ImportState.ChoosingScope)
+
+        vm.chooseImportScope(ImportScopeSpec.Everything)
+        awaitIdle(vm)
         assertTrue(vm.importState.value is ExportImportViewModel.ImportState.Preview)
 
         vm.confirmImport()
@@ -515,6 +539,8 @@ class ExportImportViewModelTest {
         awaitIdle(vm)
         vm.decodeImportWithPin(pin)
         awaitIdle(vm)
+        vm.chooseImportScope(ImportScopeSpec.Everything)
+        awaitIdle(vm)
         val preview = (vm.importState.value as ExportImportViewModel.ImportState.Preview).preview
         assertTrue(preview.blocked)
 
@@ -538,6 +564,8 @@ class ExportImportViewModelTest {
         vm.handlePickedDocument(Uri.parse("content://doc/4"))
         awaitIdle(vm)
         vm.decodeImportWithPin(pin)
+        awaitIdle(vm)
+        vm.chooseImportScope(ImportScopeSpec.Everything)
         awaitIdle(vm)
         vm.confirmImport()
         awaitIdle(vm)
@@ -663,7 +691,7 @@ class ExportImportViewModelTest {
         awaitIdle(vm)
         vm.decodeImportWithPin("1234".toCharArray())
         awaitIdle(vm)
-        assertTrue("state=${vm.importState.value}", vm.importState.value is ExportImportViewModel.ImportState.Preview)
+        assertTrue("state=${vm.importState.value}", vm.importState.value is ExportImportViewModel.ImportState.ChoosingScope)
     }
 
     @Test
@@ -681,6 +709,8 @@ class ExportImportViewModelTest {
         vm.handlePickedDocument(Uri.parse("content://doc/8"))
         awaitIdle(vm)
         vm.decodeImportWithPin(pin)
+        awaitIdle(vm)
+        vm.chooseImportScope(ImportScopeSpec.Everything)
         awaitIdle(vm)
         val state = vm.importState.value
         assertTrue(state is ExportImportViewModel.ImportState.Preview)

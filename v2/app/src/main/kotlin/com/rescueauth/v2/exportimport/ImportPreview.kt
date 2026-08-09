@@ -9,6 +9,7 @@ import com.rescueauth.v2.export.VaultDeveloperEntry
 import com.rescueauth.v2.export.VaultEnvironmentVariableSet
 import com.rescueauth.v2.export.VaultGenericSecret
 import com.rescueauth.v2.export.VaultPackagePayload
+import com.rescueauth.v2.export.VaultSnapshot
 import com.rescueauth.v2.export.VaultSshKey
 
 /**
@@ -36,7 +37,7 @@ data class ImportPreview(
     val sourceClient: String,
     val sourceAppVersion: String,
     val scope: SnapshotScope,
-    // --- content summary ---
+    // --- content summary (of the FILTERED source, for a selective import) ---
     val accounts: Int,
     val totpCredentials: Int,
     val recoverySets: Int,
@@ -52,8 +53,17 @@ data class ImportPreview(
     val blocked: Boolean get() = conflicts > 0 || stateDivergences > 0
 
     companion object {
-        fun from(payload: VaultPackagePayload, plan: MergePlan): ImportPreview {
-            val snapshot = payload.snapshot
+        fun from(payload: VaultPackagePayload, plan: MergePlan): ImportPreview =
+            from(payload, plan, payload.snapshot)
+
+        /**
+         * Phase 4 P5: builds a safe preview for the **effective source** — the
+         * filtered snapshot for a selective import, otherwise the package's own
+         * snapshot. Counts describe only what the user actually selected, so an
+         * unselected item's conflict never shows up / blocks (Issue #20 §12).
+         */
+        fun from(payload: VaultPackagePayload, plan: MergePlan, effectiveSource: VaultSnapshot): ImportPreview {
+            val snapshot = effectiveSource
             val developer = snapshot.developerEntries
             val summary = plan.summary
             return ImportPreview(

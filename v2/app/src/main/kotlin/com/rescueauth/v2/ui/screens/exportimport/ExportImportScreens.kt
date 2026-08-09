@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +32,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.rescueauth.v2.R
+import com.rescueauth.v2.export.SelectableDeveloperEntry
+import com.rescueauth.v2.export.SelectableItems
+import com.rescueauth.v2.export.SelectedItemSet
 import com.rescueauth.v2.exportimport.ExportImportViewModel
+import com.rescueauth.v2.exportimport.ExportScopeSpec
+import com.rescueauth.v2.exportimport.ImportScopeSpec
 import com.rescueauth.v2.exportimport.PinPolicy
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -44,6 +52,24 @@ object ExportImportTestTags {
     const val IMPORT_CONFIRM = "import_confirm"
     const val IMPORT_CANCEL = "import_cancel"
     const val EXPORT_CANCEL = "export_cancel"
+
+    // Phase 4 P5 scope pickers + selection
+    const val EXPORT_SCOPE_FULL = "export_scope_full"
+    const val EXPORT_SCOPE_AUTH = "export_scope_auth"
+    const val EXPORT_SCOPE_DEV = "export_scope_dev"
+    const val EXPORT_SCOPE_SELECTED = "export_scope_selected"
+    const val EXPORT_SELECT_CONTINUE = "export_select_continue"
+    const val EXPORT_SELECT_ALL_AUTH = "export_select_all_auth"
+    const val EXPORT_SELECT_ALL_DEV = "export_select_all_dev"
+    const val EXPORT_SELECT_CLEAR = "export_select_clear"
+    const val IMPORT_SCOPE_EVERYTHING = "import_scope_everything"
+    const val IMPORT_SCOPE_AUTH = "import_scope_auth"
+    const val IMPORT_SCOPE_DEV = "import_scope_dev"
+    const val IMPORT_SCOPE_SELECTED = "import_scope_selected"
+    const val IMPORT_SELECT_CONTINUE = "import_select_continue"
+    const val IMPORT_SELECT_ALL_AUTH = "import_select_all_auth"
+    const val IMPORT_SELECT_ALL_DEV = "import_select_all_dev"
+    const val IMPORT_SELECT_CLEAR = "import_select_clear"
 }
 
 /**
@@ -57,7 +83,8 @@ object ExportImportTestTags {
 @Composable
 fun ExportVaultScreen(
     state: ExportImportViewModel.ExportState,
-    onStart: () -> Unit,
+    onSelectScope: (ExportScopeSpec) -> Unit,
+    onConfirmSelection: (SelectedItemSet) -> Unit,
     onSubmitPin: (pin: CharArray, confirm: CharArray) -> PinPolicy.Reason?,
     onChooseDestination: () -> Unit,
     onCancel: () -> Unit,
@@ -82,13 +109,24 @@ fun ExportVaultScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        text = stringResource(R.string.export_full_vault_notice),
+                        text = stringResource(R.string.export_scope_notice),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.export_start))
+                    ExportScopeChooser(onSelectScope = onSelectScope)
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.common_cancel))
                     }
+                }
+                is ExportImportViewModel.ExportState.SelectingItems -> {
+                    SelectionContent(
+                        items = state.items,
+                        onConfirmSelection = onConfirmSelection,
+                        onCancel = onCancel,
+                    )
                 }
                 is ExportImportViewModel.ExportState.AwaitingReauth -> {
                     // Fresh Biometric / Device Credential re-auth is in progress
@@ -178,6 +216,8 @@ fun ImportNativePackageScreen(
     onPickDocument: () -> Unit,
     onDecode: (pin: CharArray) -> Unit,
     onCancelPin: () -> Unit,
+    onChooseScope: (ImportScopeSpec) -> Unit,
+    onConfirmSelection: (SelectedItemSet) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     onDismissResult: () -> Unit,
@@ -220,6 +260,20 @@ fun ImportNativePackageScreen(
                 is ExportImportViewModel.ImportState.Decoding -> {
                     Text(stringResource(R.string.common_working))
                 }
+                is ExportImportViewModel.ImportState.ChoosingScope -> {
+                    ImportScopeChooser(
+                        preview = state.preview,
+                        onChooseScope = onChooseScope,
+                        onCancel = onCancel,
+                    )
+                }
+                is ExportImportViewModel.ImportState.SelectingItems -> {
+                    SelectionContent(
+                        items = state.items,
+                        onConfirmSelection = onConfirmSelection,
+                        onCancel = onCancel,
+                    )
+                }
                 is ExportImportViewModel.ImportState.Preview -> {
                     ImportPreviewContent(
                         preview = state.preview,
@@ -256,6 +310,382 @@ fun ImportNativePackageScreen(
 }
 
 enum class PinEntryMode { EXPORT, IMPORT }
+
+// ---------------------------------------------------------------------------
+// Phase 4 P5 — scope pickers + item selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Export scope chooser (Issue #20 §3). Four scopes; Selected Items opens the
+ * item picker.
+ */
+@Composable
+private fun ExportScopeChooser(onSelectScope: (ExportScopeSpec) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Text(
+            text = stringResource(R.string.export_scope_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        ScopeButton(
+            label = stringResource(R.string.export_scope_full),
+            tag = ExportImportTestTags.EXPORT_SCOPE_FULL,
+        ) { onSelectScope(ExportScopeSpec.FullVault) }
+        ScopeButton(
+            label = stringResource(R.string.export_scope_auth),
+            tag = ExportImportTestTags.EXPORT_SCOPE_AUTH,
+        ) { onSelectScope(ExportScopeSpec.Authenticator) }
+        ScopeButton(
+            label = stringResource(R.string.export_scope_dev),
+            tag = ExportImportTestTags.EXPORT_SCOPE_DEV,
+        ) { onSelectScope(ExportScopeSpec.Developer) }
+        ScopeButton(
+            label = stringResource(R.string.export_scope_selected),
+            tag = ExportImportTestTags.EXPORT_SCOPE_SELECTED,
+        ) { onSelectScope(ExportScopeSpec.SelectedItems) }
+    }
+}
+
+/**
+ * Import scope chooser (Issue #20 §11). Section options are enabled only when
+ * the package actually carries that section (safe preview counts).
+ */
+@Composable
+private fun ImportScopeChooser(
+    preview: com.rescueauth.v2.exportimport.ImportPreview,
+    onChooseScope: (ImportScopeSpec) -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Text(
+            text = stringResource(R.string.import_scope_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = stringResource(R.string.import_scope_notice),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // Safe content summary (no secrets).
+        PreviewRow(stringResource(R.string.preview_accounts), preview.accounts.toString())
+        PreviewRow(stringResource(R.string.preview_totp), preview.totpCredentials.toString())
+        PreviewRow(stringResource(R.string.preview_recovery_sets), preview.recoverySets.toString())
+        PreviewRow(stringResource(R.string.preview_developer), preview.developerSummary.total.toString())
+
+        HorizontalDivider()
+
+        val hasAuthenticator = preview.accounts > 0 || preview.totpCredentials > 0 || preview.recoverySets > 0
+        val hasDeveloper = preview.developerSummary.total > 0
+
+        ScopeButton(
+            label = stringResource(R.string.import_scope_everything),
+            tag = ExportImportTestTags.IMPORT_SCOPE_EVERYTHING,
+        ) { onChooseScope(ImportScopeSpec.Everything) }
+        ScopeButton(
+            label = stringResource(R.string.import_scope_auth),
+            tag = ExportImportTestTags.IMPORT_SCOPE_AUTH,
+            enabled = hasAuthenticator,
+        ) { onChooseScope(ImportScopeSpec.Authenticator) }
+        ScopeButton(
+            label = stringResource(R.string.import_scope_dev),
+            tag = ExportImportTestTags.IMPORT_SCOPE_DEV,
+            enabled = hasDeveloper,
+        ) { onChooseScope(ImportScopeSpec.Developer) }
+        ScopeButton(
+            label = stringResource(R.string.import_scope_selected),
+            tag = ExportImportTestTags.IMPORT_SCOPE_SELECTED,
+        ) { onChooseScope(ImportScopeSpec.SelectedItems) }
+
+        OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.common_cancel))
+        }
+    }
+}
+
+@Composable
+private fun ScopeButton(
+    label: String,
+    tag: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(tag),
+    ) {
+        Text(label)
+    }
+}
+
+/**
+ * Shared item-selection screen (export + import). Shows Authenticator
+ * hierarchy (Provider → Account → TOTP / Recovery Set) and Developer entries
+ * with safe metadata only. Secret values are NEVER displayed (Issue #20 §6,
+ * §13, test 42).
+ *
+ * The selection is local Compose state (non-secret stableIds); the user
+ * commits it via [onConfirmSelection] which moves the flow forward.
+ */
+@Composable
+private fun SelectionContent(
+    items: SelectableItems,
+    onConfirmSelection: (SelectedItemSet) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var accounts by remember { mutableStateOf(setOf<String>()) }
+    var totps by remember { mutableStateOf(setOf<String>()) }
+    var sets by remember { mutableStateOf(setOf<String>()) }
+    var developers by remember { mutableStateOf(setOf<String>()) }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            text = stringResource(R.string.select_summary_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(
+                R.string.select_summary_body,
+                accounts.size,
+                totps.size,
+                sets.size,
+                developers.size,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            OutlinedButton(
+                onClick = {
+                    accounts = items.providers.flatMap { it.expandToStableIds() }.toSet()
+                    totps = items.providers.flatMap { p -> p.accounts.flatMap { a -> a.totpCredentials.map { it.stableId } } }.toSet()
+                    sets = items.providers.flatMap { p -> p.accounts.flatMap { a -> a.recoveryCodeSets.map { it.stableId } } }.toSet()
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ExportImportTestTags.EXPORT_SELECT_ALL_AUTH),
+            ) {
+                Text(stringResource(R.string.select_all_auth))
+            }
+            OutlinedButton(
+                onClick = {
+                    developers = items.developerEntries.map { it.stableId }.toSet()
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ExportImportTestTags.EXPORT_SELECT_ALL_DEV),
+            ) {
+                Text(stringResource(R.string.select_all_dev))
+            }
+            OutlinedButton(
+                onClick = {
+                    accounts = emptySet()
+                    totps = emptySet()
+                    sets = emptySet()
+                    developers = emptySet()
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ExportImportTestTags.EXPORT_SELECT_CLEAR),
+            ) {
+                Text(stringResource(R.string.select_clear))
+            }
+        }
+
+        val scrollState = rememberScrollState()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            if (items.providers.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.select_section_auth),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                items.providers.forEach { provider ->
+                    val providerIds = provider.expandToStableIds()
+                    SelectionProviderHeader(
+                        serviceName = provider.serviceName,
+                        selected = providerIds.all { it in accounts },
+                        onToggle = { checked ->
+                            accounts = if (checked) accounts + providerIds else accounts - providerIds
+                        },
+                    )
+                    provider.accounts.forEach { account ->
+                        SelectionAccountRow(
+                            serviceName = account.serviceName,
+                            accountName = account.accountName,
+                            selected = account.stableId in accounts,
+                            onToggle = { checked ->
+                                accounts = if (checked) accounts + account.stableId else accounts - account.stableId
+                            },
+                        )
+                        account.totpCredentials.forEach { totp ->
+                            SelectionLeafRow(
+                                label = totp.label,
+                                selected = totp.stableId in totps,
+                                onToggle = { checked ->
+                                    totps = if (checked) totps + totp.stableId else totps - totp.stableId
+                                },
+                            )
+                        }
+                        account.recoveryCodeSets.forEach { set ->
+                            SelectionLeafRow(
+                                label = stringResource(
+                                    R.string.select_recovery_set_label,
+                                    set.title,
+                                    set.remainingCount,
+                                    set.codeCount,
+                                ),
+                                selected = set.stableId in sets,
+                                onToggle = { checked ->
+                                    sets = if (checked) sets + set.stableId else sets - set.stableId
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (items.developerEntries.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.select_section_dev),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                items.developerEntries.forEach { entry ->
+                    SelectionLeafRow(
+                        label = developerSafeLabel(entry),
+                        selected = entry.stableId in developers,
+                        onToggle = { checked ->
+                            developers = if (checked) developers + entry.stableId else developers - entry.stableId
+                        },
+                    )
+                }
+            }
+
+            if (items.isEmpty) {
+                Text(
+                    text = stringResource(R.string.select_nothing_available),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        val selected = SelectedItemSet(
+            selectedAccountStableIds = accounts,
+            selectedTotpStableIds = totps,
+            selectedRecoverySetStableIds = sets,
+            selectedDeveloperStableIds = developers,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.common_cancel))
+            }
+            Button(
+                onClick = { onConfirmSelection(selected) },
+                enabled = !selected.isEmpty,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ExportImportTestTags.EXPORT_SELECT_CONTINUE),
+            ) {
+                Text(stringResource(R.string.select_continue))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionProviderHeader(
+    serviceName: String,
+    selected: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = selected, onCheckedChange = onToggle)
+        Text(
+            text = serviceName,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun SelectionAccountRow(
+    serviceName: String,
+    accountName: String,
+    selected: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Spacing.md),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = selected, onCheckedChange = onToggle)
+        Text(
+            text = "$serviceName · $accountName",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+private fun SelectionLeafRow(
+    label: String,
+    selected: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Spacing.xl),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = selected, onCheckedChange = onToggle)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Safe display label for a Developer entry — never a secret value. */
+private fun developerSafeLabel(entry: SelectableDeveloperEntry): String {
+    val name = entry.displayName.ifBlank { entry.title }
+    return when (entry.type) {
+        "android_signing_key" -> "🔑 $name"
+        "api_credential" -> "🔐 $name"
+        "ssh_key" -> "🔒 $name"
+        "environment_variable_set" -> "🌐 $name"
+        else -> "📄 $name"
+    }
+}
 
 /** Formats a [PinPolicy.Reason] message with the policy constants (UI presentation only). */
 private fun pinPolicyMessage(context: Context, reason: PinPolicy.Reason): String =

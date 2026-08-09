@@ -2,6 +2,8 @@ package com.rescueauth.v2.exportimport
 
 import android.content.Context
 import android.net.Uri
+import com.rescueauth.v2.export.SelectedItemSet
+import com.rescueauth.v2.export.SelectableItems
 import com.rescueauth.v2.repository.ImportOutcome
 import com.rescueauth.v2.repository.VaultRepository
 import com.rescueauth.v2.security.SensitiveAction
@@ -58,8 +60,30 @@ class ExportImportViewModel(
     // State
     // ------------------------------------------------------------------
 
+    /**
+     * The export scope the user chose on the Export intro (Issue #20 §3).
+     * The scope is fixed BEFORE re-auth; the one-shot re-auth authorizes
+     * exactly this scope + selection.
+     */
+    data class PendingExportScope(
+        val scope: ExportScopeSpec,
+        val selection: SelectedItemSet = SelectedItemSet(),
+    ) {
+        val selectionDigest: String?
+            get() = if (scope == ExportScopeSpec.SelectedItems) selection.digest() else null
+
+        /** The exact request target used to bind the re-auth. */
+        fun requestTarget(): SensitiveActionTarget = SensitiveActionTarget.ExportRequest(
+            scopeName = scope.name,
+            selectionDigest = selectionDigest,
+        )
+    }
+
     sealed interface ExportState {
+        /** Choosing the export scope (Entire Vault / Authenticator / Developer / Selected Items). */
         object Idle : ExportState
+        /** Picking the items for a Selected-Items export (safe metadata only). */
+        data class SelectingItems(val items: SelectableItems) : ExportState
         /** Re-auth is required before the PIN flow (fresh Biometric/Device Credential). */
         object AwaitingReauth : ExportState
         /** Waiting for the user to enter + confirm the per-export PIN (before CreateDocument). */
@@ -78,7 +102,11 @@ class ExportImportViewModel(
         object AwaitingPin : ImportState
         /** Decoding + validating + planning. */
         object Decoding : ImportState
-        /** Safe preview is ready. */
+        /** Choosing what to import from the decoded package (safe summary + picker). */
+        data class ChoosingScope(val preview: ImportPreview) : ImportState
+        /** Picking items for a Selected-Items import (safe metadata only). */
+        data class SelectingItems(val items: SelectableItems) : ImportState
+        /** Safe preview of the chosen subset is ready. */
         data class Preview(val preview: ImportPreview) : ImportState
         /** Applying the import transactionally. */
         object Applying : ImportState
@@ -106,6 +134,15 @@ class ExportImportViewModel(
     /** Pending SAF destination Uri selected by CreateDocument (cleared on cancel). */
     @Volatile
     private var pendingExportUri: Uri? = null
+
+    /**
+     * The export scope + selection chosen on the Export intro (Issue #20 §3,
+     * §5). Fixed BEFORE re-auth; the one-shot re-auth authorizes exactly this
+     * scope + selection ([SensitiveActionTarget.ExportRequest]) and the final
+     * snapshot is re-resolved against the live Vault at encode time.
+     */
+    @Volatile
+    private var pendingExportScope: PendingExportScope? = null
 
     /**
      * Transient per-export PIN held ONLY between PIN confirmation and the SAF
@@ -141,6 +178,10 @@ class ExportImportViewModel(
         return svc ?: throw VaultRepository.SessionLockedException()
     }
 
+    /** Resolves the current service WITHOUT throwing when the session is locked. */
+    private fun resolveServiceOrNull(): ExportImportService? =
+        activeService ?: serviceProvider()?.also { activeService = it }
+
     private var sessionJob: Job? = null
 
         init {
@@ -153,18 +194,22 @@ class ExportImportViewModel(
                     activeService = null
                     pendingImportUri = null
                     pendingExportUri = null
+                    pendingExportScope = null
                     pendingExportPin?.fill('\u0000')
                     pendingExportPin = null
                     if (_importState.value is ImportState.Preview ||
                         _importState.value is ImportState.AwaitingPin ||
-                        _importState.value is ImportState.Decoding
+                        _importState.value is ImportState.Decoding ||
+                        _importState.value is ImportState.ChoosingScope ||
+                        _importState.value is ImportState.SelectingItems
                     ) {
                         _importState.value = ImportState.Idle
                     }
                     if (_exportState.value is ExportState.AwaitingReauth ||
                         _exportState.value is ExportState.AwaitingPin ||
                         _exportState.value is ExportState.AwaitingDestination ||
-                        _exportState.value is ExportState.Working
+                        _exportState.value is ExportState.Working ||
+                        _exportState.value is ExportState.SelectingItems
                     ) {
                         _exportState.value = ExportState.Idle
                     }
@@ -188,15 +233,29 @@ class ExportImportViewModel(
     // ------------------------------------------------------------------
 
     /**
-     * Starts the export flow.
+     * Starts the export flow from the scope intro.
      *
-     * Phase 4 P4: the **first** step is a fresh Biometric/Device-credential
-     * re-auth ([ExportState.AwaitingReauth]). Only after a successful re-auth
-     * does the flow continue to the per-export PIN ([beginPinFlow]). An auth
-     * cancel / failure / unavailable leaves the export Idle — no PIN is
-     * collected, no SAF document is created and no snapshot is built.
+     * Phase 4 P5: the user first picks a scope (Entire Vault / Authenticator /
+     * Developer / Selected Items) on the intro ([ExportState.Idle]).
+     * [beginExport] then runs the SAME fresh re-auth gate for EVERY scope —
+     * all `.rakpkg` exports carry long-term secrets, so none may skip re-auth
+     * (Issue #20 §7). The request is bound to the exact scope + selection
+     * ([SensitiveActionTarget.ExportRequest]); an auth result for scope A can
+     * never authorize scope B (tests 38/39).
      */
-    fun beginExport() {
+    fun beginExport(scopeSpec: ExportScopeSpec = ExportScopeSpec.FullVault) {
+        if (_exportState.value is ExportState.Working) return
+        if (scopeSpec == ExportScopeSpec.SelectedItems) {
+            // Enter the selection screen first (safe metadata), then re-auth
+            // with the committed selection (Issue #20 §6).
+            _exportState.value = ExportState.SelectingItems(items = SelectableItems())
+            loadExportSelectable()
+            return
+        }
+        beginExportForScope(PendingExportScope(scope = scopeSpec))
+    }
+
+    private fun beginExportForScope(pending: PendingExportScope) {
         if (_exportState.value is ExportState.Working) return
         val gate = sensitiveActionGate
         if (gate == null) {
@@ -204,14 +263,63 @@ class ExportImportViewModel(
             // wiring): stay Idle; the UI remains on the export intro.
             return
         }
+        pendingExportScope = pending
         _exportState.value = ExportState.AwaitingReauth
         val request = SensitiveActionRequest(
-            action = SensitiveAction.EXPORT_FULL_VAULT,
-            target = SensitiveActionTarget.Global,
+            action = SensitiveAction.EXPORT_PACKAGE,
+            target = pending.requestTarget(),
         )
         gate.authorize(
             request,
             onResult = { result -> onExportReauthResult(result, request) },
+        )
+    }
+
+    /**
+     * Loads the safe, selectable enumeration of the CURRENT Vault for the
+     * Selected-Items export picker. Fails safe (returns to Idle) when the
+     * Vault cannot be read / is locked. The loaded items only replace the
+     * placeholder if the user has NOT already confirmed the selection and
+     * moved past this screen (otherwise a late load would overwrite the
+     * re-auth state — Issue #20 §6 race).
+     */
+    private fun loadExportSelectable() {
+        scope.launch {
+            try {
+                val service = resolveService()
+                val items = service.selectableExportItems()
+                if (_exportState.value is ExportState.SelectingItems) {
+                    _exportState.value = ExportState.SelectingItems(items = items)
+                }
+            } catch (e: VaultRepository.SessionLockedException) {
+                if (_exportState.value is ExportState.SelectingItems) {
+                    _exportState.value = ExportState.Error(
+                        "Your vault is locked. Unlock it and try again.",
+                    )
+                }
+            } catch (e: Exception) {
+                if (_exportState.value is ExportState.SelectingItems) {
+                    _exportState.value = ExportState.Error(
+                        "Could not load your vault for selection.",
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Commits the Selected-Items selection and moves to re-auth. Empty
+     * selection cannot continue (the UI also disables the button; this is
+     * defense-in-depth).
+     */
+    fun confirmExportSelection(selection: SelectedItemSet) {
+        if (_exportState.value !is ExportState.SelectingItems) return
+        if (selection.isEmpty) {
+            _exportState.value = ExportState.Error("Select at least one item to export.")
+            return
+        }
+        beginExportForScope(
+            PendingExportScope(scope = ExportScopeSpec.SelectedItems, selection = selection),
         )
     }
 
@@ -223,7 +331,7 @@ class ExportImportViewModel(
             is SensitiveActionResult.Success -> {
                 // Consume the one-shot authorization ONLY when the authorized
                 // request matches the original export request (Issue #20
-                // §2/§8): the token is immediately spent. A follow-up Export
+                // §7/§8): the token is immediately spent. A follow-up Export
                 // request requires a fresh re-auth.
                 if (result.request == request) {
                     val gate = sensitiveActionGate
@@ -242,6 +350,7 @@ class ExportImportViewModel(
             -> {
                 // Export must NOT continue: no PIN flow, no document, no
                 // snapshot (Issue #20 §5).
+                pendingExportScope = null
                 _exportState.value = ExportState.Idle
             }
         }
@@ -278,10 +387,16 @@ class ExportImportViewModel(
 
     /**
      * Called after the user picks (or the system created) a SAF destination.
-     * Builds a consistent FULL_VAULT snapshot, encodes with the retained PIN,
-     * writes ONLY the encrypted package bytes, and reports success/failure.
-     * On any failure the partially-created document is best-effort deleted
-     * (never crashes if the provider does not support deletion).
+     * Builds a consistent snapshot for the chosen scope, encodes with the
+     * retained PIN, writes ONLY the encrypted package bytes, and reports
+     * success/failure. On any failure the partially-created document is
+     * best-effort deleted (never crashes if the provider does not support
+     * deletion).
+     *
+     * Phase 4 P5: the FINAL snapshot is built here (after re-auth and after
+     * the destination is chosen) and the selection is re-resolved against the
+     * live Vault. A stale selection (missing stableId) fails safely instead of
+     * silently exporting a different object (Issue #20 §5, §8).
      */
     fun onExportDestinationPicked(uri: Uri) {
         if (_exportState.value !is ExportState.AwaitingDestination) return
@@ -290,23 +405,43 @@ class ExportImportViewModel(
             _exportState.value = ExportState.AwaitingPin
             return
         }
+        val pending = pendingExportScope
+        if (pending == null) {
+            // No scope was ever committed (defense-in-depth): cannot export.
+            pendingExportUri = null
+            scope.launch { bestEffortDelete(uri) }
+            _exportState.value = ExportState.Idle
+            return
+        }
         pendingExportUri = uri
         _exportState.value = ExportState.Working
         scope.launch {
             try {
                 val service = resolveService()
-                val encoded = service.encodeFullVaultExport(pin)
+                val encoded = service.encodeExport(pending.scope, pending.selection, pin)
                 fileIo.write(context, uri, encoded.bytes)
                 pendingExportUri = null
                 _exportState.value = ExportState.Success(
                     packageId = encoded.packageId,
-                    scopeLabel = "FULL_VAULT",
+                    scopeLabel = encoded.scope.name,
                 )
             } catch (e: VaultRepository.SessionLockedException) {
                 pendingExportUri = null
                 bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(
                     "Your vault is locked. Unlock it and try again.",
+                )
+            } catch (e: StaleSelectionException) {
+                pendingExportUri = null
+                bestEffortDelete(uri)
+                _exportState.value = ExportState.Error(
+                    "The selected item(s) changed since you chose them. Go back and re-select.",
+                )
+            } catch (e: EmptySelectionException) {
+                pendingExportUri = null
+                bestEffortDelete(uri)
+                _exportState.value = ExportState.Error(
+                    "Select at least one item to export.",
                 )
             } catch (e: ExportImportError) {
                 pendingExportUri = null
@@ -320,6 +455,7 @@ class ExportImportViewModel(
                 pin.fill('\u0000')
                 pendingExportPin?.fill('\u0000')
                 pendingExportPin = null
+                pendingExportScope = null
             }
         }
     }
@@ -341,6 +477,7 @@ class ExportImportViewModel(
             sensitiveActionGate?.cancelPending()
         }
         pendingExportUri = null
+        pendingExportScope = null
         pendingExportPin?.fill('\u0000')
         pendingExportPin = null
         _exportState.value = ExportState.Idle
@@ -358,6 +495,7 @@ class ExportImportViewModel(
     /** Clears an export result/error so the user can start again. */
     fun resetExport() {
         pendingExportUri = null
+        pendingExportScope = null
         pendingExportPin?.fill('\u0000')
         pendingExportPin = null
         _exportState.value = ExportState.Idle
@@ -419,6 +557,10 @@ class ExportImportViewModel(
      * Reads the full bounded package bytes and decodes with [pin], producing a
      * safe [ImportPreview]. The plaintext payload stays in the service's active
      * import session only (never in this ViewModel / Compose state).
+     *
+     * Phase 4 P5: after decode the user chooses an import scope
+     * ([ImportState.ChoosingScope]) instead of going straight to the final
+     * preview (Issue #20 §11).
      */
     fun decodeImportWithPin(pin: CharArray) {
         val uri = pendingImportUri
@@ -442,7 +584,7 @@ class ExportImportViewModel(
                 val bytes = fileIo.readBounded(context, uri)
                 val service = resolveService()
                 val preview = service.decodeForPreview(bytes, pin)
-                _importState.value = ImportState.Preview(preview)
+                _importState.value = ImportState.ChoosingScope(preview)
             } catch (e: VaultRepository.SessionLockedException) {
                 _importState.value = ImportState.Error(
                     "Your vault is locked. Unlock it and try again.",
@@ -458,10 +600,105 @@ class ExportImportViewModel(
     }
 
     /**
+     * Phase 4 P5: user picks an import scope from the decoded package
+     * (Everything / Authenticator / Developer / Selected Items). A section
+     * option is only available when the package actually carries that section
+     * (the UI derives availability from the safe preview counts).
+     */
+    fun chooseImportScope(importScope: ImportScopeSpec) {
+        if (_importState.value !is ImportState.ChoosingScope) return
+        when (importScope) {
+            ImportScopeSpec.SelectedItems -> {
+                _importState.value = ImportState.SelectingItems(items = SelectableItems())
+                loadImportSelectable()
+            }
+            ImportScopeSpec.Everything,
+            ImportScopeSpec.Authenticator,
+            ImportScopeSpec.Developer,
+            -> {
+                val preset = resolveServiceOrNull()?.importPreset(importScope)
+                if (preset == null) {
+                    _importState.value = ImportState.Error("No package is loaded for import.")
+                    return
+                }
+                _importState.value = ImportState.Decoding
+                scope.launch {
+                    try {
+                        val preview = resolveService().filterActiveImport(preset)
+                        _importState.value = ImportState.Preview(preview)
+                    } catch (e: VaultRepository.SessionLockedException) {
+                        _importState.value = ImportState.Error(
+                            "Your vault is locked. Unlock it and try again.",
+                        )
+                    } catch (e: StaleSelectionException) {
+                        _importState.value = ImportState.Error(
+                            "A selected item is not present in this package. Go back and re-select.",
+                        )
+                    } catch (e: EmptySelectionException) {
+                        _importState.value = ImportState.Error(
+                            "Select at least one item to import.",
+                        )
+                    } catch (e: Exception) {
+                        _importState.value = ImportState.Error(
+                            toImportMessage(ExportImportError.fromCodecOrRead(e)),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadImportSelectable() {
+        val service = resolveServiceOrNull()
+        val items = service?.selectableImportItems()
+        if (items == null) {
+            _importState.value = ImportState.Error("No package is loaded for import.")
+            return
+        }
+        _importState.value = ImportState.SelectingItems(items = items)
+    }
+
+    /**
+     * Phase 4 P5: applies the user's Selected-Items import filter and builds
+     * the final safe preview of the filtered subset (MergePlanner runs only on
+     * the filtered snapshot — Issue #20 §12).
+     */
+    fun confirmImportSelection(selection: SelectedItemSet) {
+        if (_importState.value !is ImportState.SelectingItems) return
+        if (selection.isEmpty) {
+            _importState.value = ImportState.Error("Select at least one item to import.")
+            return
+        }
+        _importState.value = ImportState.Decoding
+        scope.launch {
+            try {
+                val preview = resolveService().filterActiveImport(selection)
+                _importState.value = ImportState.Preview(preview)
+            } catch (e: VaultRepository.SessionLockedException) {
+                _importState.value = ImportState.Error(
+                    "Your vault is locked. Unlock it and try again.",
+                )
+            } catch (e: StaleSelectionException) {
+                _importState.value = ImportState.Error(
+                    "A selected item is not present in this package. Go back and re-select.",
+                )
+            } catch (e: EmptySelectionException) {
+                _importState.value = ImportState.Error(
+                    "Select at least one item to import.",
+                )
+            } catch (e: Exception) {
+                _importState.value = ImportState.Error(
+                    toImportMessage(ExportImportError.fromCodecOrRead(e)),
+                )
+            }
+        }
+    }
+
+    /**
      * Confirms the import. Phase 3C is the final authority: the service calls
-     * [VaultRepository.applyMergePlan], which re-validates / re-plans /
-     * preflights / applies against the LIVE destination in one transaction.
-     * The preview plan is never applied directly.
+     * [VaultRepository.applySnapshot], which re-validates the filtered source,
+     * re-plans against the LIVE destination, preflights and applies inside one
+     * transaction. The preview plan is never applied directly.
      */
     fun confirmImport() {
         _importState.value = ImportState.Applying

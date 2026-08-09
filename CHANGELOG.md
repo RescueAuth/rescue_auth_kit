@@ -10,6 +10,62 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p5 selective-export-import] - 2026-08-09（Phase 4 P5 Selective Export / Import，PR OPEN）
+
+Issue #20 Phase 4 P5：把现有 Full Vault Native Package 流程扩展为 Selective
+Export / Import，继续使用同一个 `VaultSnapshot` → `PortablePackageCodec` →
+`MergePlanner` → transactional apply（不创建第二套 package format，不创建
+第二套 merge engine）。
+
+### Added
+
+- **共享纯 Kotlin 选择引擎（core）**：`VaultSnapshotSelector` /
+  `SelectedItemSet` / `SelectableItems`。stableId 语义（不依赖 list index /
+  title / account name / sort / Room row id）；hierarchy/dependency closure
+  （Provider → 全部 Account → 全部 TOTP/Recovery Set；Account → 自身 +
+  Provider parent metadata；single TOTP → 自身 + Account + Provider；Recovery
+  Set 原子；Developer Entry 原子，五类全支持）。Export 与 Import 共用同一套
+  selection 语义（不重复实现）。
+- **Export 四 scope**：Entire Vault / Authenticator / Developer /
+  Selected Items。全部走同一 fresh re-auth
+  （`SensitiveAction.EXPORT_PACKAGE`，scope+selection digest 绑定 + one-shot
+  consumed）和同一 per-export PIN Product Policy（ASCII digits 6–128，双次确认）。
+- **Selective Import = decoded-snapshot 内存过滤**：Everything /
+  Authenticator / Developer / Selected Items；只对最终选中的 filtered
+  snapshot 运行 MergePlanner，unselected conflict 不阻塞、selected
+  conflict/divergence 按现有规则 BLOCK、final apply 重新 plan（stale preview
+  plan 永不直接 apply）。
+- **选中稳定 id 重新解析**：最终 export snapshot 在 repository shared mutex /
+  consistent transaction 内重新解析 selection；stale stableId 明确失败，绝不
+  静默导出/导入另一个对象。
+- **decoded package 生命周期**：只存在内存 import session；cancel / apply /
+  lock / recreation 后丢弃；不进入 Room / files / SavedStateHandle / Bundle /
+  DataStore。
+
+### Security
+
+- `SensitiveAction.EXPORT_FULL_VAULT` 更名为 `SensitiveAction.EXPORT_PACKAGE`，
+  新增 `SensitiveActionTarget.ExportRequest(scopeName, selectionDigest)`：scope A
+  authorization 不能授权 scope B，selected export auth 绑定原始 selection。
+- 任何 `.rakpkg` export scope 都要求 fresh re-auth；auth 成功只授权本次
+  pending export（one-shot，不复用给第二次 export）；无 auth cache。
+- ImportRecord 语义不变：只在 successful transactional apply 后记录。
+- Native/Legacy 隔离保持：新增 Native production code 不引用
+  `com.rescueauth.v2.legacy`。
+
+### Changed
+
+- `ExportImportService`：新增 `encodeExport(scope, selection, pin)`、
+  `decodeForPreview(bytes, pin, filter)`、`filterActiveImport(filter)`、
+  `importPreset(scope)`、`selectableExportItems()` / `selectableImportItems()`；
+  `encodeFullVaultExport` 保留为 FullVault 委托。
+- `ExportImportViewModel`：export scope picker + Selected-Items selection
+  screen；import 先进入 ChoosingScope 再进入 filtered preview；`EXPORT_PACKAGE`
+  re-auth 绑定 scope+digest。
+- UI：Export Package 四 scope chooser；共享 ItemSelectionContent（Authenticator
+  hierarchy + Developer safe labels，永不显示 secret）；Import 四 scope chooser
+  （Authenticator/Developer option 仅当 package 存在该 section 时才可用）。
+
 ## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，IMPLEMENTED）
 
 Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 logical

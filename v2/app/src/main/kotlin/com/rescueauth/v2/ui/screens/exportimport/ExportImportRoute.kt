@@ -94,7 +94,8 @@ fun ExportImportRoute(
         ExportImportMode.EXPORT -> {
             ExportVaultScreen(
                 state = exportState,
-                onStart = { viewModel.beginExport() },
+                onSelectScope = { scope -> viewModel.beginExport(scope) },
+                onConfirmSelection = { selection -> viewModel.confirmExportSelection(selection) },
                 onSubmitPin = { pin, confirm -> viewModel.submitExportPin(pin, confirm) },
                 onChooseDestination = {
                     exportLauncher.launch(
@@ -115,6 +116,8 @@ fun ExportImportRoute(
                 onPickDocument = { importLauncher.launch(PackageFileContract.IMPORT_MIME_TYPES) },
                 onDecode = { pin -> viewModel.decodeImportWithPin(pin) },
                 onCancelPin = { viewModel.cancelImport() },
+                onChooseScope = { scope -> viewModel.chooseImportScope(scope) },
+                onConfirmSelection = { selection -> viewModel.confirmImportSelection(selection) },
                 onConfirm = { viewModel.confirmImport() },
                 onCancel = { viewModel.cancelImport() },
                 onDismissResult = {
