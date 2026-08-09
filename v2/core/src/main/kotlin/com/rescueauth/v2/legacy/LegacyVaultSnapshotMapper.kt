@@ -32,25 +32,49 @@ import java.security.MessageDigest
  *   field-by-field; no merging/dedupe happens here (that is the
  *   MergePlanner's job).
  *
- * ## Deterministic stable identity (ROADMAP §5.7 / §9, Phase 5A §9)
+ * ## Deterministic stable identity — durable-id FIRST (ADR-0010 §4)
  *
- * Legacy objects carry durable `id`s (schema 3 account/credential ids,
- * schema 1/2 entry ids). Those ids are **not** collision-safe globally
- * across different files, so this mapper derives every stableId as:
+ * Legacy objects in frozen v1 (tag `v1.2.0`) carry **durable persisted
+ * identities** — every persisted record's `id` is a UUID v4 minted once at
+ * creation and stored inside the vault JSON (verified against
+ * `vault_session.dart` / `vault_models.dart`):
+ *
+ * | legacy object | durable id source |
+ * | --- | --- |
+ * | Provider (schema 3 `providers[].id`) | persisted UUID v4 |
+ * | Account (schema 3 `accounts[].id`) | persisted UUID v4 |
+ * | TOTP credential (schema 3 `credentials[].id`, schema 1/2 `totpEntries[].id`) | persisted UUID v4 |
+ * | Recovery Code Set (schema 3 `credentials[].id`, schema 1/2 `recoveryCodeSets[].id`) | persisted UUID v4 |
+ * | Recovery Code | **NO durable id** — only `codes: List<String>` (positional) |
+ * | Developer Entry (schema 1/2/3 `developerEntries[].id`) | persisted UUID v4 |
+ *
+ * Because these durable ids identify the **logical object itself** (not the
+ * encrypted container), the stableId is derived from the durable id — it must
+ * **NOT** depend on the source file fingerprint. The same logical object
+ * re-encrypted into two different `.rakvault` backups (different encrypted
+ * bytes → different source fingerprints) still yields the **same** stableId:
  *
  * ```
- * stableId = "legacy:" + <base64url(sha256(sourceFingerprint))> + ":" + <base64url(sha256(type + '\0' + legacyObjectPath))>
+ * stableId = "legacy:" + kind + ":" + b64url(sha256("legacy\0" + kind + "\0" + durablePath))
  * ```
+ *
+ * - `durablePath` is a stable, collision-safe object path built **only** from
+ *   durable ids (e.g. `totp:<credentialId>`, `account:<accountId>`,
+ *   `recovery:<setId>/<index>`).
+ * - [sourceFingerprint] is **not** part of the stableId; it is retained solely
+ *   as the legacy import **source identity** for a future Phase 5B
+ *   `ImportRecord` (ADR-0010 §5).
+ * - The only object without a durable id is the individual Recovery Code; it
+ *   uses a deterministic **structural fallback** keyed by its parent set's
+ *   durable id + its positional index (ADR-0010 §4, rule B).
  *
  * Properties:
- * - **Deterministic**: same file bytes + same object path → same stableId.
- * - **Namespaced by source**: the same object in a different `.rakvault`
- *   cannot collide.
+ * - **Deterministic**: same durable id → same stableId, across any number of
+ *   re-encrypted backups.
+ * - **Namespaced**: `legacy` prefix + per-kind discriminator prevent collision
+ *   with native v2 records and between different legacy object kinds.
  * - **No plaintext secret in the stableId** (SHA-256 only, never the raw
  *   secret / password / decrypted payload).
- * - Repeated import of the same file produces identical stableIds, so the
- *   shared MergePlanner sees the second import as DUPLICATE / keep both for
- *   different stableIds — no spurious new logical objects.
  *
  * ## Source fingerprint
  *
@@ -72,15 +96,22 @@ object LegacyVaultSnapshotMapper {
     class LegacyMappingException(message: String, cause: Throwable? = null) :
         Exception(message, cause)
 
-    /** Schema 3 credential discriminator (`kind`). */
-    private const val KIND_TOTP = "totp"
-    private const val KIND_RECOVERY = "recoveryCodes"
+    /** StableId namespace prefix for all legacy-derived v2 logical records. */
+    const val LEGACY_NAMESPACE = "legacy"
+
+    /** StableId `kind` discriminators (also part of the hash input). */
+    const val KIND_ACCOUNT = "account"
+    const val KIND_TOTP = "totp"
+    const val KIND_RECOVERY_SET = "recovery_set"
+    const val KIND_RECOVERY_CODE = "recovery_code"
 
     /**
      * Maps [bundle] into a [VaultSnapshot] (FULL_VAULT scope).
      *
-     * @param sourceFingerprintBase64Url stable identity of the original
-     *   encrypted legacy file (see [fingerprintOfEncryptedBytes]).
+     * @param sourceFingerprintBase64Url source identity of the original
+     *   encrypted legacy file (see [fingerprintOfEncryptedBytes]). Kept for
+     *   future Phase 5B `ImportRecord` identity; **not** part of the stableId
+     *   derivation (ADR-0010 §4 — durable-id first).
      */
     fun map(
         bundle: LegacyImportBundle,
@@ -91,14 +122,14 @@ object LegacyVaultSnapshotMapper {
         }
 
         val accounts = when (bundle.schemaVersion) {
-            1, 2 -> mapEntryCentric(bundle, sourceFingerprintBase64Url)
-            3 -> mapSchema3(bundle, sourceFingerprintBase64Url)
+            1, 2 -> mapEntryCentric(bundle)
+            3 -> mapSchema3(bundle)
             else -> throw LegacyMappingException(
                 "Unsupported legacy schemaVersion ${bundle.schemaVersion}",
             )
         }
 
-        val developers = mapDeveloperEntries(bundle.developerEntries, sourceFingerprintBase64Url)
+        val developers = mapDeveloperEntries(bundle.developerEntries)
 
         return VaultSnapshot(
             accounts = accounts,
@@ -125,32 +156,26 @@ object LegacyVaultSnapshotMapper {
         java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(data)
 
     /**
-     * Deterministic stableId for one logical record.
+     * Deterministic stableId for one logical record, derived **from the legacy
+     * object's durable identity** ([durablePath]) — never from the source file
+     * fingerprint.
      *
-     * @param sourceFingerprint stable source identity (namespacing).
-     * @param kind record kind, e.g. "account" / "totp" / "recovery_set" /
-     *   "recovery_code" / "developer:androidSigningKey".
-     * @param objectPath stable legacy object path/identity, e.g.
-     *   "account:acc-1" / "totp:acc-1/cred-1" — NOT the secret itself.
+     * @param kind record kind, e.g. [KIND_ACCOUNT] / [KIND_TOTP] /
+     *   [KIND_RECOVERY_SET] / [KIND_RECOVERY_CODE] / `developer:<legacyType>`.
+     * @param durablePath stable legacy object identity built only from durable
+     *   ids / structural position, e.g. `totp:<credId>` / `account:<accId>` /
+     *   `recovery:<setId>/<index>` — NOT the secret itself.
      */
-    private fun stableIdFor(
-        sourceFingerprint: String,
-        kind: String,
-        objectPath: String,
-    ): String {
-        val digest = sha256("$kind\u0000$objectPath".toByteArray(Charsets.UTF_8))
-        return "legacy:${base64Url(sha256(sourceFingerprint.toByteArray(Charsets.UTF_8)))}" +
-            ":$kind:${base64Url(digest)}"
+    private fun stableIdForDurable(kind: String, durablePath: String): String {
+        val digest = sha256("$LEGACY_NAMESPACE\u0000$kind\u0000$durablePath".toByteArray(Charsets.UTF_8))
+        return "$LEGACY_NAMESPACE:$kind:${base64Url(digest)}"
     }
 
     // ------------------------------------------------------------------
     // Schema 1/2 — entry-centric (never issuer-bucketed)
     // ------------------------------------------------------------------
 
-    private fun mapEntryCentric(
-        bundle: LegacyImportBundle,
-        sourceFingerprint: String,
-    ): List<VaultAccount> {
+    private fun mapEntryCentric(bundle: LegacyImportBundle): List<VaultAccount> {
         val accounts = mutableListOf<VaultAccount>()
         var order = 0L
         val now = java.time.Instant.now().toString()
@@ -159,13 +184,11 @@ object LegacyVaultSnapshotMapper {
             val validated = LegacyTotpValidator.validate(entry)
             if (validated.usability != LegacyImportBundle.TOTP_USABLE) continue
             val createdAt = validated.createdAt ?: now
-            val accountStableId = stableIdFor(
-                sourceFingerprint, "account", "totp:${validated.id}",
-            )
+            // Durable identity = the persisted TOTP entry id.
+            val durableTotpPath = "$KIND_TOTP:${validated.id}"
+            val accountStableId = stableIdForDurable(KIND_ACCOUNT, durableTotpPath)
             val totp = VaultTotpCredential(
-                stableId = stableIdFor(
-                    sourceFingerprint, "totp", "totp:${validated.id}",
-                ),
+                stableId = stableIdForDurable(KIND_TOTP, durableTotpPath),
                 secretBase32 = validated.secretBase32,
                 algorithm = validated.algorithm.trim().uppercase(),
                 digits = validated.digits ?: 0,
@@ -185,12 +208,10 @@ object LegacyVaultSnapshotMapper {
 
         for (set in bundle.recoveryCodeSets) {
             val createdAt = set.createdAt ?: now
-            val accountStableId = stableIdFor(
-                sourceFingerprint, "account", "recovery:${set.id}",
-            )
-            val setStableId = stableIdFor(
-                sourceFingerprint, "recovery_set", "recovery:${set.id}",
-            )
+            // Durable identity = the persisted recovery-code-set id.
+            val durableSetPath = "recovery:${set.id}"
+            val accountStableId = stableIdForDurable(KIND_ACCOUNT, durableSetPath)
+            val setStableId = stableIdForDurable(KIND_RECOVERY_SET, durableSetPath)
             val title = set.title.trim().ifEmpty { "Recovery codes" }
             val account = VaultAccount(
                 stableId = accountStableId,
@@ -206,8 +227,11 @@ object LegacyVaultSnapshotMapper {
                         createdAt = createdAt,
                         codes = set.codes.mapIndexed { i, code ->
                             VaultRecoveryCode(
-                                stableId = stableIdFor(
-                                    sourceFingerprint, "recovery_code", "recovery:${set.id}/$i",
+                                // No durable id on individual codes — structural
+                                // fallback keyed by the set's durable id + index.
+                                stableId = stableIdForDurable(
+                                    KIND_RECOVERY_CODE,
+                                    "$durableSetPath/$i",
                                 ),
                                 value = code,
                                 status = "UNUSED",
@@ -228,10 +252,7 @@ object LegacyVaultSnapshotMapper {
     // Schema 3 — one legacy Account → one VaultAccount
     // ------------------------------------------------------------------
 
-    private fun mapSchema3(
-        bundle: LegacyImportBundle,
-        sourceFingerprint: String,
-    ): List<VaultAccount> {
+    private fun mapSchema3(bundle: LegacyImportBundle): List<VaultAccount> {
         val accounts = mutableListOf<VaultAccount>()
         var order = 0L
         val now = java.time.Instant.now().toString()
@@ -268,17 +289,18 @@ object LegacyVaultSnapshotMapper {
             }
 
             accounts += VaultAccount(
-                stableId = stableIdFor(sourceFingerprint, "account", "account:$legacyId"),
+                // Durable identity = the persisted legacy Account id.
+                stableId = stableIdForDurable(KIND_ACCOUNT, "account:$legacyId"),
                 serviceName = serviceName,
                 accountName = accountName,
                 sortOrder = order++,
                 createdAt = createdAt,
                 updatedAt = createdAt,
                 totpCredentials = totps.map { t ->
+                    // Durable identity = the persisted TOTP credential id.
+                    val durableTotpPath = "$KIND_TOTP:${t.id}"
                     VaultTotpCredential(
-                        stableId = stableIdFor(
-                            sourceFingerprint, "totp", "account:$legacyId/totp:${t.id}",
-                        ),
+                        stableId = stableIdForDurable(KIND_TOTP, durableTotpPath),
                         secretBase32 = t.secretBase32,
                         algorithm = t.algorithm.trim().uppercase(),
                         digits = t.digits ?: 0,
@@ -287,18 +309,17 @@ object LegacyVaultSnapshotMapper {
                     )
                 },
                 recoveryCodeSets = recovery.map { set ->
+                    // Durable identity = the persisted recovery credential id.
+                    val durableSetPath = "recovery:${set.id}"
                     VaultRecoveryCodeSet(
-                        stableId = stableIdFor(
-                            sourceFingerprint, "recovery_set", "account:$legacyId/recovery:${set.id}",
-                        ),
+                        stableId = stableIdForDurable(KIND_RECOVERY_SET, durableSetPath),
                         title = set.title.trim().ifEmpty { "Recovery codes" },
                         createdAt = set.createdAt ?: createdAt,
                         codes = set.codes.mapIndexed { i, code ->
                             VaultRecoveryCode(
-                                stableId = stableIdFor(
-                                    sourceFingerprint,
-                                    "recovery_code",
-                                    "account:$legacyId/recovery:${set.id}/$i",
+                                stableId = stableIdForDurable(
+                                    KIND_RECOVERY_CODE,
+                                    "$durableSetPath/$i",
                                 ),
                                 value = code,
                                 status = "UNUSED",
@@ -320,14 +341,14 @@ object LegacyVaultSnapshotMapper {
 
     private fun mapDeveloperEntries(
         entries: List<LegacyDeveloperEntry>,
-        sourceFingerprint: String,
     ): List<VaultDeveloperEntry> {
-        return entries.mapIndexed { index, e ->
+        return entries.map { e ->
             val legacyType = e.type.ifBlank { "genericSecret" }
             val createdAt = e.createdAt ?: java.time.Instant.now().toString()
             val updatedAt = e.updatedAt ?: createdAt
-            val path = "developer:$index:${e.id}"
-            val stableId = stableIdFor(sourceFingerprint, "developer:$legacyType", path)
+            // Durable identity = the persisted developer entry id.
+            val durablePath = "developer:${e.id}"
+            val stableId = stableIdForDurable("developer:$legacyType", durablePath)
             val payload = e.payload ?: JsonObject(emptyMap())
 
             try {

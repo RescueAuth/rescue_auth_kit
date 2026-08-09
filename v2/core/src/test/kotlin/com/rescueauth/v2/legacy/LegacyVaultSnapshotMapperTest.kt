@@ -154,7 +154,13 @@ class LegacyVaultSnapshotMapperTest {
     }
 
     @Test
-    fun `different source files never collide stableIds`() {
+    fun `same durable ids across different files yield identical stableIds`() {
+        // phase5a_schema3_full and phase5a_unicode intentionally share the SAME
+        // durable ids (prov-1 / acc-1 / cred-1 / dev-* ...) but different
+        // content + different encrypted bytes. Under the durable-id-first
+        // contract (ADR-0010 §4) they are the SAME logical lineage, so their
+        // v2 stableIds must be identical — even though the source fingerprints
+        // differ.
         val (b1, s1) = importAndMap("phase5a_schema3_full", "test-password-3")
         val (b2, s2) = importAndMap("phase5a_unicode", "test-password-1")
 
@@ -162,10 +168,9 @@ class LegacyVaultSnapshotMapperTest {
             LegacyVaultSnapshotMapper.fingerprintOfEncryptedBytes(b1),
             LegacyVaultSnapshotMapper.fingerprintOfEncryptedBytes(b2),
         )
-        // The unicode fixture is a *different* vault; its stableIds must not
-        // equal those of the full schema-3 fixture even for the same kind.
-        assertTrue(
-            allStableIds(s1).none { it in allStableIds(s2) },
+        assertEquals(
+            allStableIds(s1).sorted(),
+            allStableIds(s2).sorted(),
         )
     }
 

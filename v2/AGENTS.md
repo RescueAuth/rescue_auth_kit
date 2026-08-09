@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）IMPLEMENTED / PR OPEN，M1/M2 NOT STARTED**（见 `docs/PHASE5A_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）IMPLEMENTED / PR OPEN（含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），M1/M2 NOT STARTED**（见 `docs/PHASE5A_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
@@ -173,7 +173,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [ ] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
   - [ ] **V2.0 FEATURE COMPLETE 里程碑**（定义见 ROADMAP.md §10.1；正式产品范围全部完成，不等于 DAILY-USE READY）
 - [ ] 阶段 5：Migration（legacy import 收口）
-  - [x] **5A Legacy v1 Core Adapter**（`LegacyVaultSnapshotMapper`：解密后 `LegacyImportBundle` → shared `VaultSnapshot`；确定性 stableId（`legacy:` 命名空间 + sha256）+ source fingerprint（原始加密字节 sha256，base64url）；五类 Developer 逐字段映射（keystore exact byte round-trip）；复用 `PackageValidator` / `MergePlanner` / `applySnapshot`；独立 Python-provenance fixture（argon2-cffi + PyNaCl，schema1/2/3 + Unicode）；幂等 + 隔离测试；见 docs/PHASE5A_REPORT.md；PR OPEN，未 merge）
+  - [x] **5A Legacy v1 Core Adapter**（`LegacyVaultSnapshotMapper`：解密后 `LegacyImportBundle` → shared `VaultSnapshot`；**durable-id-first** 确定性 stableId（`legacy:<kind>:<sha256(legacy\0kind\0durablePath)>`，基于 legacy durable UUID，不依赖 source fingerprint）+ source fingerprint（原始加密字节 sha256，base64url，仅作 source identity）；五类 Developer 逐字段映射（keystore exact byte round-trip）；复用 `PackageValidator.validateSnapshot`（纯 logical）/ `MergePlanner` / `applySnapshot`；Legacy 防御上限与 Native 16 MiB 解耦（输入 64 MiB）；独立 Python-provenance fixture + frozen v1 producer fixture；跨备份幂等 + 隔离 + logical/capacity 边界测试；见 docs/PHASE5A_REPORT.md；PR OPEN，未 merge）
   - [ ] M1 Legacy Import UI 完整流程（与 Native Package Import UI 区分）
   - [ ] M2 Developer 数据处理（legacy）
 - [ ] 阶段 6：Product polish
@@ -191,5 +191,5 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - `docs/ADRS/ADR-0006-sensitive-action-reauth.md`（Sensitive Action Re-authentication，正式产品能力）
 - `docs/ADRS/ADR-0007-portable-package-codec.md`（v2 Portable Package 加密 Codec，Phase 3B：per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / AAD / 错误分类 / best-effort zeroization）
 - `docs/ADRS/ADR-0008-phase3c-transactional-apply.md`（Phase 3C：MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer persistence schema v2→v3；parent/child identity mapping；CONFLICT / Recovery divergence 保守阻止；applyMergePlan / applySnapshot 共享事务边界）
-- `docs/ADRS/ADR-0010-legacy-stable-identity-source-fingerprint.md`（Phase 5A：legacy 导入确定性 stableId（`legacy:` 命名空间 + sha256）+ source fingerprint（原始加密字节 sha256））
+- `docs/ADRS/ADR-0010-legacy-stable-identity-source-fingerprint.md`（Phase 5A CR：durable-id-first stableId（基于 legacy durable UUID，不依赖 source fingerprint）+ source fingerprint 仅作 source identity + Legacy 防御上限（64 MiB，与 Native 16 MiB 解耦）+ logical validator 边界 + frozen v1 producer fixture）
 

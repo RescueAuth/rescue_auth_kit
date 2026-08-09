@@ -106,28 +106,62 @@ keystore 二进制以原始 base64 进入 `keystoreBase64`，`PackageValidator`
 校验 base64 合法 + 大小上限 → **exact byte round-trip**。同名 entry 不自动
 合并（dedupe 交给 shared MergePlanner）。
 
-## 10. Deterministic stableId strategy
+## 10. Deterministic stableId strategy — durable-id FIRST（CR 修复）
 
-- legacy 对象有持久化 id（schema3 account/credential id、schema1/2 entry id），
-  但这些 id 在**跨文件**场景下不保证全局唯一。因此 stableId 采用：
+### 10.1 durable-id audit（frozen v1.2.0）
+
+以 tag `v1.2.0` 的 `vault_session.dart` / `vault_models.dart` /
+`vault_migrator.dart` 为 source of truth：**除单个 Recovery Code 外，所有
+legacy 对象都携带 durable persisted identity（UUID v4，创建时生成、随 vault
+JSON 持久化）**。
+
+| 对象 | durable id | 证据 |
+| --- | --- | --- |
+| Provider | `providers[].id`（schema 3） | `addProvider`: `id: _uuid.v4()` |
+| Account | `accounts[].id`（schema 3） | `addAccount`: `id: _uuid.v4()` |
+| TOTP credential | `credentials[].id` / `totpEntries[].id` | `addTotp`: `id: _uuid.v4()`；迁移保留 entry id |
+| Recovery Code Set | `credentials[].id` / `recoveryCodeSets[].id` | 迁移保留 set id（`id: legacy.id`） |
+| Recovery Code | **无**（仅 `codes: List<String>` 位置索引） | `RecoveryCodesCredential` |
+| Developer Entry | `developerEntries[].id` | `addDeveloperEntry`: `id: _uuid.v4()` |
+
+### 10.2 最终 derivation rule
 
 ```
-stableId = "legacy:" + b64url(sha256(sourceFingerprint)) + ":" + kind + ":" + b64url(sha256(kind + "\0" + legacyObjectPath))
+stableId = "legacy:" + kind + ":" + b64url(sha256("legacy" + "\0" + kind + "\0" + durablePath))
 ```
 
-- 确定性：同文件同对象路径 → 同 stableId。
-- 命名空间：不同 `.rakvault` 的相同对象 id 不碰撞。
-- 不泄露明文：SHA-256 摘要，不含 secret / password / decrypted payload。
-- 重复导入同文件 → 相同 stableId → MergePlanner 第二次导入全
-  DUPLICATE / keep-both 语义一致，无新增逻辑对象。
+- `namespace` = `legacy`（常量，防与 Native v2 冲突）。
+- `kind`：`account` / `totp` / `recovery_set` / `recovery_code` /
+  `developer:<legacyType>`。
+- `durablePath` 仅由 durable id / 结构化位置组成（`account:<accId>` /
+  `totp:<credId>` / `recovery:<setId>` / `recovery:<setId>/<index>` /
+  `developer:<devId>`），**不含** source fingerprint、不含明文 secret。
 
-## 11. Source fingerprint strategy
+性质：
+- 同一 durable id 的对象在不同 `.rakvault`（不同加密字节、不同 source
+  fingerprint）→ **相同 stableId**。
+- 同一文件重复导入 → 相同 stableId（幂等）。
+- 不同 durable id → 不碰撞（SHA-256）。
+- 不泄露明文：仅 SHA-256 摘要。
+- 唯一无 durable id 的对象（Recovery Code）用父 set durable id + index 做
+  结构化 fallback（ADR-0010 Rule B），同样跨备份稳定。
 
-- `fingerprintOfEncryptedBytes(bytes) = b64url(sha256(original encrypted bytes))`。
+### 10.3 为什么 durable-id-first
+
+同一逻辑对象在不同时间/设备生成的 backup 中，durable UUID 属于对象本身
+（不变），只有加密字节/指纹会变。用 fingerprint 当 object identity 会把
+“文件身份”与“对象身份”混为一谈 → 同一对象在不同备份中产生不同 stableId
+→ 重复导入产生 spurious 新对象。
+
+## 11. Source fingerprint strategy（CR 修复后角色）
+
+- `fingerprintOfEncryptedBytes(bytes) = b64url(sha256(原始加密字节))`。
+- **角色 = legacy import source identity（文件身份）**：供未来 Phase 5B
+  `ImportRecord.sourceFingerprint` / ImportRecord identity 使用。
+- **不参与 object identity**：文件身份 ≠ 对象身份。stableId 由 durable id
+  派生（见 §10），source fingerprint 不再进入 stableId。
 - 不含 password、不含 decrypted payload；同字节文件 → 同 fingerprint。
 - 不把 filename / Android Uri 当 identity。
-- 供未来 Phase 5B `ImportRecord.sourceFingerprint` 使用；本轮不做 production
-  apply wiring。
 
 ## 12. Password / zeroization
 
@@ -146,35 +180,70 @@ stableId = "legacy:" + b64url(sha256(sourceFingerprint)) + ":" + kind + ":" + b6
 | LegacyPayloadInvalid | `LegacyPayloadParser.ParseException` |
 | MappingFailed | `LegacyVaultSnapshotMapper.LegacyMappingException` |
 
-## 14. Defensive parsing limits
+## 14. Defensive parsing limits（CR 修复：与 Native 16 MiB 解耦）
 
-沿用已有 `LegacyRakVaultImporter`：
-- 输入 16 MiB 上限、解密后 payload 64 MiB 上限。
-- KDF header 上限在 Argon2 前校验（防 DoS）。
+frozen v1 `.rakvault` protocol **没有 16 MiB 上限**（`vault_repository.dart`
+`readAsBytes()` 无限制读整个文件）。旧实现把 Native `.rakpkg` 的 16 MiB
+contract 复制到了 Legacy decoder —— 这是错误的（Native package limit ≠ Legacy
+protocol limit）。CR 后 Legacy 单独选择有依据的防御上限：
+
+- **输入 `.rakvault` 上限：64 MiB**。依据：frozen v1 Developer Vault 可包含
+  Android signing keystore binary + 多个 Developer entry；base64url JSON
+  envelope 携带数 MiB keystore 是真实历史场景。64 MiB 对最大合理历史 vault
+  留有 ~4x 余量，同时限制整文件读取 + Argon2id working set 峰值内存
+  （防御性，不是格式契约）。
+- **解密后 payload 上限：64 MiB**（post-decrypt backstop）。依据：envelope
+  以 base64url 存 ciphertext（4/3 膨胀）+ 16B AEAD tag，64 MiB 输入不可能
+  产生 >~48 MiB 明文，因此对合法 envelope 实际不可达；保留为独立文档化边界。
+- KDF header 上限在 Argon2 前校验（防 DoS）：256 MiB / 16 iter / p8 /
+  hash 16..64 / salt 8..64 / nonce 24。
 - 解析层不放大分配（JSON 数组/字符串随输入 bounded）。
 
-## 15. Independent frozen-v1 fixture provenance
+**不修改** Native `.rakpkg` format 或其 16 MiB contract。
 
-除既有 Dart 生成 fixture 外，新增 **独立 provenance** fixture
-（`legacy-fixtures/phase5a/`）：
+## 15. Fixture provenance（CR 修复：新增 frozen v1 producer fixture）
 
-- 生成路径：Python 3 + `argon2-cffi` + `PyNaCl`，按 frozen v1.2.0 同一 wire
-  protocol（Argon2id 19MiB/2/1/32 → XChaCha20-Poly1305 → base64url envelope）
-  独立实现生成；非 Dart 工具、非 Kotlin test-encoder 自喂自。
-- 交叉验证：Python 独立解密结果与 Kotlin fixture 解密路径对
-  `schema3_normal` 明文逐字节一致（见本报告 provenance 注）。
-- 密码全部 test-only：`test-password-1` / `test-password-2` /
-  `test-password-3`。
+### 15.1 既有独立 provenance fixture（Python，保留）
+
+`legacy-fixtures/phase5a/` 由 **Python 3 + argon2-cffi + PyNaCl** 按 frozen
+v1.2.0 同一 wire protocol（Argon2id 19MiB/2/1/32 → XChaCha20-Poly1305 →
+base64url envelope）**独立实现**生成；非 Dart 工具、非 Kotlin test-encoder
+自喂自。
 
 | fixture | schema | 内容 | SHA-256 |
 | --- | --- | --- | --- |
-| `phase5a_schema1_basic.rakvault` | 1 | 1 TOTP + 1 recovery set | `684f66f70100dd008ed978f2cee81c6154e3d04f42b134b7b7cb15a00e2bcc76` |
-| `phase5a_schema2_dev.rakvault` | 2 | 2 TOTP + 1 recovery + **5 类 Developer** | `6e4fd1d08a4ed7bd7d86def4d18ac7d66c23e57c3c8ec2c546bb428eca2beb50` |
-| `phase5a_schema3_full.rakvault` | 3 | 2 providers / 2 accounts（4 TOTP，SHA1/SHA256/SHA512、digits 6/8、period 30/60）+ recovery + **5 类 Developer** + keystore 二进制 | `93c39709d2f1314fb8f61dbddb1b942311340c09bddcdef2bd5d2cf4ddc1e03e` |
-| `phase5a_unicode.rakvault` | 3 | 中文 provider/account + 5 类 Developer | `869286dc6c90da71b724dbb5808ec532712967fdc2cf525ccec26d145d2938cd` |
+| `phase5a_schema1_basic.rakvault` | 1 | 1 TOTP + 1 recovery set | `684f66f7…bcc76` |
+| `phase5a_schema2_dev.rakvault` | 2 | 2 TOTP + 1 recovery + **5 类 Developer** | `6e4fd1d0…beb50` |
+| `phase5a_schema3_full.rakvault` | 3 | 2 providers / 2 accounts（4 TOTP，SHA1/SHA256/SHA512、digits 6/8、period 30/60）+ recovery + **5 类 Developer** + keystore 二进制 | `93c39709…c1e03e` |
+| `phase5a_unicode.rakvault` | 3 | 中文 provider/account + 5 类 Developer | `869286dc…2938cd` |
 
 > 无真实 credential；keystore 为合成字节 `AAECAwQFBgc=`（= 8 字节
 > `00 01 02 03 04 05 06 07`）。
+
+### 15.2 新增 frozen v1 producer fixture（Blocker 3 修复）
+
+`tools/legacy_fixtures_frozen/` 使用 **frozen v1.2.0 实际实现**（`vault_crypto.dart`
++ `vault_models.dart` 从 tag `v1.2.0` **逐字节复制**），通过
+`VaultCrypto.encryptToFile` / `VaultFile.encode` / `VaultData.toJson` 实际生产
+`.rakvault` —— 这是 v1 应用写文件的同一生产代码路径，**不是** Python / Kotlin
+/ 独立 Dart 复刻。
+
+| fixture | 内容 | SHA-256 |
+| --- | --- | --- |
+| `frozen_v1_producer_schema3.rakvault` | schema 3：1 provider + 1 account（TOTP + Recovery）+ **5 类 Developer** | `eb8f03e6…72398a` |
+| `frozen_v1_producer_schema3_alt_backup.rakvault` | 同一逻辑 vault 的**另一个加密备份**（不同随机 salt/nonce → 不同指纹） | `82f18246…e145ad` |
+
+- 密码：`test-password-frozen`（test-only）。
+- 无真实 credential；keystore 为合成 8 字节。
+- 作用：锁 **actual producer interoperability**（frozen v1 → importer → mapper
+  → expected VaultSnapshot），覆盖 TOTP / Recovery / 全部五类 Developer。
+
+### 15.3 两类 fixture 作用不同
+
+| 类别 | 用途 |
+| --- | --- |
+| frozen v1 fixture | actual producer compatibility（真实 v1 实现产物） |
+| independent Python fixture | broad protocol/schema coverage（独立复刻，schema 1/2/3 + Unicode） |
 
 ## 16. Idempotence
 
@@ -183,6 +252,9 @@ stableId = "legacy:" + b64url(sha256(sourceFingerprint)) + ":" + kind + ":" + b6
 - 经 shared `MergePlanner`：`plan(dest=first, source=second)` →
   inserted=0、conflicts=0、stateDivergences=0（
   `LegacySnapshotMergeIdempotenceTest`，覆盖 schema 1/2/3 + Developer 五类）。
+- **跨备份幂等（CR 新增）**：`LegacyCrossBackupMergeTest` 用两份不同加密备份
+  （同一逻辑 vault，不同 salt/nonce → 不同指纹）互导 → 全 DUPLICATE，
+  无新增逻辑对象；不同 durable id 的 vault 互导 → 正常 INSERT，无碰撞。
 
 ## 17. Native / Legacy isolation
 
@@ -191,18 +263,38 @@ stableId = "legacy:" + b64url(sha256(sourceFingerprint)) + ":" + kind + ":" + b6
   - shared logical（`export`）**不得** import `com.rescueauth.v2.legacy`。
 - 沿用既有 `LegacyIsolationTest`（export→legacy 反向）。
 
+## 17a. Logical validator 依赖边界（CR 修复）
+
+- Legacy 映射后走 **纯 logical `VaultSnapshot` validation**
+  （`PackageValidator.validate(VaultSnapshot)`），**不经过** Native package
+  serialized-size / 16 MiB capacity budget。
+- 已提取公共入口 `PackageValidator.validateSnapshot(VaultSnapshot)`：Native
+  Package 与 Legacy 共享 logical validation；package capacity budget 只属于
+  Native package codec/validator 的 `validate(VaultPackagePayload)`。
+- 测试 `LegacyDefensiveLimitsAndValidatorBoundaryTest`：logical-valid legacy
+  snapshot 不因 Native capacity policy 被错误拒绝；oversized/malicious legacy
+  输入在明确 Legacy 防御上限下安全拒绝。
+- **未修改** `.rakpkg` format / 16 MiB contract。
+
 ## 18. Changed files
 
 - **core production**：
-  - `core/.../legacy/LegacyVaultSnapshotMapper.kt`（新增）
+  - `core/.../legacy/LegacyVaultSnapshotMapper.kt`（新增，CR 修复：durable-id-first stableId）
+  - `core/.../legacy/LegacyRakVaultImporter.kt`（CR 修复：legacy 防御上限 16→64 MiB，与 Native 解耦）
+  - `core/.../export/PackageValidator.kt`（CR 修复：提取公共 `validateSnapshot` logical 入口）
 - **core tests**：
   - `LegacyVaultSnapshotMapperTest.kt`（新增）
   - `LegacySnapshotMergeIdempotenceTest.kt`（新增）
   - `LegacySnapshotIsolationTest.kt`（新增）
-  - `legacy-fixtures/phase5a/*.rakvault`（新增，core 测试资源）
-- **repo 级 fixture**：`v2/legacy-fixtures/phase5a/*.rakvault`（新增规范副本）
-- **docs**：`docs/PHASE5A_REPORT.md`（本文件，新增）、`docs/LEGACY_IMPORT.md`
-  （Phase 5A 节，新增）、ROADMAP / AGENTS / CHANGELOG（最小状态更新）
+  - `LegacyDurableIdStableIdTest.kt`（CR 新增）
+  - `LegacyFrozenV1InteropTest.kt`（CR 新增）
+  - `LegacyCrossBackupMergeTest.kt`（CR 新增）
+  - `LegacyDefensiveLimitsAndValidatorBoundaryTest.kt`（CR 新增）
+  - `legacy-fixtures/phase5a/*.rakvault`（新增，含 frozen v1 producer 两份）
+- **repo 级 fixture**：`v2/legacy-fixtures/phase5a/*.rakvault`（新增规范副本，含 frozen v1 producer 两份）
+- **fixture 工具**：`tools/legacy_fixtures_frozen/`（新增，frozen v1.2.0 实现逐字节复制 + 生成器）
+- **docs**：`docs/PHASE5A_REPORT.md`（本文件）、`docs/LEGACY_IMPORT.md`、
+  ADR-0010、ROADMAP / AGENTS / CHANGELOG（最小状态更新）
 
 **未修改**：PortablePackageCodec / PackageEnvelope / .rakpkg format /
 MergePlanner / 事务 apply / Developer UI / SensitiveActionGate / Export/Recovery
@@ -211,12 +303,24 @@ UI / strings / navigation。
 ## 19. Tests
 
 ```bash
-./gradlew :core:test            # 327 tests PASS（含 Phase 5A 新增 13 个）
+./gradlew :core:test            # 344 tests PASS（原 327 + CR 新增 17）
 ./gradlew :app:testDebugUnitTest # 250 tests PASS（回归，applySnapshot 边界不受影响）
 ./gradlew :app:lintDebug        # PASS
 ./gradlew :app:assembleDebug    # PASS
 ./gradlew :app:assembleDebugAndroidTest # PASS
 ```
+
+CR 新增测试（:core，17）：
+- `LegacyDurableIdStableIdTest`（6）——同文件幂等、不同加密备份同 durable id →
+  同 stableId、不同 durable id 不碰撞、Developer 覆盖、Recovery Code 结构化
+  fallback、无明文 secret / 无 source fingerprint 泄漏。
+- `LegacyFrozenV1InteropTest`（2）——frozen v1 producer fixture → importer →
+  mapper → expected VaultSnapshot（TOTP / Recovery / 五类 Developer）。
+- `LegacyCrossBackupMergeTest`（2）——两份不同加密备份互导全 DUPLICATE；
+  不同 vault 正常 INSERT。
+- `LegacyDefensiveLimitsAndValidatorBoundaryTest`（7）——Legacy 上限 64 MiB
+  ≠ Native 16 MiB、oversized/malicious 输入安全拒绝、logical-valid legacy
+  snapshot 不被 Native capacity 误拒、capacity 只在 payload 边界生效。
 
 本轮 production 变更仅在 `:core`，未主动运行 Firebase Test Lab（契约 §21）。
 

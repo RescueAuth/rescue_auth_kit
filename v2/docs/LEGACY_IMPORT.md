@@ -239,21 +239,34 @@ Phase 5A 新增 `LegacyVaultSnapshotMapper`：把解密后的 `LegacyImportBundl
 从而复用 `PackageValidator` / `MergePlanner` / `VaultRepository.applySnapshot`
 单一验证与事务 apply 路径。详见 `docs/PHASE5A_REPORT.md`。
 
-### 9.1 确定性 stableId（Phase 5A §9/§10）
+### 9.1 确定性 stableId（CR 修复：durable-id-first，Phase 5A §10）
+
+frozen v1 除单个 Recovery Code 外，所有 legacy 对象都携带 durable persisted
+identity（UUID v4，随 vault JSON 持久化）。stableId **优先**由
+`namespace + object type + legacy durable id` deterministic derivation，
+**不依赖 source file fingerprint**：
 
 ```
-stableId = "legacy:" + b64url(sha256(sourceFingerprint)) + ":" + kind + ":" + b64url(sha256(kind + "\0" + legacyObjectPath))
+stableId = "legacy:" + kind + ":" + b64url(sha256("legacy" + "\0" + kind + "\0" + durablePath))
 ```
 
-- 同文件重复导入 → 相同 stableId（幂等）。
-- 不同 `.rakvault` 的相同对象 id 不碰撞（sourceFingerprint 命名空间）。
+- `durablePath` 仅由 durable id / 结构化位置组成（`account:<accId>` /
+  `totp:<credId>` / `recovery:<setId>` / `recovery:<setId>/<index>` /
+  `developer:<devId>`）。
+- 同一 durable id 的对象在不同 `.rakvault`（不同加密字节、不同
+  fingerprint）→ **相同 stableId**（跨备份幂等）。
+- 唯一无 durable id 的对象（Recovery Code）用父 set durable id + index 做
+  结构化 fallback（ADR-0010 Rule B），同样跨备份稳定。
 - 不含明文 secret / password / decrypted payload。
 
-### 9.2 source fingerprint（Phase 5A §11）
+逐类型 durable-id audit 与最终 derivation rule 见 `docs/ADRS/ADR-0010` §1/§2。
+
+### 9.2 source fingerprint（CR 修复后角色，Phase 5A §11）
 
 `fingerprintOfEncryptedBytes(bytes) = b64url(sha256(原始加密字节))`。
-供未来 Phase 5B `ImportRecord.sourceFingerprint` 使用；本轮不做
-production apply wiring。
+角色 = **legacy import source identity（文件身份）**，供未来 Phase 5B
+`ImportRecord.sourceFingerprint` / ImportRecord identity 使用。**不参与 object
+identity**（文件身份 ≠ 对象身份）。本轮不做 production apply wiring。
 
 ### 9.3 Developer 五类逐字段映射（Phase 5A §9）
 
@@ -268,8 +281,28 @@ production apply wiring。
 keystore 二进制以原始 base64 进入 `keystoreBase64`，经 `PackageValidator`
 校验 base64 + 大小上限，实现 **exact byte round-trip**。
 
-### 9.4 独立 provenance fixture（Phase 5A §15）
+### 9.4 独立 provenance fixture（CR 修复，Phase 5A §15）
 
 `v2/legacy-fixtures/phase5a/` 由 **Python（argon2-cffi + PyNaCl）**按 frozen
 v1.2.0 wire protocol 独立生成（非 Dart 工具、非 Kotlin test-encoder），
-SHA-256 见 `docs/PHASE5A_REPORT.md §15`。密码均为 test-only。
+SHA-256 见 `docs/PHASE5A_REPORT.md §15.1`。密码均为 test-only。
+
+### 9.5 frozen v1 producer fixture（CR 新增，Phase 5A §15.2）
+
+`frozen_v1_producer_schema3.rakvault`（及 alt-backup 副本）由 **frozen
+v1.2.0 实际实现**（`tools/legacy_fixtures_frozen/` 逐字节复制的
+`vault_crypto.dart` + `vault_models.dart`）生产，锁 actual producer
+interoperability。密码 `test-password-frozen`；无真实 credential。
+
+### 9.6 Legacy 防御上限（CR 修复，Phase 5A §14）
+
+frozen v1 `.rakvault` protocol 没有 16 MiB 上限；Legacy 独立选择防御上限：
+**输入 64 MiB**、**解密后 payload 64 MiB**（post-decrypt backstop），KDF
+header 上限在 Argon2 前校验。不与 Native `.rakpkg` 16 MiB contract 混用。
+
+### 9.7 logical validator 边界（CR 修复，Phase 5A §17a）
+
+Legacy 映射后走**纯 logical `VaultSnapshot` validation**（
+`PackageValidator.validate(VaultSnapshot)` / `validateSnapshot`），不经过
+Native package capacity budget；capacity 只属于 Native package
+`validate(VaultPackagePayload)`。不改 `.rakpkg` format / 16 MiB contract。

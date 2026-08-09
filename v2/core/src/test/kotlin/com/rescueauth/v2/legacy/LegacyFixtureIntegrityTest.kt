@@ -24,6 +24,11 @@ class LegacyFixtureIntegrityTest {
         // Phase 1 fix: additive fixtures (see docs/LEGACY_IMPORT.md §6.1)
         "schema1_same_issuer_multi_account" to "903910bcb3e860debe9981f301a191f3fb64f92f36c2bb14479e7277fa19348b",
         "schema1_invalid_totp_params" to "8b764df75e0cb7cb0dd4c35a3d42d51414f6d79a42a20b056c11508fcf3912b7",
+        // Phase 5A CR: frozen v1.2.0 producer fixtures (tools/legacy_fixtures_frozen).
+        // Two DIFFERENT encryptions of the SAME logical vault (same durable ids,
+        // different random salt/nonce). DO NOT regenerate casually.
+        "phase5a/frozen_v1_producer_schema3" to "eb8f03e64af5a9b416367b55043573bb16052db174b18f2c1c55d04eb172398a",
+        "phase5a/frozen_v1_producer_schema3_alt_backup" to "82f182460ec72ca1ab92c29212e33c59adf8e7d79c1320a8a81982d280e145ad",
     )
 
     @Test

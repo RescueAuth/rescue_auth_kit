@@ -89,7 +89,31 @@ class LegacyRakVaultImporter(
     }
 
     companion object {
-        const val DEFAULT_MAX_INPUT_BYTES = 16 * 1024 * 1024 // 16 MiB
+        //
+        // Legacy defensive limits — INDEPENDENT of the Native `.rakpkg`
+        // 16 MiB package contract (ADR-0010 §6 / PHASE5A_REPORT §14).
+        //
+        // frozen v1.2.0 has NO file size cap: `vault_repository.dart`
+        // `open()`/`importBytes()` read the entire file via `readAsBytes()`
+        // and `VaultFile.decode()` runs `jsonDecode` on the whole string.
+        // The previous 16 MiB input cap was copied from the Phase 3B Native
+        // package contract, which does NOT apply to legacy `.rakvault`.
+        //
+        // Historical v1 vaults can legitimately carry a Developer Vault with
+        // Android signing keystore binaries and multiple Developer entries;
+        // a base64url JSON envelope with several MiB of keystore material is
+        // realistic. 64 MiB input gives ~4x headroom over the largest
+        // plausible real v1 vault while still bounding the whole-file
+        // read + Argon2id working set on the import path (defensive, not a
+        // format contract).
+        const val DEFAULT_MAX_INPUT_BYTES = 64 * 1024 * 1024 // 64 MiB
+
+        // Post-decrypt backstop. Because the envelope stores the ciphertext
+        // as base64url (4/3 expansion) plus a 16-byte AEAD tag, a 64 MiB
+        // input cannot yield more than ~48 MiB of plaintext, so this cap is
+        // effectively unreachable for a valid envelope — it is kept as a
+        // clear, separately-documented legacy defensive bound in case a
+        // future legacy schema ever encodes the payload more densely.
         const val MAX_PAYLOAD_BYTES = 64 * 1024 * 1024 // 64 MiB (post-decrypt cap)
     }
 }

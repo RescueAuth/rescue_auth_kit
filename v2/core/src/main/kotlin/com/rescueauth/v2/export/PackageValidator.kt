@@ -57,8 +57,23 @@ object PackageValidator {
 
     class ValidationException(message: String) : Exception(message)
 
+    /**
+     * Pure logical validation of a [VaultSnapshot] (accounts, credentials,
+     * recovery codes, developer entries, scope consistency).
+     *
+     * This is the shared **logical** boundary used by BOTH the Native package
+     * codec (`validate(payload)`) and the Legacy `.rakvault` adapter
+     * (`validate(snapshot)`), so a logical-valid legacy snapshot is never
+     * rejected by the Native package **capacity** budget — package capacity is
+     * enforced only by [validate] (the payload overload), which is owned by the
+     * Native package codec (ADR-0010 §6).
+     */
+    fun validateSnapshot(snapshot: VaultSnapshot) {
+        validateSnapshotInternal(snapshot)
+    }
+
     fun validate(snapshot: VaultSnapshot) {
-        validateSnapshot(snapshot)
+        validateSnapshotInternal(snapshot)
     }
 
     fun validate(payload: VaultPackagePayload) {
@@ -70,7 +85,7 @@ object PackageValidator {
         }
         if (payload.packageId.isBlank()) throw ValidationException("packageId must not be blank")
         if (payload.createdAt.isBlank()) throw ValidationException("createdAt must not be blank")
-        validateSnapshot(payload.snapshot)
+        validateSnapshotInternal(payload.snapshot)
         validateCapacityBudget(payload)
     }
 
@@ -91,7 +106,7 @@ object PackageValidator {
         }
     }
 
-    private fun validateSnapshot(snapshot: VaultSnapshot) {
+    private fun validateSnapshotInternal(snapshot: VaultSnapshot) {
         // Scope consistency: a partial snapshot must not carry the sections it
         // claims to exclude (selective package contract).
         when (snapshot.scope) {
