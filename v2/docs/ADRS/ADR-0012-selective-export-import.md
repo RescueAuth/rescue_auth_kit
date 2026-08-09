@@ -47,6 +47,19 @@ stale stableId → 明确失败，绝不静默导出/导入另一个对象。
 到具体 scope + selection。auth 成功 → 只授权本次 pending export（one-shot，
 不复用），无 auth cache。不 new 第二套 BiometricPrompt。
 
+**selectionDigest 契约（P5 security-boundary CR §1–§3）**：
+
+- 生成方式：`SelectedItemSet` 的 canonical deterministic encoding —— 每条
+  记录 self-describing `<KIND>:<utf8-byte-length>:<stableId>`（KIND ∈
+  `ACCOUNT` / `TOTP` / `RECOVERY_SET` / `DEVELOPER`），canonical byte-sort
+  后用 UTF-8 拼接并做 **SHA-256**（lowercase hex）。
+- item kind 与 stableId 都进入 identity；无 ambiguous concatenation
+  （length-prefix 防拼接碰撞）；selection 顺序不影响结果；不依赖
+  `hashCode()` / JVM/process hash seed；不包含 plaintext secret。
+- **scope 属于 authorization identity**：`scopeName` 与 `selectionDigest`
+  共同构成 `ExportRequest` target；不同 scope（即使 stableId 集相同/为空）
+  不共享授权。
+
 ### 5. Selective import = decoded snapshot filtering
 
 不改 ciphertext、不重新编码 package、不创建临时 package file；只在内存中对

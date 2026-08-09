@@ -383,4 +383,96 @@ class VaultSnapshotSelectorTest {
         assertEquals(sel1.digest(), sel2.digest())
         assertTrue(sel1.digest() != sel3.digest())
     }
+
+    // ------------------------------------------------------------------
+    // P5 security-boundary CR §4 — canonical selection digest contract
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `digest is order independent for same logical selection`() {
+        // The same logical selection committed in a different UI order yields
+        // the same digest (deterministic canonical sort).
+        val a = SelectedItemSet(
+            selectedAccountStableIds = setOf("acc-a", "acc-b"),
+            selectedTotpStableIds = setOf("totp-x"),
+            selectedDeveloperStableIds = setOf("dev-1"),
+        )
+        val b = SelectedItemSet(
+            selectedAccountStableIds = setOf("acc-b", "acc-a"),
+            selectedTotpStableIds = setOf("totp-x"),
+            selectedDeveloperStableIds = setOf("dev-1"),
+        )
+        assertEquals(a.digest(), b.digest())
+    }
+
+    @Test
+    fun `digest differs when a different stableId is selected`() {
+        val base = SelectedItemSet(selectedTotpStableIds = setOf("totp-a"))
+        val other = SelectedItemSet(selectedTotpStableIds = setOf("totp-b"))
+        val both = SelectedItemSet(selectedTotpStableIds = setOf("totp-a", "totp-b"))
+        assertTrue(base.digest() != other.digest())
+        assertTrue(base.digest() != both.digest())
+        assertTrue(other.digest() != both.digest())
+    }
+
+    @Test
+    fun `digest differs for same stableId string under different item kind`() {
+        // Same raw stableId string but a different item kind MUST produce a
+        // different identity — the kind is part of the canonical encoding.
+        val asAccount = SelectedItemSet(selectedAccountStableIds = setOf("abc"))
+        val asTotp = SelectedItemSet(selectedTotpStableIds = setOf("abc"))
+        val asRecovery = SelectedItemSet(selectedRecoverySetStableIds = setOf("abc"))
+        val asDeveloper = SelectedItemSet(selectedDeveloperStableIds = setOf("abc"))
+        val digests = setOf(asAccount.digest(), asTotp.digest(), asRecovery.digest(), asDeveloper.digest())
+        assertEquals(4, digests.size)
+    }
+
+    @Test
+    fun `digest encoding is unambiguous for hostile stableIds`() {
+        // Length-prefixing keeps the canonical representation unambiguous even
+        // when a stableId embeds the record separator / kind syntax.
+        val a = SelectedItemSet(
+            selectedAccountStableIds = setOf("TOTP:3:abc"),
+            selectedTotpStableIds = setOf("abc"),
+        )
+        val b = SelectedItemSet(
+            selectedAccountStableIds = setOf("abc"),
+            selectedTotpStableIds = setOf("TOTP:3:abc"),
+        )
+        // Cross-kind swap: the digest MUST differ because the kind token stays
+        // attached to its own record even though the raw strings are swapped.
+        assertTrue(a.digest() != b.digest())
+
+        // Newline inside a stableId must not let records merge ambiguously.
+        val c = SelectedItemSet(selectedTotpStableIds = setOf("x\ny"))
+        val d = SelectedItemSet(selectedTotpStableIds = setOf("x", "y"))
+        assertTrue(c.digest() != d.digest())
+    }
+
+    @Test
+    fun `digest is a fixed length sha256 hex and contains no plaintext secret`() {
+        val selection = SelectedItemSet(selectedTotpStableIds = setOf("totp-1"))
+        val digest = selection.digest()
+        assertEquals(64, digest.length)
+        assertTrue(digest.matches(Regex("[0-9a-f]{64}")))
+        // Non-secret by construction: only stableIds enter the digest, and the
+        // hex representation never contains the plaintext secret.
+        assertTrue(!digest.contains("JBSWY3DPEHPK3PXP"))
+        assertTrue(!digest.contains("totp-1"))
+        assertTrue(!selection.toString().contains("JBSWY3DPEHPK3PXP"))
+    }
+
+    @Test
+    fun `digest is deterministic across repeated computation`() {
+        val selection = SelectedItemSet(
+            selectedAccountStableIds = setOf("acc-a"),
+            selectedTotpStableIds = setOf("totp-a", "totp-b"),
+            selectedRecoverySetStableIds = setOf("set-a"),
+            selectedDeveloperStableIds = setOf("dev-1", "dev-2"),
+        )
+        val first = selection.digest()
+        repeat(25) {
+            assertEquals(first, selection.digest())
+        }
+    }
 }

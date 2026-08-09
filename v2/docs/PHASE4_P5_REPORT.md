@@ -38,8 +38,12 @@ P5 编码前审计结论（`VaultSnapshot` / `SnapshotScope` / `VaultPackagePayl
   **原子**选择单位（没有 per-code / per-field 选择身份）。
 - `SelectableItems` 只含 stableIds + 安全 metadata（label / title / counts），
   可在 Compose state 中安全持有（绝不含 secret）。
-- `SelectedItemSet.digest()` = sorted stableId 集合的 SHA-256，用作
-  re-auth 授权与最终导出之间的 selection 绑定（非敏感）。
+- `SelectedItemSet.digest()` = **canonical SHA-256**（self-describing
+  `<KIND>:<utf8-length>:<stableId>` 记录，canonical byte-sort 后对 UTF-8
+  bytes 做 SHA-256，lowercase hex），用作 re-auth 授权与最终导出之间的
+  selection 绑定（非敏感）。item kind（ACCOUNT / TOTP / RECOVERY_SET /
+  DEVELOPER）进入 identity，与顺序无关、无歧义拼接、不依赖
+  `hashCode()`/JVM hash seed（P5 security-boundary CR §1–§3）。
 
 ## 3. hierarchy / dependency closure semantics
 
@@ -87,6 +91,11 @@ P5 编码前审计结论（`VaultSnapshot` / `SnapshotScope` / `VaultPackagePayl
 - **任何 `.rakpkg` export scope 都要求 fresh re-auth**（test 20），继续使用
   现有 `SensitiveActionGate` / `SensitiveActionRequest`，不 new 第二套
   BiometricPrompt。
+- **scope 属于 authorization identity**：`AUTHENTICATOR_ONLY` 与
+  `DEVELOPER_ONLY` 即使 selected stableId 集碰巧相同/为空也不能共享授权
+  （test 39c `different scope with identical selection cannot share
+  authorization`）。`ExportRequest(scopeName, selectionDigest)` 的 scopeName
+  与 digest 共同构成 target identity（P5 security-boundary CR §3）。
 
 ## 7. import subset / selection UX
 

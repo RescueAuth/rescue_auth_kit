@@ -322,20 +322,49 @@ data class SelectedItemSet(
         get() = selectedDeveloperStableIds.size
 
     /**
-     * A canonical digest of the selection (sorted stableIds), used to bind a
+     * A canonical, collision-resistant digest of the selection, used to bind a
      * sensitive-action re-auth to the exact export selection that was
-     * authorized (Issue #20 §7, §27 test 39). Non-secret.
+     * authorized (Issue #20 §7, §27 test 39, P5 security-boundary CR §1–§3).
+     *
+     * Canonical encoding contract:
+     *
+     * - **item kind enters the identity** with a stable, self-describing token
+     *   (`ACCOUNT` / `TOTP` / `RECOVERY_SET` / `DEVELOPER`) — never a raw
+     *   hash-code, opaque single-char prefix or process-local index;
+     * - **the stableId enters the identity** length-prefixed
+     *   (`<KIND>:<utf8-byte-length>:<stableId>`) so the representation is
+     *   unambiguous even when a stableId itself contains `:` / separators;
+     * - **deterministic ordering**: canonical records are sorted (byte-wise)
+     *   so UI selection order never changes the result;
+     * - **collision-resistant**: SHA-256 over the canonical UTF-8 bytes,
+     *   returned as lowercase hex — deterministic across JVMs / processes /
+     *   Android, and never dependent on `hashCode()` / hash seeds.
+     *
+     * Non-secret: only logical stableIds enter the digest, never secret
+     * values.
      */
     fun digest(): String {
-        val parts = buildList {
-            selectedAccountStableIds.forEach { add("a\u0000$it") }
-            selectedTotpStableIds.forEach { add("t\u0000$it") }
-            selectedRecoverySetStableIds.forEach { add("s\u0000$it") }
-            selectedDeveloperStableIds.forEach { add("d\u0000$it") }
+        val records = buildList {
+            selectedAccountStableIds.forEach { add(canonicalRecord("ACCOUNT", it)) }
+            selectedTotpStableIds.forEach { add(canonicalRecord("TOTP", it)) }
+            selectedRecoverySetStableIds.forEach { add(canonicalRecord("RECOVERY_SET", it)) }
+            selectedDeveloperStableIds.forEach { add(canonicalRecord("DEVELOPER", it)) }
         }.sorted()
+        val canonical = records.joinToString("\n")
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest(parts.joinToString("\u0001").toByteArray(Charsets.UTF_8))
+            .digest(canonical.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Self-describing, unambiguous canonical record for one selected item:
+     * `<KIND>:<utf8-byte-length>:<stableId>`. The explicit UTF-8 length makes
+     * the boundary unambiguous regardless of the stableId content, so two
+     * different selections can never collide under concatenation.
+     */
+    private fun canonicalRecord(kind: String, stableId: String): String {
+        val idBytes = stableId.toByteArray(Charsets.UTF_8)
+        return "$kind:${idBytes.size}:$stableId"
     }
 }
 

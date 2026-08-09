@@ -47,6 +47,12 @@ Export / Import，继续使用同一个 `VaultSnapshot` → `PortablePackageCode
 - `SensitiveAction.EXPORT_FULL_VAULT` 更名为 `SensitiveAction.EXPORT_PACKAGE`，
   新增 `SensitiveActionTarget.ExportRequest(scopeName, selectionDigest)`：scope A
   authorization 不能授权 scope B，selected export auth 绑定原始 selection。
+- **selectionDigest 安全硬化（P5 security-boundary CR）**：`SelectedItemSet`
+  canonical deterministic encoding（`<KIND>:<utf8-length>:<stableId>`，
+  KIND ∈ ACCOUNT/TOTP/RECOVERY_SET/DEVELOPER）→ canonical byte-sort →
+  SHA-256 lowercase hex。item kind + stableId 进入 identity，无歧义拼接、
+  顺序无关、不依赖 hashCode()/hash seed、不含 plaintext secret。scope 属于
+  authorization identity（scopeName + digest 共同绑定）。
 - 任何 `.rakpkg` export scope 都要求 fresh re-auth；auth 成功只授权本次
   pending export（one-shot，不复用给第二次 export）；无 auth cache。
 - ImportRecord 语义不变：只在 successful transactional apply 后记录。

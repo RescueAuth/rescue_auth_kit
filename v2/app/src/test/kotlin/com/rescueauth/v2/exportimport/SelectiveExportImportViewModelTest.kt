@@ -236,6 +236,76 @@ class SelectiveExportImportViewModelTest {
         assertTrue(!ran)
     }
 
+    // ---- 39b. auth for selection A cannot execute selection B ----
+
+    @Test
+    fun `auth for selection A cannot execute selection B`() = runBlocking {
+        // Test at the gate level (the ViewModel consumes the one-shot auth as
+        // soon as the prompt succeeds, so this scenario is tested directly on
+        // the gate to prove the digest binding).
+        val (gate, prompt) = controllableGate()
+        val selectionA = SelectedItemSet(selectedTotpStableIds = setOf("totp-a"))
+        val selectionB = SelectedItemSet(selectedTotpStableIds = setOf("totp-b"))
+        val reqA = exportRequest(ExportScopeSpec.SelectedItems.name, selectionA.digest())
+        val reqB = exportRequest(ExportScopeSpec.SelectedItems.name, selectionB.digest())
+
+        assertTrue(gate.authorize(reqA) {})
+        prompt.deliver(SensitiveActionResult.Success(reqA))
+        assertTrue(gate.isAuthorizedFor(reqA))
+
+        // Same kind, different stableId → different digest → MUST NOT run.
+        var ranB = false
+        assertTrue(!gate.executePending(reqB) { ranB = true })
+        assertTrue(!ranB)
+
+        // The canonical encoding guarantees the digests differ (collision
+        // safety at the identity layer).
+        assertTrue(selectionA.digest() != selectionB.digest())
+
+        // Selection A itself runs exactly once (one-shot consumed).
+        var ranA = false
+        assertTrue(gate.executePending(reqA) { ranA = true })
+        assertTrue(ranA)
+        // And it was consumed exactly once — a second attempt is rejected.
+        var ranAgain = false
+        assertTrue(!gate.executePending(reqA) { ranAgain = true })
+        assertTrue(!ranAgain)
+    }
+
+    // ---- 39c. same digest under different scope cannot be cross-executed ----
+
+    @Test
+    fun `different scope with identical selection cannot share authorization`() = runBlocking {
+        // AUTHENTICATOR_ONLY and DEVELOPER_ONLY both carry an empty selection
+        // digest (null). The scope name MUST still separate them even though
+        // the digest would otherwise match.
+        val authReq = exportRequest(ExportScopeSpec.Authenticator.name, null)
+        val devReq = exportRequest(ExportScopeSpec.Developer.name, null)
+        val auth = authReq.target as SensitiveActionTarget.ExportRequest
+        val dev = devReq.target as SensitiveActionTarget.ExportRequest
+        // Same digest VALUE (both null / empty selection) but different scope.
+        assertEquals(auth.selectionDigest, dev.selectionDigest)
+        assertTrue(auth.scopeName != dev.scopeName)
+
+        // Authorize the Developer-scope request, then try to execute the
+        // Authenticator-scope request with the same gate: MUST be rejected
+        // even though the digest values are identical — the scope name is
+        // part of the target identity.
+        val (gate, prompt) = controllableGate()
+        assertTrue(gate.authorize(devReq) {})
+        prompt.deliver(SensitiveActionResult.Success(devReq))
+        assertTrue(gate.isAuthorizedFor(devReq))
+
+        var ran = false
+        assertTrue(!gate.executePending(authReq) { ran = true })
+        assertTrue(!ran)
+
+        // And the Developer-scope request itself runs exactly once.
+        var ranDev = false
+        assertTrue(gate.executePending(devReq) { ranDev = true })
+        assertTrue(ranDev)
+    }
+
     // ---- 40. session lock invalidates pending export ----
 
     @Test
