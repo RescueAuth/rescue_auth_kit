@@ -169,6 +169,11 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 - 迁移字段映射（Google 命名 → 内部）：`issuer` → serviceName、`email` →
   accountName、`secret` / `algorithm` / `digits` / `period` → TOTP 参数，
   其余按正常 validation。
+- wire 语义（merge 前 interop CR 已冻结，最后收敛后收紧）：
+  `algorithm`/`digits`/`type` 是 **protobuf enum**（type=2 TOTP / digits=1 SIX、
+  2 EIGHT / algorithm=4 MD5）；`data` 为 percent-encoded **standard Base64**
+  （仅标准 alphabet + `=` padding，**不接受 Base64URL / no-padding**），batch
+  metadata 只从 decoded payload 读取，**不依赖且拒绝 `&batch_*` query 参数**。
 - 与 Selective Import 一致：批量导入后走同一 Merge Engine 预览。
 
 ---
@@ -223,9 +228,8 @@ N env / N generic），支持 **Import all**；Selective Import 作为同阶段/
 
 > **P1 状态（2026-08-07，Issue #20）**：已实现 otpauth paste + manual
 > entry、真实 production storage、倒计时/复制/删除+Undo（见
-> `docs/PHASE4_P1_REPORT.md`）。**QR 扫描**与 **otpauth-migration** 尚未
-> 实现，按 Issue #20 契约放入后续 slice。
-| **P2 — otpauth-migration import** | 解析 `otpauth-migration://` → 内部 logical credential → 批量 merge 预览/导入 | 可从 Google Authenticator 批量迁入 | P1 + 3C | S |
+> `docs/PHASE4_P1_REPORT.md`）。
+| **P2 — otpauth-migration import** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P2_REPORT.md`）QR 扫描（CameraX + ML Kit）+ `otpauth-migration://` 批量导入（独立纯 Kotlin adapter + 多 QR batch session + repository batch import） | 可从 Google Authenticator 扫码批量迁入 | P1 | S |
 | **P3 — Recovery Codes slice** | 恢复码列表：batch add / expand-collapse / copy all / edit / delete / move；used-unused 标记 + remaining count + used 弱化显示 | 恢复码可完整管理（一等 Vault credential） | P1 | M |
 | **P4 — Developer Vault slice（第一批）** | Android Signing Key + API Credential 全 CRUD / reveal-hide / copy / export keystore / key.properties 复制；Sensitive re-auth 接入 | 两种最常见的 Developer Entry 可日常使用 | 3D + re-auth（§5.6） | M |
 | **P5 — Selective Export / Import** | Package domain 已支持 partial snapshot；UI：Entire Vault / Authenticator section / Developer section / Selected items；Import 支持 Select items（同一 Merge Engine） | 用户可按需迁移部分数据 | 3D + P3/P4 | M |

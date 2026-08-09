@@ -33,12 +33,13 @@ import com.rescueauth.v2.ui.authenticator.AddTotpFormState
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
- * "Add TOTP" bottom sheet (Phase 4 P1).
+ * "Add TOTP" bottom sheet (Phase 4 P1, extended in P2).
  *
- * Two entry modes: Paste `otpauth://` URI and Manual TOTP Entry. Validation
- * errors are surfaced through [formState.error]; submitting disables the
- * confirm button. The sheet is presentation-only — state flows through
- * callbacks so it can be unit-tested without a repository.
+ * Three entry modes: Scan QR, Paste `otpauth://` URI and Manual TOTP Entry.
+ * [AddMode.SCAN] surfaces a "Scan QR" affordance; the actual camera screen is
+ * hosted by the caller (the Route) so the sheet stays presentation-only and
+ * unit-testable. Validation errors are surfaced through [formState.error];
+ * submitting disables the confirm button.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -46,6 +47,7 @@ fun AddTotpSheet(
     form: AddTotpFormState,
     onDismiss: () -> Unit,
     onModeChange: (AddMode) -> Unit,
+    onStartScan: () -> Unit = {},
     onUriChange: (String) -> Unit,
     onProviderChange: (String) -> Unit,
     onAccountNameChange: (String) -> Unit,
@@ -72,22 +74,40 @@ fun AddTotpSheet(
 
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
+                    selected = form.mode == AddMode.SCAN,
+                    onClick = { onModeChange(AddMode.SCAN) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                ) {
+                    Text(stringResource(R.string.add_totp_mode_scan))
+                }
+                SegmentedButton(
                     selected = form.mode == AddMode.PASTE,
                     onClick = { onModeChange(AddMode.PASTE) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                 ) {
                     Text(stringResource(R.string.add_totp_mode_paste))
                 }
                 SegmentedButton(
                     selected = form.mode == AddMode.MANUAL,
                     onClick = { onModeChange(AddMode.MANUAL) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
                 ) {
                     Text(stringResource(R.string.add_totp_mode_manual))
                 }
             }
 
-            if (form.mode == AddMode.PASTE) {
+            if (form.mode == AddMode.SCAN) {
+                Text(
+                    text = stringResource(R.string.add_totp_scan_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(
+                    onClick = onStartScan,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.add_totp_scan_action))
+                }
+            } else if (form.mode == AddMode.PASTE) {
                 OutlinedTextField(
                     value = form.uri,
                     onValueChange = onUriChange,

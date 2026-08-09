@@ -32,7 +32,10 @@
   **RUNTIME DECODE RESOURCE POLICY 与 FORMAT HARD LIMIT 分离**（超预算在
   Argon2 前拒绝，默认 19 MiB/2 iter 永远兼容）。
   **Phase 4 P1 已实现**（TOTP Daily-Use Loop，见
-  `docs/PHASE4_P1_REPORT.md`；真实 production storage，QR 暂未实现）。
+  `docs/PHASE4_P1_REPORT.md`；真实 production storage）。
+  **Phase 4 P2 已实现**（QR Scan + otpauth-migration Import，见
+  `docs/PHASE4_P2_REPORT.md`：CameraX + ML Kit 扫码、独立纯 Kotlin migration
+  adapter、多 QR batch session、repository batch import；IMPORT ONLY）。
   **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
   MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
   首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
@@ -87,9 +90,14 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
    Merge Engine / MergeResult）。未来删除 Legacy Import 不得要求重构
    Native Package Import。UI 必须区分 “Import Rescue Auth Package” 与
    “Import from Legacy Rescue Auth”（`ROADMAP.md §9`）。
-2. **otpauth-migration 是 External Import Adapter，IMPORT ONLY**：解析后
-   转内部 logical credential 进入正常 validation/dedupe/merge；该格式
-   **不得进入核心 Vault domain**（`ROADMAP.md §4.3`）。
+2. **otpauth-migration 是 Google Authenticator migration compatibility
+   adapter，IMPORT ONLY**：`MigrationPayloadParser` 只实现已经验证的 GA
+   wire contract（standard Base64 + `=` padding、protobuf enum semantics、
+   batch metadata 只来自 decoded protobuf），**不是通用 OTP migration
+   parser**；解析后转内部 logical credential 进入正常
+   validation/dedupe/merge；该格式**不得进入核心 Vault domain**
+   （`ROADMAP.md §4.3`）。不为“兼容第三方工具”扩大 parser contract——未来
+   如需支持其它工具，应新建明确 adapter / compatibility decision。
 3. **Package schema 独立于 Room**：portable package 使用 platform-neutral
    逻辑 schema（`VaultSnapshot`），**不得**用 Room entity 直接序列化；
    必须覆盖完整 Vault（Authenticator + Developer 五类，含 binary keystore）。

@@ -10,7 +10,137 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
-## [v2 phase3c transactional-import-merge] - 2026-08-08（Phase 3C：Transactional Import / Merge Apply，PR OPEN）
+## [v2 phase4-p2 strict-protocol-convergence] - 2026-08-08（P2 最终严格协议收敛，PR #25 rebase 最新 main）
+
+Issue #20 产品原则明确：本项目只实现真实 Google Authenticator
+`otpauth-migration://` 协议，不自行增加未被真实协议支持的兼容扩展。
+
+### Changed（严格收敛，删除未由真实 GA 协议证明的兼容逻辑）
+
+- **data decoding 只实现真实 GA 协议**：固定流程
+  `URL percent-decode → standard RFC 4648 Base64 decode → MigrationPayload
+  protobuf decode`。保留 percent-decoding、standard Base64、正常 RFC4648
+  padding；**删除** Base64URL（`-`/`_`）接受、自行接受 no-padding、
+  standard/Base64URL 混合 alphabet normalization。不符合真实格式的 data →
+  explicit malformed migration payload（`invalid-data-character` /
+  `malformed-base64`）。
+- **batch metadata 只来自 protobuf**：batchSize / batchIndex / batchId 唯一
+  authoritative source 是 decoded `MigrationPayload` protobuf 字段；**删除**
+  对 `batch_size` / `batch_index` / `batch_id` 自定义 query 参数的正式支持
+  （不再 override / fallback / 额外接受）。正式 URI 只允许 `data=`，出现
+  `batch_*` query → `unknown-query-parameter` 拒绝。Parser contract 单一无歧义：
+  `URI → data → protobuf → batch metadata`。
+- **protobuf enum 严格按真实 schema**：保持已修正的 enum semantics，不把
+  raw number 当业务值；未知/unsupported enum → UNSUPPORTED / INVALID。
+  `MigrationModels.algorithmToken` 修正显示映射：4=MD5（非 SHA224）、
+  0=UNSPECIFIED（非 MD5）。
+- **adapter 定位写入文档**：`MigrationPayloadParser` 是 Google Authenticator
+  migration compatibility adapter，不是通用 OTP migration parser；未来如需
+  支持其它工具应新建明确 adapter / compatibility decision，不无证据放宽。
+
+### Added（协议锁）
+
+- 测试明确锁定：real GA percent-encoded standard Base64 + padding → accepted；
+  Base64URL payload → rejected；no-padding → rejected；batch metadata from
+  protobuf → accepted；`batch_*` query → rejected；real GA multi-QR fixture →
+  正确 batch assembly；real GA enum semantics → 正确 TOTP/HOTP/algorithm/digits。
+
+### Rebase
+
+- PR #25 已 rebase / merge 到最新 main（含 Phase 3C：Room schema v3 /
+  Developer persistence / transactional apply），仅 CHANGELOG.md 与
+  v2/AGENTS.md 出现文档冲突并已解决；无代码冲突。
+
+### Tests（全部通过）
+
+- `:core:test` / `:app:testDebugUnitTest` / `:app:lintDebug` /
+  `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 全部 PASS。
+
+
+## [v2 phase4-p2 interop-cr] - 2026-08-08（P2 merge 前 interoperability compatibility CR）
+
+Issue #20 P2 整体 review 后的 merge 前 interop blocker 修复（**不 merge**，已推 PR #25 源分支）。
+
+### Fixed（真实 Google Authenticator wire format interop）
+
+- **wire enum 语义修正**：`MigrationPayload.OtpParameters` 的 `algorithm` /
+  `digits` / `type` 是 **protobuf enum**（经真实 GA v6.0 export + Aegis / ente /
+  Go otpauth 三份独立实现验证），不是 raw int。修复后：
+  - `type`：`2`=TOTP（此前误读 raw `1`），`1`=HOTP（→unsupported），`0`=UNSPECIFIED（→TOTP）；
+  - `digits`：`1`=SIX(6)、`2`=EIGHT(8)、`0`=UNSPECIFIED(→6)（此前误读 raw 值）；
+  - `algorithm`：`4`=MD5（→unsupported，此前误标 SHA224）。
+- **Base64 / URI decoding**：`data` 先 percent-decode（真实 export 的 `%2B`/
+  `%2F`/`%3D` 不误判 malformed）；standard Base64（`+` `/` `=`，GA 实际输出）与
+  URL-safe Base64（`-` `_`）都接受；合法 no-padding 接受；非法 Base64 明确拒绝。
+- **batch metadata source**：真实-compatible URI 仅需 `data=...`，batchSize /
+  batchIndex / batchId 从 decoded `MigrationPayload` 读取；`&batch_size=` 等
+  query 参数只是额外容忍，不依赖。
+
+### Added
+
+- **独立 interop fixtures**：`InteropFixtures`（真实 GA v6.0 test export URI，
+  synthetic test accounts）+ `tools/interop-fixture/`（protoc + Python
+  google.protobuf 独立生成，不调用本项目 MinimalProtobuf/ProtoFixture）+
+  `InteropFixtureTest` 断言全部解码值。
+
+### Tests（全部通过）
+
+- `:core:test` / `:app:testDebugUnitTest` / `:app:lintDebug` /
+  `:app:assembleDebug` / `:app:assembleDebugAndroidTest`。
+
+
+## [v2 phase4-p2 qr-migration] - 2026-08-08（Phase 4 P2：QR Scan + otpauth-migration Import）
+
+Phase 4 P2（Issue #20）——让用户通过摄像头扫码添加 TOTP：普通
+`otpauth://totp/...` QR 与 Google Authenticator 风格 `otpauth-migration://`
+批量 QR。**IMPORT ONLY**，不实现 migration export。
+
+### Added
+
+- **QR scanner**：CameraX（core/camera2/lifecycle/view 1.4.1）+ ML Kit
+  `barcode-scanning` 17.3.0；权限仅在 Scan QR 时请求（granted / denied /
+  permanently-denied 明确 UI）；lifecycle-aware（页面离开/后台自动 release）；
+  torch 切换；不保存/上传图像；同 QR 防重复触发（last-value + cooldown）。
+- **otpauth-migration parser（core，纯 Kotlin）**：
+  `migration/MinimalProtobuf.kt`（边界严格的最小 protobuf wire decoder，
+  零新增依赖）、`migration/MigrationPayloadParser.kt`（URI → 分类 entries +
+  batch metadata）、`migration/MigrationModels.kt`（IMPORTABLE / UNSUPPORTED /
+  INVALID per-entry status）。不依赖 Camera/Compose/Room/Android Context/legacy。
+- **多 QR batch session（core）**：`migration/MigrationBatchSession.kt`，支持
+  batchId / batchIndex / batchSize、乱序收齐、重复帧幂等、冲突明确拒绝；
+  内存态，app kill 不恢复。
+- **ScannerResultRouter（app）**：raw String → otpauth（复用 P1 OtpauthParser）/
+  migration / not-supported / malformed 分类路由。
+- **Repository batch import**：`AuthenticatorRepository.importTotpBatch`
+  （单事务，Provider/Account 复用，stableId 生成，TOTP semantic fingerprint
+  dedupe；不碰 Phase 3C Merge）。
+- **UI**：Add 菜单三选（Scan QR / Paste URI / Manual）；全屏 camera preview；
+  扫描完成后进入 Compose confirmation state（MigrationImportSheet：预览每项
+  issuer/account/algorithm/digits，**不显示 secret**；多 QR 进度；结果计数
+  Imported / duplicates / unsupported / invalid）。
+- 文档：`docs/PHASE4_P2_REPORT.md`；ROADMAP §5.3 P2 标记已实现。
+
+### Changed
+
+- `AndroidManifest.xml`：新增 CAMERA 权限 + camera feature（required=false）。
+- `build.gradle.kts` / `libs.versions.toml`：CameraX 1.4.1 + ML Kit 17.3.0。
+- `AuthenticatorViewModel` / `AuthenticatorRoute` / `AddTotpSheet`：scan +
+  migration import 状态机与 UI 接线。
+- strings en + zh-CN。
+
+### Tests（全部通过）
+
+- `:core:test`：migration parser（single/multi、issuer/name、secret→Base32
+  exact、SHA1/256/512、digits、malformed base64/protobuf、missing secret、
+  HOTP、unsupported algorithm、mixed）+ batch session（single、1/3→3/3、
+  乱序、重复幂等、duplicate-index、batchId/size 冲突、incomplete）。
+- `:app:testDebugUnitTest`：ScannerResultRouter、ViewModel scan/migration
+  （preview / multi-QR progress / import result / duplicate / cancel release）、
+  repository batch import（3→3、Provider/Account 复用、duplicate skip、mixed、
+  unsupported 不落库、restart reopen）、Add menu（Scan/Paste/Manual）。
+- `:app:lintDebug` / `:app:assembleDebug` / `:app:assembleDebugAndroidTest` 均 PASS。
+
+## [v2 phase3c transactional-import-merge] - 2026-08-08（Phase 3C：Transactional Import / Merge Apply，PR #24 已 merge）
 
 Phase 3C 独立 PR：把 Phase 3A 的 `MergePlan` 以事务方式应用到本地 encrypted
 Vault，并使 Developer Vault 五类条目首次真实落库（schema v2→v3）。

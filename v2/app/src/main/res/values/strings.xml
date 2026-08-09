@@ -35,6 +35,7 @@
 
     <!-- Add TOTP sheet -->
     <string name="add_totp_title">Add TOTP</string>
+    <string name="add_totp_mode_scan">Scan QR</string>
     <string name="add_totp_mode_paste">Paste URI</string>
     <string name="add_totp_mode_manual">Manual</string>
     <string name="add_totp_uri_label">otpauth:// URI</string>
@@ -45,7 +46,34 @@
     <string name="add_totp_digits_label">Digits</string>
     <string name="add_totp_period_label">Period</string>
     <string name="add_totp_confirm">Add</string>
+    <string name="add_totp_scan_hint">Scan an otpauth:// or otpauth-migration:// QR code.</string>
+    <string name="add_totp_scan_action">Open camera</string>
     <string name="common_cancel">Cancel</string>
+
+    <!-- QR scanner (Phase 4 P2) -->
+    <string name="scan_qr_hint">Point the camera at a QR code</string>
+    <string name="scan_torch">Toggle torch</string>
+    <string name="scan_permission_denied">Camera permission is needed to scan a QR code.</string>
+    <string name="scan_permission_request">Allow camera</string>
+    <string name="scan_permission_denied_settings">Camera permission was denied. Enable it in system settings to scan QR codes. Paste URI and Manual entry still work.</string>
+    <string name="scan_error_not_supported">This QR code is not supported. Scan an otpauth:// or otpauth-migration:// QR code.</string>
+    <string name="scan_error_malformed">This QR code could not be read. Try a different code or use Paste URI.</string>
+    <string name="scan_error_malformed_migration">Malformed migration payload.</string>
+    <string name="scan_error_incomplete_batch">Incomplete migration batch. Scan the remaining QR codes.</string>
+    <string name="scan_error_batch_conflict">Migration batch conflict: %1$s</string>
+
+    <!-- Migration import preview (Phase 4 P2) -->
+    <string name="migration_preview_title">Migration import</string>
+    <string name="migration_preview_batch_progress">Scanned %1$d of %2$d QR codes</string>
+    <string name="migration_importable">%1$d importable</string>
+    <string name="migration_unsupported">%1$d unsupported</string>
+    <string name="migration_invalid">%1$d invalid</string>
+    <string name="migration_duplicates">%1$d duplicates skipped</string>
+    <string name="migration_confirm_import">Import %1$d</string>
+    <string name="migration_imported_message">Imported %1$d, skipped %2$d duplicate(s)</string>
+    <string name="migration_account_col">Account</string>
+    <string name="migration_algorithm_digits">%1$s · %2$d digits</string>
+    <string name="migration_unknown_issuer">Unknown</string>
 
     <!-- Recovery codes -->
     <string name="recovery_codes_title">Recovery codes</string>

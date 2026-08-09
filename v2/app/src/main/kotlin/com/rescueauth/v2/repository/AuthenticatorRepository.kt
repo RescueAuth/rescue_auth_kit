@@ -4,8 +4,10 @@ import com.rescueauth.v2.database.AuthAccountEntity
 import com.rescueauth.v2.database.TotpCredentialEntity
 import com.rescueauth.v2.domain.AuthAccount
 import com.rescueauth.v2.domain.TotpCredential
+import com.rescueauth.v2.export.Canonicalization
 import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.session.SecureSessionStateMachine
+import com.rescueauth.v2.totp.TotpCore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -127,6 +129,97 @@ class AuthenticatorRepository(
     /** Deletes an account (cascade deletes its TOTP credentials). */
     suspend fun deleteAccount(accountId: String) {
         vault.deleteAccount(accountId)
+    }
+
+    /**
+     * Batch-imports multiple TOTP credentials (Phase 4 P2 migration path).
+     *
+     * Funnels every imported credential through the same production
+     * add/import semantics as [addTotpCredential]: each entry is resolved to
+     * (find-or-create) its parent account by (issuer, account), and every
+     * credential is checked against the existing TOTP semantic fingerprint so
+     * an already-present credential is reported as [duplicate] and **not**
+     * inserted again. The whole batch runs inside a single serialized
+     * transaction (one [VaultRepository.mutate] call).
+     *
+     * @return a per-entry [BatchImportEntry] result — never throws for a
+     *   per-entry problem; a DB failure throws [ValidationException].
+     */
+    suspend fun importTotpBatch(items: List<TotpImportItem>): TotpBatchImportResult {
+        if (items.isEmpty()) return TotpBatchImportResult(emptyList())
+        val now = java.time.Instant.now().toString()
+        val result = vault.mutate {
+            val existing = totpDao.listAll()
+            val fingerprints = existing.mapTo(HashSet()) {
+                Canonicalization.totpFingerprint(
+                    it.secretBase32, it.algorithm, it.digits, it.periodSeconds,
+                )
+            }
+            val accountCache = HashMap<String, AuthAccountEntity>()
+            val out = ArrayList<TotpBatchImportEntry>(items.size)
+            for (item in items) {
+                val normalizedSecret = TotpCore.normalizeSecret(item.secretBase32)
+                if (normalizedSecret.isEmpty() || !TotpCore.isValidBase32(normalizedSecret)) {
+                    out += TotpBatchImportEntry(item, BatchEntryStatus.INVALID, null)
+                    continue
+                }
+                val algorithm = item.algorithm.trim().uppercase()
+                if (algorithm !in TotpParameters.SUPPORTED_ALGORITHMS) {
+                    out += TotpBatchImportEntry(item, BatchEntryStatus.UNSUPPORTED, null)
+                    continue
+                }
+                if (item.digits !in TotpParameters.SUPPORTED_DIGITS) {
+                    out += TotpBatchImportEntry(item, BatchEntryStatus.UNSUPPORTED, null)
+                    continue
+                }
+                if (item.periodSeconds !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS) {
+                    out += TotpBatchImportEntry(item, BatchEntryStatus.UNSUPPORTED, null)
+                    continue
+                }
+                val fp = Canonicalization.totpFingerprint(
+                    normalizedSecret, algorithm, item.digits, item.periodSeconds,
+                )
+                if (fp in fingerprints) {
+                    out += TotpBatchImportEntry(item, BatchEntryStatus.DUPLICATE, null)
+                    continue
+                }
+
+                val service = item.issuer.trim().ifEmpty { "Unknown" }
+                val account = item.accountName.trim().ifEmpty { service }
+                val accountKey = "$service\u0000$account"
+                val accountEntity = accountCache.getOrPut(accountKey) {
+                    accountDao.findByServiceAndAccount(service, account)
+                        ?: AuthAccountEntity(
+                            id = UUID.randomUUID().toString(),
+                            stableId = UUID.randomUUID().toString(),
+                            serviceName = service,
+                            accountName = account,
+                            favorite = false,
+                            notes = null,
+                            sortOrder = System.currentTimeMillis(),
+                            createdAt = now,
+                            updatedAt = now,
+                        ).also { accountDao.upsert(it) }
+                }
+
+                val id = UUID.randomUUID().toString()
+                val entity = TotpCredentialEntity(
+                    id = id,
+                    stableId = id,
+                    accountId = accountEntity.id,
+                    secretBase32 = normalizedSecret,
+                    algorithm = algorithm,
+                    digits = item.digits,
+                    periodSeconds = item.periodSeconds,
+                    createdAt = now,
+                )
+                totpDao.upsert(entity)
+                fingerprints += fp
+                out += TotpBatchImportEntry(item, BatchEntryStatus.IMPORTED, id)
+            }
+            out
+        }
+        return TotpBatchImportResult(result)
     }
 
     /**
