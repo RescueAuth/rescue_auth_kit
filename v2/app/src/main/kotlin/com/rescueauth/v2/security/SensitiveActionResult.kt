@@ -5,12 +5,14 @@ package com.rescueauth.v2.security
  */
 sealed interface SensitiveActionResult {
     /**
-     * The pending action was authorized by a **fresh** successful
+     * The pending request was authorized by a **fresh** successful
      * authentication. The authorization is **one-shot**: the gate consumed it
-     * for exactly this pending action and the caller must either execute the
-     * action or abandon it — there is nothing reusable left.
+     * for exactly this pending request (action + target) and the caller must
+     * either execute the request or abandon it — there is nothing reusable
+     * left. An authorization for request A can never be applied to a
+     * different request B.
      */
-    data class Success(val action: SensitiveAction) : SensitiveActionResult
+    data class Success(val request: SensitiveActionRequest) : SensitiveActionResult
 
     /**
      * The user cancelled the prompt. The pending action was NOT authorized and

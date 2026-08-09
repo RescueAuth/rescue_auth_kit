@@ -6,7 +6,9 @@ import com.rescueauth.v2.export.VaultSshKey
 import com.rescueauth.v2.repository.DeveloperRepository
 import com.rescueauth.v2.security.SensitiveAction
 import com.rescueauth.v2.security.SensitiveActionGate
+import com.rescueauth.v2.security.SensitiveActionRequest
 import com.rescueauth.v2.security.SensitiveActionResult
+import com.rescueauth.v2.security.SensitiveActionTarget
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.model.DeveloperDetailUi
 import kotlinx.coroutines.CoroutineScope
@@ -134,17 +136,26 @@ class DeveloperDetailViewModel(
     // ------------------------------------------------------------------
 
     /**
-     * Reveals a secret field. Requires a fresh re-auth for [action]; on
-     * success the plaintext is loaded from the repository and stored in
-     * memory. Repeated reveal of the SAME field still requires a new re-auth
-     * after the field is hidden again (Issue #20 §14).
+     * Reveals a secret field. Requires a fresh re-auth for [action] bound to
+     * THIS entry's [stableId] + [fieldKey]; on success the plaintext is loaded
+     * from the repository and stored in memory. Repeated reveal of the SAME
+     * field still requires a new re-auth after the field is hidden again
+     * (Issue #20 §14).
+     *
+     * The authorization is bound to the original target (stableId + fieldKey
+     * + operation), so a success can never reveal a different entry / field
+     * (Issue #20 P4 security-boundary CR §2).
      */
     fun reveal(action: SensitiveAction, fieldKey: String) {
         if (revealedValues.containsKey(fieldKey)) return
         if (_uiState.value.authPending) return
         val gate = sensitiveActionGate ?: return
+        val request = SensitiveActionRequest(
+            action = action,
+            target = SensitiveActionTarget.DeveloperField(stableId = stableId, fieldKey = fieldKey),
+        )
         _uiState.value = _uiState.value.copy(authPending = true, authUnavailable = false, authCancelled = false)
-        val accepted = gate.authorize(action) { result -> onAuthResult(result, fieldKey, action) }
+        val accepted = gate.authorize(request) { result -> onAuthResult(result, request) }
         if (!accepted) {
             _uiState.value = _uiState.value.copy(authPending = false)
         }
@@ -153,32 +164,42 @@ class DeveloperDetailViewModel(
     /**
      * Copies a secret field. Copy is a high-risk action and requires its own
      * fresh re-auth even if the value is currently revealed (Issue #20 §15).
+     * The authorization is bound to THIS entry's [stableId] + [fieldKey] and
+     * to the exact COPY action, so a reveal authorization can never authorize
+     * a copy and vice versa (Issue #20 P4 security-boundary CR §1/§2).
      */
     fun copySecret(action: SensitiveAction, fieldKey: String, label: String) {
         // Even a currently-revealed value goes through a fresh re-auth — the
         // copy gate is never bypassed by reveal state.
         val gate = sensitiveActionGate ?: return
         if (_uiState.value.authPending) return
+        val request = SensitiveActionRequest(
+            action = action,
+            target = SensitiveActionTarget.DeveloperField(stableId = stableId, fieldKey = fieldKey),
+        )
         _uiState.value = _uiState.value.copy(authPending = true, authUnavailable = false, authCancelled = false)
-        val accepted = gate.authorize(action) { result ->
-            onCopyAuthResult(result, fieldKey, label, action)
+        val accepted = gate.authorize(request) { result ->
+            onCopyAuthResult(result, request, label)
         }
         if (!accepted) {
             _uiState.value = _uiState.value.copy(authPending = false)
         }
     }
 
-    private fun onAuthResult(result: SensitiveActionResult, fieldKey: String, action: SensitiveAction) {
+    private fun onAuthResult(result: SensitiveActionResult, request: SensitiveActionRequest) {
         when (result) {
             is SensitiveActionResult.Success -> {
                 _uiState.value = _uiState.value.copy(authPending = false)
-                // Consume the one-shot authorization for exactly this action
-                // and load the plaintext (Issue #20 §2/§8/§14).
-                val gate = sensitiveActionGate
-                if (gate != null && gate.executePending(action) {
-                    scope.launch { loadSecretInto(fieldKey) }
-                }) {
-                    // executed
+                // Consume the one-shot authorization ONLY when the authorized
+                // request matches the original target exactly (action +
+                // stableId + fieldKey) (Issue #20 §2/§8/§14).
+                if (result.request == request) {
+                    val gate = sensitiveActionGate
+                    if (gate != null && gate.executePending(request) {
+                        scope.launch { loadSecretInto(request) }
+                    }) {
+                        // executed
+                    }
                 }
             }
             SensitiveActionResult.Cancelled -> {
@@ -194,21 +215,29 @@ class DeveloperDetailViewModel(
         }
     }
 
-    private fun onCopyAuthResult(result: SensitiveActionResult, fieldKey: String, label: String, action: SensitiveAction) {
+    private fun onCopyAuthResult(
+        result: SensitiveActionResult,
+        request: SensitiveActionRequest,
+        label: String,
+    ) {
         when (result) {
             is SensitiveActionResult.Success -> {
                 _uiState.value = _uiState.value.copy(authPending = false)
-                // Consume the one-shot authorization (Issue #20 §15).
-                val gate = sensitiveActionGate
-                if (gate != null && gate.executePending(action) {
-                    scope.launch {
-                        val value = loadSecretValue(fieldKey)
-                        if (value != null) {
-                            _events.value = DeveloperDetailEvent.CopySecret(value, label)
+                // Consume the one-shot authorization ONLY when the authorized
+                // request matches the original target (action + stableId +
+                // fieldKey) (Issue #20 §15).
+                if (result.request == request) {
+                    val gate = sensitiveActionGate
+                    if (gate != null && gate.executePending(request) {
+                        scope.launch {
+                            val value = loadSecretValue(request.target as SensitiveActionTarget.DeveloperField)
+                            if (value != null) {
+                                _events.value = DeveloperDetailEvent.CopySecret(value, label)
+                            }
                         }
+                    }) {
+                        // executed
                     }
-                }) {
-                    // executed
                 }
             }
             SensitiveActionResult.Cancelled,
@@ -223,29 +252,30 @@ class DeveloperDetailViewModel(
         }
     }
 
-    private suspend fun loadSecretInto(fieldKey: String) {
-        val value = loadSecretValue(fieldKey) ?: return
-        revealedValues[fieldKey] = value
+    private suspend fun loadSecretInto(request: SensitiveActionRequest) {
+        val target = request.target as? SensitiveActionTarget.DeveloperField ?: return
+        val value = loadSecretValue(target) ?: return
+        revealedValues[target.fieldKey] = value
     }
 
     /** Loads the plaintext for a field key (repository read, in-memory only). */
-    private suspend fun loadSecretValue(fieldKey: String): String? {
+    private suspend fun loadSecretValue(target: SensitiveActionTarget.DeveloperField): String? {
         val repo = developerRepositoryProvider() ?: return null
-        val entry = repo.getByStableId(stableId) ?: return null
+        val entry = repo.getByStableId(target.stableId) ?: return null
         return when (val d = _uiState.value.detail) {
-            is DeveloperDetailUi.ApiCredential -> when (fieldKey) {
+            is DeveloperDetailUi.ApiCredential -> when (target.fieldKey) {
                 "apiKey" -> (entry as? VaultApiCredential)?.apiKey
                 "apiSecret" -> (entry as? VaultApiCredential)?.apiSecret
                 else -> null
             }
-            is DeveloperDetailUi.SshKey -> when (fieldKey) {
+            is DeveloperDetailUi.SshKey -> when (target.fieldKey) {
                 "privateKey" -> (entry as? VaultSshKey)?.privateKey
                 "passphrase" -> (entry as? VaultSshKey)?.passphrase
                 else -> null
             }
             is DeveloperDetailUi.GenericSecret -> {
                 val generic = entry as? VaultGenericSecret ?: return null
-                generic.fields.firstOrNull { "field:${it.key}" == fieldKey }?.value
+                generic.fields.firstOrNull { "field:${it.key}" == target.fieldKey }?.value
             }
             null -> null
         }

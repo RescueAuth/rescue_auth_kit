@@ -4,17 +4,18 @@ import com.rescueauth.v2.session.SecureSessionStateMachine
 
 /**
  * The single orchestration path for **fresh sensitive-action re-authentication**
- * (Phase 4 P4 / ROADMAP §5.6 / ADR-0006).
+ * (Phase 4 P4 / ROADMAP §5.6 / ADR-0006 / ADR-0010).
  *
  * ## Contract
  *
  * - Every high-risk action goes through [authorize]. The gate owns exactly
- *   one pending action at a time and is the only production component that
+ *   one pending request at a time and is the only production component that
  *   launches a re-auth prompt.
- * - A successful authentication authorizes **exactly one** pending action and
- *   the authorization is consumed immediately by [executePending] — there is
- *   no freshness window, no "verified this session" cache and no global
- *   `authenticated = true`. The next sensitive action requires a new prompt.
+ * - A successful authentication authorizes **exactly one** pending request
+ *   (action + target) and the authorization is consumed immediately by
+ *   [executePending] — there is no freshness window, no "verified this
+ *   session" cache and no global `authenticated = true`. The next sensitive
+ *   request requires a new prompt.
  * - The gate is **platform-agnostic**: the prompt itself is launched by a
  *   platform [SensitiveActionPrompt] (production = [SensitiveActionController]
  *   backed by the real Android BiometricPrompt; tests inject a fake). There is
@@ -22,25 +23,36 @@ import com.rescueauth.v2.session.SecureSessionStateMachine
  *   whenever no usable authenticator exists and the sensitive action is
  *   blocked.
  *
- * ## One pending action + serialized requests
+ * ## Precise request / target binding
+ *
+ * The pending request is a [SensitiveActionRequest] that binds the operation
+ * ([SensitiveAction]) to an immutable [SensitiveActionTarget] (e.g. a specific
+ * Developer entry `stableId` + `fieldKey`). The gate compares by full value
+ * equality, so a successful re-auth can never be applied to a different
+ * entry / field / operation — even if the current selection, navigation or a
+ * same-type second request changes while the prompt is showing
+ * (Issue #20 P4 security-boundary CR §2).
+ *
+ * ## One pending request + serialized requests
  *
  * [authorize] returns `false` when another request is already pending or a
  * prompt is showing, so a duplicate request / concurrent request (e.g.
- * "Reveal" then "Export") never spawns a second prompt. The result callback
- * is delivered to the requester of the single pending action — an action A
- * result can therefore never authorize a different action B.
+ * "Reveal" then "Export") never spawns a second prompt and never replaces the
+ * original pending target. The result callback is delivered to the requester
+ * of the single pending request — a request A result can therefore never
+ * authorize a different request B.
  *
  * ## Lifecycle / concurrency
  *
  * - [onSessionLocked] / [onLifecyclePause] / [onLifecycleDestroy] invalidate
- *   the pending action and discard any one-shot authorization. A pending
- *   sensitive action is NEVER persisted (no SavedStateHandle / Bundle /
+ *   the pending request and discard any one-shot authorization. A pending
+ *   sensitive request is NEVER persisted (no SavedStateHandle / Bundle /
  *   DataStore / Room / navigation arguments), so Activity/process recreation
- *   does not resume an authorized-but-unexecuted action.
+ *   does not resume an authorized-but-unexecuted request.
  *
  * @param prompt the platform prompt backend (production or test fake).
  * @param session the current secure session state; a locked session
- *   invalidates pending actions and discards authorizations.
+ *   invalidates pending requests and discards authorizations.
  * @param titleProvider / [subtitleProvider] supply the prompt strings from
  *   Android resources so this class stays JVM-testable.
  */
@@ -51,20 +63,20 @@ class SensitiveActionGate(
     private val subtitleProvider: () -> CharSequence?,
 ) {
 
-    private var pendingAction: SensitiveAction? = null
+    private var pendingRequest: SensitiveActionRequest? = null
     private var pendingCallback: ((SensitiveActionResult) -> Unit)? = null
-    private var authorizedAction: SensitiveAction? = null
+    private var authorizedRequest: SensitiveActionRequest? = null
     private var promptActive = false
 
-    /** The currently pending action (or null). Test-visible. */
-    fun pendingActionOrNull(): SensitiveAction? = pendingAction
+    /** The currently pending request (or null). Test-visible. */
+    fun pendingRequestOrNull(): SensitiveActionRequest? = pendingRequest
 
-    /** @return true when an authorization is outstanding for [action]. */
-    fun isAuthorizedFor(action: SensitiveAction): Boolean =
-        authorizedAction == action
+    /** @return true when an authorization is outstanding for [request]. */
+    fun isAuthorizedFor(request: SensitiveActionRequest): Boolean =
+        authorizedRequest == request
 
     /**
-     * Requests fresh re-auth for [action].
+     * Requests fresh re-auth for [request] (an action bound to a target).
      *
      * @return true when the request was accepted (a prompt is showing / will
      *   show, or an immediate outcome like [SensitiveActionResult.Unavailable]
@@ -73,16 +85,16 @@ class SensitiveActionGate(
      *   a prompt right now.
      */
     fun authorize(
-        action: SensitiveAction,
+        request: SensitiveActionRequest,
         onResult: (SensitiveActionResult) -> Unit,
     ): Boolean {
-        if (pendingAction != null || promptActive) return false
+        if (pendingRequest != null || promptActive) return false
         if (!session.isUnlocked()) return false
-        pendingAction = action
+        pendingRequest = request
         pendingCallback = onResult
         promptActive = true
         val started = prompt.tryStart(
-            action = action,
+            request = request,
             title = titleProvider(),
             subtitle = subtitleProvider(),
             onResult = { result -> onPromptResult(result) },
@@ -91,7 +103,7 @@ class SensitiveActionGate(
             // Platform cannot host the prompt right now (e.g. host not
             // resumed). Release the request so a retry can re-request once
             // the host is ready.
-            pendingAction = null
+            pendingRequest = null
             pendingCallback = null
             promptActive = false
             return false
@@ -100,35 +112,36 @@ class SensitiveActionGate(
     }
 
     /**
-     * Executes [block] only when [action] was authorized by a fresh
+     * Executes [block] only when [request] was authorized by a fresh
      * successful re-auth, then **consumes** the authorization (one-shot).
      *
-     * @return true when the authorization was valid and [block] ran.
+     * @return true when the authorization was valid (action + target match)
+     *   and [block] ran.
      */
-    fun <T> executePending(action: SensitiveAction, block: () -> T): Boolean {
-        if (authorizedAction != action) return false
-        authorizedAction = null
+    fun <T> executePending(request: SensitiveActionRequest, block: () -> T): Boolean {
+        if (authorizedRequest != request) return false
+        authorizedRequest = null
         block()
         return true
     }
 
-    /** Cancels the pending action without executing anything. */
+    /** Cancels the pending request without executing anything. */
     fun cancelPending() {
-        pendingAction = null
+        pendingRequest = null
         pendingCallback = null
-        authorizedAction = null
+        authorizedRequest = null
         promptActive = false
         prompt.cancel()
     }
 
     /**
-     * Invalidates any pending action / authorization and cancels the prompt
+     * Invalidates any pending request / authorization and cancels the prompt
      * (session lock / lifecycle pause / destroy).
      */
     fun invalidate() {
-        pendingAction = null
+        pendingRequest = null
         pendingCallback = null
-        authorizedAction = null
+        authorizedRequest = null
         promptActive = false
         prompt.cancel()
     }
@@ -149,17 +162,17 @@ class SensitiveActionGate(
         promptActive = false
         when (result) {
             is SensitiveActionResult.Success -> {
-                // Authorize exactly the pending action; the authorization is
-                // consumed by the next executePending call.
-                authorizedAction = result.action
-                pendingAction = null
+                // Authorize exactly the pending request; the authorization is
+                // consumed by the next executePending call for that request.
+                authorizedRequest = result.request
+                pendingRequest = null
             }
             SensitiveActionResult.Cancelled,
             SensitiveActionResult.Failed,
             SensitiveActionResult.Unavailable,
             -> {
-                pendingAction = null
-                authorizedAction = null
+                pendingRequest = null
+                authorizedRequest = null
             }
         }
         val cb = pendingCallback
@@ -178,7 +191,7 @@ class SensitiveActionGate(
  */
 interface SensitiveActionPrompt {
     fun tryStart(
-        action: SensitiveAction,
+        request: SensitiveActionRequest,
         title: CharSequence,
         subtitle: CharSequence?,
         onResult: (SensitiveActionResult) -> Unit,

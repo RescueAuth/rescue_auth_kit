@@ -73,7 +73,7 @@ class SensitiveActionController(
      * request queued or report a safe error).
      */
     override fun tryStart(
-        action: SensitiveAction,
+        request: SensitiveActionRequest,
         title: CharSequence,
         subtitle: CharSequence?,
         onResult: (SensitiveActionResult) -> Unit,
@@ -101,7 +101,7 @@ class SensitiveActionController(
                     override fun onAuthenticationSucceeded(
                         result: BiometricPrompt.AuthenticationResult,
                     ) {
-                        deliver(SensitiveActionResult.Success(action))
+                        deliver(SensitiveActionResult.Success(request))
                     }
 
                     override fun onAuthenticationError(

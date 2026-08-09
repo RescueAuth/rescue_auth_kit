@@ -27,12 +27,19 @@
 
 - **`SensitiveAction`** — 高敏感操作枚举：`EXPORT_FULL_VAULT`、`REVEAL_API_SECRET`、
   `COPY_API_SECRET`、`REVEAL_SSH_PRIVATE_KEY`、`COPY_SSH_PRIVATE_KEY`、
-  `REVEAL_SSH_PASSPHRASE`、`REVEAL_GENERIC_SECRET`。
-- **`SensitiveActionResult`** — 结果模型：`Success(action)` / `Cancelled` / `Failed` /
+  `REVEAL_SSH_PASSPHRASE`、`COPY_SSH_PASSPHRASE`、`REVEAL_GENERIC_SECRET`、
+  `COPY_GENERIC_SECRET`。每个敏感操作（reveal 与 copy 各自）都有明确的一次性
+  授权语义（security-boundary CR §1）。
+- **`SensitiveActionRequest`** — 不可变请求（`action` + `SensitiveActionTarget`），
+  把操作绑定到原始 target（security-boundary CR §2）。
+- **`SensitiveActionTarget`** — `Global`（Export 等）/ `DeveloperField(stableId,
+  fieldKey)`（具体 entry 的稳定身份 + 字段）。
+- **`SensitiveActionResult`** — 结果模型：`Success(request)` / `Cancelled` / `Failed` /
   `Unavailable`。
-- **`SensitiveActionGate`** — 唯一的 orchestration path。单一 pending action +
-  串行请求；`authorize(action, onResult)` → 平台 prompt → 结果回调 →
-  `executePending(action) { ... }` 消费 one-shot 授权。
+- **`SensitiveActionGate`** — 唯一的 orchestration path。单一 pending request +
+  串行请求；`authorize(request, onResult)` → 平台 prompt → 结果回调 →
+  `executePending(request) { ... }` 消费 one-shot 授权。按完整 request
+  （action + target）值相等才放行。
 - **`SensitiveActionPrompt`** — 平台后端接口；生产 = `SensitiveActionController`
   （真实 `BiometricPrompt`），测试 = fake（不碰真机硬件）。
 - **`SensitiveActionController`** — 持有真实 `BiometricPrompt` 的平台适配器；
@@ -45,12 +52,13 @@
 
 ```
 用户触发 sensitive action（Export / Reveal / Copy）
-   → ViewModel 调 SensitiveActionGate.authorize(action)
+   → ViewModel 构造 SensitiveActionRequest(action, target)
+   → SensitiveActionGate.authorize(request)
    → gate 校验：单 pending、session UNLOCKED
    → SensitiveActionController.tryStart（真实 BiometricPrompt，resumed host）
-   → 结果：Success / Cancelled / Failed / Unavailable
-   → Success 时 gate 记录 one-shot authorizedAction
-   → 业务层 executePending(action) { 真正执行 sensitive op }
+   → 结果：Success(request) / Cancelled / Failed / Unavailable
+   → Success 时 gate 记录 one-shot authorizedRequest（完整 request）
+   → 业务层 executePending(request) { 真正执行 sensitive op }
 ```
 
 每个 `Composable` 都**不会自己 new BiometricPrompt**——只有
@@ -74,14 +82,17 @@
 
 ## 6. lifecycle / concurrency handling
 
-- **单 pending action + 串行请求**：第二个 `authorize`（重复 Reveal / Reveal 时
-  Export / prompt 已显示时再请求）返回 false，不会弹多个 prompt。
+- **单 pending request + 串行请求**：第二个 `authorize`（重复 Reveal / Reveal 时
+  Export / prompt 已显示时再请求）返回 false，不会弹多个 prompt，也**不会
+  替换原始 pending target**（security-boundary CR §4）。
 - **Activity pause / destroy**：`onLifecyclePause` / `onLifecycleDestroy` 取消
   prompt 并丢弃 pending 授权。
 - **session lock during prompt**：`MainActivity` 监听 state flow，lock 时调用
-  `gate.invalidate()`；Developer Detail ViewModel 同步清空 reveal 状态。
-- **成功结果只授权当前 pending action**：`executePending(action)` 只对
-  `authorizedAction == action` 放行，action A 的结果无法放行 action B。
+  `gate.invalidate()`（pending target 一并失效）；Developer Detail ViewModel
+  同步清空 reveal 状态。
+- **成功结果只授权当前 pending request**：`executePending(request)` 只对
+  `authorizedRequest == request`（action + target 全等）放行，request A 的结果
+  无法放行 request B（不同 entry / 不同 field / reveal→copy 均不可能）。
 - **pending 不持久化**：不进入 SavedStateHandle / Bundle / DataStore / Room /
   navigation arguments。Activity/process recreation 后 gate 重建，授权丢失。
 
@@ -149,7 +160,12 @@ Room DeveloperEntryEntity
   in-memory map；leaving screen / session lock / app recreation / manual hide
   → hidden；再次 reveal 需要重新 re-auth。
 - **Copy**：本身就是 high-risk action，独立 fresh re-auth（即使当前处于
-  revealed 状态也不绕过 copy gate）。
+  revealed 状态也不绕过 copy gate）。**reveal 授权绝不复用于 copy**：
+  `REVEAL_SSH_PASSPHRASE` vs `COPY_SSH_PASSPHRASE`、
+  `REVEAL_GENERIC_SECRET` vs `COPY_GENERIC_SECRET` 均为不同 action，各自独立
+  one-shot（security-boundary CR §1）。
+- **target binding**：每个请求绑定 `stableId + fieldKey + operation`，auth
+  success 只能作用于原始请求（security-boundary CR §2/§3）。
 - clipboard auto-clear 继续 DEFER（未实现 watcher/timer）。
 
 ## 13. stableId / edit semantics
@@ -198,6 +214,7 @@ Room DeveloperEntryEntity
 新增：
 
 - `app/src/main/kotlin/com/rescueauth/v2/security/SensitiveAction.kt`
+- `app/src/main/kotlin/com/rescueauth/v2/security/SensitiveActionRequest.kt`
 - `app/src/main/kotlin/com/rescueauth/v2/security/SensitiveActionResult.kt`
 - `app/src/main/kotlin/com/rescueauth/v2/security/SensitiveActionGate.kt`
 - `app/src/main/kotlin/com/rescueauth/v2/security/SensitiveActionController.kt`
@@ -235,11 +252,11 @@ Room DeveloperEntryEntity
 ## 18. tests
 
 - `:core:test` — 全量 PASS。
-- `:app:testDebugUnitTest` — 306 tests 全量 PASS。
-- `:app:lintDebug` — 0 errors（仅既有依赖版本提示）。
+- `:app:testDebugUnitTest` — 全量 PASS。
+- `:app:lintDebug` — 0 errors。
 - `:app:assembleDebug` / `:app:assembleDebugAndroidTest` — PASS。
 
-覆盖 Issue #20 §24–§29 的核心用例：
+覆盖 Issue #20 §24–§29 的核心用例 + security-boundary CR race/security 用例：
 
 - §24 Export re-auth：request→reauth、success→PIN、cancel→no PIN/file、
   failure→no export、unavailable→blocked、one-shot、second export fresh、
@@ -253,6 +270,12 @@ Room DeveloperEntryEntity
   values hidden/reveal/copy/lock/persistence。
 - §29 Package：三类进 snapshot、encode/decode 保真、空 Vault round-trip、
   idempotent、同 stableId 改 payload CONFLICT。
+- **security-boundary CR race/security（新增）**：reveal Generic field A success
+  不能 reveal field B；copy Generic field A success 不能 copy field B；reveal
+  授权不能授权 copy；SSH passphrase reveal 授权不能授权 passphrase copy；
+  Entry A pending 切换到 Entry B 时 auth success 只作用于原始 A（或安全取消）；
+  prompt 激活时第二个 same-type request 不替换原始 target；session lock 使
+  pending target 失效。
 
 BiometricPrompt 本体在 Robolectric fake boundary 测试，不在 JVM 假装 biometric
 hardware（Issue #20 §25）。

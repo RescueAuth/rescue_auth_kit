@@ -67,9 +67,12 @@ Issue #20 P4：Sensitive Action Fresh Re-auth Foundation（P4A）+ Developer Vau
 ### Added
 
 - **Sensitive Action Re-auth Foundation**：`SensitiveAction` /
-  `SensitiveActionGate` / `SensitiveActionResult` 单一 orchestration path，
+  `SensitiveActionRequest` / `SensitiveActionTarget` / `SensitiveActionGate` /
+  `SensitiveActionResult` 单一 orchestration path，
   fresh Biometric/Device Credential one-shot 语义（ADR-0011）；生产无
-  NoOp gate，unavailable → blocked。
+  NoOp gate，unavailable → blocked。授权绑定原始 request
+  （action + stableId + fieldKey），reveal 与 copy 完全分离、各自独立
+  re-auth。
 - **Full Vault Export 接入 re-auth**：Export → fresh re-auth → PIN + confirm →
   SAF CreateDocument → encode/write；auth cancel/failed/unavailable 不收集
   PIN、不创建文档、不构造 snapshot（保持 Phase 3D PIN-first 语义）。
@@ -84,8 +87,13 @@ Issue #20 P4：Sensitive Action Fresh Re-auth Foundation（P4A）+ Developer Vau
 
 - secret 不进入 SavedStateHandle / Bundle / rememberSaveable / DataStore /
   logs；reveal 状态独立受控；敏感值 contentDescription 不含 plaintext。
-- 单 pending action + 串行请求，避免多 prompt / 跨 action 授权；
+- 单 pending request + 串行请求，避免多 prompt / 跨 action 授权；
   session lock / Activity pause/destroy 清空授权与 reveal 状态。
+- **security-boundary CR**：新增 `COPY_SSH_PASSPHRASE` / `COPY_GENERIC_SECRET`
+  action（每种 sensitive operation 都有独立一次性授权）；授权绑定原始
+  target（stableId + fieldKey + operation），prompt 期间 navigation / field
+  selection / 第二个同类型请求不会把成功结果作用于其它 entry / field；
+  reveal 授权绝不复用于 copy。
 
 ### Tests
 

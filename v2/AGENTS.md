@@ -45,11 +45,14 @@
   diff 保留 stableId + USED state、delete + Undo 恢复 exact stableIds/states；
   Room schema 零改动，P3 数据自然进入 Full Vault Export/Import round-trip）。
   **Phase 4 P4 已实现**（Sensitive Action Fresh Re-auth + Developer Vault
-  第一批，见 `docs/PHASE4_P4_REPORT.md`：`SensitiveAction`/`SensitiveActionGate`/
-  `SensitiveActionResult` 单一 orchestration path，fresh Biometric/Device
-  Credential one-shot 语义（无 freshness window / 无全局 authenticated）、
-  Full Vault Export 在 PIN 之前接入 re-auth gate（cancel/failed/unavailable
-  不收集 PIN、不创建 SAF 文档、不构造 snapshot）；Developer Vault 第一批
+  第一批，见 `docs/PHASE4_P4_REPORT.md`：`SensitiveAction`/`SensitiveActionRequest`/
+  `SensitiveActionTarget`/`SensitiveActionGate`/`SensitiveActionResult` 单一
+  orchestration path，fresh Biometric/Device Credential one-shot 语义（无
+  freshness window / 无全局 authenticated），授权绑定原始 request
+  （action + stableId + fieldKey），reveal 与 copy 完全分离、各自独立
+  re-auth；Full Vault Export 在 PIN 之前接入 re-auth gate
+  （cancel/failed/unavailable 不收集 PIN、不创建 SAF 文档、不构造
+  snapshot）；Developer Vault 第一批
   API Credential / SSH Key / Generic Secret 全 CRUD（metadata list 不暴露
   secret、reveal/copy 走 re-auth、edit 保留 stableId、delete destructive
   confirmation）；Room schema 零改动，P4 数据自然进入 Full Vault

@@ -99,7 +99,10 @@ class ExportImportViewModelTest {
         )
         // Auto-approve on the next request.
         prompt.autoResult = com.rescueauth.v2.security.SensitiveActionResult.Success(
-            com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+            com.rescueauth.v2.security.SensitiveActionRequest(
+                action = com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+                target = com.rescueauth.v2.security.SensitiveActionTarget.Global,
+            ),
         )
         return gate
     }
@@ -273,6 +276,13 @@ class ExportImportViewModelTest {
         return gate to prompt
     }
 
+    private fun exportRequest() = com.rescueauth.v2.security.SensitiveActionRequest(
+        action = com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
+        target = com.rescueauth.v2.security.SensitiveActionTarget.Global,
+    )
+
+    private fun exportSuccess() = com.rescueauth.v2.security.SensitiveActionResult.Success(exportRequest())
+
     @Test
     fun `export request requires a fresh re-auth first`() = runBlocking {
         val (gate, prompt) = controllableGate()
@@ -281,10 +291,10 @@ class ExportImportViewModelTest {
 
         vm.beginExport()
         assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
-        assertEquals(1, prompt.startedActions.size)
+        assertEquals(1, prompt.startedRequests.size)
         assertEquals(
-            com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
-            prompt.startedActions[0],
+            exportRequest(),
+            prompt.startedRequests[0],
         )
         // No PIN / document before a successful re-auth.
         assertTrue(fake.written.isEmpty())
@@ -298,11 +308,7 @@ class ExportImportViewModelTest {
 
         vm.beginExport()
         assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
-        prompt.deliver(
-            com.rescueauth.v2.security.SensitiveActionResult.Success(
-                com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
-            ),
-        )
+        prompt.deliver(exportSuccess())
         assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
         assertTrue(fake.written.isEmpty())
     }
@@ -352,18 +358,14 @@ class ExportImportViewModelTest {
 
         // First export: re-auth → success → PIN.
         vm.beginExport()
-        prompt.deliver(
-            com.rescueauth.v2.security.SensitiveActionResult.Success(
-                com.rescueauth.v2.security.SensitiveAction.EXPORT_FULL_VAULT,
-            ),
-        )
+        prompt.deliver(exportSuccess())
         assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
         vm.cancelExport()
 
         // Second export: a fresh prompt is required (one-shot consumed).
         vm.beginExport()
         assertEquals(ExportImportViewModel.ExportState.AwaitingReauth, vm.exportState.value)
-        assertEquals(2, prompt.startedActions.size)
+        assertEquals(2, prompt.startedRequests.size)
         // It must NOT jump straight to PIN without a new success.
         assertTrue(vm.exportState.value is ExportImportViewModel.ExportState.AwaitingReauth)
     }

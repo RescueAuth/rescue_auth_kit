@@ -6,7 +6,9 @@ import com.rescueauth.v2.repository.ImportOutcome
 import com.rescueauth.v2.repository.VaultRepository
 import com.rescueauth.v2.security.SensitiveAction
 import com.rescueauth.v2.security.SensitiveActionGate
+import com.rescueauth.v2.security.SensitiveActionRequest
 import com.rescueauth.v2.security.SensitiveActionResult
+import com.rescueauth.v2.security.SensitiveActionTarget
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -203,21 +205,33 @@ class ExportImportViewModel(
             return
         }
         _exportState.value = ExportState.AwaitingReauth
+        val request = SensitiveActionRequest(
+            action = SensitiveAction.EXPORT_FULL_VAULT,
+            target = SensitiveActionTarget.Global,
+        )
         gate.authorize(
-            SensitiveAction.EXPORT_FULL_VAULT,
-            onResult = { result -> onExportReauthResult(result) },
+            request,
+            onResult = { result -> onExportReauthResult(result, request) },
         )
     }
 
-    private fun onExportReauthResult(result: SensitiveActionResult) {
+    private fun onExportReauthResult(
+        result: SensitiveActionResult,
+        request: SensitiveActionRequest,
+    ) {
         when (result) {
             is SensitiveActionResult.Success -> {
-                // Consume the one-shot authorization for exactly this action
-                // (Issue #20 §2/§8): the token is immediately spent. A follow-up
-                // Export request requires a fresh re-auth.
-                val gate = sensitiveActionGate
-                if (gate != null && gate.executePending(SensitiveAction.EXPORT_FULL_VAULT) { }) {
-                    beginPinFlow()
+                // Consume the one-shot authorization ONLY when the authorized
+                // request matches the original export request (Issue #20
+                // §2/§8): the token is immediately spent. A follow-up Export
+                // request requires a fresh re-auth.
+                if (result.request == request) {
+                    val gate = sensitiveActionGate
+                    if (gate != null && gate.executePending(request) { }) {
+                        beginPinFlow()
+                    } else {
+                        _exportState.value = ExportState.Idle
+                    }
                 } else {
                     _exportState.value = ExportState.Idle
                 }

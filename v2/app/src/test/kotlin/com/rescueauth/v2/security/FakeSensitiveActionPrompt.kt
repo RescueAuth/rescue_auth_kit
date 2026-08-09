@@ -14,17 +14,17 @@ class FakeSensitiveActionPrompt(
     var startResult: Boolean = true,
 ) : SensitiveActionPrompt {
 
-    val startedActions = mutableListOf<SensitiveAction>()
+    val startedRequests = mutableListOf<SensitiveActionRequest>()
     var lastCallback: ((SensitiveActionResult) -> Unit)? = null
     var cancelled = 0
 
     override fun tryStart(
-        action: SensitiveAction,
+        request: SensitiveActionRequest,
         title: CharSequence,
         subtitle: CharSequence?,
         onResult: (SensitiveActionResult) -> Unit,
     ): Boolean {
-        startedActions += action
+        startedRequests += request
         if (!startResult) return false
         lastCallback = onResult
         autoResult?.let {

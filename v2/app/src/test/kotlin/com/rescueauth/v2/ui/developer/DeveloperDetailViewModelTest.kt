@@ -111,6 +111,18 @@ class DeveloperDetailViewModelTest {
         assertTrue(!state.toString().contains("secret-abc"))
     }
 
+    private fun apiRevealRequest(stableId: String, fieldKey: String = "apiSecret") =
+        com.rescueauth.v2.security.SensitiveActionRequest(
+            action = SensitiveAction.REVEAL_API_SECRET,
+            target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, fieldKey),
+        )
+
+    private fun apiCopyRequest(stableId: String, fieldKey: String = "apiSecret") =
+        com.rescueauth.v2.security.SensitiveActionRequest(
+            action = SensitiveAction.COPY_API_SECRET,
+            target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, fieldKey),
+        )
+
     @Test
     fun `reveal requires a fresh re-auth`() = runBlocking {
         val stableId = createApi()
@@ -118,11 +130,12 @@ class DeveloperDetailViewModelTest {
         kotlinx.coroutines.delay(50)
 
         vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
-        assertEquals(1, prompt.startedActions.size)
+        assertEquals(1, prompt.startedRequests.size)
+        assertEquals(apiRevealRequest(stableId, "apiSecret"), prompt.startedRequests[0])
         // No value revealed yet.
         assertNull(vm.revealedValue("apiSecret"))
 
-        prompt.deliver(SensitiveActionResult.Success(SensitiveAction.REVEAL_API_SECRET))
+        prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
         kotlinx.coroutines.delay(50)
         assertEquals("secret-abc", vm.revealedValue("apiSecret"))
     }
@@ -134,7 +147,7 @@ class DeveloperDetailViewModelTest {
         kotlinx.coroutines.delay(50)
 
         vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
-        prompt.deliver(SensitiveActionResult.Success(SensitiveAction.REVEAL_API_SECRET))
+        prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
         kotlinx.coroutines.delay(50)
         assertEquals("secret-abc", vm.revealedValue("apiSecret"))
         assertTrue(vm.isRevealed("apiSecret"))
@@ -152,7 +165,7 @@ class DeveloperDetailViewModelTest {
         kotlinx.coroutines.delay(50)
 
         vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
-        prompt.deliver(SensitiveActionResult.Success(SensitiveAction.REVEAL_API_SECRET))
+        prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
         kotlinx.coroutines.delay(50)
         assertEquals("secret-abc", vm.revealedValue("apiSecret"))
 
@@ -171,21 +184,21 @@ class DeveloperDetailViewModelTest {
 
         // Reveal first.
         vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
-        prompt.deliver(SensitiveActionResult.Success(SensitiveAction.REVEAL_API_SECRET))
+        prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
         kotlinx.coroutines.delay(50)
         assertEquals("secret-abc", vm.revealedValue("apiSecret"))
-        assertEquals(1, prompt.startedActions.size)
+        assertEquals(1, prompt.startedRequests.size)
 
         // Copy triggers a SECOND fresh re-auth (never bypassed by reveal).
         vm.copySecret(SensitiveAction.COPY_API_SECRET, "apiSecret", "apiSecret")
-        assertEquals(2, prompt.startedActions.size)
-        assertEquals(SensitiveAction.COPY_API_SECRET, prompt.startedActions[1])
+        assertEquals(2, prompt.startedRequests.size)
+        assertEquals(apiCopyRequest(stableId, "apiSecret"), prompt.startedRequests[1])
 
         var copyEvent: DeveloperDetailEvent? = null
         val job = kotlinx.coroutines.GlobalScope.launch {
             vm.events.collect { copyEvent = it }
         }
-        prompt.deliver(SensitiveActionResult.Success(SensitiveAction.COPY_API_SECRET))
+        prompt.deliver(SensitiveActionResult.Success(apiCopyRequest(stableId, "apiSecret")))
         kotlinx.coroutines.delay(50)
         job.cancel()
 
@@ -224,6 +237,244 @@ class DeveloperDetailViewModelTest {
         prompt.deliver(SensitiveActionResult.Cancelled)
         assertFalse(vm.uiState.value.authPending)
         assertTrue(vm.uiState.value.authCancelled)
+        assertNull(vm.revealedValue("apiSecret"))
+    }
+
+    // ------------------------------------------------------------------
+    // Security-boundary CR: reveal vs copy separation + target binding
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `reveal authorization cannot authorize copy in the ViewModel`() = runBlocking {
+        val stableId = createApi()
+        val (vm, prompt) = vm(stableId)
+        kotlinx.coroutines.delay(50)
+
+        // Reveal request is pending; the prompt succeeds for reveal.
+        vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
+        prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
+        kotlinx.coroutines.delay(50)
+        assertEquals("secret-abc", vm.revealedValue("apiSecret"))
+
+        // A copy request issued while the reveal prompt was pending was never
+        // accepted; a later copy needs its own fresh re-auth. The reveal
+        // authorization is consumed by the reveal only.
+        var copyEvent: DeveloperDetailEvent? = null
+        val job = kotlinx.coroutines.GlobalScope.launch {
+            vm.events.collect { copyEvent = it }
+        }
+        vm.copySecret(SensitiveAction.COPY_API_SECRET, "apiSecret", "apiSecret")
+        assertEquals(2, prompt.startedRequests.size)
+        assertEquals(apiCopyRequest(stableId, "apiSecret"), prompt.startedRequests[1])
+        // Without delivering the copy auth, no copy event fires.
+        kotlinx.coroutines.delay(50)
+        job.cancel()
+        assertTrue(copyEvent !is DeveloperDetailEvent.CopySecret)
+    }
+
+    @Test
+    fun `reveal generic field A auth success cannot reveal field B`() = runBlocking {
+        val stableId = runBlocking {
+            repo.createGenericSecret(
+                title = "Generic",
+                notes = null,
+                fields = listOf(
+                    VaultKeyValue("A", "secret-a"),
+                    VaultKeyValue("B", "secret-b"),
+                ),
+            ).stableId
+        }
+        val (vm, prompt) = vm(stableId)
+        kotlinx.coroutines.delay(50)
+
+        vm.reveal(SensitiveAction.REVEAL_GENERIC_SECRET, "field:A")
+        assertEquals(1, prompt.startedRequests.size)
+        assertEquals(
+            com.rescueauth.v2.security.SensitiveActionRequest(
+                action = SensitiveAction.REVEAL_GENERIC_SECRET,
+                target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "field:A"),
+            ),
+            prompt.startedRequests[0],
+        )
+        // Deliver success for field A.
+        prompt.deliver(
+            SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveActionRequest(
+                    action = SensitiveAction.REVEAL_GENERIC_SECRET,
+                    target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "field:A"),
+                ),
+            ),
+        )
+        kotlinx.coroutines.delay(50)
+        assertEquals("secret-a", vm.revealedValue("field:A"))
+        // Field B was never revealed.
+        assertNull(vm.revealedValue("field:B"))
+    }
+
+    @Test
+    fun `copy generic field A auth success cannot copy field B`() = runBlocking {
+        val stableId = runBlocking {
+            repo.createGenericSecret(
+                title = "Generic",
+                notes = null,
+                fields = listOf(
+                    VaultKeyValue("A", "secret-a"),
+                    VaultKeyValue("B", "secret-b"),
+                ),
+            ).stableId
+        }
+        val (vm, prompt) = vm(stableId)
+        kotlinx.coroutines.delay(50)
+
+        var copyEvent: DeveloperDetailEvent? = null
+        val job = kotlinx.coroutines.GlobalScope.launch {
+            vm.events.collect { copyEvent = it }
+        }
+
+        // Request copy of field A only.
+        vm.copySecret(SensitiveAction.COPY_GENERIC_SECRET, "field:A", "generic")
+        assertEquals(1, prompt.startedRequests.size)
+        assertEquals(
+            com.rescueauth.v2.security.SensitiveActionRequest(
+                action = SensitiveAction.COPY_GENERIC_SECRET,
+                target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "field:A"),
+            ),
+            prompt.startedRequests[0],
+        )
+        // Deliver success for field A.
+        prompt.deliver(
+            SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveActionRequest(
+                    action = SensitiveAction.COPY_GENERIC_SECRET,
+                    target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "field:A"),
+                ),
+            ),
+        )
+        kotlinx.coroutines.delay(50)
+        job.cancel()
+        assertTrue(copyEvent is DeveloperDetailEvent.CopySecret)
+        assertEquals("secret-a", (copyEvent as DeveloperDetailEvent.CopySecret).value)
+    }
+
+    @Test
+    fun `ssh passphrase reveal auth cannot authorize passphrase copy`() = runBlocking {
+        val stableId = runBlocking {
+            repo.createSshKey(
+                title = "SSH", notes = null,
+                keyName = "work", publicKey = "pub",
+                privateKey = "priv-key", passphrase = "pass-secret",
+            ).stableId
+        }
+        val (vm, prompt) = vm(stableId)
+        kotlinx.coroutines.delay(50)
+
+        // Reveal passphrase.
+        vm.reveal(SensitiveAction.REVEAL_SSH_PASSPHRASE, "passphrase")
+        assertEquals(1, prompt.startedRequests.size)
+        assertEquals(
+            com.rescueauth.v2.security.SensitiveActionRequest(
+                action = SensitiveAction.REVEAL_SSH_PASSPHRASE,
+                target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "passphrase"),
+            ),
+            prompt.startedRequests[0],
+        )
+        prompt.deliver(
+            SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveActionRequest(
+                    action = SensitiveAction.REVEAL_SSH_PASSPHRASE,
+                    target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "passphrase"),
+                ),
+            ),
+        )
+        kotlinx.coroutines.delay(50)
+        assertEquals("pass-secret", vm.revealedValue("passphrase"))
+
+        // Copy passphrase requires its OWN copy re-auth — reveal auth does not
+        // authorize copy.
+        var copyEvent: DeveloperDetailEvent? = null
+        val job = kotlinx.coroutines.GlobalScope.launch {
+            vm.events.collect { copyEvent = it }
+        }
+        vm.copySecret(SensitiveAction.COPY_SSH_PASSPHRASE, "passphrase", "passphrase")
+        assertEquals(2, prompt.startedRequests.size)
+        assertEquals(
+            com.rescueauth.v2.security.SensitiveActionRequest(
+                action = SensitiveAction.COPY_SSH_PASSPHRASE,
+                target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "passphrase"),
+            ),
+            prompt.startedRequests[1],
+        )
+        // Only deliver the COPY success.
+        prompt.deliver(
+            SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveActionRequest(
+                    action = SensitiveAction.COPY_SSH_PASSPHRASE,
+                    target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(stableId, "passphrase"),
+                ),
+            ),
+        )
+        kotlinx.coroutines.delay(50)
+        job.cancel()
+        assertTrue(copyEvent is DeveloperDetailEvent.CopySecret)
+        assertEquals("pass-secret", (copyEvent as DeveloperDetailEvent.CopySecret).value)
+    }
+
+    @Test
+    fun `entry A request pending - auth success only reveals entry A field`() = runBlocking {
+        val aId = createApi("entry-A")
+        val bId = createApi("entry-B")
+        // Create a second entry with a distinct secret.
+        val bEntry = repo.editApiCredential(
+            stableId = bId,
+            title = "Other", notes = null,
+            serviceName = "other", accountName = "bob",
+            apiKey = "key-b", apiSecret = "secret-b",
+        )
+        assertEquals(bId, bEntry.stableId)
+
+        // ViewModel bound to entry A.
+        val (vm, prompt) = vm(aId)
+        kotlinx.coroutines.delay(50)
+
+        vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
+        assertEquals(1, prompt.startedRequests.size)
+        // The request is bound to entry A.
+        assertEquals(
+            com.rescueauth.v2.security.SensitiveActionRequest(
+                action = SensitiveAction.REVEAL_API_SECRET,
+                target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(aId, "apiSecret"),
+            ),
+            prompt.startedRequests[0],
+        )
+
+        // Even if the gate somehow delivered a success for entry B (a stale
+        // prompt), the ViewModel bound to A must NOT reveal A's value.
+        prompt.deliver(
+            SensitiveActionResult.Success(
+                com.rescueauth.v2.security.SensitiveActionRequest(
+                    action = SensitiveAction.REVEAL_API_SECRET,
+                    target = com.rescueauth.v2.security.SensitiveActionTarget.DeveloperField(bId, "apiSecret"),
+                ),
+            ),
+        )
+        kotlinx.coroutines.delay(50)
+        assertNull(vm.revealedValue("apiSecret"))
+    }
+
+    @Test
+    fun `session lock invalidates pending target in ViewModel`() = runBlocking {
+        val stableId = createApi()
+        val (vm, prompt) = vm(stableId)
+        kotlinx.coroutines.delay(50)
+
+        vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
+        assertTrue(vm.uiState.value.authPending)
+
+        // Lock while the reveal is pending.
+        session.lock()
+        // MainActivity invalidates the gate; the VM collector clears state.
+        kotlinx.coroutines.delay(50)
+        assertFalse(vm.uiState.value.authPending)
         assertNull(vm.revealedValue("apiSecret"))
     }
 }

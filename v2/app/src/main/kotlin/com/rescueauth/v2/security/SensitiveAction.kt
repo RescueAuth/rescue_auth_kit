@@ -37,9 +37,15 @@ enum class SensitiveAction {
     /** Copy an SSH private key to the clipboard. */
     COPY_SSH_PRIVATE_KEY,
 
-    /** Reveal or copy an SSH passphrase. */
+    /** Reveal an SSH passphrase. */
     REVEAL_SSH_PASSPHRASE,
 
-    /** Reveal or copy a Generic Secret field value. */
+    /** Copy an SSH passphrase to the clipboard. */
+    COPY_SSH_PASSPHRASE,
+
+    /** Reveal a Generic Secret field value. */
     REVEAL_GENERIC_SECRET,
+
+    /** Copy a Generic Secret field value to the clipboard. */
+    COPY_GENERIC_SECRET,
 }

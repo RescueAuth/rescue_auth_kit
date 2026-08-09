@@ -283,11 +283,16 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
   - Export selected sensitive package（含 keystore / SSH private key /
     API secret 的 section）
   - Export Android keystore file
-  - reveal SSH private key
-  - reveal API secret
+  - reveal / copy SSH private key、SSH passphrase、API secret / apiKey、
+    Generic Secret field value
   - reveal signing storePassword / keyPassword
   - 其他等价的高敏感长期 secret
 - **不覆盖**：TOTP 查看/复制（日常高频，走普通解锁）、普通 metadata 查看。
+- **授权语义（Phase 4 P4 + security-boundary CR）**：one-shot + 绑定原始
+  target。成功 re-auth 只授权恰好一个 `SensitiveActionRequest`
+  （`action` + `stableId` + `fieldKey`），并立即消费；reveal 授权绝不复用于
+  copy；prompt 期间 selection / navigation / 第二个同类型请求都不会把成功
+  结果作用于其它 entry / field（ADR-0010）。
 - **Roadmap 归属**：
   - 基础设施（认证会话复用、`resolveAvailableAuthenticators` 复用 Phase 2）
     → 放在 **Phase 4 P4**（首批 Developer slice）接入；
