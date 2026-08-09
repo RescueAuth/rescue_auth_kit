@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import com.rescueauth.v2.ui.authenticator.AuthenticatorRoute
+import com.rescueauth.v2.ui.authenticator.RecoveryCodesRoute
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
@@ -101,7 +102,24 @@ fun RescueAuthApp(
         ) {
             composable(RescueAuthRoutes.AUTHENTICATOR) {
                 AuthenticatorRoute(
+                    onOpenAccount = { accountId ->
+                        navController.navigate("authenticator/account/$accountId")
+                    },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR),
+                )
+            }
+            composable(
+                route = RescueAuthRoutes.AUTHENTICATOR_ACCOUNT,
+                arguments = listOf(
+                    androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
+                        type = androidx.navigation.NavType.StringType
+                    },
+                ),
+            ) { entry ->
+                val accountId = entry.arguments?.getString(RescueAuthRoutes.ARG_ACCOUNT_ID).orEmpty()
+                RecoveryCodesRoute(
+                    accountId = accountId,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(RescueAuthRoutes.DEVELOPER) {

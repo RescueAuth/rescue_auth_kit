@@ -231,7 +231,7 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 > entry、真实 production storage、倒计时/复制/删除+Undo（见
 > `docs/PHASE4_P1_REPORT.md`）。
 | **P2 — otpauth-migration import** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P2_REPORT.md`）QR 扫描（CameraX + ML Kit）+ `otpauth-migration://` 批量导入（独立纯 Kotlin adapter + 多 QR batch session + repository batch import） | 可从 Google Authenticator 扫码批量迁入 | P1 | S |
-| **P3 — Recovery Codes slice** | 恢复码列表：batch add / expand-collapse / copy all / edit / delete / move；used-unused 标记 + remaining count + used 弱化显示 | 恢复码可完整管理（一等 Vault credential） | P1 | M |
+| **P3 — Recovery Codes slice** | ✅ 已实现（Issue #1，见 `docs/PHASE4_P3_REPORT.md`）Account detail 恢复码页：batch add（多行粘贴 + preview）/ expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused（remaining count 实时更新）/ edit（最小 diff 保留 stableId + USED state）/ delete + Undo（恢复 exact stableIds/states） | 恢复码可完整管理（一等 Vault credential），P3 数据自然进入 Full Vault Export/Import round-trip | P1 | M |
 | **P4 — Developer Vault slice（第一批）** | Android Signing Key + API Credential 全 CRUD / reveal-hide / copy / export keystore / key.properties 复制；Sensitive re-auth 接入 | 两种最常见的 Developer Entry 可日常使用 | 3D + re-auth（§5.6） | M |
 | **P5 — Selective Export / Import** | Package domain 已支持 partial snapshot；UI：Entire Vault / Authenticator section / Developer section / Selected items；Import 支持 Select items（同一 Merge Engine） | 用户可按需迁移部分数据 | 3D + P3/P4 | M |
 | **P6 — Developer Vault slice（第二批）** | SSH Key / Env Var Set / Generic Secret 全 CRUD / copy / reveal | 五类 Developer Entry 全部可日常使用 | P4 | M |
@@ -426,7 +426,7 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 - [ ] manual Export Package
 - [ ] Native Package Import
 - [ ] merge / dedupe
-- [ ] basic Recovery Codes（add / view / copy-all / used-unused / delete）
+- [x] basic Recovery Codes（add / view / copy-all / used-unused / delete）
 - [ ] basic Developer Vault（至少 Android Signing Key + API Credential）
 - [ ] sensitive-action re-auth（Export 与 reveal 类操作）
 

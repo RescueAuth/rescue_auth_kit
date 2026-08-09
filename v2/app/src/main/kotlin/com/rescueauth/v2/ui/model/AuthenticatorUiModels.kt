@@ -27,7 +27,10 @@ data class AccountUi(
     val isPinned: Boolean = false,
     val totpCredentials: List<TotpCredentialUi> = emptyList(),
     val recoverySets: List<RecoveryCodeSetUi> = emptyList(),
-)
+) {
+    val remainingRecoveryCount: Int get() = recoverySets.sumOf { it.remainingCount }
+    val totalRecoveryCount: Int get() = recoverySets.sumOf { it.totalCount }
+}
 
 /**
  * Pure UI model for a TOTP credential. Contains display metadata only — the
@@ -44,18 +47,28 @@ data class TotpCredentialUi(
     val currentCode: String? = null,
 )
 
-/** Pure UI model for a recovery-code set. */
+/**
+ * Pure UI model for a recovery-code set.
+ *
+ * The code values are secret-like data: this model is produced by the
+ * ViewModel from the real repository and never appears in logs / previews with
+ * real credentials. `remainingCount` drives the collapsed card subtitle;
+ * `usedAt` is surfaced so the user can see when a code was consumed.
+ */
 data class RecoveryCodeSetUi(
     val id: String,
     val title: String,
     val usedCount: Int,
     val totalCount: Int,
     val codes: List<RecoveryCodeUi> = emptyList(),
-)
+) {
+    val remainingCount: Int get() = totalCount - usedCount
+}
 
 /** Pure UI model for a single recovery code. */
 data class RecoveryCodeUi(
     val id: String,
     val value: String,
     val isUsed: Boolean,
+    val usedAt: String? = null,
 )

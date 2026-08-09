@@ -31,3 +31,36 @@ data class AuthAccount(
     val favorite: Boolean = false,
     val notes: String? = null,
 )
+
+/**
+ * A recovery-code set (Phase 4 P3).
+ *
+ * Belongs to exactly one [AuthAccount] (Provider → Account → Recovery Code
+ * Set → Recovery Code[]). The set carries the stable logical identity that
+ * survives export/import (Phase 3A); codes preserve their own stableId and
+ * used/unused state across edits. The plaintext code values are secret-like
+ * data that must never be logged or indexed.
+ */
+data class RecoveryCodeSet(
+    val id: String,
+    val stableId: String,
+    val accountId: String,
+    val title: String,
+    val createdAt: String,
+    val codes: List<RecoveryCode> = emptyList(),
+) {
+    val usedCount: Int get() = codes.count { it.isUsed }
+    val totalCount: Int get() = codes.size
+    val remainingCount: Int get() = totalCount - usedCount
+}
+
+/** A single recovery code inside a [RecoveryCodeSet]. */
+data class RecoveryCode(
+    val id: String,
+    val stableId: String,
+    val setId: String,
+    val value: String,
+    val isUsed: Boolean,
+    val usedAt: String? = null,
+    val sortOrder: Int = 0,
+)

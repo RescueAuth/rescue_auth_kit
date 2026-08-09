@@ -81,6 +81,36 @@
     <string name="recovery_codes_used">已使用</string>
     <string name="recovery_codes_unused">未使用</string>
     <string name="recovery_codes_copy_all">全部复制</string>
+    <string name="recovery_codes_remaining_count">剩余 %1$d · 共 %2$d</string>
+    <string name="recovery_codes_used_count">已使用 %1$d 个</string>
+    <string name="recovery_codes_copy_remaining">复制剩余</string>
+    <string name="recovery_codes_mark_used">标记为已使用</string>
+    <string name="recovery_codes_mark_unused">标记为未使用</string>
+    <string name="recovery_codes_reveal">显示</string>
+    <string name="recovery_codes_hide">隐藏</string>
+    <string name="recovery_codes_copy">复制</string>
+    <string name="recovery_codes_copied">恢复码已复制</string>
+    <string name="recovery_codes_all_copied">已复制全部恢复码</string>
+    <string name="recovery_codes_remaining_copied">已复制剩余恢复码</string>
+    <string name="recovery_codes_marked_used">已标记为已使用</string>
+    <string name="recovery_codes_marked_unused">已标记为未使用</string>
+    <string name="recovery_codes_add_title">添加恢复码</string>
+    <string name="recovery_codes_edit_title">编辑恢复码</string>
+    <string name="recovery_codes_set_title_label">标题</string>
+    <string name="recovery_codes_values_label">恢复码</string>
+    <string name="recovery_codes_values_hint">每行一个恢复码，可一次粘贴多个。</string>
+    <string name="recovery_codes_preview">已解析 %1$d 个恢复码</string>
+    <string name="recovery_codes_duplicate_error">重复的恢复码：%1$s</string>
+    <string name="recovery_codes_empty_error">请至少输入一个恢复码。</string>
+    <string name="recovery_codes_title_error">请输入标题。</string>
+    <string name="recovery_codes_save">保存</string>
+    <string name="recovery_codes_added_message">已添加恢复码</string>
+    <string name="recovery_codes_edited_message">恢复码已更新</string>
+    <string name="recovery_codes_deleted_message">%1$s 已删除</string>
+    <string name="recovery_codes_restored_message">恢复码已恢复</string>
+    <string name="recovery_codes_empty_state">还没有恢复码。添加一组即可在此保存您的备用码。</string>
+    <string name="recovery_codes_account_summary">恢复码 · 剩余 %1$d</string>
+    <string name="recovery_codes_delete">删除</string>
 
     <!-- Developer Vault -->
     <string name="developer_title">开发者</string>

@@ -221,7 +221,7 @@ class AuthenticatorViewModelTest {
         val stableId = card.stableId
 
         assertTrue(vm.deleteCard(card))
-        awaitState(vm) { it.isEmpty }
+        awaitState(vm) { it.totpCards.isEmpty() }
         assertTrue(vm.events.value is AuthenticatorEvent.Deleted)
 
         assertTrue(vm.undoDelete())
