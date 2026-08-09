@@ -202,6 +202,21 @@ per-export PIN 对话框 + import preview + confirm transactional apply。
   `:app:lintDebug` 0 error；`:app:assembleDebug` / `:app:assembleDebugAndroidTest`
   成功。不主动运行 FTL（合入 main 后 changed-file gate 自动触发）。
 
+### Merge 前收尾（PR #26 rebase latest main + Export/PIN UX contract）
+
+- **Export PIN Product Policy 锁定**：新增 `PinPolicyTest`（19 tests）锁定
+  charset = ASCII 数字、minimum 6、maximum 128、confirm 一致；Import 只拒绝
+  空 PIN（历史/第三方包的任意 codec 合法 PIN 均可导入）。规则全部集中在
+  `PinPolicy.validateExportPin` / `validateImportPin`，Composable 不再内嵌
+  policy 常量。
+- **Export 流程重排为 PIN + confirm → CreateDocument → encode/write**：
+  PIN 取消不会创建文件；SAF destination 取消回到 AwaitingPin；写失败
+  best-effort 清理（provider 不支持删除时不 crash）。新增 ViewModel 测试：
+  PIN cancel 不创建文档、destination cancel 无文件、写失败清理、delete
+  抛异常不 crash、session lock 丢弃 pending PIN、短 PIN 导入仍可解密。
+- 保持范围：不实现 Sensitive Action Re-auth / selective export / Legacy
+  Import / conflict resolution / Phase 4 features。
+
 ## [v2 phase3c transactional-import-merge] - 2026-08-08（Phase 3C：Transactional Import / Merge Apply，PR #24 已 merge）
 
 Phase 3C 独立 PR：把 Phase 3A 的 `MergePlan` 以事务方式应用到本地 encrypted

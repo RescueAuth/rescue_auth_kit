@@ -114,6 +114,8 @@
     <string name="export_intro">创建整个保险库的加密便携数据包，包含认证器、恢复码和开发者保险库。</string>
     <string name="export_full_vault_notice">本操作导出完整保险库（FULL_VAULT 范围）。选择性导出将在后续版本提供。</string>
     <string name="export_start">选择保存位置</string>
+    <string name="export_pin_accepted">PIN 已确认</string>
+    <string name="export_choose_destination_hint">现在选择此加密数据包的保存位置。</string>
     <string name="export_pin_title">为此数据包设置 PIN</string>
     <string name="export_pin_policy">该 PIN 仅保护本次导出，不会保存，也不会改变保险库解锁方式。</string>
     <string name="export_success">导出完成</string>
@@ -134,7 +136,10 @@
     <string name="pin_submit">继续</string>
     <string name="pin_show">显示</string>
     <string name="pin_hide">隐藏</string>
-    <string name="pin_policy_error">PIN 必须为 %1$d–%2$d 位数字。</string>
+    <string name="pin_policy_error_short">PIN 至少需要 %1$d 位数字。</string>
+    <string name="pin_policy_error_long">PIN 最多 %1$d 位数字。</string>
+    <string name="pin_policy_error_charset">PIN 只能包含数字（0-9）。</string>
+    <string name="pin_error_empty">请输入 PIN。</string>
     <string name="pin_mismatch_error">两次输入的 PIN 不一致。</string>
 
     <!-- Import preview -->

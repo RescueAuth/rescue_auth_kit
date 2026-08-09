@@ -109,9 +109,8 @@ class ExportImportViewModelTest {
     fun `export cancel produces no success state`() = runBlocking {
         val fake = FakePackageFileIo()
         val vm = newVm(fake)
-        // With the restructured flow there is no AwaitingPin until a
-        // destination is picked; cancelExport after a destination leaves Idle.
-        vm.onExportDestinationPicked(Uri.parse("content://dest/1"))
+        // New flow: PIN first → AwaitingPin; cancel leaves Idle with no write.
+        vm.beginExport()
         assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
         vm.cancelExport()
         assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
@@ -119,16 +118,37 @@ class ExportImportViewModelTest {
     }
 
     @Test
-    fun `export writes only encrypted bytes and reports success`() = runBlocking {
+    fun `cancelling the PIN never creates a document`() = runBlocking {
         val fake = FakePackageFileIo()
         val vm = newVm(fake)
+        vm.beginExport()
+        vm.cancelExport()
+        // No CreateDocument ever happened: no write, and the ViewModel never
+        // left the PIN screen for the destination.
+        assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+        assertTrue(fake.deletedUris.isEmpty())
+    }
+
+    @Test
+    fun `pin confirm then destination produces success and writes exactly once`() = runBlocking {
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake)
+        vm.beginExport()
+        assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
+
+        // PIN + confirm accepted → AwaitingDestination (no file yet).
+        val reason = vm.submitExportPin(pin, pin.copyOf())
+        assertNull(reason)
+        assertEquals(ExportImportViewModel.ExportState.AwaitingDestination, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+
+        // Destination picked → encode + write → success.
         vm.onExportDestinationPicked(Uri.parse("content://dest/1"))
-        vm.exportToUri(pin)
         awaitIdle(vm)
         assertTrue("state=${vm.exportState.value}", vm.exportState.value is ExportImportViewModel.ExportState.Success)
         assertEquals(1, fake.written.size)
         val written = fake.written[0]
-        // The written bytes are the encrypted package (magic present).
         val magic = PackageFormat.MAGIC.toByteArray(Charsets.US_ASCII)
         assertTrue(written.size >= magic.size)
         for (i in magic.indices) {
@@ -137,21 +157,83 @@ class ExportImportViewModelTest {
     }
 
     @Test
-    fun `export write failure returns error and clears pin`() = runBlocking {
+    fun `cancelling the destination picker after PIN returns to AwaitingPin without creating a file`() = runBlocking {
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake)
+        vm.beginExport()
+        val reason = vm.submitExportPin(pin, pin.copyOf())
+        assertNull(reason)
+        assertEquals(ExportImportViewModel.ExportState.AwaitingDestination, vm.exportState.value)
+
+        // Simulate the SAF picker returning null (user cancelled).
+        vm.cancelExportDestination()
+        assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+        assertTrue(fake.deletedUris.isEmpty())
+    }
+
+    @Test
+    fun `export write failure returns error clears pin and best-effort deletes the document`() = runBlocking {
         val fake = FakePackageFileIo(onWrite = { throw ExportImportError.WriteFailed })
         val vm = newVm(fake)
+        vm.beginExport()
+        val reason = vm.submitExportPin(pin, pin.copyOf())
+        assertNull(reason)
         vm.onExportDestinationPicked(Uri.parse("content://dest/2"))
-        vm.exportToUri(pin)
+        awaitIdle(vm)
+        assertTrue(vm.exportState.value is ExportImportViewModel.ExportState.Error)
+        // Best-effort cleanup attempted for the partially-created document.
+        assertEquals(1, fake.deletedUris.size)
+        assertEquals(Uri.parse("content://dest/2"), fake.deletedUris[0])
+    }
+
+    @Test
+    fun `delete cleanup failure does not crash the export`() = runBlocking {
+        val fake = object : FakePackageFileIo() {
+            override suspend fun deleteIfPossible(context: Context, uri: Uri) {
+                throw RuntimeException("provider cannot delete")
+            }
+        }
+        val vm = newVm(fake)
+        vm.beginExport()
+        val reason = vm.submitExportPin(pin, pin.copyOf())
+        assertNull(reason)
+        vm.onExportDestinationPicked(Uri.parse("content://dest/3"))
+        awaitIdle(vm)
+        // Write succeeds → Success; cleanup is not invoked on the success path.
+        assertTrue(vm.exportState.value is ExportImportViewModel.ExportState.Success)
+    }
+
+    @Test
+    fun `export write failure with throwing delete does not crash`() = runBlocking {
+        val fake = object : FakePackageFileIo(onWrite = { throw ExportImportError.WriteFailed }) {
+            override suspend fun deleteIfPossible(context: Context, uri: Uri) {
+                throw RuntimeException("provider cannot delete")
+            }
+        }
+        val vm = newVm(fake)
+        vm.beginExport()
+        val reason = vm.submitExportPin(pin, pin.copyOf())
+        assertNull(reason)
+        vm.onExportDestinationPicked(Uri.parse("content://dest/4"))
         awaitIdle(vm)
         assertTrue(vm.exportState.value is ExportImportViewModel.ExportState.Error)
     }
 
     @Test
-    fun `pin confirm mismatch blocks export at the UI`() = runBlocking {
+    fun `pin confirm mismatch blocks export at the policy layer`() = runBlocking {
         // PinPolicy is the UI-layer check: a too-short or non-digit PIN is
-        // rejected by the screen before the codec sees it.
+        // rejected by the policy before the codec sees it.
         assertTrue(!PinPolicy.isValidPin("12345".toCharArray()))
         assertTrue(PinPolicy.isValidPin("123456".toCharArray()))
+
+        // ViewModel defense-in-depth: mismatched confirm returns MISMATCH and
+        // never transitions to AwaitingDestination.
+        val vm = newVm(FakePackageFileIo())
+        vm.beginExport()
+        val reason = vm.submitExportPin("123456".toCharArray(), "654321".toCharArray())
+        assertEquals(PinPolicy.Reason.MISMATCH, reason)
+        assertEquals(ExportImportViewModel.ExportState.AwaitingPin, vm.exportState.value)
     }
 
     // ------------------------------------------------------------------
@@ -355,6 +437,64 @@ class ExportImportViewModelTest {
         runBlocking { delay(50) }
         assertNull(vm.activeImportSession())
         assertEquals(ExportImportViewModel.ImportState.Idle, vm.importState.value)
+    }
+
+    @Test
+    fun `session lock drops a pending export PIN without creating a document`() = runBlocking {
+        val fake = FakePackageFileIo()
+        val vm = newVm(fake)
+        vm.beginExport()
+        val reason = vm.submitExportPin(pin, pin.copyOf())
+        assertNull(reason)
+        assertEquals(ExportImportViewModel.ExportState.AwaitingDestination, vm.exportState.value)
+
+        session.lock()
+        runBlocking { delay(50) }
+        // Lock clears the export flow AND the transient PIN — no write, no
+        // document, no retained secret.
+        assertEquals(ExportImportViewModel.ExportState.Idle, vm.exportState.value)
+        assertTrue(fake.written.isEmpty())
+        assertTrue(fake.deletedUris.isEmpty())
+    }
+
+    @Test
+    fun `empty import PIN is rejected without attempting decode`() = runBlocking {
+        val bytes = PortablePackageCodec.encode(
+            payload("pkg-e", MergeTestData.fullSnapshot()),
+            pin,
+        )
+        val fake = FakePackageFileIo(stored = bytes)
+        val vm = newVm(fake)
+        vm.handlePickedDocument(Uri.parse("content://doc/empty-pin"))
+        awaitIdle(vm)
+        assertEquals(ExportImportViewModel.ImportState.AwaitingPin, vm.importState.value)
+
+        // Defense-in-depth: an empty PIN never reaches decode (stays AwaitingPin,
+        // session stays null).
+        vm.decodeImportWithPin(CharArray(0))
+        assertEquals(ExportImportViewModel.ImportState.AwaitingPin, vm.importState.value)
+        assertNull(vm.activeImportSession())
+    }
+
+    @Test
+    fun `short import PIN still decodes a package`() = runBlocking {
+        // A historical package protected by a short PIN (4 digits) must import
+        // — Export's length policy is not a package-format requirement.
+        val shortPin = "1234".toCharArray()
+        val bytes = PortablePackageCodec.encode(
+            payload("pkg-short", MergeTestData.fullSnapshot(
+                MergeTestData.account("a", "Svc", "acct", totps = listOf(MergeTestData.totp("t"))),
+            )),
+            shortPin,
+        )
+        shortPin.fill('\u0000')
+        val fake = FakePackageFileIo(stored = bytes)
+        val vm = newVm(fake)
+        vm.handlePickedDocument(Uri.parse("content://doc/short"))
+        awaitIdle(vm)
+        vm.decodeImportWithPin("1234".toCharArray())
+        awaitIdle(vm)
+        assertTrue("state=${vm.importState.value}", vm.importState.value is ExportImportViewModel.ImportState.Preview)
     }
 
     @Test

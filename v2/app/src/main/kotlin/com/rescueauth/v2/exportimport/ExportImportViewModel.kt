@@ -31,8 +31,11 @@ import kotlinx.coroutines.launch
  *
  * ## Flow steps
  *
- * Export: [beginExport] → PIN dialog → SAF CreateDocument → [exportToUri]
- *   (build snapshot → encode → write) → success / failure.
+ * Export: [beginExport] → PIN + confirm → SAF CreateDocument →
+ *   [onExportDestinationPicked] (build snapshot → encode → write) →
+ *   success / failure. **PIN comes before CreateDocument** so cancelling the
+ *   PIN never creates a document (and cancelling the SAF picker creates
+ *   nothing either) — ordinary cancellation leaves no empty `.rakpkg` file.
  * Import: SAF OpenDocument → [handlePickedDocument] (bounded read + identify)
  *   → PIN dialog → [decodeImportWithPin] → [ImportPreview] → [confirmImport]
  *   → result. Cancelling any step clears the session and produces no error.
@@ -51,8 +54,10 @@ class ExportImportViewModel(
 
     sealed interface ExportState {
         object Idle : ExportState
-        /** Waiting for the user to enter + confirm the per-export PIN. */
+        /** Waiting for the user to enter + confirm the per-export PIN (before CreateDocument). */
         object AwaitingPin : ExportState
+        /** PIN accepted; waiting for the SAF CreateDocument destination. */
+        object AwaitingDestination : ExportState
         /** Encrypting + writing the package to SAF. */
         object Working : ExportState
         data class Success(val packageId: String, val scopeLabel: String) : ExportState
@@ -95,6 +100,16 @@ class ExportImportViewModel(
     private var pendingExportUri: Uri? = null
 
     /**
+     * Transient per-export PIN held ONLY between PIN confirmation and the SAF
+     * destination picker. It lives in an in-memory field (not
+     * SavedStateHandle / Bundle / rememberSaveable / disk / DataStore / Room),
+     * is zeroized on cancel / apply / lock / dispose, and is never exposed
+     * through Compose state (Issue #1 §9, §15).
+     */
+    @Volatile
+    private var pendingExportPin: CharArray? = null
+
+    /**
      * The service instance used by the current import/export operation.
      *
      * Resolved once per operation so the import session (which lives inside
@@ -130,6 +145,8 @@ class ExportImportViewModel(
                     activeService = null
                     pendingImportUri = null
                     pendingExportUri = null
+                    pendingExportPin?.fill('\u0000')
+                    pendingExportPin = null
                     if (_importState.value is ImportState.Preview ||
                         _importState.value is ImportState.AwaitingPin ||
                         _importState.value is ImportState.Decoding
@@ -137,6 +154,7 @@ class ExportImportViewModel(
                         _importState.value = ImportState.Idle
                     }
                     if (_exportState.value is ExportState.AwaitingPin ||
+                        _exportState.value is ExportState.AwaitingDestination ||
                         _exportState.value is ExportState.Working
                     ) {
                         _exportState.value = ExportState.Idle
@@ -146,9 +164,11 @@ class ExportImportViewModel(
         }
     }
 
-    /** Releases the session-collection job (called from Compose onDispose). */
+    /** Releases the session-collection job and zeroizes any held PIN (called from Compose onDispose). */
     fun dispose() {
         sessionJob?.cancel()
+        pendingExportPin?.fill('\u0000')
+        pendingExportPin = null
     }
 
     // ------------------------------------------------------------------
@@ -156,36 +176,54 @@ class ExportImportViewModel(
     // ------------------------------------------------------------------
 
     /**
-     * Records the SAF destination chosen via CreateDocument and asks for the
-     * per-export PIN. The PIN is therefore never held across the picker
-     * callback. Phase 4 P4 will insert a fresh re-auth gate here, before any
+     * Starts the export flow. This is the single entry point where Phase 4 P4
+     * will insert a fresh Biometric/Device-credential re-auth gate before any
      * snapshot / encode / write work (Issue #1 §10).
      */
-    fun onExportDestinationPicked(uri: Uri) {
+    fun beginExport() {
         if (_exportState.value is ExportState.Working) return
-        pendingExportUri = uri
         _exportState.value = ExportState.AwaitingPin
     }
 
-    /** Cancels the export flow — no error state, nothing written. */
-    fun cancelExport() {
-        pendingExportUri = null
-        _exportState.value = ExportState.Idle
+    /**
+     * Validates the entered per-export PIN + confirmation. On success the PIN
+     * is retained in a transient in-memory field while the SAF destination is
+     * chosen (PIN + confirm FIRST, CreateDocument SECOND — cancelling the PIN
+     * never creates a document). On rejection returns the [PinPolicy.Reason]
+     * so the UI can show it; returns `null` when the flow may proceed.
+     */
+    fun submitExportPin(pin: CharArray, confirm: CharArray): PinPolicy.Reason? {
+        when (val v = PinPolicy.validateExportPin(pin, confirm)) {
+            is PinPolicy.Validation.Valid -> {
+                confirm.fill('\u0000')
+                pendingExportPin?.fill('\u0000')
+                pendingExportPin = pin
+                _exportState.value = ExportState.AwaitingDestination
+                return null
+            }
+            is PinPolicy.Validation.Invalid -> {
+                pin.fill('\u0000')
+                confirm.fill('\u0000')
+                return v.reason
+            }
+        }
     }
 
     /**
-     * Finalises the export to the previously chosen SAF destination with the
-     * user-entered [pin]. Builds a consistent FULL_VAULT snapshot, encodes with
-     * the per-export PIN, writes ONLY the encrypted package bytes, and reports
-     * success/failure.
+     * Called after the user picks (or the system created) a SAF destination.
+     * Builds a consistent FULL_VAULT snapshot, encodes with the retained PIN,
+     * writes ONLY the encrypted package bytes, and reports success/failure.
+     * On any failure the partially-created document is best-effort deleted
+     * (never crashes if the provider does not support deletion).
      */
-    fun exportToUri(pin: CharArray) {
-        val uri = pendingExportUri
-        if (uri == null) {
-            pin.fill('\u0000')
-            _exportState.value = ExportState.Error(toExportMessage(ExportImportError.WriteFailed))
+    fun onExportDestinationPicked(uri: Uri) {
+        if (_exportState.value !is ExportState.AwaitingDestination) return
+        val pin = pendingExportPin
+        if (pin == null) {
+            _exportState.value = ExportState.AwaitingPin
             return
         }
+        pendingExportUri = uri
         _exportState.value = ExportState.Working
         scope.launch {
             try {
@@ -199,24 +237,58 @@ class ExportImportViewModel(
                 )
             } catch (e: VaultRepository.SessionLockedException) {
                 pendingExportUri = null
+                bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(
                     "Your vault is locked. Unlock it and try again.",
                 )
             } catch (e: ExportImportError) {
                 pendingExportUri = null
+                bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(toExportMessage(e))
             } catch (e: Exception) {
                 pendingExportUri = null
+                bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(toExportMessage(ExportImportError.Unknown))
             } finally {
                 pin.fill('\u0000')
+                pendingExportPin?.fill('\u0000')
+                pendingExportPin = null
             }
         }
+    }
+
+    /** Best-effort cleanup of a partially written SAF document. Never crashes. */
+    private suspend fun bestEffortDelete(uri: Uri) {
+        try {
+            fileIo.deleteIfPossible(context, uri)
+        } catch (_: Exception) {
+            // Cleanup is best-effort: a provider that cannot delete must not
+            // crash the export or turn a normal cancel into a failure.
+        }
+    }
+
+    /** Cancels the export flow — no document created, no error state. */
+    fun cancelExport() {
+        pendingExportUri = null
+        pendingExportPin?.fill('\u0000')
+        pendingExportPin = null
+        _exportState.value = ExportState.Idle
+    }
+
+    /**
+     * The SAF CreateDocument picker was cancelled after PIN confirmation.
+     * Nothing was written; return to PIN entry so the user can re-enter.
+     */
+    fun cancelExportDestination() {
+        pendingExportUri = null
+        _exportState.value = ExportState.AwaitingPin
     }
 
     /** Clears an export result/error so the user can start again. */
     fun resetExport() {
         pendingExportUri = null
+        pendingExportPin?.fill('\u0000')
+        pendingExportPin = null
         _exportState.value = ExportState.Idle
     }
 
@@ -282,6 +354,15 @@ class ExportImportViewModel(
         if (uri == null) {
             pin.fill('\u0000')
             _importState.value = ImportState.Error("Choose a package file first.")
+            return
+        }
+        // Defense-in-depth: the UI already prevents an empty submit, but the
+        // ViewModel also rejects it so a useless decode is never attempted.
+        // Length / charset rules are deliberately NOT applied here — any
+        // codec-legal package PIN must be decodable (Issue #1 §9).
+        if (PinPolicy.validateImportPin(pin) !is PinPolicy.Validation.Valid) {
+            pin.fill('\u0000')
+            _importState.value = ImportState.AwaitingPin
             return
         }
         _importState.value = ImportState.Decoding

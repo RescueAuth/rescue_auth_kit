@@ -201,7 +201,7 @@ class ExportImportServiceTest {
     @Test
     fun `export cancel produces no success state`() = runBlocking {
         // Service-level: no cancel API; the ViewModel owns cancel. This asserts
-        // that nothing is written until exportToUri is called (covered by the
+        // that nothing is written until a destination is chosen (covered by the
         // ViewModel test). Here we verify encode does not write to a URI.
         val svc = service()
         val encoded = svc.encodeFullVaultExport(pin)

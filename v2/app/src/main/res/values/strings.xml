@@ -114,6 +114,8 @@
     <string name="export_intro">Create an encrypted portable package of your entire vault — Authenticator, Recovery Codes and Developer Vault.</string>
     <string name="export_full_vault_notice">This exports the full vault (FULL_VAULT scope). Selective export will come in a later release.</string>
     <string name="export_start">Choose destination</string>
+    <string name="export_pin_accepted">PIN accepted</string>
+    <string name="export_choose_destination_hint">Now choose where to save this encrypted package.</string>
     <string name="export_pin_title">Set a PIN for this package</string>
     <string name="export_pin_policy">This PIN protects only this export. It is not stored and does not change your vault unlock.</string>
     <string name="export_success">Export complete</string>
@@ -134,7 +136,10 @@
     <string name="pin_submit">Continue</string>
     <string name="pin_show">Show</string>
     <string name="pin_hide">Hide</string>
-    <string name="pin_policy_error">PIN must be %1$d–%2$d digits.</string>
+    <string name="pin_policy_error_short">PIN must be at least %1$d digits.</string>
+    <string name="pin_policy_error_long">PIN must be at most %1$d digits.</string>
+    <string name="pin_policy_error_charset">PIN must contain only digits (0-9).</string>
+    <string name="pin_error_empty">Enter a PIN.</string>
     <string name="pin_mismatch_error">PINs do not match.</string>
 
     <!-- Import preview -->

@@ -587,8 +587,8 @@ Compose
 
 ```
 Export Vault（Settings → Backup/Transfer）
+  → per-export PIN 对话框（输入 + 确认，隐藏/短暂 reveal，PIN 先于文件）
   → SAF CreateDocument（.rakpkg，MIME hint）
-  → per-export PIN 对话框（输入 + 确认，隐藏/短暂 reveal）
   → ExportImportService.encodeFullVaultExport
       = VaultRepository.buildConsistentExportSnapshot（FULL_VAULT scope）
         → VaultPackagePayload（packageId/createdAt/source metadata）
@@ -597,13 +597,18 @@ Export Vault（Settings → Backup/Transfer）
   → success/failure
 ```
 
+- **顺序：PIN + confirm → CreateDocument → encode/write**。PIN 取消不会创建
+  文件；SAF destination 取消也什么都不写（回到 AwaitingPin）——普通取消操作
+  不留下空/无效 `.rakpkg` 文档（Issue #1 §8 / §28）。
 - 快照一致性：`buildConsistentExportSnapshot` 在 repository mutex + 单
   Room 事务内构造（Issue #1 §17）。
 - 只允许 encrypted package bytes 离开 App：不写 plaintext 临时文件、
   不把 decrypted snapshot 写 cache、不把 PackageKey/KEK/PIN 落盘、不写日志。
 - 写失败：明确返回 export failure；best-effort delete 部分 document
   （provider 支持时），不 crash、不宣称成功（Issue #1 §8）。
-- 取消任一步（SAF 取消 / PIN 取消）→ 不产生 error 状态。
+- 取消任一步（PIN 取消 / SAF 取消）→ 不产生 error 状态。
+- PIN 在确认后短暂保存在 ViewModel 内存字段，CreateDocument 选择完成后立即
+  使用并 zeroize；cancel / session lock / dispose 同样 zeroize。
 
 ### 12.3 SAF import flow（Issue #1 §5 / §7 / §11 / §24）
 
@@ -670,6 +675,20 @@ Import Native Package（Settings → Backup/Transfer）
   format**，只在 Android UI 层建立 `PinPolicy`（Product Policy constant）：
   6–128 位纯数字（保守最小安全策略）。最终报告中明确列出，不作为
   package-format requirement。
+- **最终策略（merge 前收尾锁定）**：
+  - **charset**：纯数字 ASCII `0-9`（`PinPolicy.isAllowedExportCharacter`）。
+  - **minimum length**：6（`PinPolicy.MIN_PIN_LENGTH`）。
+  - **maximum length**：128（`PinPolicy.MAX_PIN_LENGTH`，防御性）。
+  - **validation location**：所有规则只在 `PinPolicy.validateExportPin` /
+    `validateImportPin`（ExportImportViewModel 再叠加 defense-in-depth
+    校验）。Composable 只把 `PinPolicy.Reason` 映射为字符串资源，**不内嵌
+    任何 policy 常量**。
+  - **Import 只拒绝空 PIN**：长度/charset 规则是 Export UI 产品策略，不是
+    package-format requirement；历史/第三方包的任何 codec 合法 PIN
+    （含短 PIN、非数字 PIN）都必须能导入。
+- Export 流程顺序为 **PIN + confirm → CreateDocument → encode/write**，
+  PIN 取消不会创建文件；写失败 best-effort 清理（`fileIo.deleteIfPossible`，
+  失败不 crash）。
 
 ### 12.8 Sensitive-action re-auth boundary（Issue #1 §10）
 

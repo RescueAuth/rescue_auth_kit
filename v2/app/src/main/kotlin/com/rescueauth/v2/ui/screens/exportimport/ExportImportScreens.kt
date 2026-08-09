@@ -1,5 +1,6 @@
 package com.rescueauth.v2.ui.screens.exportimport
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,7 +49,7 @@ object ExportImportTestTags {
 /**
  * Export Vault screen (Phase 3D §28).
  *
- * Flow: Export Vault → package info → PIN + confirm → SAF destination →
+ * Flow: Export Vault → PIN + confirm → SAF destination →
  * export → success/failure. The PIN is held in transient local state only;
  * it is never written to SavedStateHandle / Bundle / DataStore / logs.
  */
@@ -57,7 +58,8 @@ object ExportImportTestTags {
 fun ExportVaultScreen(
     state: ExportImportViewModel.ExportState,
     onStart: () -> Unit,
-    onExport: (pin: CharArray) -> Unit,
+    onSubmitPin: (pin: CharArray, confirm: CharArray) -> PinPolicy.Reason?,
+    onChooseDestination: () -> Unit,
     onCancel: () -> Unit,
     onDismissResult: () -> Unit,
     modifier: Modifier = Modifier,
@@ -91,9 +93,28 @@ fun ExportVaultScreen(
                 is ExportImportViewModel.ExportState.AwaitingPin -> {
                     PinEntry(
                         mode = PinEntryMode.EXPORT,
-                        onSubmit = onExport,
+                        onSubmit = { pin, confirm ->
+                            // Export policy check is delegated to the ViewModel
+                            // (single source of truth); the returned Reason (if any)
+                            // is surfaced by PinEntry. null → proceed.
+                            onSubmitPin(pin, confirm ?: CharArray(0))
+                        },
                         onCancel = onCancel,
                     )
+                }
+                is ExportImportViewModel.ExportState.AwaitingDestination -> {
+                    Text(
+                        text = stringResource(R.string.export_pin_accepted),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.export_choose_destination_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = onChooseDestination, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.export_start))
+                    }
                 }
                 is ExportImportViewModel.ExportState.Working -> {
                     Text(stringResource(R.string.common_working))
@@ -172,7 +193,13 @@ fun ImportNativePackageScreen(
                 is ExportImportViewModel.ImportState.AwaitingPin -> {
                     PinEntry(
                         mode = PinEntryMode.IMPORT,
-                        onSubmit = onDecode,
+                        onSubmit = { pin, _ ->
+                            // Import only requires a non-empty PIN (any codec-legal
+                            // package PIN must be decodable; Export's length/charset
+                            // rules are not package-format requirements).
+                            onDecode(pin)
+                            null
+                        },
                         onCancel = onCancelPin,
                     )
                 }
@@ -216,15 +243,29 @@ fun ImportNativePackageScreen(
 
 enum class PinEntryMode { EXPORT, IMPORT }
 
+/** Formats a [PinPolicy.Reason] message with the policy constants (UI presentation only). */
+private fun pinPolicyMessage(context: Context, reason: PinPolicy.Reason): String =
+    when (reason) {
+        PinPolicy.Reason.EMPTY -> context.getString(R.string.pin_error_empty)
+        PinPolicy.Reason.TOO_SHORT -> context.getString(R.string.pin_policy_error_short, PinPolicy.MIN_PIN_LENGTH)
+        PinPolicy.Reason.TOO_LONG -> context.getString(R.string.pin_policy_error_long, PinPolicy.MAX_PIN_LENGTH)
+        PinPolicy.Reason.NON_DIGIT -> context.getString(R.string.pin_policy_error_charset)
+        PinPolicy.Reason.MISMATCH -> context.getString(R.string.pin_mismatch_error)
+    }
+
 /**
  * PIN entry for Export (enter + confirm) and Import (enter once). The PIN is
  * a local CharArray, cleared after submit/cancel; fields are hidden by default
  * with a reveal toggle (Issue #1 §9).
+ *
+ * All validation rules are evaluated by [PinPolicy] (single source of truth);
+ * this composable only maps a returned [PinPolicy.Reason] to a string resource
+ * and never embeds policy constants (charset / length) itself.
  */
 @Composable
 private fun PinEntry(
     mode: PinEntryMode,
-    onSubmit: (CharArray) -> Unit,
+    onSubmit: (CharArray, CharArray?) -> PinPolicy.Reason?,
     onCancel: () -> Unit,
 ) {
     var pin by remember { mutableStateOf("") }
@@ -317,17 +358,14 @@ private fun PinEntry(
             Button(
                 onClick = {
                     val p = pin.toCharArray()
-                    val isValid = PinPolicy.isValidPin(p)
-                    val matches = mode == PinEntryMode.IMPORT || pin == confirm
-                    if (!isValid) {
-                        pinError = context.getString(R.string.pin_policy_error, PinPolicy.MIN_PIN_LENGTH, PinPolicy.MAX_PIN_LENGTH)
+                    val c = if (mode == PinEntryMode.EXPORT) confirm.toCharArray() else null
+                    val reason = onSubmit(p, c)
+                    if (reason != null) {
+                        pinError = pinPolicyMessage(context, reason)
                         p.fill('\u0000')
-                    } else if (!matches) {
-                        pinError = context.getString(R.string.pin_mismatch_error)
-                        p.fill('\u0000')
-                    } else {
-                        onSubmit(p)
+                        c?.fill('\u0000')
                     }
+                    // On success the ViewModel owns the arrays and zeroizes them.
                 },
                 enabled = pin.isNotEmpty(),
                 modifier = Modifier

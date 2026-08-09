@@ -31,7 +31,7 @@ Compose → ExportImportViewModel（coordinator） → ExportImportService（use
 
 - Export：`ActivityResultContracts.CreateDocument`，扩展名 `.rakpkg`，
   MIME hint `application/vnd.rescueauth.v2-package`（见 PACKAGE_FORMAT.md
-  §扩展名 / MIME contract）。
+  §扩展名 / MIME contract）。**CreateDocument 在 PIN + confirm 之后触发**。
 - Import：`ActivityResultContracts.OpenDocument`（`*/*`），由实际 bytes +
   magic + codec 决定类型。
 - 禁止直接写 /sdcard、MANAGE_EXTERNAL_STORAGE、
@@ -52,6 +52,16 @@ Compose → ExportImportViewModel（coordinator） → ExportImportService（use
   rememberSaveable / 持久化；优先 CharArray，用后 best-effort 清理。
 - charset / min length 未在 PACKAGE_FORMAT 正式定义 → 不在 codec 写死；
   Android UI 层 `PinPolicy`：6–128 位纯数字（Product Policy constant）。
+- **merge 前收尾锁定最终策略**：
+  - charset = ASCII 数字 `0-9`；minimum = 6；maximum = 128（防御）。
+  - validation location：`PinPolicy.validateExportPin` /
+    `validateImportPin`（单点规则）；ViewModel 叠加 defense-in-depth；
+    Composable 只映射 `PinPolicy.Reason` 到字符串，不内嵌常量。
+  - Import 只拒绝空 PIN —— 长度/charset 是 Export UI 产品策略，不是
+    package-format requirement，历史/第三方包的任意 codec 合法 PIN 必须可导入。
+- **Export 顺序：PIN + confirm → CreateDocument → encode/write**。PIN 取消
+  不创建文件；SAF destination 取消回到 AwaitingPin；写失败 best-effort
+  delete（provider 不支持时不 crash）。
 
 ### 5. Export snapshot consistency
 

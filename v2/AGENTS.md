@@ -52,6 +52,14 @@
   confirm 走 Phase 3C `applyMergePlan`（re-plan/preflight/apply 最终 authority）；
   `.rakpkg` 扩展名 + MIME contract 同步 PACKAGE_FORMAT；Sensitive-action
   fresh re-auth 保持为 Phase 4 P4 依赖，本轮不伪造）。
+  **Export PIN Product Policy 已锁定**（merge 前收尾）：Export = 纯数字
+  6–128 位 + 确认一致，集中在 `PinPolicy`（Product Policy constant，非
+  package-format requirement）；Import 只拒绝空 PIN（任意 codec 合法 PIN
+  均可解密，历史/第三方包不被 Export UI 策略拒绝）；**流程为 PIN + confirm
+  → CreateDocument → encode/write**，PIN cancel 不会创建文件，写失败
+  best-effort 清理不 crash；PIN/decoded payload 不进 SavedStateHandle /
+  Bundle / rememberSaveable / DataStore / Room，cancel / apply / lock 后
+  best-effort zeroize。
   数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
   生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
   （non-blocking backlog，见 PHASE2_REPORT §C）。

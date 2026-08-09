@@ -23,11 +23,11 @@ import kotlinx.coroutines.flow.StateFlow
  * (ActivityResultContracts.CreateDocument / OpenDocument) launchers and the
  * screen into the app shell.
  *
- * - Export: Settings "Export Vault" → SAF CreateDocument → package info → PIN
- *   + confirm → export → success/failure. The SAF picker opens FIRST (no PIN
- *   is held across the picker callback); the PIN is entered only after the
- *   destination document is known and is passed synchronously to the codec.
- *   Cancelling either step produces no error state (Issue #1 §28).
+ * - Export: Settings "Export Vault" → PIN + confirm → SAF CreateDocument →
+ *   encode → write → success/failure. **The PIN is entered FIRST and the SAF
+ *   destination is chosen second**, so cancelling the PIN never creates a
+ *   document (no empty `.rakpkg` left behind). Cancelling either step produces
+ *   no error state (Issue #1 §28).
  * - Import: Settings "Import Native Package" → SAF OpenDocument → then PIN →
  *   decode → preview → confirm.
  *
@@ -71,8 +71,9 @@ fun ExportImportRoute(
         if (uri != null) {
             viewModel.onExportDestinationPicked(uri)
         } else {
-            // User cancelled the SAF destination — no error state.
-            viewModel.cancelExport()
+            // User cancelled the SAF destination after PIN confirmation — no
+            // document was created, nothing to clean up.
+            viewModel.cancelExportDestination()
         }
     }
 
@@ -91,12 +92,13 @@ fun ExportImportRoute(
         ExportImportMode.EXPORT -> {
             ExportVaultScreen(
                 state = exportState,
-                onStart = {
+                onStart = { viewModel.beginExport() },
+                onSubmitPin = { pin, confirm -> viewModel.submitExportPin(pin, confirm) },
+                onChooseDestination = {
                     exportLauncher.launch(
                         PackageFileContract.suggestedExportFileName(System.currentTimeMillis()),
                     )
                 },
-                onExport = { pin -> viewModel.exportToUri(pin) },
                 onCancel = { viewModel.cancelExport() },
                 onDismissResult = {
                     viewModel.resetExport()
