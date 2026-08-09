@@ -229,3 +229,47 @@ nonceB64:       解码后必须为 24 字节（XChaCha20-Poly1305）
 > **Phase 3A 更新（2026-08-07）**：旧文档中的“PRE_IMPORT checkpoint /
 > 导入后新格式备份”已随自动备份模型移除。legacy 导入仍为单事务；
 > 未来 legacy importer 会复用新的 Merge Engine（见 PACKAGE_FORMAT.md §Legacy）。
+
+---
+
+## 9. Phase 5A — Legacy v1 → shared VaultSnapshot（Core Adapter）
+
+Phase 5A 新增 `LegacyVaultSnapshotMapper`：把解密后的 `LegacyImportBundle`
+映射为 **shared v2 logical `VaultSnapshot`**（`com.rescueauth.v2.export`），
+从而复用 `PackageValidator` / `MergePlanner` / `VaultRepository.applySnapshot`
+单一验证与事务 apply 路径。详见 `docs/PHASE5A_REPORT.md`。
+
+### 9.1 确定性 stableId（Phase 5A §9/§10）
+
+```
+stableId = "legacy:" + b64url(sha256(sourceFingerprint)) + ":" + kind + ":" + b64url(sha256(kind + "\0" + legacyObjectPath))
+```
+
+- 同文件重复导入 → 相同 stableId（幂等）。
+- 不同 `.rakvault` 的相同对象 id 不碰撞（sourceFingerprint 命名空间）。
+- 不含明文 secret / password / decrypted payload。
+
+### 9.2 source fingerprint（Phase 5A §11）
+
+`fingerprintOfEncryptedBytes(bytes) = b64url(sha256(原始加密字节))`。
+供未来 Phase 5B `ImportRecord.sourceFingerprint` 使用；本轮不做
+production apply wiring。
+
+### 9.3 Developer 五类逐字段映射（Phase 5A §9）
+
+| legacy type | v2 logical 字段 |
+| --- | --- |
+| `androidSigningKey` | projectName / packageName / keystoreFileName / keystoreBytesBase64→`keystoreBase64` / storePassword / keyAlias / keyPassword |
+| `apiCredential` | serviceName / accountName / apiKey / apiSecret |
+| `sshKey` | keyName / publicKey / privateKey / passphrase |
+| `envVarSet` | projectName / variables（`{name,value}`→`{key,value}`） |
+| `genericSecret` | fields（`{label,value}`→`{key,value}`） |
+
+keystore 二进制以原始 base64 进入 `keystoreBase64`，经 `PackageValidator`
+校验 base64 + 大小上限，实现 **exact byte round-trip**。
+
+### 9.4 独立 provenance fixture（Phase 5A §15）
+
+`v2/legacy-fixtures/phase5a/` 由 **Python（argon2-cffi + PyNaCl）**按 frozen
+v1.2.0 wire protocol 独立生成（非 Dart 工具、非 Kotlin test-encoder），
+SHA-256 见 `docs/PHASE5A_REPORT.md §15`。密码均为 test-only。

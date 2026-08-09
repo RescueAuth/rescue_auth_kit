@@ -10,6 +10,40 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase5a legacy-core-adapter] - 2026-08-09（Phase 5A Legacy v1 Core Adapter，PR OPEN）
+
+Issue #1 Phase 5A：把解密后的 legacy `.rakvault` 映射为 **shared v2 logical
+`VaultSnapshot`**，复用 `PackageValidator` / `MergePlanner` /
+`VaultRepository.applySnapshot` 单一验证与事务 apply 路径。只做 core
+适配，不做 Android Legacy UI（Phase 5B）。
+
+### Added
+
+- **`LegacyVaultSnapshotMapper`（core）**：`LegacyImportBundle` →
+  `VaultSnapshot`（FULL_VAULT）。schema 1/2 entry-centric、schema 3
+  account-centric；TOTP 原样映射（非法参数不静默替换）；Recovery →
+  `UNUSED` / `usedAt=null` 明确默认；五类 Developer 逐字段映射（keystore
+  exact byte round-trip）。
+- **确定性 stableId**：`legacy:<sourceFp-hash>:<kind>:<sha256(kind+path)>`
+  ——同文件重复导入幂等、不同文件不碰撞、不含明文 secret。
+- **Source fingerprint**：原始加密 `.rakvault` 字节 SHA-256（base64url），
+  供 Phase 5B `ImportRecord` 使用。
+- **独立 provenance fixture**：`legacy-fixtures/phase5a/` 由 Python
+  （argon2-cffi + PyNaCl）按 frozen v1.2.0 wire protocol 独立生成
+  （schema1/2/3 + Unicode），非 Dart 工具/非 Kotlin test-encoder。
+- **测试**：映射逐字段断言、幂等（同一 fixture 二次 import → MergePlanner
+  inserted=0）、Native/Legacy 双向隔离。
+
+### Changed
+
+- `docs/LEGACY_IMPORT.md`：新增 §9 Phase 5A 契约（stableId / fingerprint /
+  Developer 映射 / fixture provenance）。
+- `docs/PHASE5A_REPORT.md`（新）、ROADMAP / AGENTS / CHANGELOG 最小状态更新。
+
+Phase 5A = **IMPLEMENTED / PR OPEN**；Phase 5B（Legacy Android UI）= **NOT
+STARTED**。未修改 PortablePackageCodec / .rakpkg / MergePlanner / Developer
+UI / SensitiveActionGate / Export/Recovery UI。
+
 ## [v2 phase4-p3 recovery-codes] - 2026-08-09（Phase 4 P3 Recovery Codes Daily-Use Slice，PR OPEN）
 
 Issue #1 P3：让 Recovery Codes 从“底层已经存在的数据类型”变成真正可
