@@ -128,6 +128,11 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 ### 4.1 Provider / Account / Credential
 
 - **Provider → Account → Credential** 三级层级。
+- **Provider 身份 = `serviceName` 字符串（Provider name）**：Provider 是
+  Account 行的 `serviceName` 分组字段，**无独立 entity、无独立
+  stableId / uuid 标识**（见 §8 portable logical schema / §5.3 PA）。
+  Provider rename 即更新全部 descendant Account 的 `serviceName`，
+  Account / TOTP / Recovery Set/Code 的 stableId 全部保留。
 - 能力（全部保留）：创建 / rename / move / merge / delete。
 - 允许重新设计 UI，但功能能力不得无故丢失。
 - Provider 级联删除属高破坏性操作：保留确认；可评估 Undo 的边界（§11）。
