@@ -22,8 +22,13 @@ package com.rescueauth.v2.security
  * user requests a sensitive action and the moment it is authorized / denied.
  */
 enum class SensitiveAction {
-    /** Export the entire Vault as an encrypted portable package. */
-    EXPORT_FULL_VAULT,
+    /**
+     * Export a portable package (any scope: Entire Vault / Authenticator /
+     * Developer / Selected Items). Renamed from the earlier EXPORT_FULL_VAULT
+     * because P5 makes every `.rakpkg` export scope a sensitive action
+     * (Issue #20 §7).
+     */
+    EXPORT_PACKAGE,
 
     /** Reveal an API Credential secret (apiKey / apiSecret). */
     REVEAL_API_SECRET,

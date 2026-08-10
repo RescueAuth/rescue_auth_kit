@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）IMPLEMENTED / PR OPEN，M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN，P5（Selective Export / Import）IMPLEMENTED / PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）IMPLEMENTED / PR OPEN，M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
@@ -57,6 +57,18 @@
   secret、reveal/copy 走 re-auth、edit 保留 stableId、delete destructive
   confirmation）；Room schema 零改动，P4 数据自然进入 Full Vault
   Export/Import round-trip）。
+  **Phase 4 P5 已实现**（Selective Export / Import，见 `docs/PHASE4_P5_REPORT.md`：
+  共享纯 Kotlin 选择引擎 `VaultSnapshotSelector` / `SelectedItemSet`（stableId
+  语义 + hierarchy/dependency closure，无 UI/Room 依赖，Export 与 Import 共用）；
+  Export 四 scope —— Entire Vault / Authenticator / Developer / Selected Items，
+  全部走同一 fresh re-auth（`SensitiveAction.EXPORT_PACKAGE`，scope+selection
+  digest 绑定 + one-shot）+ 同一 per-export PIN Product Policy；Selective Import
+  是 decoded-snapshot 内存过滤（不产生第二套 package/merge engine），
+  Everything / Authenticator / Developer / Selected Items，仅对选中的 filtered
+  snapshot 运行 MergePlanner；unselected conflict 不阻塞、selected
+  conflict/divergence 按现有规则 BLOCK、final apply 重新 plan；Developer 五类
+  完整保留（含 Android Signing Key / Env Var Set）；package envelope/crypto/
+  MergePlanner 语义零改动；Room schema 零改动）。
   **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
   MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
   首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
@@ -179,7 +191,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] **P2 otpauth-migration import**（IMPORT ONLY，External Import Adapter，见 docs/PHASE4_P2_REPORT.md）
   - [x] **P3 Recovery Codes slice**（Account detail 恢复码页：batch add / expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused / edit（最小 diff 保留 stableId + USED state）/ delete + Undo；见 docs/PHASE4_P3_REPORT.md）
   - [x] **P4 Developer Vault 第一批 + Sensitive re-auth**（Sensitive Action Fresh Re-auth Foundation：`SensitiveAction`/`SensitiveActionGate`/`SensitiveActionResult` 单一 orchestration path + BiometricPrompt/Device Credential one-shot 语义 + Full Vault Export 接入；Developer Vault 第一批：API Credential / SSH Key / Generic Secret 全 CRUD / reveal-hide / copy / delete（destructive confirm）/ stableId-preserving edit；见 docs/PHASE4_P4_REPORT.md）
-  - [ ] P5 Selective Export / Import（同一 Merge Engine）
+  - [x] **P5 Selective Export / Import**（同一 Merge Engine；见 `docs/PHASE4_P5_REPORT.md`：共享纯 Kotlin selection engine / Export 四 scope / decoded-snapshot 内存过滤 import / selected conflict 语义）
   - [ ] P6 Developer Vault 第二批（Android Signing Key / Env Var Set + Developer completion）
   - [ ] P7 Search + Pin
   - [ ] P8 Delete Undo 完善
@@ -210,4 +222,5 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - `docs/ADRS/ADR-0009-phase3d-android-export-import.md`（Phase 3D：Android SAF Export/Import、per-export PIN Product Policy、bounded untrusted-file reader、import preview/confirm、`.rakpkg` contract）
 - `docs/ADRS/ADR-0010-legacy-stable-identity-source-fingerprint.md`（Phase 5A CR：durable-id-first stableId（基于 legacy durable UUID，不依赖 source fingerprint）+ source fingerprint 仅作 source identity + Legacy 防御上限（64 MiB，与 Native 16 MiB 解耦）+ logical validator 边界 + frozen v1 producer fixture）
 - `docs/ADRS/ADR-0011-sensitive-action-reauth-oneshot.md`（Phase 4 P4：Sensitive Action Re-auth one-shot 语义——成功 re-auth 只授权恰好一个 pending action 并立即消费；无 freshness window / 无全局 authenticated）
+- `docs/ADRS/ADR-0012-selective-export-import.md`（Phase 4 P5：Selective Export / Import —— 共享纯 Kotlin selection engine + Export 四 scope + decoded-snapshot 内存过滤 import + selected conflict 语义；package envelope/crypto/MergePlanner 语义零改动）
 

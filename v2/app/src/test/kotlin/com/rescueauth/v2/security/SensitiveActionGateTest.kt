@@ -99,8 +99,11 @@ class SensitiveActionGateTest {
     )
 
     private fun export() = SensitiveActionRequest(
-        action = SensitiveAction.EXPORT_FULL_VAULT,
-        target = SensitiveActionTarget.Global,
+        action = SensitiveAction.EXPORT_PACKAGE,
+        target = SensitiveActionTarget.ExportRequest(
+            scopeName = "FullVault",
+            selectionDigest = null,
+        ),
     )
 
     // ---- 10. one pending action ----

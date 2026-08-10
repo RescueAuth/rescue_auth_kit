@@ -34,8 +34,21 @@ data class SensitiveActionRequest(
  * satisfied by an auth result while the user is looking at Entry B.
  */
 sealed interface SensitiveActionTarget {
-    /** No finer-grained target (e.g. Full Vault Export). */
+    /** No finer-grained target (e.g. a full-vault / section-scope export). */
     object Global : SensitiveActionTarget
+
+    /**
+     * A specific package export request (Issue #20 §7). Binds the authorized
+     * re-auth to exactly one export scope + selection digest so that a scope A
+     * authorization can never authorize a scope B pending request (test 38)
+     * and a selected export's auth is bound to the original selection
+     * (test 39). [selectionDigest] is non-null only for
+     * [com.rescueauth.v2.exportimport.ExportScopeSpec.SelectedItems] exports.
+     */
+    data class ExportRequest(
+        val scopeName: String,
+        val selectionDigest: String? = null,
+    ) : SensitiveActionTarget
 
     /** A specific Developer entry field (entry stableId + field key). */
     data class DeveloperField(
