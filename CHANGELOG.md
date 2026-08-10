@@ -10,6 +10,41 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 release-provisioning-step-1] - 2026-08-10（Release Provisioning Step 1 — App Identity / Version + Production Signing Infrastructure，PR OPEN）
+
+Issue #38 Release Provisioning Step 1。**冻结新 RescueAuth Android application
+identity 与首个 release version，并建立 production signing 基础设施。** 不生成
+production key、不发布 APK、不运行 FTL。
+
+### Added
+
+- **冻结 App identity / version**：新 App `applicationId = com.rescueauth.v2`
+  （≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side 安装）、
+  `namespace = com.rescueauth.v2`、`versionName = "1.0.0"`、`versionCode = 10000`。
+  **“v2” 是 generation/rewrite 名称，不等于 `versionName`**（V2.0 FEATURE COMPLETE
+  ≠ versionName 2.0.0）。新 App 独立 release sequence 从 `1.0.0` 开始。
+- **Production signing 基础设施**（`v2/app/build.gradle.kts`）：`release` 构建在
+  提供完整 config（`v2/keystore.properties` 或 `RESCUEAUTH_*` 环境变量）时使用新的
+  RescueAuth production key；无 config 时 release 为 **unsigned**（**绝不 debug
+  fallback**）。新增 `validateReleaseSigning` 任务，config 不完整时**明确失败**。
+- **`v2/keystore.properties.example`**：仅 placeholder（`CHANGE_ME`），无真实 secret。
+- **`v2/.gitignore`**：忽略 `/keystore.properties`、`*.jks`、`*.keystore`、`*.p12`、
+  `*.pfx`（不影响 Developer Vault 内存 synthetic fixture）。
+- **`docs/RELEASE_PROVISIONING.md`**：完整 release provisioning 文档（identity /
+  versionCode / signing 基础设施 / key 生成命令模板 / secret 策略 / status）。
+
+### Changed
+
+- 里程碑/文档状态同步：AGENTS.md、ROADMAP §10.1、CHANGELOG 标注
+  **Release Provisioning Step 1 = IMPLEMENTED / PR OPEN**、**Production Android
+  signing key = NOT GENERATED**、V2.0 FEATURE COMPLETE = YES / V2.0 RELEASED = NO。
+
+### Notes
+
+- Room schema / package format / Legacy format / Update protocol schema / crypto
+  变更 = **NONE**。production Update Ed25519 key = NOT GENERATED。Real-device
+  side-by-side smoke = PENDING。FTL = PENDING。
+
 ## [v2 release-readiness audit] - 2026-08-10（V2.0 Release Readiness — Final Product Audit & Minimal Fixes）
 
 Issue #38 最终 release-readiness / product 审计。**V2.0 FEATURE COMPLETE = YES**

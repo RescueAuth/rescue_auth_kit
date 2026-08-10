@@ -538,6 +538,13 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 > provisioning 步骤（见 AGENTS.md / 最终审计报告 M 节）：production Android
 > signing、production Update Ed25519 provisioning、`rescueauth-updates`
 > 基础设施、signed release smoke、FTL / final device regression。
+>
+> **Release Provisioning Step 1 = IMPLEMENTED / PR OPEN**（见
+> `docs/RELEASE_PROVISIONING.md`）：新 App `applicationId=com.rescueauth.v2`
+>（≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side）、`versionName="1.0.0"`、
+> `versionCode=10000` 已冻结；production signing 基础设施已建立（无 debug
+> fallback；无 config 时 release 为 unsigned；`validateReleaseSigning` 显式校验）。
+> **Production Android signing key = NOT GENERATED**。
 
 **不阻塞 V2.0 FEATURE COMPLETE**（按 Roadmap §18 deferred policy 处理）：
 
