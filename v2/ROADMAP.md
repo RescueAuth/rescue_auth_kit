@@ -517,19 +517,27 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 
 达到 **V2.0 FEATURE COMPLETE** 必须包含：
 
-- [ ] Authenticator 正式能力（Provider/Account/TOTP 完整能力）
-- [ ] Recovery Codes 完整能力
-- [ ] Developer Vault 五类完整能力（Android Signing Key / API Credential /
+- [x] Authenticator 正式能力（Provider/Account/TOTP 完整能力）
+- [x] Recovery Codes 完整能力
+- [x] Developer Vault 五类完整能力（Android Signing Key / API Credential /
   SSH Key / Env Var Set / Generic Secret）
-- [ ] Android Signing Key keystore import/export
-- [ ] Portable Package full / selective export / import
-- [ ] merge / dedupe / conflict（覆盖全部资产）
-- [ ] Legacy migration（`.rakvault` 收口）
+- [x] Android Signing Key keystore import/export
+- [x] Portable Package full / selective export / import
+- [x] merge / dedupe / conflict（覆盖全部资产）
+- [x] Legacy migration（`.rakvault` 收口）
 - [x] Search + Pin
-- [ ] Delete Undo（全类型覆盖）
-- [ ] Sensitive Action Re-auth（全敏感操作覆盖）
-- [ ] en + zh-CN（完整双语）
-- [ ] About / Update Check
+- [x] Delete Undo（全类型覆盖）
+- [x] Sensitive Action Re-auth（全敏感操作覆盖）
+- [x] en + zh-CN（完整双语）
+- [x] About / Update Check
+
+> **V2.0 FEATURE COMPLETE = YES**（经最终 release-readiness 审计确认，全部
+> v2.0 正式产品能力已实现并有测试覆盖）。
+>
+> **V2.0 RELEASED = NO**：FEATURE COMPLETE 不等于已发布。仍待 release
+> provisioning 步骤（见 AGENTS.md / 最终审计报告 M 节）：production Android
+> signing、production Update Ed25519 provisioning、`rescueauth-updates`
+> 基础设施、signed release smoke、FTL / final device regression。
 
 **不阻塞 V2.0 FEATURE COMPLETE**（按 Roadmap §18 deferred policy 处理）：
 

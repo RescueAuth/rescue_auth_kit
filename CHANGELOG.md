@@ -10,7 +10,30 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
-## [v2 phase4-p8 delete-undo] - 2026-08-10（Phase 4 P8 Delete Undo 完善，IMPLEMENTED / PR OPEN）
+## [v2 release-readiness audit] - 2026-08-10（V2.0 Release Readiness — Final Product Audit & Minimal Fixes）
+
+Issue #38 最终 release-readiness / product 审计。**V2.0 FEATURE COMPLETE = YES**
+（全部 v2.0 正式产品能力已实现并有测试覆盖）；**V2.0 RELEASED = NO**（仍待
+production Android signing / Update Ed25519 provisioning / rescueauth-updates
+基础设施 / signed release smoke / FTL，见 AGENTS.md / 审计报告 M 节）。
+
+### Fixed
+
+- **JVM 测试 flake（app，真实可复现）**：`DeveloperScreenTest` 偶发
+  `UncaughtExceptionsBeforeTest` / `SQLiteConnectionPool closed`。根因是
+  `AuthenticatorViewModelTest` / `RecoveryViewModelTest` /
+  `AuthenticatorScanMigrationTest` 的 `tearDown` 在 `activeScope?.cancel()`
+  后立即 `db.close()`，而仍运行在 `Dispatchers.Default` 上的 Room Flow 协程在
+  已关闭的连接池上查询时抛 uncaught background-thread 异常，污染下一个
+  `runTest`。修复为 `cancelAndJoin()` 先完整收敛协程再关闭 DB（lifecycle 根因，
+  非 suppression/retry）。全量 suite 连续多次复跑全绿。
+
+### Docs
+
+- 里程碑状态同步：ROADMAP §10.1 全部 V2.0 FEATURE COMPLETE 项勾选，并明确
+  FEATURE COMPLETE = YES / RELEASED = NO；AGENTS.md 里程碑与 P8/L2 状态同步。
+
+## [v2 phase4-p8 delete-undo] - 2026-08-10（Phase 4 P8 Delete Undo 完善，已 merge #37）
 
 Issue #20 Phase 4 P8：普通删除统一 SnackBar Undo + Recovery Code Set Move
 正式能力 + 空 Account 全 scope 保留。P1–P8 全部完成（Phase 4 daily-use
