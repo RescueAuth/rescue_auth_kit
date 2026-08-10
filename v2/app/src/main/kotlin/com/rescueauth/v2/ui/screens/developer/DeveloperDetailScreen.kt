@@ -66,6 +66,16 @@ fun DeveloperDetailScreen(
     isRevealed: (String) -> Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    // Phase 4 P6 — Android Signing Key
+    onRevealStorePassword: () -> Unit,
+    onCopyStorePassword: () -> Unit,
+    onRevealKeyPassword: () -> Unit,
+    onCopyKeyPassword: () -> Unit,
+    onExportKeystore: () -> Unit,
+    onCopyKeyProperties: () -> Unit,
+    // Phase 4 P6 — Environment Variable Set
+    onRevealEnvVar: (String) -> Unit,
+    onCopyEnvVar: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -173,6 +183,61 @@ fun DeveloperDetailScreen(
                                         revealedValue = getRevealedValue(key),
                                         onReveal = { onRevealGeneric(key) },
                                         onCopy = { onCopyGeneric(key) },
+                                    )
+                                }
+                            }
+                        }
+                        is DeveloperDetailUi.AndroidSigningKey -> {
+                            item { MetadataText(stringResource(R.string.developer_field_project_name), detail.projectName) }
+                            item { MetadataText(stringResource(R.string.developer_field_package_name), detail.packageName) }
+                            item { MetadataText(stringResource(R.string.developer_field_keystore_file), detail.keystoreFileName) }
+                            item { MetadataText(stringResource(R.string.developer_field_key_alias), detail.keyAlias) }
+                            item {
+                                SensitiveActionRow(
+                                    label = stringResource(R.string.developer_field_store_password),
+                                    revealed = isRevealed("storePassword"),
+                                    revealedValue = getRevealedValue("storePassword"),
+                                    onReveal = onRevealStorePassword,
+                                    onCopy = onCopyStorePassword,
+                                )
+                            }
+                            item {
+                                SensitiveActionRow(
+                                    label = stringResource(R.string.developer_field_key_password),
+                                    revealed = isRevealed("keyPassword"),
+                                    revealedValue = getRevealedValue("keyPassword"),
+                                    onReveal = onRevealKeyPassword,
+                                    onCopy = onCopyKeyPassword,
+                                )
+                            }
+                            item {
+                                OutlinedButton(
+                                    onClick = onExportKeystore,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.developer_export_keystore))
+                                }
+                            }
+                            item {
+                                OutlinedButton(
+                                    onClick = onCopyKeyProperties,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.developer_copy_key_properties))
+                                }
+                            }
+                        }
+                        is DeveloperDetailUi.EnvironmentVariableSet -> {
+                            item { MetadataText(stringResource(R.string.developer_field_project_name), detail.projectName) }
+                            detail.variableNames.forEach { name ->
+                                val key = "var:$name"
+                                item(key = key) {
+                                    SensitiveActionRow(
+                                        label = name,
+                                        revealed = isRevealed(key),
+                                        revealedValue = getRevealedValue(key),
+                                        onReveal = { onRevealEnvVar(key) },
+                                        onCopy = { onCopyEnvVar(key) },
                                     )
                                 }
                             }
@@ -300,10 +365,11 @@ fun DeveloperDeleteDialog(
     title: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    message: String = stringResource(R.string.developer_delete_confirm_message),
 ) {
     DestructiveConfirmationDialog(
         title = stringResource(R.string.developer_delete_confirm_title, title),
-        message = stringResource(R.string.developer_delete_confirm_message),
+        message = message,
         confirmLabel = stringResource(R.string.developer_delete),
         onConfirm = onConfirm,
         onDismiss = onDismiss,
@@ -339,6 +405,14 @@ private fun DeveloperDetailApiPreview() {
             isRevealed = { false },
             onEdit = {},
             onDelete = {},
+            onRevealStorePassword = {},
+            onCopyStorePassword = {},
+            onRevealKeyPassword = {},
+            onCopyKeyPassword = {},
+            onExportKeystore = {},
+            onCopyKeyProperties = {},
+            onRevealEnvVar = {},
+            onCopyEnvVar = {},
         )
     }
 }

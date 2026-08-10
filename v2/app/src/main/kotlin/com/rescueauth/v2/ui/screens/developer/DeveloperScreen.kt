@@ -86,7 +86,9 @@ fun DeveloperScreen(
                 val supported = uiState.entries.filter {
                     it.type == DeveloperEntryType.API_CREDENTIAL ||
                         it.type == DeveloperEntryType.SSH_KEY ||
-                        it.type == DeveloperEntryType.GENERIC_SECRET
+                        it.type == DeveloperEntryType.GENERIC_SECRET ||
+                        it.type == DeveloperEntryType.ANDROID_SIGNING_KEY ||
+                        it.type == DeveloperEntryType.ENVIRONMENT_VARIABLE_SET
                 }
                 DeveloperEntryList(
                     entries = supported,

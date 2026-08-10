@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN，P5（Selective Export / Import）IMPLEMENTED / PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）IMPLEMENTED / PR OPEN，M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）IMPLEMENTED / PR OPEN，P7 NOT STARTED，P8 NOT STARTED**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
@@ -69,6 +69,21 @@
   conflict/divergence 按现有规则 BLOCK、final apply 重新 plan；Developer 五类
   完整保留（含 Android Signing Key / Env Var Set）；package envelope/crypto/
   MergePlanner 语义零改动；Room schema 零改动）。
+  **Phase 4 P6 已实现**（Developer Vault Completion，见 `docs/PHASE4_P6_REPORT.md`：
+  Android Signing Key / Environment Variable Set 全 CRUD（create/list/detail/
+  edit/delete）走既有 DeveloperRepository 单表 + DeveloperMappers，Room schema
+  零升级；keystore SAF import 以 opaque exact-bytes 保存（大小上限从共享
+  logical/package per-asset contract `MAX_KEYSTORE_BASE64_LENGTH` 推导为 raw
+  bytes，不定义第三套规则；不信任扩展名/MIME，不执行 keytool/jarsigner）；
+  keystore export 走 fresh re-auth + SAF CreateDocument，bytes 只在 auth 成功后
+  构造，cancel 不创建输出文档；Copy key.properties 内存构造 + fresh re-auth +
+  不持久化；store/key password 与每个 Env value 的 reveal/copy 均为独立
+  fresh re-auth，target 绑定 stableId+fieldKey；Env Var 动态行 add/remove/edit，
+  name 非空 + exact case-sensitive 去重 + value 不 normalize/不重写大小写；
+  session lock / 离开页面 / 进程重建均清除 reveal 状态（in-memory only）；
+  Legacy-imported 五类 entry 可通过 P6 repository/UI path 正常打开与操作；
+  Full/Developer/Selected package round-trip 均 byte-for-byte 精确；
+  P6 不触碰 Authenticator/Provider/Account product semantics）。
   **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
   MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
   首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
@@ -192,7 +207,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] **P3 Recovery Codes slice**（Account detail 恢复码页：batch add / expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused / edit（最小 diff 保留 stableId + USED state）/ delete + Undo；见 docs/PHASE4_P3_REPORT.md）
   - [x] **P4 Developer Vault 第一批 + Sensitive re-auth**（Sensitive Action Fresh Re-auth Foundation：`SensitiveAction`/`SensitiveActionGate`/`SensitiveActionResult` 单一 orchestration path + BiometricPrompt/Device Credential one-shot 语义 + Full Vault Export 接入；Developer Vault 第一批：API Credential / SSH Key / Generic Secret 全 CRUD / reveal-hide / copy / delete（destructive confirm）/ stableId-preserving edit；见 docs/PHASE4_P4_REPORT.md）
   - [x] **P5 Selective Export / Import**（同一 Merge Engine；见 `docs/PHASE4_P5_REPORT.md`：共享纯 Kotlin selection engine / Export 四 scope / decoded-snapshot 内存过滤 import / selected conflict 语义）
-  - [ ] P6 Developer Vault 第二批（Android Signing Key / Env Var Set + Developer completion）
+  - [x] **P6 Developer Vault 第二批（Developer Vault Completion）**（Android Signing Key / Environment Variable Set 全 CRUD + keystore SAF import/export + Copy key.properties + Env Var 动态行 + 每字段独立 fresh re-auth；见 `docs/PHASE4_P6_REPORT.md`）
   - [ ] P7 Search + Pin
   - [ ] P8 Delete Undo 完善
   - [ ] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
@@ -223,4 +238,5 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - `docs/ADRS/ADR-0010-legacy-stable-identity-source-fingerprint.md`（Phase 5A CR：durable-id-first stableId（基于 legacy durable UUID，不依赖 source fingerprint）+ source fingerprint 仅作 source identity + Legacy 防御上限（64 MiB，与 Native 16 MiB 解耦）+ logical validator 边界 + frozen v1 producer fixture）
 - `docs/ADRS/ADR-0011-sensitive-action-reauth-oneshot.md`（Phase 4 P4：Sensitive Action Re-auth one-shot 语义——成功 re-auth 只授权恰好一个 pending action 并立即消费；无 freshness window / 无全局 authenticated）
 - `docs/ADRS/ADR-0012-selective-export-import.md`（Phase 4 P5：Selective Export / Import —— 共享纯 Kotlin selection engine + Export 四 scope + decoded-snapshot 内存过滤 import + selected conflict 语义；package envelope/crypto/MergePlanner 语义零改动）
+- `docs/ADRS/ADR-0013-developer-vault-completion.md`（Phase 4 P6：keystore size boundary 由共享 logical/package per-asset contract 推导为 raw bytes（`MAX_KEYSTORE_BASE64_LENGTH/4*3`），不定义第三套规则；env-var fresh re-auth target 绑定 stableId + 不可变 field key `var:<name>`，无 package-format 改动）
 
