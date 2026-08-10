@@ -185,9 +185,9 @@
     <string name="settings_version">Version %1$s</string>
 
     <!-- Phase 3D Export / Import -->
-    <string name="export_title">Export Vault</string>
-    <string name="export_intro">Create an encrypted portable package of your entire vault — Authenticator, Recovery Codes and Developer Vault.</string>
-    <string name="export_full_vault_notice">This exports the full vault (FULL_VAULT scope). Selective export will come in a later release.</string>
+    <string name="export_title">Export Package</string>
+    <string name="export_intro">Create an encrypted portable package from your vault. Choose what to include — every export is protected by its own PIN and requires fresh device authentication.</string>
+    <string name="export_scope_notice">Selective export is available: Entire Vault, Authenticator only, Developer only, or specific items.</string>
     <string name="export_start">Choose destination</string>
     <string name="export_reauth_hint">Authenticating with your device… exporting will continue after this step.</string>
     <string name="export_pin_accepted">PIN accepted</string>
@@ -199,12 +199,39 @@
     <string name="export_done">Done</string>
     <string name="export_error_title">Export failed</string>
 
+    <!-- Phase 4 P5 export scope chooser -->
+    <string name="export_scope_title">What do you want to export?</string>
+    <string name="export_scope_full">Entire Vault</string>
+    <string name="export_scope_auth">Authenticator only</string>
+    <string name="export_scope_dev">Developer only</string>
+    <string name="export_scope_selected">Selected items…</string>
+
     <string name="import_title">Import Native Package</string>
     <string name="import_intro">Choose a Rescue Auth package file to preview and merge into your vault. Importing never overwrites your existing data.</string>
     <string name="import_pick_file">Choose package file</string>
     <string name="import_pin_title">Enter package PIN</string>
     <string name="import_pin_policy">Enter the PIN that was set when this package was exported.</string>
     <string name="import_error_title">Import failed</string>
+
+    <!-- Phase 4 P5 import scope chooser -->
+    <string name="import_scope_title">What do you want to import from this package?</string>
+    <string name="import_scope_notice">You can import everything or a subset. This never overwrites your existing vault.</string>
+    <string name="import_scope_everything">Everything in this package</string>
+    <string name="import_scope_auth">Authenticator data</string>
+    <string name="import_scope_dev">Developer data</string>
+    <string name="import_scope_selected">Selected items…</string>
+
+    <!-- Phase 4 P5 shared item selection -->
+    <string name="select_summary_title">Selection</string>
+    <string name="select_summary_body">%1$d account(s) · %2$d TOTP · %3$d recovery set(s) · %4$d developer entry(ies)</string>
+    <string name="select_all_auth">All Authenticator</string>
+    <string name="select_all_dev">All Developer</string>
+    <string name="select_clear">Clear</string>
+    <string name="select_section_auth">Authenticator</string>
+    <string name="select_section_dev">Developer</string>
+    <string name="select_continue">Continue</string>
+    <string name="select_nothing_available">There is nothing to select in this vault/package.</string>
+    <string name="select_recovery_set_label">%1$s · %2$d/%3$d remaining</string>
 
     <!-- PIN entry -->
     <string name="pin_label">PIN</string>
