@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）CLOSED（已 merge #34），P7（Search + Pin）CLOSED（已 merge #35），P8（Delete Undo 完善）IMPLEMENTED / PR OPEN，PA（Provider & Account Full Management，Issue #32）CLOSED（已 merge #33）**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md` / `docs/PHASE4_P7_REPORT.md` / `docs/PHASE4_P8_REPORT.md` / `docs/PHASE4_PA_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）CLOSED（已 merge #34），P7（Search + Pin）CLOSED（已 merge #35），P8（Delete Undo 完善）CLOSED（已 merge #37），PA（Provider & Account Full Management，Issue #32）CLOSED（已 merge #33）**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md` / `docs/PHASE4_P7_REPORT.md` / `docs/PHASE4_P8_REPORT.md` / `docs/PHASE4_PA_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
@@ -221,8 +221,9 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] **P6 Developer Vault 第二批（Developer Vault Completion）**（Android Signing Key / Environment Variable Set 全 CRUD + keystore SAF import/export + Copy key.properties + Env Var 动态行 + 每字段独立 fresh re-auth；见 `docs/PHASE4_P6_REPORT.md`）
   - [x] **P7 Search + Pin**（Global Search safe metadata only + Account Pin/Unpin；见 `docs/PHASE4_P7_REPORT.md`）
   - [x] **P8 Delete Undo 完善**（普通删除 TOTP/recovery set/account/普通 Developer Entry 统一 SnackBar Undo；高破坏性操作保留确认；Recovery Code Set Move 正式能力；空 Account 全 scope 导出导入保留；Undo snapshot 仅 in-memory、session lock 清除；见 `docs/PHASE4_P8_REPORT.md`）
-  - [ ] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
-  - [ ] **V2.0 FEATURE COMPLETE 里程碑**（定义见 ROADMAP.md §10.1；正式产品范围全部完成，不等于 DAILY-USE READY）
+  - [x] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
+  - [x] **V2.0 FEATURE COMPLETE 里程碑**（定义见 ROADMAP.md §10.1；正式产品范围全部完成，不等于 DAILY-USE READY）
+    - **V2.0 FEATURE COMPLETE = YES**（最终 release-readiness 审计确认，见 ROADMAP.md §10.1）；**V2.0 RELEASED = NO**（仍待 production signing / Update Ed25519 provisioning / rescueauth-updates 基础设施 / signed release smoke / FTL）
 - [ ] 阶段 5：Migration（legacy import 收口）
   - [x] **5A Legacy v1 Core Adapter**（`LegacyVaultSnapshotMapper`：解密后 `LegacyImportBundle` → shared `VaultSnapshot`；**durable-id-first** 确定性 stableId（`legacy:<kind>:<sha256(legacy\0kind\0durablePath)>`，基于 legacy durable UUID，不依赖 source fingerprint）+ source fingerprint（原始加密字节 sha256，base64url，仅作 source identity）；五类 Developer 逐字段映射（keystore exact byte round-trip）；复用 `PackageValidator.validateSnapshot`（纯 logical）/ `MergePlanner` / `applySnapshot`；Legacy 防御上限与 Native 16 MiB 解耦（输入 64 MiB）；独立 Python-provenance fixture + frozen v1 producer fixture；跨备份幂等 + 隔离 + logical/capacity 边界测试；见 docs/PHASE5A_REPORT.md；已 merge #29）
   - [x] **5B Legacy v1 Android Import UI**（`LegacyImportService` / `LegacyImportViewModel` / `LegacyImportRoute` / `LegacyImportScreen`；SAF OpenDocument + 64 MiB bounded read（decrypt 前拒绝）；Master Password（无 `>=10` 硬编码 gate，与 Native PIN 独立）；safe preview（无 secret）；MergePlanner / final re-plan / transactional apply 复用 shared engine；跨备份幂等 UI→DB 贯通；ImportRecord `sourceType="LEGACY_RAKVAULT"` + source fingerprint；session/plaintext lifecycle；`VaultRepository` 移除 `LegacyImportBundle` spike 依赖；见 docs/PHASE5B_REPORT.md；PR OPEN）
@@ -231,8 +232,8 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
     跳过；P6 只补 Signing Key / Env Var Set 的 Android CRUD/UI，不是补
     migration capability）
 - [ ] 阶段 6：Product polish
-  - [ ] L1 Localization（en + zh-CN；完整双语为 V2.0 FEATURE COMPLETE 门槛）
-  - [x] **L2 About / Update Check（V2.0 FEATURE COMPLETE 门槛）**（Issue #20 Phase 6 L2，PR OPEN：About 页 + Settings→About 导航 + 固定 CNB 清单 + Ed25519 验签（BouncyCastle，签名覆盖 exact raw bytes，`.sig` Base64 原始 64-byte）+ schema v1 strict validation + severity/minSupported 收敛 + manual only + update data fail closed / app fail open + INTERNET 显式声明 + UI 状态机/error taxonomy 冻结 + core/app/UI tests；发布基础设施 `rescueauth-updates` 仓库 + 生产 update 公钥 provisioning 未完成，见 docs/UPDATE_PROTOCOL.md §Release Infrastructure Pending 与 docs/PHASE6_L2_REPORT.md）
+  - [x] L1 Localization（en + zh-CN；完整双语为 V2.0 FEATURE COMPLETE 门槛，最终审计已确认 en/zh 全量 key + format 对齐）
+  - [x] **L2 About / Update Check（V2.0 FEATURE COMPLETE 门槛）**（Issue #20 Phase 6 L2，已 merge #36：About 页 + Settings→About 导航 + 固定 CNB 清单 + Ed25519 验签（BouncyCastle，签名覆盖 exact raw bytes，`.sig` Base64 原始 64-byte）+ schema v1 strict validation + severity/minSupported 收敛 + manual only + update data fail closed / app fail open + INTERNET 显式声明 + UI 状态机/error taxonomy 冻结 + core/app/UI tests；发布基础设施 `rescueauth-updates` 仓库 + 生产 update 公钥 provisioning 未完成，见 docs/UPDATE_PROTOCOL.md §Release Infrastructure Pending 与 docs/PHASE6_L2_REPORT.md）
   - [ ] L3 Clipboard / security polish（含 DEFER 项 clipboard auto-clear；不阻塞 DAILY-USE READY 与 V2.0 FEATURE COMPLETE）
 
 ## 关键决策索引

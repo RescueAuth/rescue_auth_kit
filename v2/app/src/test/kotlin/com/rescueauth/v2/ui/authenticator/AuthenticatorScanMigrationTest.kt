@@ -10,8 +10,9 @@ import com.rescueauth.v2.scanner.MigrationTestFixtures
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -60,7 +61,13 @@ class AuthenticatorScanMigrationTest {
 
     @After
     fun tearDown() {
-        activeScope?.cancel()
+        // Fully unwind background collection coroutines before closing the DB.
+        // Otherwise a Room Flow still unwinding on Dispatchers.Default can query
+        // the already-closed connection pool and throw an uncaught background
+        // thread exception that surfaces in a later test (via runTest) as
+        // UncaughtExceptionsBeforeTest (repro: DeveloperScreenTest flake).
+        runBlocking { activeScope?.coroutineContext?.get(Job)?.cancelAndJoin() }
+        activeScope = null
         db.close()
     }
 
