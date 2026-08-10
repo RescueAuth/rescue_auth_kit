@@ -1,5 +1,10 @@
 package com.rescueauth.v2.ui.screens.developer
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,11 +14,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -21,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,25 +38,38 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.foundation.text.KeyboardOptions
 import com.rescueauth.v2.R
+import com.rescueauth.v2.repository.DeveloperRepository
 import com.rescueauth.v2.ui.developer.DeveloperFormState
 import com.rescueauth.v2.ui.developer.DeveloperFormType
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
- * Developer entry create/edit screen (Phase 4 P4).
+ * Developer entry create/edit screen (Phase 4 P4/P6).
  *
- * Handles the three P4 types with per-type fields. Secret fields are masked
- * by default; labels are non-secret. Form state is owned by the ViewModel
+ * Handles all five types with per-type fields. Secret fields are masked by
+ * default; labels are non-secret. Form state is owned by the ViewModel
  * (JVM-testable), this screen only renders and forwards input.
+ *
+ * ## Keystore SAF import (Phase 4 P6 §3/§16)
+ *
+ * Selecting a keystore launches a SAF [ActivityResultContracts.OpenDocument]
+ * picker (no MIME trust — [ActivityResultContracts.OpenDocument] with a broad
+ * accept-any MIME accepts any document; the bytes are read into a bounded
+ * buffer that the shared [DeveloperRepository.MAX_KEYSTORE_RAW_BYTES] contract
+ * enforces).
+ * The read uses the ContentResolver stream, never `OpenableColumns.SIZE` as a
+ * security gate. Empty / cancel / read-error / oversized / choose-another are
+ * all surfaced as a neutral UX message and never leak secret bytes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,9 +90,35 @@ fun DeveloperFormScreen(
     onFieldValueChange: (Int, String) -> Unit,
     onAddField: () -> Unit,
     onRemoveField: (Int) -> Unit,
+    // Phase 4 P6 — Android Signing Key
+    onProjectNameChange: (String) -> Unit,
+    onPackageNameChange: (String) -> Unit,
+    onStorePasswordChange: (String) -> Unit,
+    onKeyAliasChange: (String) -> Unit,
+    onKeyPasswordChange: (String) -> Unit,
+    onKeystoreSelected: (String, ByteArray) -> Unit,
+    onClearKeystore: () -> Unit,
+    // Phase 4 P6 — Environment Variable Set
+    onVariableNameChange: (Int, String) -> Unit,
+    onVariableValueChange: (Int, String) -> Unit,
+    onAddVariable: () -> Unit,
+    onRemoveVariable: (Int) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    var keystoreError by rememberSaveable { mutableStateOf<String?>(null) }
+    val keystoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            readKeystore(context, uri, onKeystoreSelected) { msg ->
+                keystoreError = msg
+            }
+        }
+        // null => user cancelled the SAF picker; nothing changes.
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -174,7 +221,7 @@ fun DeveloperFormScreen(
                     form.fields.forEachIndexed { index, (label, value) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                         ) {
                             OutlinedTextField(
@@ -209,6 +256,140 @@ fun DeveloperFormScreen(
                         Text(stringResource(R.string.developer_add_field))
                     }
                 }
+                DeveloperFormType.ANDROID_SIGNING_KEY -> {
+                    OutlinedTextField(
+                        value = form.projectName,
+                        onValueChange = onProjectNameChange,
+                        label = { Text(stringResource(R.string.developer_field_project_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = form.packageName,
+                        onValueChange = onPackageNameChange,
+                        label = { Text(stringResource(R.string.developer_field_package_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    SecretField(
+                        value = form.storePassword,
+                        onValueChange = onStorePasswordChange,
+                        label = stringResource(R.string.developer_field_store_password),
+                    )
+                    OutlinedTextField(
+                        value = form.keyAlias,
+                        onValueChange = onKeyAliasChange,
+                        label = { Text(stringResource(R.string.developer_field_key_alias)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    SecretField(
+                        value = form.keyPassword,
+                        onValueChange = onKeyPasswordChange,
+                        label = stringResource(R.string.developer_field_key_password),
+                    )
+
+                    // Keystore file selection (opaque binary asset).
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        OutlinedButton(
+                            onClick = { keystoreError = null; keystoreLauncher.launch(arrayOf("*/*")) },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = null,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                stringResource(
+                                    if (form.keystoreBytes != null || form.keystoreFileName.isNotEmpty()) {
+                                        R.string.developer_replace_keystore
+                                    } else {
+                                        R.string.developer_import_keystore
+                                    },
+                                ),
+                            )
+                        }
+                        if (form.keystoreBytes != null) {
+                            IconButton(onClick = { onClearKeystore() }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.developer_clear_keystore),
+                                )
+                            }
+                        }
+                    }
+                    if (form.keystoreBytes != null) {
+                        Text(
+                            text = form.keystoreFileName.ifEmpty { stringResource(R.string.developer_keystore_selected) },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (keystoreError != null) {
+                        Text(
+                            text = stringResource(R.string.developer_keystore_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    // UX hint only — the file is always saved as opaque bytes.
+                    Text(
+                        text = stringResource(R.string.developer_keystore_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                DeveloperFormType.ENVIRONMENT_VARIABLE_SET -> {
+                    OutlinedTextField(
+                        value = form.projectName,
+                        onValueChange = onProjectNameChange,
+                        label = { Text(stringResource(R.string.developer_field_project_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    form.variables.forEachIndexed { index, (name, value) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { onVariableNameChange(index, it) },
+                                label = { Text(stringResource(R.string.developer_field_variable_name)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = { onRemoveVariable(index) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.developer_remove_variable),
+                                )
+                            }
+                        }
+                        SecretField(
+                            value = value,
+                            onValueChange = { onVariableValueChange(index, it) },
+                            label = stringResource(R.string.developer_field_variable_value),
+                        )
+                    }
+                    Button(
+                        onClick = onAddVariable,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = null,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(stringResource(R.string.developer_add_variable))
+                    }
+                }
             }
 
             if (form.error != null) {
@@ -229,6 +410,88 @@ fun DeveloperFormScreen(
             }
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
+    }
+}
+
+/**
+ * Reads a keystore document via SAF into a bounded byte buffer.
+ *
+ * - The size contract is the shared logical/package per-asset cap derived into
+ *   raw bytes ([DeveloperRepository.MAX_KEYSTORE_RAW_BYTES]); we never trust
+ *   `OpenableColumns.SIZE` (Issue #1 §7) — we read incrementally and stop once
+ *   the cap + 1 is exceeded.
+ * - Empty / cancel / read-error / oversized all map to [onError] (never
+ *   echo secret bytes).
+ * - On success the raw bytes + display name are delivered to [onSelected].
+ */
+private fun readKeystore(
+    context: Context,
+    uri: Uri,
+    onSelected: (String, ByteArray) -> Unit,
+    onError: (String) -> Unit,
+) {
+    val resolver = context.contentResolver
+    val fileName = queryDisplayName(resolver, uri) ?: "keystore"
+    val stream = try {
+        resolver.openInputStream(uri) ?: run { onError("read_failed"); return }
+    } catch (e: Exception) {
+        onError("read_failed")
+        return
+    }
+    try {
+        stream.use { input ->
+            val buf = ByteArray(64 * 1024)
+            val out = java.io.ByteArrayOutputStream()
+            var total = 0L
+            val max = DeveloperRepository.MAX_KEYSTORE_RAW_BYTES.toLong()
+            while (true) {
+                val n = try {
+                    input.read(buf)
+                } catch (e: Exception) {
+                    onError("read_failed")
+                    return
+                }
+                if (n == -1) break
+                if (n == 0) continue
+                total += n
+                if (total > max) {
+                    onError("file_too_large")
+                    return
+                }
+                out.write(buf, 0, n)
+            }
+            val bytes = out.toByteArray()
+            if (bytes.isEmpty()) {
+                onError("file_empty")
+                return
+            }
+            onSelected(fileName, bytes)
+        }
+    } finally {
+        // Release the underlying stream reference (no persistent plaintext
+        // temp copy is ever created — Issue #20 P6 §16).
+    }
+}
+
+private fun queryDisplayName(
+    resolver: android.content.ContentResolver,
+    uri: Uri,
+): String? {
+    return try {
+        resolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) cursor.getString(idx) else null
+            } else null
+        }
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -281,6 +544,12 @@ private fun formErrorText(key: String): String = when (key) {
     "private_key_required" -> stringResource(R.string.developer_error_private_key)
     "field_required" -> stringResource(R.string.developer_error_field)
     "field_label_required" -> stringResource(R.string.developer_error_field_label)
+    "keystore_required" -> stringResource(R.string.developer_error_keystore)
+    "store_password_required" -> stringResource(R.string.developer_error_store_password)
+    "key_alias_required" -> stringResource(R.string.developer_error_key_alias)
+    "key_password_required" -> stringResource(R.string.developer_error_key_password)
+    "variable_required" -> stringResource(R.string.developer_error_variable)
+    "variable_name_required" -> stringResource(R.string.developer_error_variable_name)
     "not_found" -> stringResource(R.string.developer_entry_missing)
     "unexpected" -> stringResource(R.string.common_error_title)
     else -> key
@@ -307,6 +576,17 @@ private fun DeveloperFormApiPreview() {
             onFieldValueChange = { _, _ -> },
             onAddField = {},
             onRemoveField = {},
+            onProjectNameChange = {},
+            onPackageNameChange = {},
+            onStorePasswordChange = {},
+            onKeyAliasChange = {},
+            onKeyPasswordChange = {},
+            onKeystoreSelected = { _, _ -> },
+            onClearKeystore = {},
+            onVariableNameChange = { _, _ -> },
+            onVariableValueChange = { _, _ -> },
+            onAddVariable = {},
+            onRemoveVariable = {},
             onSubmit = {},
         )
     }

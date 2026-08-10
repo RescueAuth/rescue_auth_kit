@@ -48,7 +48,7 @@ class DeveloperScreenTest {
     )
 
     @Test
-    fun addSheetExposesExactlyTheThreeP4Types() {
+    fun addSheetExposesAllFiveP6Types() {
         composeRule.setContent {
             RescueAuthTheme {
                 DeveloperAddSheet(onDismiss = {}, onSelectType = {})
@@ -59,9 +59,9 @@ class DeveloperScreenTest {
         composeRule.onNodeWithText("API Credential", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithText("SSH Key", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithText("Generic Secret", useUnmergedTree = true).assertExists()
-        // P6 types must not appear as clickable fake features.
-        composeRule.onNodeWithText("Android Signing Key", useUnmergedTree = true).assertDoesNotExist()
-        composeRule.onNodeWithText("Environment Variable Set", useUnmergedTree = true).assertDoesNotExist()
+        // Phase 4 P6 makes the final two types first-class clickable entries.
+        composeRule.onNodeWithText("Android Signing Key", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithText("Environment Variable Set", useUnmergedTree = true).assertExists()
     }
 
     @Test
