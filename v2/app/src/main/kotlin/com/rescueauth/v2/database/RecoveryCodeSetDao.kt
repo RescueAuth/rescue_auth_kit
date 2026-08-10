@@ -24,6 +24,9 @@ interface RecoveryCodeSetDao {
     @Query("UPDATE recovery_code_set SET title = :title WHERE id = :id")
     suspend fun updateTitle(id: String, title: String)
 
+    @Query("UPDATE recovery_code_set SET accountId = :newAccountId WHERE id = :id")
+    suspend fun updateAccountId(id: String, newAccountId: String)
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(sets: List<RecoveryCodeSetEntity>)
 

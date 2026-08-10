@@ -46,6 +46,9 @@ object VaultAccess {
     private var cachedDeveloperRepository: DeveloperRepository? = null
 
     @Volatile
+    private var cachedProviderAccountRepository: ProviderAccountRepository? = null
+
+    @Volatile
     private var cachedExportImportService: ExportImportService? = null
 
     @Volatile
@@ -58,6 +61,7 @@ object VaultAccess {
         cachedAuthRepository = null
         cachedRecoveryRepository = null
         cachedDeveloperRepository = null
+        cachedProviderAccountRepository = null
         cachedExportImportService = null
         cachedLegacyImportService = null
         sessionManager = null
@@ -123,6 +127,24 @@ object VaultAccess {
         val repo = DeveloperRepository(vault, db, sm.sessionState)
         cachedDb = db
         cachedDeveloperRepository = repo
+        return repo
+    }
+
+    /**
+     * @return the production Provider & Account management repository for the
+     *   current open DB, or null while locked. Shares the single
+     *   [VaultRepository] mutex so all hierarchy mutations stay serialized with
+     *   Authenticator CRUD / Recovery CRUD / export-import merges.
+     */
+    fun providerAccountRepository(): ProviderAccountRepository? {
+        val vault = vaultRepository() ?: return null
+        val sm = sessionManager ?: return null
+        val db = sm.databaseOrNull() ?: return null
+        val cached = cachedProviderAccountRepository
+        if (cached != null && cachedDb === db) return cached
+        val repo = ProviderAccountRepository(vault, db, sm.sessionState)
+        cachedDb = db
+        cachedProviderAccountRepository = repo
         return repo
     }
 

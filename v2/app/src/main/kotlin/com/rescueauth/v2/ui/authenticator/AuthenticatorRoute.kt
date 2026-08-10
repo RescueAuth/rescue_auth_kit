@@ -23,9 +23,15 @@ import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
+import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.screens.authenticator.AddTotpSheet
 import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen
+import com.rescueauth.v2.ui.screens.authenticator.CreateProviderDialog
+import com.rescueauth.v2.ui.screens.authenticator.ManagementDestructiveDialog
+import com.rescueauth.v2.ui.screens.authenticator.ManagementTextDialog
+import com.rescueauth.v2.ui.screens.authenticator.MergeAccountDialog
 import com.rescueauth.v2.ui.screens.authenticator.MigrationImportSheet
+import com.rescueauth.v2.ui.screens.authenticator.ProviderPickerDialog
 import com.rescueauth.v2.ui.screens.authenticator.QrScannerScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +60,18 @@ fun AuthenticatorRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddSheet by remember { mutableStateOf(false) }
 
+    // ---- Provider & Account management dialog state (Phase 4) -----------
+    var showAddProvider by remember { mutableStateOf(false) }
+    var providerToRename by remember { mutableStateOf<String?>(null) }
+    var providerToDelete by remember { mutableStateOf<String?>(null) }
+    var providerToAddAccount by remember { mutableStateOf<String?>(null) }
+    var accountToRename by remember { mutableStateOf<AccountUi?>(null) }
+    var accountToMove by remember { mutableStateOf<AccountUi?>(null) }
+    var accountToMerge by remember { mutableStateOf<AccountUi?>(null) }
+    var accountToDelete by remember { mutableStateOf<AccountUi?>(null) }
+    var mergeDestination by remember { mutableStateOf<AccountUi?>(null) }
+    var providerList by remember { mutableStateOf<List<String>>(emptyList()) }
+
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
         val sm = VaultAccess.sessionManager
         if (sm != null) {
@@ -66,6 +84,7 @@ fun AuthenticatorRoute(
         AuthenticatorViewModel(
             repositoryProvider = { VaultAccess.authenticatorRepository() },
             recoveryRepositoryProvider = { VaultAccess.recoveryRepository() },
+            managementRepositoryProvider = { VaultAccess.providerAccountRepository() },
             sessionState = sessionState,
             clock = AuthenticatorViewModel.Clock { System.currentTimeMillis() / 1000L },
             scope = appScope,
@@ -169,6 +188,12 @@ fun AuthenticatorRoute(
                 }
                 snackbarHostState.showSnackbar(message)
             }
+            is AuthenticatorEvent.ManagementMessage -> {
+                snackbarHostState.showSnackbar(event.message)
+            }
+            is AuthenticatorEvent.ManagementError -> {
+                snackbarHostState.showSnackbar(event.message)
+            }
         }
         viewModel.onEventShown()
     }
@@ -180,6 +205,20 @@ fun AuthenticatorRoute(
         onCopyClick = { viewModel.copyCode(it) },
         onDeleteClick = { appScope.launch { viewModel.deleteCard(it) } },
         onOpenAccount = onOpenAccount?.let { cb -> { accountId -> cb(accountId) } },
+        onAddProviderClick = { showAddProvider = true },
+        onRenameProvider = { provider -> providerToRename = provider },
+        onDeleteProvider = { provider -> providerToDelete = provider },
+        onAddAccount = { provider -> providerToAddAccount = provider },
+        onRenameAccount = { account -> accountToRename = account },
+        onMoveAccount = { account ->
+            accountToMove = account
+            appScope.launch { providerList = viewModel.availableProviders() }
+        },
+        onMergeAccount = { account ->
+            accountToMerge = account
+            mergeDestination = null
+        },
+        onDeleteAccount = { account -> accountToDelete = account },
         modifier = modifier,
     )
 
@@ -219,6 +258,166 @@ fun AuthenticatorRoute(
             state = migrationState,
             onConfirm = { appScope.launch { viewModel.confirmMigrationImport() } },
             onDismiss = { viewModel.dismissMigrationPreview() },
+        )
+    }
+
+    // ---- Provider & Account management dialogs (Phase 4) -----------------
+    if (showAddProvider) {
+        CreateProviderDialog(
+            onConfirm = { provider, accountName ->
+                showAddProvider = false
+                if (provider.isNotBlank() && accountName.isNotBlank()) {
+                    // Current model requires a first Account to persist a
+                    // Provider (no empty Provider support).
+                    appScope.launch { viewModel.createProvider(provider, accountName) }
+                }
+            },
+            onDismiss = { showAddProvider = false },
+        )
+    }
+
+    providerToRename?.let { provider ->
+        ManagementTextDialog(
+            title = context.getString(R.string.provider_rename_title),
+            fieldLabel = context.getString(R.string.provider_new_name_label),
+            initialValue = provider,
+            confirmLabel = context.getString(R.string.management_rename),
+            onConfirm = { newName ->
+                providerToRename = null
+                if (newName.isNotBlank()) {
+                    appScope.launch { viewModel.renameProvider(provider, newName) }
+                }
+            },
+            onDismiss = { providerToRename = null },
+        )
+    }
+
+    providerToDelete?.let { provider ->
+        val providerAccounts = uiState.accounts.filter { it.providerName == provider }
+        val totpCount = providerAccounts.sumOf { it.totpCredentials.size }
+        val setCount = providerAccounts.sumOf { it.recoverySets.size }
+        ManagementDestructiveDialog(
+            title = context.getString(R.string.provider_delete_title, provider),
+            message = context.getString(
+                R.string.provider_delete_message,
+                providerAccounts.size,
+                totpCount,
+                setCount,
+            ),
+            confirmLabel = context.getString(R.string.provider_delete),
+            onConfirm = {
+                val p = providerToDelete
+                providerToDelete = null
+                if (p != null) appScope.launch { viewModel.deleteProvider(p) }
+            },
+            onDismiss = { providerToDelete = null },
+        )
+    }
+
+    providerToAddAccount?.let { provider ->
+        ManagementTextDialog(
+            title = context.getString(R.string.account_add_title),
+            fieldLabel = context.getString(R.string.account_name_label),
+            confirmLabel = context.getString(R.string.management_confirm),
+            onConfirm = { accountName ->
+                providerToAddAccount = null
+                if (accountName.isNotBlank()) {
+                    appScope.launch { viewModel.createAccount(provider, accountName) }
+                }
+            },
+            onDismiss = { providerToAddAccount = null },
+        )
+    }
+
+    accountToRename?.let { account ->
+        ManagementTextDialog(
+            title = context.getString(R.string.account_rename_title),
+            fieldLabel = context.getString(R.string.account_name_label),
+            initialValue = account.accountName,
+            confirmLabel = context.getString(R.string.management_rename),
+            onConfirm = { newName ->
+                val a = accountToRename
+                accountToRename = null
+                if (a != null && newName.isNotBlank()) {
+                    appScope.launch { viewModel.renameAccount(a.id, newName) }
+                }
+            },
+            onDismiss = { accountToRename = null },
+        )
+    }
+
+    accountToMove?.let { account ->
+        val otherProviders = providerList.filter { it != account.providerName }
+        if (otherProviders.isNotEmpty()) {
+            ProviderPickerDialog(
+                title = context.getString(R.string.account_move_title),
+                providers = otherProviders,
+                initialProvider = otherProviders.first(),
+                onConfirm = { destProvider ->
+                    val a = accountToMove
+                    accountToMove = null
+                    if (a != null) appScope.launch { viewModel.moveAccount(a.id, destProvider) }
+                },
+                onDismiss = { accountToMove = null },
+            )
+        } else {
+            LaunchedEffect(accountToMove) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.account_move_destination) + ": none available",
+                )
+                accountToMove = null
+            }
+        }
+    }
+
+    accountToMerge?.let { source ->
+        val candidates = uiState.accounts.filter { it.id != source.id }
+        if (candidates.isNotEmpty()) {
+            if (mergeDestination == null) {
+                val first = candidates.first()
+                LaunchedEffect(Unit) { mergeDestination = first }
+            }
+            mergeDestination?.let { dest ->
+                MergeAccountDialog(
+                    source = source,
+                    destination = dest,
+                    onConfirm = {
+                        val s = accountToMerge
+                        accountToMerge = null
+                        mergeDestination = null
+                        if (s != null) appScope.launch { viewModel.mergeAccounts(s.id, dest.id) }
+                    },
+                    onDismiss = {
+                        accountToMerge = null
+                        mergeDestination = null
+                    },
+                )
+            }
+        } else {
+            LaunchedEffect(accountToMerge) {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.account_merge) + ": create another account first",
+                )
+                accountToMerge = null
+            }
+        }
+    }
+
+    accountToDelete?.let { account ->
+        ManagementDestructiveDialog(
+            title = context.getString(R.string.account_delete_title, account.accountName),
+            message = context.getString(
+                R.string.account_delete_message,
+                account.totpCredentials.size,
+                account.recoverySets.size,
+            ),
+            confirmLabel = context.getString(R.string.account_delete),
+            onConfirm = {
+                val a = accountToDelete
+                accountToDelete = null
+                if (a != null) appScope.launch { viewModel.deleteAccount(a.id) }
+            },
+            onDismiss = { accountToDelete = null },
         )
     }
 }

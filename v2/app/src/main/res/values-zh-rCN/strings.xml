@@ -29,6 +29,34 @@
     <string name="account_pinned_label">已置顶</string>
     <string name="account_actions_label">操作</string>
 
+    <!-- Provider & Account management (Phase 4 — hierarchy management) -->
+    <string name="provider_add_provider">添加服务</string>
+    <string name="provider_actions">服务操作</string>
+    <string name="provider_rename">重命名服务</string>
+    <string name="provider_delete">删除服务</string>
+    <string name="provider_add_account">添加账户</string>
+    <string name="provider_create_title">创建服务</string>
+    <string name="provider_name_label">服务名称</string>
+    <string name="provider_rename_title">重命名服务</string>
+    <string name="provider_new_name_label">新服务名称</string>
+    <string name="provider_delete_title">删除服务 %1$s？</string>
+    <string name="provider_delete_message">将永久删除 %1$d 个账户、%2$d 个 TOTP 凭据和 %3$d 个恢复码集。此操作无法撤销。</string>
+    <string name="account_add_title">添加账户</string>
+    <string name="account_name_label">账户名称</string>
+    <string name="account_rename">重命名账户</string>
+    <string name="account_rename_title">重命名账户</string>
+    <string name="account_move">移动</string>
+    <string name="account_move_title">移动账户</string>
+    <string name="account_move_destination">目标服务</string>
+    <string name="account_merge">合并</string>
+    <string name="account_merge_title">合并账户</string>
+    <string name="account_merge_confirm">合并</string>
+    <string name="account_delete">删除账户</string>
+    <string name="account_delete_title">删除账户 %1$s？</string>
+    <string name="account_delete_message">将永久删除 %1$d 个 TOTP 凭据和 %2$d 个恢复码集。此操作无法撤销。</string>
+    <string name="management_confirm">确认</string>
+    <string name="management_rename">重命名</string>
+
     <!-- TOTP card -->
     <string name="totp_code_copied">验证码已复制</string>
     <string name="totp_copy_code">复制验证码</string>

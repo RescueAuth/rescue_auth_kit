@@ -10,6 +10,52 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 provider-account-management] - 2026-08-10（Phase 4 Provider & Account Full Management，IMPLEMENTED / PR OPEN）
+
+Issue #32：在现有 minimal hierarchy（TOTP + Recovery loop）之上补齐 Provider /
+Account 正式 management 能力：Provider（create / rename / delete）与 Account
+（create / rename / move / merge / delete）。**Room schema / package format 零改动**。
+
+### Added
+
+- **`ProviderAccountRepository`（app）**：正式 hierarchy management 全部走
+  共享 `VaultRepository` 单 mutex + 单 Room transaction（原子 / rollback）。
+  - Provider = `serviceName` 分组（无独立 entity / 无 package stableId），
+    rename = 更新全部 descendant Account 的 `serviceName`，Account / TOTP /
+    Recovery Set/Code stableIds 全部保留；rename-to-existing 显式 Conflict。
+  - Empty Provider **不是当前正式能力**（Account 行是最小持久化单元，始终携带
+    `serviceName`），因此 Create Provider 同时创建其首个 Account。
+  - Provider delete：单事务级联删除全部 Account / TOTP / Recovery Sets+Codes，
+    返回安全 counts；失败整体 rollback，无 orphan。
+  - Account create / rename：preserve stableId；provider 内 duplicate account
+    name 显式 Conflict（不静默 merge）。
+  - Account move：跨 Provider 移动整个 hierarchy，所有 stableIds 与
+    USED/usedAt 保留；目标 provider 已存在才允许；同 provider 安全 no-op。
+  - Account merge（Source → Destination，Destination 存活）：source TOTP 逐个迁移，
+    duplicate 复用现有官方 semantic fingerprint（secret+algorithm+digits+period），
+    destination existing 存活、source duplicate 消解；Recovery Sets 全部迁移并保留
+    set/code stableIds + USED/usedAt，同 title 不 dedupe；跨 Provider merge 支持；
+    成功后删除 source Account（单事务）。
+  - Account delete：单事务级联删除 TOTP + Recovery Sets/Codes。
+- **UI**：Authenticator 首页 Provider 分组视图 + Provider 菜单（Rename /
+  Add Account / Delete）+ Account 菜单（Rename / Move / Merge / Delete）+ Add
+  Provider 入口；全部 destructive 操作走 confirmation dialog 且只显示安全
+  counts（TOTP / Recovery Set 数量），绝不显示 secret / code value。
+- **DAO**：新增 `updateServiceName` / `updateServiceNameForAll` /
+  `updateAccountName` / `countByServiceName` / `listByServiceName`（Account）、
+  `updateAccountId`（TOTP / Recovery Set）。
+
+### Tests
+
+- `ProviderAccountRepositoryTest`（25）：create/rename/delete Provider、
+  Account CRUD/move/merge/delete、stableId 保留、TOTP duplicate fingerprint、
+  Recovery lineage 保留、跨 Provider merge、rollback/锁定边界。
+- `ProviderAccountPackageIntegrationTest`（5）：Provider rename / Account
+  rename / move / merge / recovery-state 后的 Full Vault snapshot round-trip
+  正确（无 orphan、stableId 保留）。
+- `ProviderAccountManagementDialogTest`（6）：management dialogs 显示安全
+  metadata、cancel 不改动、无 secret 泄漏。
+
 ## [v2 phase4-p6 developer-vault-completion] - 2026-08-10（Phase 4 P6 Developer Vault Completion，IMPLEMENTED / PR OPEN）
 
 Issue #20 Phase 4 P6：补齐 Developer Vault 最后两类 Android production

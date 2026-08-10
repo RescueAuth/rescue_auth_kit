@@ -27,6 +27,12 @@ interface AuthAccountDao {
     @Query("SELECT * FROM auth_account WHERE serviceName = :serviceName ORDER BY sortOrder")
     fun observeByService(serviceName: String): Flow<List<AuthAccountEntity>>
 
+    @Query("SELECT * FROM auth_account WHERE serviceName = :serviceName ORDER BY sortOrder")
+    suspend fun listByServiceName(serviceName: String): List<AuthAccountEntity>
+
+    @Query("SELECT COUNT(*) FROM auth_account WHERE serviceName = :serviceName")
+    suspend fun countByServiceName(serviceName: String): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(accounts: List<AuthAccountEntity>)
 
@@ -38,6 +44,15 @@ interface AuthAccountDao {
 
     @Query("UPDATE auth_account SET accountName = :accountName, serviceName = :serviceName, updatedAt = :updatedAt WHERE id = :id")
     suspend fun updateName(id: String, accountName: String, serviceName: String, updatedAt: String)
+
+    @Query("UPDATE auth_account SET serviceName = :serviceName, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateServiceName(id: String, serviceName: String, updatedAt: String)
+
+    @Query("UPDATE auth_account SET serviceName = :newServiceName, updatedAt = :updatedAt WHERE serviceName = :oldServiceName")
+    suspend fun updateServiceNameForAll(oldServiceName: String, newServiceName: String, updatedAt: String)
+
+    @Query("UPDATE auth_account SET accountName = :accountName, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateAccountName(id: String, accountName: String, updatedAt: String)
 
     @Query("DELETE FROM auth_account WHERE id = :id")
     suspend fun deleteById(id: String)

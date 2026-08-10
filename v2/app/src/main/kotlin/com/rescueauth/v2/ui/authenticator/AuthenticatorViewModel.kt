@@ -7,6 +7,7 @@ import com.rescueauth.v2.migration.MigrationEntryStatus
 import com.rescueauth.v2.migration.MigrationPayloadParser
 import com.rescueauth.v2.migration.MigrationTotpCandidate
 import com.rescueauth.v2.repository.AuthenticatorRepository
+import com.rescueauth.v2.repository.ProviderAccountRepository
 import com.rescueauth.v2.repository.TotpImportItem
 import com.rescueauth.v2.scanner.ScannerResultRouter
 import com.rescueauth.v2.session.SecureSessionStateMachine
@@ -30,6 +31,8 @@ data class AuthenticatorUiState(
     val totpCards: List<TotpCardUi> = emptyList(),
     /** Provider/Account grouping (Phase 4 P3) — drives the account list UI. */
     val accounts: List<com.rescueauth.v2.ui.model.AccountUi> = emptyList(),
+    /** Provider-grouped view (Phase 4 — Provider/Account Full Management). */
+    val providers: List<com.rescueauth.v2.ui.model.ProviderUi> = emptyList(),
 ) {
     val isEmpty: Boolean get() = !loading && error == null && totpCards.isEmpty() && accounts.isEmpty()
 }
@@ -121,6 +124,12 @@ sealed interface AuthenticatorEvent {
 
     /** A scanned QR could not be used (message resource key). */
     data class ScanError(val messageKey: String) : AuthenticatorEvent
+
+    /** A hierarchy management operation completed; show a snackbar message. */
+    data class ManagementMessage(val message: String) : AuthenticatorEvent
+
+    /** A hierarchy management operation failed; show an error message. */
+    data class ManagementError(val message: String) : AuthenticatorEvent
 }
 
 /**
@@ -140,6 +149,7 @@ sealed interface AuthenticatorEvent {
 class AuthenticatorViewModel(
     private val repositoryProvider: () -> AuthenticatorRepository?,
     private val recoveryRepositoryProvider: () -> com.rescueauth.v2.repository.RecoveryCodeRepository? = { null },
+    private val managementRepositoryProvider: () -> ProviderAccountRepository? = { null },
     sessionState: StateFlow<SecureSessionStateMachine.State>,
     private val clock: Clock,
     private val scope: CoroutineScope,
@@ -275,11 +285,25 @@ class AuthenticatorViewModel(
                 },
             )
         }
+        // Provider-grouped view (Phase 4 — Provider/Account management): group
+        // the flat account list under their serviceName. A Provider is the
+        // serviceName grouping — no separate entity, no Provider stableId.
+        val providers = accountUis.groupBy { it.providerName }
+            .map { (name, group) ->
+                com.rescueauth.v2.ui.model.ProviderUi(
+                    id = "provider:" + name,
+                    serviceName = name,
+                    accounts = group.sortedBy { it.accountName },
+                )
+            }
+            .sortedBy { it.serviceName }
+
         return AuthenticatorUiState(
             loading = false,
             error = null,
             totpCards = cards,
             accounts = accountUis,
+            providers = providers,
         )
     }
 
@@ -597,4 +621,123 @@ class AuthenticatorViewModel(
     }
 
     private var pendingUndo: TotpCredential? = null
+
+    // ------------------------------------------------------------------
+    // Provider & Account Full Management (Phase 4 — hierarchy management)
+    // ------------------------------------------------------------------
+
+    /** All distinct provider names (for Add Account / Move / Merge pickers). */
+    suspend fun availableProviders(): List<String> {
+        val repo = managementRepositoryProvider() ?: return emptyList()
+        return runCatching { repo.listProviders() }.getOrDefault(emptyList())
+    }
+
+    suspend fun createProvider(serviceName: String, accountName: String): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.createProvider(serviceName, accountName)
+            _events.value = AuthenticatorEvent.ManagementMessage("Provider created")
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to create provider")
+            false
+        }
+    }
+
+    suspend fun createAccount(provider: String, accountName: String): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.createAccount(provider, accountName)
+            _events.value = AuthenticatorEvent.ManagementMessage("Account added")
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to add account")
+            false
+        }
+    }
+
+    suspend fun renameProvider(oldName: String, newName: String): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.renameProvider(oldName, newName)
+            _events.value = AuthenticatorEvent.ManagementMessage("Provider renamed")
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to rename provider")
+            false
+        }
+    }
+
+    suspend fun deleteProvider(provider: String): ProviderDeleteUiResult? {
+        val repo = managementRepositoryProvider() ?: return null
+        return runCatching {
+            val result = repo.deleteProvider(provider)
+            _events.value = AuthenticatorEvent.ManagementMessage("Provider deleted")
+            ProviderDeleteUiResult(result.accountCount, result.totpCount, result.recoverySetCount)
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to delete provider")
+            null
+        }
+    }
+
+    suspend fun renameAccount(accountId: String, newName: String): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.renameAccount(accountId, newName)
+            _events.value = AuthenticatorEvent.ManagementMessage("Account renamed")
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to rename account")
+            false
+        }
+    }
+
+    suspend fun moveAccount(accountId: String, destinationProvider: String): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.moveAccount(accountId, destinationProvider)
+            _events.value = AuthenticatorEvent.ManagementMessage("Account moved")
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to move account")
+            false
+        }
+    }
+
+    suspend fun mergeAccounts(sourceAccountId: String, destinationAccountId: String): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.mergeAccounts(sourceAccountId, destinationAccountId)
+            _events.value = AuthenticatorEvent.ManagementMessage("Accounts merged")
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to merge accounts")
+            false
+        }
+    }
+
+    suspend fun deleteAccount(accountId: String): AccountDeleteUiResult? {
+        val repo = managementRepositoryProvider() ?: return null
+        return runCatching {
+            val result = repo.deleteAccount(accountId)
+            _events.value = AuthenticatorEvent.ManagementMessage("Account deleted")
+            AccountDeleteUiResult(result.totpCount, result.recoverySetCount)
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to delete account")
+            null
+        }
+    }
 }
+
+/** Safe metadata counts returned from a Provider delete (no secrets). */
+data class ProviderDeleteUiResult(
+    val accountCount: Int,
+    val totpCount: Int,
+    val recoverySetCount: Int,
+)
+
+/** Safe metadata counts returned from an Account delete (no secrets). */
+data class AccountDeleteUiResult(
+    val totpCount: Int,
+    val recoverySetCount: Int,
+)

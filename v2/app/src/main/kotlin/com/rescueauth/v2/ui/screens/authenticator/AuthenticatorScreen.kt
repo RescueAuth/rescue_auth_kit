@@ -1,15 +1,23 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -17,6 +25,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -52,11 +65,31 @@ fun AuthenticatorScreen(
     onCopyClick: ((TotpCardUi) -> Unit)? = null,
     onDeleteClick: ((TotpCardUi) -> Unit)? = null,
     onOpenAccount: ((String) -> Unit)? = null,
+    onAddProviderClick: (() -> Unit)? = null,
+    onRenameProvider: ((String) -> Unit)? = null,
+    onDeleteProvider: ((String) -> Unit)? = null,
+    onAddAccount: ((String) -> Unit)? = null,
+    onRenameAccount: ((AccountUi) -> Unit)? = null,
+    onMoveAccount: ((AccountUi) -> Unit)? = null,
+    onMergeAccount: ((AccountUi) -> Unit)? = null,
+    onDeleteAccount: ((AccountUi) -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.authenticator_title)) })
+            TopAppBar(
+                title = { Text(stringResource(R.string.authenticator_title)) },
+                actions = {
+                    if (onAddProviderClick != null) {
+                        IconButton(onClick = onAddProviderClick) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = stringResource(R.string.provider_add_provider),
+                            )
+                        }
+                    }
+                },
+            )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = {
@@ -93,6 +126,25 @@ fun AuthenticatorScreen(
                     contentPadding = PaddingValues(Spacing.md),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
+                    // Provider-grouped list (Phase 4 — Provider/Account
+                    // management). Each Provider row exposes a menu
+                    // (Rename / Add Account / Delete) and each Account row
+                    // exposes a menu (Rename / Move / Merge / Delete). The
+                    // home list only shows counts — code values live in the
+                    // account detail screen and are never expanded here.
+                    items(
+                        count = uiState.providers.size,
+                        key = { index -> uiState.providers[index].id },
+                    ) { pIndex ->
+                        val provider = uiState.providers[pIndex]
+                        ProviderGroupHeader(
+                            provider = provider,
+                            onRename = onRenameProvider,
+                            onAddAccount = onAddAccount,
+                            onDelete = onDeleteProvider,
+                        )
+                    }
+
                     // Provider/Account rows with a recovery summary (P3). The
                     // home list only shows counts — code values live in the
                     // account detail screen and are never expanded here.
@@ -105,7 +157,16 @@ fun AuthenticatorScreen(
                             account = account,
                             onClick = onOpenAccount?.let { { it(account.id) } },
                             trailingAction = {
-                                RecoverySummaryLabel(account)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RecoverySummaryLabel(account)
+                                    AccountActionsMenu(
+                                        account = account,
+                                        onRename = onRenameAccount,
+                                        onMove = onMoveAccount,
+                                        onMerge = onMergeAccount,
+                                        onDelete = onDeleteAccount,
+                                    )
+                                }
                             },
                         )
                     }
@@ -139,6 +200,134 @@ private fun RecoverySummaryLabel(account: AccountUi) {
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Provider group header row with a management menu (Rename / Add Account /
+ * Delete). Displays only the Provider name and its account count — never
+ * secret values.
+ */
+@Composable
+private fun ProviderGroupHeader(
+    provider: com.rescueauth.v2.ui.model.ProviderUi,
+    onRename: ((String) -> Unit)?,
+    onAddAccount: ((String) -> Unit)?,
+    onDelete: ((String) -> Unit)?,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = provider.serviceName,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = provider.accounts.size.toString() + " account(s)",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onRename != null || onAddAccount != null || onDelete != null) {
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.provider_actions),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    if (onRename != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.provider_rename)) },
+                            onClick = {
+                                menuOpen = false
+                                onRename(provider.serviceName)
+                            },
+                        )
+                    }
+                    if (onAddAccount != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.provider_add_account)) },
+                            onClick = {
+                                menuOpen = false
+                                onAddAccount(provider.serviceName)
+                            },
+                        )
+                    }
+                    if (onDelete != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.provider_delete)) },
+                            onClick = {
+                                menuOpen = false
+                                onDelete(provider.serviceName)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Account row overflow menu (Rename / Move / Merge / Delete). No secrets are
+ * ever shown here — only safe management actions.
+ */
+@Composable
+private fun AccountActionsMenu(
+    account: AccountUi,
+    onRename: ((AccountUi) -> Unit)?,
+    onMove: ((AccountUi) -> Unit)?,
+    onMerge: ((AccountUi) -> Unit)?,
+    onDelete: ((AccountUi) -> Unit)?,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menuOpen = true }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.account_actions_label),
+            )
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            if (onRename != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.account_rename)) },
+                    onClick = { menuOpen = false; onRename(account) },
+                )
+            }
+            if (onMove != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.account_move)) },
+                    onClick = { menuOpen = false; onMove(account) },
+                )
+            }
+            if (onMerge != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.account_merge)) },
+                    onClick = { menuOpen = false; onMerge(account) },
+                )
+            }
+            if (onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.account_delete)) },
+                    onClick = { menuOpen = false; onDelete(account) },
+                )
+            }
+        }
     }
 }
 
