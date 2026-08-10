@@ -110,6 +110,20 @@ class DeveloperRepository(
     suspend fun getByStableId(stableId: String): VaultDeveloperEntry? =
         dao.getByStableId(stableId)?.let { DeveloperMappers.toLogical(it) }
 
+    /**
+     * P7 Global Search — metadata-only flow (no secrets cross this boundary).
+     * Each entry is reduced to its explicitly safe searchable metadata by
+     * [DeveloperMappers.toSearchMetadata]; the typed payload (incl. every
+     * secret and free-form notes) is never exposed here.
+     */
+    fun observeSearchMetadata(): Flow<List<DeveloperSearchMetadata>> =
+        dao.observeAll().map { list ->
+            list.mapNotNull { entity ->
+                runCatching { DeveloperMappers.toLogical(entity) }.getOrNull()
+                    ?.let { DeveloperMappers.toSearchMetadata(it) }
+            }
+        }
+
     // ------------------------------------------------------------------
     // API Credential
     // ------------------------------------------------------------------

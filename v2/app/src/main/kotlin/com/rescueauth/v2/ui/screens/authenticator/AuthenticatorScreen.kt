@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +66,8 @@ fun AuthenticatorScreen(
     onCopyClick: ((TotpCardUi) -> Unit)? = null,
     onDeleteClick: ((TotpCardUi) -> Unit)? = null,
     onOpenAccount: ((String) -> Unit)? = null,
+    onOpenSearch: (() -> Unit)? = null,
+    onTogglePin: ((AccountUi) -> Unit)? = null,
     onAddProviderClick: (() -> Unit)? = null,
     onRenameProvider: ((String) -> Unit)? = null,
     onDeleteProvider: ((String) -> Unit)? = null,
@@ -80,6 +83,14 @@ fun AuthenticatorScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.authenticator_title)) },
                 actions = {
+                    if (onOpenSearch != null) {
+                        IconButton(onClick = onOpenSearch) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.search_title),
+                            )
+                        }
+                    }
                     if (onAddProviderClick != null) {
                         IconButton(onClick = onAddProviderClick) {
                             Icon(
@@ -161,6 +172,7 @@ fun AuthenticatorScreen(
                                     RecoverySummaryLabel(account)
                                     AccountActionsMenu(
                                         account = account,
+                                        onTogglePin = onTogglePin,
                                         onRename = onRenameAccount,
                                         onMove = onMoveAccount,
                                         onMerge = onMergeAccount,
@@ -286,6 +298,7 @@ private fun ProviderGroupHeader(
 @Composable
 private fun AccountActionsMenu(
     account: AccountUi,
+    onTogglePin: ((AccountUi) -> Unit)?,
     onRename: ((AccountUi) -> Unit)?,
     onMove: ((AccountUi) -> Unit)?,
     onMerge: ((AccountUi) -> Unit)?,
@@ -303,6 +316,18 @@ private fun AccountActionsMenu(
             expanded = menuOpen,
             onDismissRequest = { menuOpen = false },
         ) {
+            if (onTogglePin != null) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                if (account.isPinned) R.string.account_unpin else R.string.account_pin,
+                            ),
+                        )
+                    },
+                    onClick = { menuOpen = false; onTogglePin(account) },
+                )
+            }
             if (onRename != null) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.account_rename)) },

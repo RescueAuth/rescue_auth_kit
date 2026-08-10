@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）IMPLEMENTED / PR OPEN，P7 NOT STARTED，P8 NOT STARTED，PA（Provider & Account Full Management，Issue #32）IMPLEMENTED / PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md` / `docs/PHASE4_PA_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）IMPLEMENTED / PR OPEN，P7（Search + Pin）IMPLEMENTED / PR OPEN，P8 NOT STARTED，PA（Provider & Account Full Management，Issue #32）IMPLEMENTED / PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md` / `docs/PHASE4_P7_REPORT.md` / `docs/PHASE4_PA_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
@@ -219,7 +219,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] **P4 Developer Vault 第一批 + Sensitive re-auth**（Sensitive Action Fresh Re-auth Foundation：`SensitiveAction`/`SensitiveActionGate`/`SensitiveActionResult` 单一 orchestration path + BiometricPrompt/Device Credential one-shot 语义 + Full Vault Export 接入；Developer Vault 第一批：API Credential / SSH Key / Generic Secret 全 CRUD / reveal-hide / copy / delete（destructive confirm）/ stableId-preserving edit；见 docs/PHASE4_P4_REPORT.md）
   - [x] **P5 Selective Export / Import**（同一 Merge Engine；见 `docs/PHASE4_P5_REPORT.md`：共享纯 Kotlin selection engine / Export 四 scope / decoded-snapshot 内存过滤 import / selected conflict 语义）
   - [x] **P6 Developer Vault 第二批（Developer Vault Completion）**（Android Signing Key / Environment Variable Set 全 CRUD + keystore SAF import/export + Copy key.properties + Env Var 动态行 + 每字段独立 fresh re-auth；见 `docs/PHASE4_P6_REPORT.md`）
-  - [ ] P7 Search + Pin
+  - [x] **P7 Search + Pin**（Global Search safe metadata only + Account Pin/Unpin；见 `docs/PHASE4_P7_REPORT.md`）
   - [ ] P8 Delete Undo 完善
   - [ ] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
   - [ ] **V2.0 FEATURE COMPLETE 里程碑**（定义见 ROADMAP.md §10.1；正式产品范围全部完成，不等于 DAILY-USE READY）
@@ -250,4 +250,5 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 - `docs/ADRS/ADR-0011-sensitive-action-reauth-oneshot.md`（Phase 4 P4：Sensitive Action Re-auth one-shot 语义——成功 re-auth 只授权恰好一个 pending action 并立即消费；无 freshness window / 无全局 authenticated）
 - `docs/ADRS/ADR-0012-selective-export-import.md`（Phase 4 P5：Selective Export / Import —— 共享纯 Kotlin selection engine + Export 四 scope + decoded-snapshot 内存过滤 import + selected conflict 语义；package envelope/crypto/MergePlanner 语义零改动）
 - `docs/ADRS/ADR-0013-developer-vault-completion.md`（Phase 4 P6：keystore size boundary 由共享 logical/package per-asset contract 推导为 raw bytes（`MAX_KEYSTORE_BASE64_LENGTH/4*3`），不定义第三套规则；env-var fresh re-auth target 绑定 stableId + 不可变 field key `var:<name>`，无 package-format 改动）
+- **Phase 4 P7（Search + Pin）**：Global Search 用 **in-memory safe projection**（Room Flow → domain → 显式 safe `SearchDocument` → in-memory matching；无 plaintext index / FTS / AppSearch / payloadJson LIKE）；Matcher = Unicode-safe case-insensitive contains + multi-token AND；Pin scope = **Account only**，复用 `favorite` 兼容字段（`setPinned` → `setFavorite`），storage=`favorite` / product=`pinned`，无 Room/package schema 改动（见 `docs/PHASE4_P7_REPORT.md`）
 

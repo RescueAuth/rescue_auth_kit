@@ -241,7 +241,7 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 | **P5 — Selective Export / Import** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P5_REPORT.md`）：共享纯 Kotlin 选择引擎（`VaultSnapshotSelector` / `SelectedItemSet`，stableId 语义 + hierarchy/dependency closure）；Export 四 scope（Entire Vault / Authenticator / Developer / Selected Items），全部走同一 fresh re-auth（`EXPORT_PACKAGE`，scope+selection digest 绑定）+ 同一 per-export PIN 策略；Selective Import 是 decoded-snapshot 内存过滤（不产生第二套 package/merge），Everything / Authenticator / Developer / Selected Items，仅对选中的 filtered snapshot 运行 MergePlanner；unselected conflict 不阻塞、selected conflict/divergence 按现有规则 BLOCK；Developer 五类完整保留（含 Android Signing Key / Env Var Set） | 用户可按需迁移部分数据 | 3D + P3/P4 | M |
 | **PA — Provider & Account Full Management** | ✅ 已实现（Issue #32，见 `docs/PHASE4_PA_REPORT.md`）：正式 Provider（create/rename/delete）与 Account（create/rename/move/merge/delete）management，全部走共享 `VaultRepository` 单 mutex + 单 Room transaction；Provider = `serviceName` 分组（无独立 entity / 无 package stableId）；empty Provider 非当前正式能力（Create Provider 同时创建首个 Account）；Account merge 复用现有官方 TOTP semantic fingerprint，destination 存活、source TOTP 迁移/消解、Recovery Sets 全迁移保留 lineage；跨 Provider merge 支持；**Room schema / package format 零改动** | 完整管理 Provider/Account 层级（对应 §4.1 能力） | P3 + P5 | M |
 | **P6 — Developer Vault slice（第二批）** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P6_REPORT.md`）：Android Signing Key / Environment Variable Set 全 CRUD（create/list/detail/edit/delete）+ keystore SAF import（opaque exact-bytes，大小上限从共享 logical/package per-asset contract 推导）/ export（fresh re-auth + SAF CreateDocument）+ Copy key.properties（内存构造、fresh re-auth、不持久化）+ 每字段 reveal/copy 独立 fresh re-auth（SensitiveAction target 绑定 stableId+fieldKey）+ Env Var 动态行、case-sensitive 去重、value 不 normalize；Developer Vault 五类 Android UI 全部完成 | 五类 Developer Entry 全部可日常使用 | P4 | M |
-| **P7 — Search + Pin** | 全局搜索（Provider/Account/TOTP display/Developer title + 非敏感 metadata；不索引 secret）+ Pin/Unpin 置顶 | 快速定位常用项 | P1 + P6 | M |
+| **P7 — Search + Pin** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P7_REPORT.md`）：全局搜索（Provider/Account/TOTP display/Recovery Set title/Developer title + 非敏感 metadata；只索引 safe metadata，绝不索引 secret）+ Account Pin/Unpin 置顶（复用 `favorite` 兼容字段，无 schema/package 改动） | 快速定位常用项 | P1 + P6 | M |
 | **P8 — Delete Undo 完善** | 普通删除（TOTP / recovery set / 普通 Developer Entry / account）统一 SnackBar Undo；高破坏性操作（provider 级联、含 keystore 的 signing key、大规模 merge）保留确认 | 误删可恢复，破坏性操作仍受保护 | P1 起步，P3/P6 覆盖全类型 | S |
 
 > **P8 说明**：Undo 优先通过数据库/domain transaction/state mechanism
@@ -338,24 +338,44 @@ platform。
 
 ## 7. Search + Pin
 
-### 7.1 Global Search（NEW）
+### 7.1 Global Search（已实现，Phase 4 P7，见 `docs/PHASE4_P7_REPORT.md`）
 
 - 至少覆盖：Provider name、Account name、TOTP display metadata、
-  Developer Entry title、Developer 非敏感 metadata。
-- **默认不索引/不搜索**：TOTP secret、API secret、SSH private key、
-  passwords、recovery code plaintext、Generic Secret value、Env value。
-- 理由：搜索 secret 无明确需求且增加安全复杂度。
-- 实现建议：SQLCipher 内 LIKE 查询仅作用于非敏感列，或 DataStore 维护
-  非敏感搜索索引；**不得**把 secret 明文加入任何索引。
+  Recovery Set title + provider/account context、Developer Entry title 与
+  Developer 非敏感 metadata（signing: projectName/packageName/
+  keystoreFileName/keyAlias；API: serviceName/accountName；SSH: keyName；
+  Env: projectName + variable names；Generic: field labels）。
+- **默认不索引/不搜索**：TOTP secret、当前 TOTP code、Recovery plaintext、
+  API key/secret、SSH private key/passphrase、signing storePassword/
+  keyPassword、keystore bytes/base64、Env value、Generic value、SSH
+  publicKey、Developer free-form notes。
+- **禁止** `payloadJson LIKE` 查询。
+- **实现**：个人本地数据规模小 → 优先 **in-memory safe projection**（Room
+  Flow → domain → 显式 safe `SearchDocument` → in-memory matching）。不做
+  DataStore/外部 DB/文件/缓存/FTS/AppSearch/后台索引。
+- **Matcher**：Unicode-safe case-insensitive contains；多 token 用
+  whitespace split + AND；deterministic；无 fuzzy/Levenshtein/semantic/
+  pinyin/regex。
+- **Ranking**：exact → prefix → substring；同 tier pinned Account 优先 +
+  stable title 排序；不记录 usage/history。
+- **Lifecycle**：query 仅 in-memory（不写 Room/DataStore/SavedStateHandle/
+  rememberSaveable/Bundle/logs/analytics）；离开搜索页/会话锁定/进程重建
+  即清空。
 
-### 7.2 Pin / Pinned Items（NEW）
+### 7.2 Pin / Pinned Items（已实现，Phase 4 P7）
 
 - 只做 **Pin / Unpin** 置顶；不做 Favorites 体系。
-- 作用范围评估（优先保持简单一致）：
-  - **Account**（推荐，最常见）
-  - **TOTP credential**（可选，当账户下多凭据时）
-  - **Developer Entry**（可选）
-- 明确不做：favorites folder、favorite category、rating、tag system。
+- **P7 v2.0 正式 scope = Account only**。不做 Provider/TOTP/Recovery Set/
+  Developer Pin、不做 Favorites page/folder/category/tag/rating/custom
+  pinned collection。
+- Pin 是 **ordering attribute**，不是第二份数据：Account 仍属于原
+  Provider；只影响显示顺序（同 Provider 内 pinned 在前，稳定排序保留）；
+  不复制/不 shadow row/不改 stableId/不改 Provider 关系。
+- **storage compatibility field = `favorite`**（Room `AuthAccountEntity.favorite`
+  ↔ logical `VaultAccount.favorite` ↔ package encode/decode）；product/UI
+  semantic = **pinned**（`AccountUi.isPinned` / `setPinned(...)`）。
+  无 Room/package schema migration、无 column rename、无 logical model
+  rewrite。
 
 ---
 
@@ -489,7 +509,7 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 - [ ] Portable Package full / selective export / import
 - [ ] merge / dedupe / conflict（覆盖全部资产）
 - [ ] Legacy migration（`.rakvault` 收口）
-- [ ] Search + Pin
+- [x] Search + Pin
 - [ ] Delete Undo（全类型覆盖）
 - [ ] Sensitive Action Re-auth（全敏感操作覆盖）
 - [ ] en + zh-CN（完整双语）
