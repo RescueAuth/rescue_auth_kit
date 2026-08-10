@@ -136,12 +136,19 @@ object MergePlanner {
             val hasInsert = totpPlans.any { it.decision == MergeDecision.INSERT } ||
                 setPlans.any { it.decision == MergeDecision.INSERT }
 
+            // P8 §24: an explicitly-created empty Account (no TOTP, no Recovery
+            // Set) is itself a logical object. When it is absent from the
+            // destination, the container must still produce INSERT_ACCOUNT so
+            // the account survives export→import even though it carries no
+            // children (never silently collapsed into a no-op selection).
+            val isEmptyAccount = account.totpCredentials.isEmpty() && account.recoveryCodeSets.isEmpty()
+
             val accountAction: AccountAction
             val targetAccountStableId: String?
             if (existingTarget != null) {
                 accountAction = AccountAction.USE_EXISTING
                 targetAccountStableId = existingTarget.stableId
-            } else if (hasInsert) {
+            } else if (hasInsert || isEmptyAccount) {
                 val planned = plannedAccountByFingerprint[accountFp]
                 if (planned != null) {
                     accountAction = AccountAction.USE_EXISTING
@@ -152,7 +159,10 @@ object MergePlanner {
                     plannedAccountByFingerprint[accountFp] = account.stableId
                 }
             } else {
-                // Nothing to insert and no existing account -> empty duplicate.
+                // Nothing to insert and no existing account -> empty duplicate
+                // (only reachable for a NON-empty account whose children are all
+                // semantic duplicates matched to existing destination accounts;
+                // an empty account is always a distinct container).
                 accountAction = AccountAction.DUPLICATE_ACCOUNT
                 targetAccountStableId = null
             }

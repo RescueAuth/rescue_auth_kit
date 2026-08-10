@@ -69,7 +69,6 @@ fun AuthenticatorRoute(
     var accountToRename by remember { mutableStateOf<AccountUi?>(null) }
     var accountToMove by remember { mutableStateOf<AccountUi?>(null) }
     var accountToMerge by remember { mutableStateOf<AccountUi?>(null) }
-    var accountToDelete by remember { mutableStateOf<AccountUi?>(null) }
     var mergeDestination by remember { mutableStateOf<AccountUi?>(null) }
     var providerList by remember { mutableStateOf<List<String>>(emptyList()) }
 
@@ -195,6 +194,28 @@ fun AuthenticatorRoute(
             is AuthenticatorEvent.ManagementError -> {
                 snackbarHostState.showSnackbar(event.message)
             }
+            is AuthenticatorEvent.AccountDeleted -> {
+                val message = context.getString(R.string.account_deleted_message)
+                val actionLabel = context.getString(R.string.undo_snackbar_action)
+                val result = UndoSnackbarContract.showUndoSnackbar(
+                    snackbarHostState,
+                    message,
+                    actionLabel,
+                )
+                if (result == UndoResult.UNDO) {
+                    viewModel.undoDeleteAccount()
+                }
+            }
+            is AuthenticatorEvent.AccountRestored -> {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.account_restored_message),
+                )
+            }
+            is AuthenticatorEvent.AccountRestoreBlocked -> {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.account_restore_blocked),
+                )
+            }
         }
         viewModel.onEventShown()
     }
@@ -221,7 +242,12 @@ fun AuthenticatorRoute(
             accountToMerge = account
             mergeDestination = null
         },
-        onDeleteAccount = { account -> accountToDelete = account },
+        // P8 §11: Account delete is now an ordinary immediate-delete + Undo
+        // (no destructive confirmation). The confirmation-only path remains for
+        // Provider cascading delete and Account merge.
+        onDeleteAccount = { account ->
+            appScope.launch { viewModel.deleteAccount(account.id) }
+        },
         modifier = modifier,
     )
 
@@ -406,23 +432,6 @@ fun AuthenticatorRoute(
         }
     }
 
-    accountToDelete?.let { account ->
-        ManagementDestructiveDialog(
-            title = context.getString(R.string.account_delete_title, account.accountName),
-            message = context.getString(
-                R.string.account_delete_message,
-                account.totpCredentials.size,
-                account.recoverySets.size,
-            ),
-            confirmLabel = context.getString(R.string.account_delete),
-            onConfirm = {
-                val a = accountToDelete
-                accountToDelete = null
-                if (a != null) appScope.launch { viewModel.deleteAccount(a.id) }
-            },
-            onDismiss = { accountToDelete = null },
-        )
-    }
 }
 
 private fun copyToClipboard(context: Context, text: String) {

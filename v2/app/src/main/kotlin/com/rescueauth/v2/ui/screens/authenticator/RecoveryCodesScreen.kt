@@ -58,6 +58,7 @@ fun RecoveryCodesScreen(
     onMarkUnused: ((String) -> Unit)? = null,
     onEdit: ((String) -> Unit)? = null,
     onDelete: ((String) -> Unit)? = null,
+    onMove: ((String) -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -135,6 +136,7 @@ fun RecoveryCodesScreen(
                             onMarkUnused = onMarkUnused,
                             onEdit = onEdit?.let { { it(set.id) } },
                             onDelete = onDelete?.let { { it(set.id) } },
+                            onMove = onMove?.let { { it(set.id) } },
                         )
                     }
                 }

@@ -163,6 +163,31 @@
     <string name="recovery_codes_account_summary">恢复码 · 剩余 %1$d</string>
     <string name="recovery_codes_delete">删除</string>
 
+    <!-- Phase 4 P8 — Recovery Code Set Move -->
+    <string name="recovery_codes_move">移动</string>
+    <string name="recovery_move_codes_title">移动恢复码</string>
+    <string name="recovery_move_to_account">移动到账户</string>
+    <string name="recovery_move_destination_label">目标账户</string>
+    <string name="recovery_move_no_other_accounts">没有其他可用账户</string>
+    <string name="recovery_move_moved_message">恢复码已移动</string>
+    <string name="recovery_move_failed">无法移动恢复码</string>
+    <string name="recovery_move_conflict">无法移动，因为目标已更改</string>
+
+    <!-- Phase 4 P8 — Account Delete + Undo -->
+    <string name="account_deleted_message">账户已删除</string>
+    <string name="account_restored_message">账户已恢复</string>
+    <string name="account_restore_blocked">无法恢复，因为保险库已更改</string>
+
+    <!-- Phase 4 P8 — Developer ordinary Delete + Undo -->
+    <string name="developer_entry_deleted_message">开发者条目已删除</string>
+    <string name="developer_entry_restored_message">开发者条目已恢复</string>
+    <string name="developer_restore_blocked">无法恢复，因为保险库已更改</string>
+
+    <!-- Phase 4 P8 — accessibility -->
+    <string name="a11y_undo_delete">撤销删除</string>
+    <string name="a11y_move_recovery">将恢复码移动到另一个账户</string>
+    <string name="undo_snackbar_action_label">撤销删除</string>
+
     <!-- Developer Vault -->
     <string name="developer_title">开发者</string>
     <string name="developer_subtitle">开发者保险库</string>

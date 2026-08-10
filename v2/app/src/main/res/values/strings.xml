@@ -163,6 +163,33 @@
     <string name="recovery_codes_account_summary">Recovery codes · %1$d remaining</string>
     <string name="recovery_codes_delete">Delete</string>
 
+    <!-- Phase 4 P8 — Recovery Code Set Move -->
+    <string name="recovery_codes_move">Move</string>
+    <string name="recovery_move_codes_title">Move recovery codes</string>
+    <string name="recovery_move_to_account">Move to account</string>
+    <string name="recovery_move_destination_label">Destination account</string>
+    <string name="recovery_move_no_other_accounts">No other accounts available</string>
+    <string name="recovery_move_moved_message">Recovery codes moved</string>
+    <string name="recovery_move_failed">Unable to move recovery codes</string>
+    <string name="recovery_move_conflict">Unable to move because the destination changed</string>
+
+    <!-- Phase 4 P8 — Account Delete + Undo -->
+    <string name="account_deleted_message">Account deleted</string>
+    <string name="account_restored_message">Account restored</string>
+    <string name="account_restore_blocked">Unable to restore because the vault changed</string>
+
+    <!-- Phase 4 P8 — Developer ordinary Delete + Undo -->
+    <string name="developer_entry_deleted_message">Developer entry deleted</string>
+    <string name="developer_entry_restored_message">Developer entry restored</string>
+    <string name="developer_restore_blocked">Unable to restore because the vault changed</string>
+
+    <!-- Phase 4 P8 — accessibility -->
+    <string name="a11y_undo_delete">Undo delete</string>
+    <string name="a11y_move_recovery">Move recovery codes to another account</string>
+
+    <!-- Undo Snackbar action accessibility (explicit label for the action) -->
+    <string name="undo_snackbar_action_label">Undo deletion</string>
+
     <!-- Developer Vault -->
     <string name="developer_title">Developer</string>
     <string name="developer_subtitle">Developer Vault</string>

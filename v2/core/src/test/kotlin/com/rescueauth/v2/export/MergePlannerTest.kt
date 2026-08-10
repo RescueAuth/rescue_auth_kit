@@ -762,6 +762,64 @@ class MergePlannerTest {
         assertEquals(0, plan.summary.stateDivergences)
     }
 
+    // =====================================================================
+    // P8 — Empty Account preservation (Issue #20 P8 §21–§25)
+    // =====================================================================
+
+    // A user-explicitly-created Account with NO TOTP and NO Recovery Set is
+    // itself a logical object. When the source Account is absent from the
+    // destination, the Account container alone must produce INSERT_ACCOUNT —
+    // not DUPLICATE_ACCOUNT — so it survives export→import (P8 §24).
+    @Test
+    fun emptyAccountWithoutChildrenInsertedWhenAbsentFromDestination() {
+        val source = snapshot(
+            SnapshotBuilder.account("acc-empty", "Google", "empty@example.com"),
+        )
+        val plan = MergePlanner.plan(VaultSnapshot(), source)
+        // No child records, so the child-oriented `inserted` counter stays 0,
+        // but the Account container itself is INSERT_ACCOUNT (P8 §24).
+        assertEquals(0, plan.summary.inserted)
+        assertEquals(0, plan.summary.duplicates)
+        assertEquals(1, plan.accountPlans.size)
+        assertEquals(AccountAction.INSERT_ACCOUNT, plan.accountPlans.single().accountAction)
+        assertEquals("acc-empty", plan.accountPlans.single().targetAccountStableId)
+    }
+
+    // Repeated import of the same empty Account is idempotent (P8 §25C).
+    @Test
+    fun emptyAccountRepeatedImportIsIdempotent() {
+        val source = snapshot(
+            SnapshotBuilder.account("acc-empty", "Google", "empty@example.com"),
+        )
+        val first = MergePlanner.plan(VaultSnapshot(), source)
+        assertEquals(AccountAction.INSERT_ACCOUNT, first.accountPlans.single().accountAction)
+
+        // After the first import the Account now exists in the destination
+        // (same stableId) -> second import maps to the existing account, no new
+        // account container. No child records, so `inserted`/`duplicates` stay 0.
+        val second = MergePlanner.plan(source, source)
+        assertEquals(0, second.summary.inserted)
+        assertEquals(0, second.summary.duplicates)
+        assertEquals(AccountAction.USE_EXISTING, second.accountPlans.single().accountAction)
+        assertEquals("acc-empty", second.accountPlans.single().targetAccountStableId)
+    }
+
+    // A non-empty Account keeps its existing INSERT semantics unchanged (the
+    // account container is inserted when a child inserts OR when the account
+    // itself is a distinct empty object).
+    @Test
+    fun nonEmptyAccountStillInsertsWithChildren() {
+        val source = snapshot(
+            SnapshotBuilder.account(
+                "acc-1", "GitHub", "alice",
+                totps = listOf(SnapshotBuilder.totp("totp-1")),
+            ),
+        )
+        val plan = MergePlanner.plan(VaultSnapshot(), source)
+        assertEquals(AccountAction.INSERT_ACCOUNT, plan.accountPlans.single().accountAction)
+        assertEquals(1, plan.summary.inserted)
+    }
+
     // independent-device sets (different stableIds) still surface state diffs
     @Test
     fun recoveryStateDivergenceAcrossIndependentStableIds() {

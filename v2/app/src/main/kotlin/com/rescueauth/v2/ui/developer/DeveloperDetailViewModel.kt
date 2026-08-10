@@ -45,6 +45,10 @@ data class DeveloperDetailUiState(
 sealed interface DeveloperDetailEvent {
     data class CopySecret(val value: String, val label: String) : DeveloperDetailEvent
     data class Deleted(val label: String) : DeveloperDetailEvent
+    /** P8 §12 — an ordinary Developer Entry was restored via Undo. */
+    data class Restored(val label: String) : DeveloperDetailEvent
+    /** P8 §10 — an Undo restore was blocked because the vault changed. */
+    data class RestoreBlocked(val label: String) : DeveloperDetailEvent
     data class AuthUnavailable(val message: String) : DeveloperDetailEvent
     /**
      * A keystore export was authorized — carry the exact raw bytes + suggested
@@ -114,6 +118,9 @@ class DeveloperDetailViewModel(
                     loadJob?.cancel()
                     loadJob = null
                     clearRevealed()
+                    // P8 §6: session lock clears the pending Developer Undo
+                    // payload (long-lived secrets) and it is not restored.
+                    DeveloperUndoStore.clear()
                     _uiState.value = DeveloperDetailUiState(loading = false)
                 }
             }
@@ -449,18 +456,58 @@ class DeveloperDetailViewModel(
     fun isRevealed(fieldKey: String): Boolean = revealedValues.containsKey(fieldKey)
 
     // ------------------------------------------------------------------
-    // Delete (destructive confirmation; P4 no Undo — Issue #20 §17)
+    // Delete + Undo (P8 §12–§14)
     // ------------------------------------------------------------------
 
+    /**
+     * Deletes the entry. Ordinary Developer Entries (API / SSH / Env / Generic)
+     * are deleted immediately and captured for Snackbar Undo. Android Signing
+     * Key is a P8 exception (§14): it keeps destructive confirmation and has NO
+     * Undo action.
+     *
+     * @return true when the entry was deleted (and, for ordinary types, an Undo
+     *   token is now pending).
+     */
     suspend fun delete(): Boolean {
         val repo = developerRepositoryProvider() ?: return false
         val title = _uiState.value.detail?.title ?: return false
         return try {
-            repo.delete(stableId)
-            _events.value = DeveloperDetailEvent.Deleted(title)
+            val snapshot = repo.deleteWithSnapshot(stableId)
+            if (snapshot != null) {
+                // Ordinary entry -> store the Undo token in the shared holder
+                // so it survives the detail screen being popped (P8 §32).
+                DeveloperUndoStore.store(snapshot)
+                _events.value = DeveloperDetailEvent.Deleted(title)
+            } else {
+                // Android Signing Key (no Undo) or already-deleted entry.
+                repo.delete(stableId)
+                _events.value = DeveloperDetailEvent.Deleted(title)
+            }
             true
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /**
+     * P8 §12 — restores the last deleted ordinary Developer Entry with the
+     * exact stableId/payload (single consume of the shared token). A blocked
+     * restore (vault changed / collision) returns false (P8 §10).
+     */
+    suspend fun undoDelete(): Boolean {
+        val repo = developerRepositoryProvider() ?: return false
+        val pending = DeveloperUndoStore.consume() ?: return false
+        val outcome = runCatching { repo.restoreFromSnapshot(pending) }.getOrNull()
+            ?: return false
+        return when (outcome) {
+            is com.rescueauth.v2.domain.UndoRestoreOutcome.Restored -> {
+                _events.value = DeveloperDetailEvent.Restored(pending.title)
+                true
+            }
+            is com.rescueauth.v2.domain.UndoRestoreOutcome.Blocked -> {
+                _events.value = DeveloperDetailEvent.RestoreBlocked(pending.title)
+                false
+            }
         }
     }
 

@@ -2,7 +2,10 @@ package com.rescueauth.v2.repository
 
 import com.rescueauth.v2.database.DeveloperEntryDao
 import com.rescueauth.v2.database.RescueAuthDatabase
+import com.rescueauth.v2.domain.DeletedDeveloperEntrySnapshot
 import com.rescueauth.v2.domain.DeveloperEntry
+import com.rescueauth.v2.domain.DeveloperEntryType
+import com.rescueauth.v2.domain.UndoRestoreOutcome
 import com.rescueauth.v2.export.PackageValidator
 import com.rescueauth.v2.export.VaultAndroidSigningKey
 import com.rescueauth.v2.export.VaultApiCredential
@@ -437,6 +440,59 @@ class DeveloperRepository(
             val entity = dao.getByStableId(stableId) ?: return@mutate null
             dao.deleteById(entity.id)
             DeveloperMappers.toLogical(entity)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // P8 — Ordinary Developer Delete + Undo (Issue #20 P8 §12–§14)
+    // ------------------------------------------------------------------
+
+    /**
+     * P8 §12 — deletes an ordinary Developer Entry (API Credential / SSH Key /
+     * Environment Variable Set / Generic Secret) and returns an exact in-memory
+     * snapshot for Undo.
+     *
+     * Android Signing Key is deliberately NOT an ordinary entry (it carries the
+     * keystore binary + signing credentials) and has no P8 Undo requirement —
+     * it keeps destructive confirmation. This method returns null for a
+     * Signing Key so the caller can keep confirmation-only behaviour (§14).
+     */
+    suspend fun deleteWithSnapshot(stableId: String): DeletedDeveloperEntrySnapshot? {
+        return vault.mutate {
+            val entity = dao.getByStableId(stableId) ?: return@mutate null
+            val logical = DeveloperMappers.toLogical(entity)
+            if (logical is com.rescueauth.v2.export.VaultAndroidSigningKey) return@mutate null
+            dao.deleteById(entity.id)
+            DeletedDeveloperEntrySnapshot(
+                stableId = entity.stableId,
+                type = DeveloperEntryType.valueOf(entity.entryType),
+                title = entity.title,
+                notes = entity.notes,
+                createdAt = entity.createdAt,
+                updatedAt = entity.updatedAt,
+                sortOrder = entity.sortOrder,
+                logicalPayload = logical,
+            )
+        }
+    }
+
+    /**
+     * P8 §12 — restores a previously deleted ordinary Developer Entry with the
+     * EXACT same stableId / type / title / notes / payload / createdAt /
+     * updatedAt (never mints a new stableId, never drops/normalizes fields).
+     *
+     * If the same stableId already exists in the destination (edge case in the
+     * Undo window), restore is BLOCKED — nothing is written (P8 §10).
+     */
+    suspend fun restoreFromSnapshot(snapshot: DeletedDeveloperEntrySnapshot): UndoRestoreOutcome {
+        val payload = snapshot.logicalPayload
+            ?: return UndoRestoreOutcome.Blocked
+        return vault.mutate {
+            if (dao.getByStableId(snapshot.stableId) != null) {
+                return@mutate UndoRestoreOutcome.Blocked
+            }
+            dao.upsert(DeveloperMappers.toEntity(payload, snapshot.sortOrder))
+            UndoRestoreOutcome.Restored
         }
     }
 

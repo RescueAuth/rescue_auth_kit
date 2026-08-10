@@ -130,6 +130,15 @@ sealed interface AuthenticatorEvent {
 
     /** A hierarchy management operation failed; show an error message. */
     data class ManagementError(val message: String) : AuthenticatorEvent
+
+    /** P8 §11 — an Account was deleted; show a Snackbar with an Undo action. */
+    data class AccountDeleted(val label: String) : AuthenticatorEvent
+
+    /** P8 §11 — an Account was restored via Undo. */
+    data class AccountRestored(val label: String) : AuthenticatorEvent
+
+    /** P8 §10 — an Account Undo restore was blocked because the vault changed. */
+    data class AccountRestoreBlocked(val label: String) : AuthenticatorEvent
 }
 
 /**
@@ -196,6 +205,11 @@ class AuthenticatorViewModel(
                     collectionJob?.cancel()
                     collectionJob = null
                     currentRepo = null
+                    // P8 §6: session lock clears every pending Undo payload
+                    // (TOTP secret / recovery plaintext / account subtree). The
+                    // Undo token is NOT restored after unlock.
+                    pendingUndo = null
+                    pendingAccountUndo = null
                     _uiState.value = AuthenticatorUiState(loading = false)
                 }
             }
@@ -639,6 +653,9 @@ class AuthenticatorViewModel(
 
     private var pendingUndo: TotpCredential? = null
 
+    /** P8 §8 — in-memory exact Account subtree snapshot captured on delete. */
+    private var pendingAccountUndo: com.rescueauth.v2.domain.DeletedAccountSnapshot? = null
+
     // ------------------------------------------------------------------
     // Provider & Account Full Management (Phase 4 — hierarchy management)
     // ------------------------------------------------------------------
@@ -733,28 +750,57 @@ class AuthenticatorViewModel(
         }
     }
 
+    /**
+     * P8 §11 — deletes an Account immediately (no confirmation) and captures an
+     * in-memory exact subtree snapshot so Undo can restore it. The previous
+     * pending Account Undo (if any) is replaced: a new delete forgets the old
+     * token and its secret snapshot is released (P8 §7).
+     */
     suspend fun deleteAccount(accountId: String): AccountDeleteUiResult? {
         val repo = managementRepositoryProvider() ?: return null
         return runCatching {
-            val result = repo.deleteAccount(accountId)
-            _events.value = AuthenticatorEvent.ManagementMessage("Account deleted")
-            AccountDeleteUiResult(result.totpCount, result.recoverySetCount)
+            val snapshot = repo.deleteAccountWithSnapshot(accountId) ?: return null
+            pendingAccountUndo = snapshot
+            _events.value = AuthenticatorEvent.AccountDeleted(snapshot.safeLabel)
+            AccountDeleteUiResult(
+                totpCount = snapshot.totps.size,
+                recoverySetCount = snapshot.recoverySets.size,
+            )
         }.getOrElse {
             _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to delete account")
             null
         }
     }
+
+    /** P8 §9/§10 — restores the last deleted Account (single consume of the token). */
+    suspend fun undoDeleteAccount(): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        val pending = pendingAccountUndo ?: return false
+        pendingAccountUndo = null
+        val outcome = runCatching { repo.restoreAccount(pending) }.getOrNull()
+            ?: return false
+        return when (outcome) {
+            is com.rescueauth.v2.domain.UndoRestoreOutcome.Restored -> {
+                _events.value = AuthenticatorEvent.AccountRestored(pending.safeLabel)
+                true
+            }
+            is com.rescueauth.v2.domain.UndoRestoreOutcome.Blocked -> {
+                _events.value = AuthenticatorEvent.AccountRestoreBlocked(pending.safeLabel)
+                false
+            }
+        }
+    }
 }
 
-/** Safe metadata counts returned from a Provider delete (no secrets). */
-data class ProviderDeleteUiResult(
-    val accountCount: Int,
+/** Safe metadata counts returned from an Account delete (no secrets). */
+data class AccountDeleteUiResult(
     val totpCount: Int,
     val recoverySetCount: Int,
 )
 
-/** Safe metadata counts returned from an Account delete (no secrets). */
-data class AccountDeleteUiResult(
+/** Safe metadata counts returned from a Provider delete (no secrets). */
+data class ProviderDeleteUiResult(
+    val accountCount: Int,
     val totpCount: Int,
     val recoverySetCount: Int,
 )

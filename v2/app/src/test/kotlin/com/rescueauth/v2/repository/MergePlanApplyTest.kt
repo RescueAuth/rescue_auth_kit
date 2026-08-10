@@ -198,10 +198,11 @@ class MergePlanApplyTest {
             developerEntries = listOf(MergeTestData.sshKey("ssh-1")),
         )
         val applied = repo().applyMergePlan(payload(snapshot)) as ImportOutcome.Applied
-        // acc-2 has no children to insert -> the planner does not create it
-        // (an account without inserts is an empty duplicate). Only acc-1 is
-        // inserted.
-        assertEquals(1, applied.result.insertedAccounts)
+        // P8 §24: an explicitly-created empty Account (acc-2, no TOTP / no
+        // Recovery Set) is itself a logical object. When absent from the
+        // destination it IS inserted as a container, so the account survives
+        // export→import. acc-1 is inserted with its TOTP child.
+        assertEquals(2, applied.result.insertedAccounts)
         assertEquals(1, applied.result.insertedTotp)
         assertEquals(1, applied.result.insertedDeveloperEntries)
     }
