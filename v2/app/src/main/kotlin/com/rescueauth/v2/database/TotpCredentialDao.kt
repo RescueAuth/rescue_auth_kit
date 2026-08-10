@@ -33,6 +33,9 @@ interface TotpCredentialDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(credential: TotpCredentialEntity)
 
+    @Query("UPDATE totp_credential SET accountId = :newAccountId WHERE id = :id")
+    suspend fun updateAccountId(id: String, newAccountId: String)
+
     @Query("DELETE FROM totp_credential WHERE id = :id")
     suspend fun deleteById(id: String)
 

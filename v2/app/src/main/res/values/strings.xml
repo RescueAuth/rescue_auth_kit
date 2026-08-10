@@ -29,6 +29,34 @@
     <string name="account_pinned_label">Pinned</string>
     <string name="account_actions_label">Actions</string>
 
+    <!-- Provider & Account management (Phase 4 — hierarchy management) -->
+    <string name="provider_add_provider">Add Provider</string>
+    <string name="provider_actions">Provider actions</string>
+    <string name="provider_rename">Rename Provider</string>
+    <string name="provider_delete">Delete Provider</string>
+    <string name="provider_add_account">Add Account</string>
+    <string name="provider_create_title">Create Provider</string>
+    <string name="provider_name_label">Provider name</string>
+    <string name="provider_rename_title">Rename Provider</string>
+    <string name="provider_new_name_label">New provider name</string>
+    <string name="provider_delete_title">Delete Provider %1$s?</string>
+    <string name="provider_delete_message">This will permanently delete %1$d account(s), %2$d TOTP credential(s) and %3$d recovery set(s). This cannot be undone.</string>
+    <string name="account_add_title">Add Account</string>
+    <string name="account_name_label">Account name</string>
+    <string name="account_rename">Rename Account</string>
+    <string name="account_rename_title">Rename Account</string>
+    <string name="account_move">Move</string>
+    <string name="account_move_title">Move Account</string>
+    <string name="account_move_destination">Destination Provider</string>
+    <string name="account_merge">Merge</string>
+    <string name="account_merge_title">Merge Accounts</string>
+    <string name="account_merge_confirm">Merge</string>
+    <string name="account_delete">Delete Account</string>
+    <string name="account_delete_title">Delete Account %1$s?</string>
+    <string name="account_delete_message">This will permanently delete %1$d TOTP credential(s) and %2$d recovery set(s). This cannot be undone.</string>
+    <string name="management_confirm">Confirm</string>
+    <string name="management_rename">Rename</string>
+
     <!-- TOTP card -->
     <string name="totp_code_copied">Code copied</string>
     <string name="totp_copy_code">Copy code</string>

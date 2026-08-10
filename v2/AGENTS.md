@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN，P5（Selective Export / Import）IMPLEMENTED / PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）IMPLEMENTED / PR OPEN，M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md`）
+- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3 CLOSED，P4 PR OPEN，P5（Selective Export / Import）IMPLEMENTED / PR OPEN，PA（Provider & Account Full Management，Issue #32）IMPLEMENTED / PR OPEN**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）IMPLEMENTED / PR OPEN，M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
   `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
@@ -69,6 +69,17 @@
   conflict/divergence 按现有规则 BLOCK、final apply 重新 plan；Developer 五类
   完整保留（含 Android Signing Key / Env Var Set）；package envelope/crypto/
   MergePlanner 语义零改动；Room schema 零改动）。
+  **Phase 4 PA 已实现**（Provider & Account Full Management，Issue #32，见
+  `docs/PHASE4_PA_REPORT.md`：正式 Provider（create/rename/delete）与 Account
+  （create/rename/move/merge/delete）management，全部走共享 `VaultRepository`
+  单 mutex + 单 Room transaction；Provider = `serviceName` 分组（无独立
+  entity / 无 package stableId），rename 只更新 hierarchy 字段、全部 stableId 保留；
+  empty Provider 非当前正式能力（Create Provider 同时创建首个 Account）；
+  Provider/Account delete 单事务级联 + 安全 counts confirmation；Account merge
+  Destination 存活、source TOTP 迁移/消解（复用官方 TOTP semantic fingerprint）、
+  Recovery Sets 全迁移保留 set/code stableIds + USED/usedAt、同 title 不 dedupe、
+  跨 Provider merge 支持；P5 selection / Native package round-trip / Legacy
+  data 兼容性测试覆盖；Room schema 零改动、package format 零改动）。
   **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
   MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
   首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
