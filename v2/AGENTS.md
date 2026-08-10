@@ -232,7 +232,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
     migration capability）
 - [ ] 阶段 6：Product polish
   - [ ] L1 Localization（en + zh-CN；完整双语为 V2.0 FEATURE COMPLETE 门槛）
-  - [ ] L2 About / Update Check（V2.0 FEATURE COMPLETE 门槛）
+  - [x] **L2 About / Update Check（V2.0 FEATURE COMPLETE 门槛）**（Issue #20 Phase 6 L2，PR OPEN：About 页 + Settings→About 导航 + 固定 CNB 清单 + Ed25519 验签（BouncyCastle，签名覆盖 exact raw bytes，`.sig` Base64 原始 64-byte）+ schema v1 strict validation + severity/minSupported 收敛 + manual only + update data fail closed / app fail open + INTERNET 显式声明 + UI 状态机/error taxonomy 冻结 + core/app/UI tests；发布基础设施 `rescueauth-updates` 仓库 + 生产 update 公钥 provisioning 未完成，见 docs/UPDATE_PROTOCOL.md §Release Infrastructure Pending 与 docs/PHASE6_L2_REPORT.md）
   - [ ] L3 Clipboard / security polish（含 DEFER 项 clipboard auto-clear；不阻塞 DAILY-USE READY 与 V2.0 FEATURE COMPLETE）
 
 ## 关键决策索引

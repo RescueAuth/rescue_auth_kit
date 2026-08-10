@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import org.junit.Rule
@@ -82,6 +83,15 @@ class RescueAuthAppNavigationTest {
         // hub), NOT hidden inside the Developer destination.
         composeRule.onNodeWithTag(RescueAuthTestTags.NAV_DEVELOPER).performClick()
         composeRule.onNodeWithText("Import Legacy v1 Vault", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun settingsLeadsToAboutViaAboutEntry() {
+        setAppContent()
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        composeRule.onNodeWithTag(com.rescueauth.v2.ui.screens.settings.SettingsTestTags.ABOUT_ROW).assertExists()
+        composeRule.onNodeWithTag(com.rescueauth.v2.ui.screens.settings.SettingsTestTags.ABOUT_ROW).performScrollTo().performClick()
+        composeRule.onNodeWithTag(com.rescueauth.v2.ui.screens.about.AboutTestTags.SCREEN).assertExists()
     }
 
     @Test

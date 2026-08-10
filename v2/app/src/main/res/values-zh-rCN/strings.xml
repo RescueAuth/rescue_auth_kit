@@ -263,6 +263,31 @@
     <string name="settings_import_legacy_subtitle">从 RescueAuth v1 导入旧版 .rakvault 文件</string>
     <string name="settings_backup_transfer_notice">导出为手动操作。每个数据包由独立 PIN 保护，导入始终与现有保险库合并。</string>
     <string name="settings_version">版本 %1$s</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_about_subtitle">应用版本、产品信息与检查更新</string>
+
+    <!-- Phase 6 L2: About / Update Check -->
+    <string name="about_title">关于</string>
+    <string name="about_product_description">一款本地优先、加密的个人安全保险库，用于 TOTP、恢复码、开发者凭据与可移植加密备份。</string>
+    <string name="settings_version_label">版本</string>
+    <string name="about_version_format">%1$s（构建 %2$d）</string>
+    <string name="about_check_for_updates">检查更新</string>
+    <string name="about_update_idle">点击“检查更新”以查看是否有新版本。</string>
+    <string name="about_checking">正在检查更新…</string>
+    <string name="about_up_to_date">您已是最新版本（%1$s）。</string>
+    <string name="about_update_available">发现新版本。</string>
+    <string name="about_security_update_available">发现安全更新。</string>
+    <string name="about_unsupported_current_version">您当前版本已不再受支持，请尽快升级。</string>
+    <string name="about_latest_version">最新版本：%1$s（构建 %2$d）</string>
+    <string name="about_published_at">发布于：%1$s</string>
+    <string name="about_open_release_page">打开发布页</string>
+    <string name="about_error_network">无法检查更新。</string>
+    <string name="about_error_timeout">更新检查超时。</string>
+    <string name="about_error_invalid_signature">无法验证更新信息，因此不显示任何更新。</string>
+    <string name="about_error_invalid_manifest">更新信息无效，因此不显示任何更新。</string>
+    <string name="about_error_unsupported_schema">更新信息使用了不受支持的格式。</string>
+    <string name="about_error_not_configured">此构建未配置更新验证。</string>
+    <string name="about_offline_hint">您的保险库在离线状态下仍然可用。</string>
 
     <!-- Phase 3D Export / Import -->
     <string name="export_title">导出数据包</string>

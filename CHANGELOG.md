@@ -10,6 +10,66 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase6-l2 about-update-check] - 2026-08-10（Phase 6 L2 About + Update Check，IMPLEMENTED / PR OPEN）
+
+Issue #20 Phase 6 L2：新增正式 About 页 + manual、signature-verified 的
+Update Check，接入 Settings → About。`docs/UPDATE_PROTOCOL.md` 从 Draft 收口为
+可执行 contract（Client Contract Final / Release Infrastructure Pending）。
+
+### Added
+
+- **About 页（app）**：runtime `versionName` / `versionCode`（BuildConfig，
+  不硬编码在 strings）、产品描述、manual “Check for Updates”、update
+  状态机（Idle / Checking / UpToDate / UpdateAvailable / Error）、severity
+  （NORMAL / SECURITY）更强提示、minSupported 更强 unsupported 警告、
+  verified 后才出现的 “Open Release Page”（外部 ACTION_VIEW，非 WebView）。
+- **核心 update 协议（core，纯 Kotlin）**：
+  - `UpdateManifestParser` — schema v1 strict validation（schemaVersion==1、
+    channel==stable、versionCode/minSupported 正数且 minSupported<=latest、
+    ISO-8601 publishedAt、HTTPS apkUrl/releaseNotesUrl、64-hex apkSha256、
+    有界 apkSizeBytes、未知 additive 字段忽略）。
+  - `UpdateManifestVerifier` — Ed25519 验签（复用 BouncyCastle 1.85，无新
+    crypto 依赖）；`latest.json.sig` = Base64 原始 64-byte Ed25519 签名，
+    覆盖 `latest.json` 的 **exact raw bytes**（不 canonicalize）。
+  - `UpdateVersionDecision` — 仅用 versionCode 判断新旧；`minSupported` 只
+    触发更强警告，不锁 Vault。
+  - `UpdateTrustConfig` — 公钥配置边界（release provisioning 时经
+    `UPDATE_PUBLIC_KEY` BuildConfig 写入；未配置返回 NOT_CONFIGURED，Vault
+    继续可用）。
+  - `UrlPolicy` / `Iso8601` / `Sha256` — HTTPS/ISO/hex 校验。
+- **网络（app）**：`HttpUpdateTransport` + `BoundedUrlFetcher`（平台
+  HttpURLConnection，connect/read timeout、bounded ≤64 KiB manifest / ≤4 KiB
+  signature、取消友好、无 cookie/auth/telemetry、拒绝 HTTPS→HTTP downgrade）。
+- **AndroidManifest**：显式 `android.permission.INTERNET`；未新增任何
+  storage / install-packages / notification / background-service 权限。
+- **UI 状态机 + error taxonomy**：NETWORK / TIMEOUT / INVALID_SIGNATURE /
+  INVALID_MANIFEST / UNSUPPORTED_SCHEMA / NOT_CONFIGURED；INVALID_SIGNATURE
+  明确“无法验证更新信息”，不是“没有更新”。
+- **安全契约**：update data fail closed / app fail open；update state 不进
+  入 SecureSession state machine；无 secret persistence（result in memory
+  only）；无隐私数据外发。
+
+### Tests
+
+- core：`UpdateManifestVerifierTest` / `UpdateManifestParserTest`（签名
+  accepted/mutation rejected/wrong key/malformed/wrong-length/Base64/exact raw
+  bytes/reformat invalidates + schema/URL/ISO/SHA 校验 + additive 字段）；
+  `UpdateVersionDecisionTest`（versionCode 排序、versionName 不控制排序、
+  minSupported、SECURITY 不 forced-update）。
+- app：`UpdateCheckViewModelTest`（NETWORK/TIMEOUT/oversized manifest /
+  oversized signature/invalid signature 无 URL/malformed/NOT_CONFIGURED/
+  retry/scope cancel/no auth data）；`AboutScreenTest`（version 显示、
+  Checking/UpToDate/UpdateAvailable/SECURITY/network/signature UI、invalid
+  manifest 无 open link、无 secret 泄漏）；`RescueAuthAppNavigationTest`
+  （Settings → About 导航）。
+
+### 未完成（release infrastructure pending）
+
+- `rescueauth-updates` 仓库尚未创建。
+- 生产 update manifest Ed25519 key 尚未 provisioning（见
+  `docs/UPDATE_PROTOCOL.md` §Release Infrastructure Pending）。
+- 本轮未做 release publishing pipeline / production signing。
+
 ## [v2 phase4-p7 search+pin] - 2026-08-10（Phase 4 P7 Global Search + Account Pin/Unpin，IMPLEMENTED / PR OPEN）
 
 Issue #20：Global Search（safe metadata only）+ Account Pin/Unpin（Account only）。
