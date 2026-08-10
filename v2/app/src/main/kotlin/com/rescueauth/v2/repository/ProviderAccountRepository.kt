@@ -7,7 +7,9 @@ import com.rescueauth.v2.database.RecoveryCodeSetDao
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.database.TotpCredentialDao
 import com.rescueauth.v2.domain.AuthAccount
+import com.rescueauth.v2.domain.DeletedAccountSnapshot
 import com.rescueauth.v2.domain.TotpCredential
+import com.rescueauth.v2.domain.UndoRestoreOutcome
 import com.rescueauth.v2.export.Canonicalization
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.flow.Flow
@@ -395,6 +397,138 @@ class ProviderAccountRepository(
             totpDao.listByAccount(row.id).forEach { totpDao.deleteById(it.id) }
             accountDao.deleteById(row.id)
             AccountDeleteResult(totpCount, sets.size)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // P8 — Account Delete + Undo (Issue #20 P8 §8–§11)
+    // ------------------------------------------------------------------
+
+    /**
+     * Deletes an Account and its ENTIRE subtree (TOTP + Recovery Sets/Codes)
+     * atomically, returning an exact [DeletedAccountSnapshot] captured INSIDE
+     * the same transaction so Undo is a faithful rollback of the delete.
+     *
+     * The snapshot carries every Account field (stableId / serviceName /
+     * accountName / pinned(favorite) / notes / sortOrder / createdAt /
+     * updatedAt) plus all descendants with their exact stableIds, TOTP
+     * secret/params, and Recovery Set/Code stableIds + USED/UNUSED + usedAt
+     * (P8 §8). The snapshot is **in-memory only** (P8 §5).
+     */
+    suspend fun deleteAccountWithSnapshot(accountId: String): DeletedAccountSnapshot? {
+        return vault.mutate {
+            val row = accountDao.getById(accountId) ?: return@mutate null
+            val account = AuthMappers.toDomain(row)
+            val totps = totpDao.listByAccount(row.id).map { AuthMappers.toDomain(it) }
+            val sets = recoverySetDao.listByAccount(row.id).map { set ->
+                AuthMappers.toDomain(set, recoveryCodeDao.listBySet(set.id))
+            }
+
+            // Delete codes, then sets, then totps, then the account.
+            for (s in sets) {
+                recoveryCodeDao.listBySet(s.id).forEach { recoveryCodeDao.deleteById(it.id) }
+                recoverySetDao.deleteById(s.id)
+            }
+            totpDao.listByAccount(row.id).forEach { totpDao.deleteById(it.id) }
+            accountDao.deleteById(row.id)
+
+            DeletedAccountSnapshot(account = account, totps = totps, recoverySets = sets)
+        }
+    }
+
+    /**
+     * P8 §9/§10 — restores a previously deleted Account + subtree atomically
+     * with EXACT stableIds/states (never re-creates an "equivalent" account and
+     * never mints new stableIds).
+     *
+     * Before writing, it preflights inside the same serialized mutation:
+     *
+     * - if the same Account stableId already exists with a DIFFERENT payload,
+     *   or a TOTP / Recovery Set / Code stableId already exists (schema
+     *   uniqueness collision), restore is BLOCKED (P8 §10) — nothing is
+     *   written, the caller must clear the pending secret snapshot;
+     * - a blocked restore returns [UndoRestoreOutcome.Blocked] — no
+     *   source-wins overwrite, no PackageMergePlanner involvement (this is a
+     *   local mutation rollback, not a package import).
+     */
+    suspend fun restoreAccount(snapshot: DeletedAccountSnapshot): UndoRestoreOutcome {
+        return vault.mutate {
+            // Preflight: reject any stableId already present in the destination
+            // (exact restore must not silently overwrite).
+            if (accountDao.getByStableId(snapshot.account.stableId) != null) {
+                return@mutate UndoRestoreOutcome.Blocked
+            }
+            val totpStableIds = snapshot.totps.map { it.stableId }.toSet()
+            val setStableIds = snapshot.recoverySets.map { it.stableId }.toSet()
+            val codeStableIds = snapshot.recoverySets.flatMap { it.codes.map { c -> c.stableId } }.toSet()
+            if (totpStableIds.any { totpDao.getByStableId(it) != null }) {
+                return@mutate UndoRestoreOutcome.Blocked
+            }
+            if (setStableIds.any { recoverySetDao.getByStableId(it) != null }) {
+                return@mutate UndoRestoreOutcome.Blocked
+            }
+            if (codeStableIds.any { recoveryCodeDao.getByStableId(it) != null }) {
+                return@mutate UndoRestoreOutcome.Blocked
+            }
+
+            // Insert account with exact fields.
+            accountDao.upsert(
+                AuthAccountEntity(
+                    id = snapshot.account.id,
+                    stableId = snapshot.account.stableId,
+                    serviceName = snapshot.account.serviceName,
+                    accountName = snapshot.account.accountName,
+                    favorite = snapshot.account.favorite,
+                    notes = snapshot.account.notes,
+                    sortOrder = snapshot.account.sortOrder,
+                    createdAt = snapshot.account.createdAt,
+                    updatedAt = snapshot.account.updatedAt,
+                    legacySourceId = null,
+                ),
+            )
+            // Insert TOTPs with exact stableIds/params.
+            snapshot.totps.forEach { t ->
+                totpDao.upsert(
+                    com.rescueauth.v2.database.TotpCredentialEntity(
+                        id = t.id,
+                        stableId = t.stableId,
+                        accountId = t.accountId,
+                        secretBase32 = t.secretBase32,
+                        algorithm = t.algorithm,
+                        digits = t.digits,
+                        periodSeconds = t.periodSeconds,
+                        createdAt = t.createdAt,
+                        legacySourceId = null,
+                    ),
+                )
+            }
+            // Insert Recovery Sets + Codes with exact stableIds/states.
+            snapshot.recoverySets.forEach { set ->
+                recoverySetDao.upsert(
+                    com.rescueauth.v2.database.RecoveryCodeSetEntity(
+                        id = set.id,
+                        stableId = set.stableId,
+                        accountId = set.accountId,
+                        title = set.title,
+                        createdAt = set.createdAt,
+                        legacySourceId = null,
+                    ),
+                )
+                set.codes.sortedBy { it.sortOrder }.forEach { code ->
+                    recoveryCodeDao.upsert(
+                        com.rescueauth.v2.database.RecoveryCodeEntity(
+                            id = code.id,
+                            stableId = code.stableId,
+                            setId = code.setId,
+                            value = code.value,
+                            status = if (code.isUsed) "USED" else "UNUSED",
+                            usedAt = code.usedAt,
+                            sortOrder = code.sortOrder,
+                        ),
+                    )
+                }
+            }
+            UndoRestoreOutcome.Restored
         }
     }
 

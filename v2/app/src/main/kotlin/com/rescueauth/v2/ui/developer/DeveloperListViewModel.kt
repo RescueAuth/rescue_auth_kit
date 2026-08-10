@@ -58,6 +58,8 @@ class DeveloperListViewModel(
                 } else {
                     collectionJob?.cancel()
                     collectionJob = null
+                    // P8 §6: session lock clears the shared Developer Undo store.
+                    DeveloperUndoStore.clear()
                     _uiState.value = DeveloperListUiState(loading = false)
                 }
             }

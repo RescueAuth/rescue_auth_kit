@@ -10,6 +10,41 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 phase4-p8 delete-undo] - 2026-08-10（Phase 4 P8 Delete Undo 完善，IMPLEMENTED / PR OPEN）
+
+Issue #20 Phase 4 P8：普通删除统一 SnackBar Undo + Recovery Code Set Move
+正式能力 + 空 Account 全 scope 保留。P1–P8 全部完成（Phase 4 daily-use
+feature slices = feature implementation complete）。
+
+### Added
+
+- **Account Delete + Undo（app）**：Account 删除由 destructive confirmation
+  改为立即移除 + SnackBar Undo；删除前在同一 transaction 内捕获完整 subtree
+  snapshot（Account 全部字段 + TOTP secret/params + Recovery Set/Code 的
+  stableId/USED/UNUSED/usedAt），Undo 以精确 stableId/states 原子恢复；
+  preflight 拒绝冲突/重复（无 source-wins overwrite）；token 单次消费。
+- **普通 Developer Entry Delete + Undo（app）**：API Credential / SSH Key /
+  Environment Variable Set / Generic Secret 删除后 SnackBar Undo，恢复精确
+  stableId/payload；共享 in-memory `DeveloperUndoStore` 覆盖 post-navigation
+  生命周期；Android Signing Key 保持 confirmation-only（无 Undo）。
+- **Recovery Code Set Move（app）**：跨 Provider 移动 Recovery Set（destination
+  picker 排除 current owner，无其它 Account 时禁用）；Set/code 全部 identity
+  + state 保留，title 非 identity 不做 dedupe；单 transaction，失败回滚。
+- **空 Account 保留（core MergePlanner 最小修复）**：源中空 Account（无
+  TOTP/无 Recovery Set）在 destination 缺失时现在产生 `INSERT_ACCOUNT`，而非
+  `DUPLICATE_ACCOUNT`，使其在 Full / Selected / Authenticator-only 导出导入
+  中完整保留（stableId/pinned/metadata）；重复导入幂等。无 Room/package 改动。
+- **Undo 安全生命周期**：所有 Undo snapshot 仅 in-memory（不进入
+  SavedStateHandle/Bundle/DataStore/file/cache/clipboard/log）；session lock
+  清除全部 pending Undo（TOTP/Recovery/Account/Developer），unlock 后不恢复。
+- **i18n / accessibility（en + zh-CN）**：Account/Developer deleted、Undo、
+  Unable to restore、Recovery moved、Move to account、No other accounts 等。
+
+### Tests
+
+新增 P8 测试：Account Undo（12）、Developer Undo（11）、Recovery Move（10）、
+空 Account package（7，app）+ MergePlanner 空 Account（3，core）。
+
 ## [v2 phase6-l2 about-update-check] - 2026-08-10（Phase 6 L2 About + Update Check，IMPLEMENTED / PR OPEN）
 
 Issue #20 Phase 6 L2：新增正式 About 页 + manual、signature-verified 的

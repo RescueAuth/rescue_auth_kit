@@ -242,10 +242,16 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 | **PA — Provider & Account Full Management** | ✅ 已实现（Issue #32，见 `docs/PHASE4_PA_REPORT.md`）：正式 Provider（create/rename/delete）与 Account（create/rename/move/merge/delete）management，全部走共享 `VaultRepository` 单 mutex + 单 Room transaction；Provider = `serviceName` 分组（无独立 entity / 无 package stableId）；empty Provider 非当前正式能力（Create Provider 同时创建首个 Account）；Account merge 复用现有官方 TOTP semantic fingerprint，destination 存活、source TOTP 迁移/消解、Recovery Sets 全迁移保留 lineage；跨 Provider merge 支持；**Room schema / package format 零改动** | 完整管理 Provider/Account 层级（对应 §4.1 能力） | P3 + P5 | M |
 | **P6 — Developer Vault slice（第二批）** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P6_REPORT.md`）：Android Signing Key / Environment Variable Set 全 CRUD（create/list/detail/edit/delete）+ keystore SAF import（opaque exact-bytes，大小上限从共享 logical/package per-asset contract 推导）/ export（fresh re-auth + SAF CreateDocument）+ Copy key.properties（内存构造、fresh re-auth、不持久化）+ 每字段 reveal/copy 独立 fresh re-auth（SensitiveAction target 绑定 stableId+fieldKey）+ Env Var 动态行、case-sensitive 去重、value 不 normalize；Developer Vault 五类 Android UI 全部完成 | 五类 Developer Entry 全部可日常使用 | P4 | M |
 | **P7 — Search + Pin** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P7_REPORT.md`）：全局搜索（Provider/Account/TOTP display/Recovery Set title/Developer title + 非敏感 metadata；只索引 safe metadata，绝不索引 secret）+ Account Pin/Unpin 置顶（复用 `favorite` 兼容字段，无 schema/package 改动） | 快速定位常用项 | P1 + P6 | M |
-| **P8 — Delete Undo 完善** | 普通删除（TOTP / recovery set / 普通 Developer Entry / account）统一 SnackBar Undo；高破坏性操作（provider 级联、含 keystore 的 signing key、大规模 merge）保留确认 | 误删可恢复，破坏性操作仍受保护 | P1 起步，P3/P6 覆盖全类型 | S |
+| **P8 — Delete Undo 完善** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P8_REPORT.md`）：普通删除（TOTP / recovery set / 普通 Developer Entry / account）统一 SnackBar Undo（普通 Developer Entry = API Credential / SSH Key / Env Var Set / Generic Secret；account 删除改为立即移除 + Undo）；高破坏性操作（provider 级联、含 keystore 的 signing key、account merge）保留确认且无 Undo；Recovery Code Set Move 正式能力（跨 Provider，identity/state 全保留，原子 move）；空 Account（无 TOTP / 无 Recovery Set）在 Full/Selected/Authenticator-only 导出导入中被完整保留；Undo snapshot 仅 in-memory、session lock 时清除 | 误删可恢复，破坏性操作仍受保护 | P1 起步，P3/P6 覆盖全类型 | S |
 
-> **P8 说明**：Undo 优先通过数据库/domain transaction/state mechanism
-> 实现；**不要**为了 Undo 恢复 automatic checkpoint backup。
+> **P8 说明**：Undo 通过 database/domain transaction + short-lived in-memory
+> restore snapshot/token 实现；**不要**为了 Undo 恢复 automatic checkpoint
+> backup。Undo snapshot 含真正 secret，只允许 in-memory，绝不进入
+> SavedStateHandle/Bundle/DataStore/file/cache/clipboard/log；session lock
+> 时清除所有 pending Undo，unlock 后不恢复 token。
+> **P8 说明（Recovery Set Move）**：Set 是 atomic collection，move 只改变
+> parent Account 关系，保留 set/code 全部 stableId 与 USED/UNUSED/usedAt/
+> sortOrder；title 不是 identity，不做 dedupe；单 transaction，失败整体回滚。
 
 ### 5.4 Phase 5 — Migration（legacy import 收口）
 

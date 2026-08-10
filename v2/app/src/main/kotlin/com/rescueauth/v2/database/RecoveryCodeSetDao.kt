@@ -21,6 +21,9 @@ interface RecoveryCodeSetDao {
     @Query("SELECT * FROM recovery_code_set WHERE id = :id")
     suspend fun getById(id: String): RecoveryCodeSetEntity?
 
+    @Query("SELECT * FROM recovery_code_set WHERE stableId = :stableId")
+    suspend fun getByStableId(stableId: String): RecoveryCodeSetEntity?
+
     @Query("UPDATE recovery_code_set SET title = :title WHERE id = :id")
     suspend fun updateTitle(id: String, title: String)
 

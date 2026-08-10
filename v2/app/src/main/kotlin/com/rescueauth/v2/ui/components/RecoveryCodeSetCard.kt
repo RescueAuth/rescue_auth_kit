@@ -67,6 +67,7 @@ fun RecoveryCodeSetCard(
     onMarkUnused: ((String) -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
@@ -99,7 +100,7 @@ fun RecoveryCodeSetCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (onCopyAll != null || onCopyRemaining != null || onEdit != null || onDelete != null) {
+                if (onCopyAll != null || onCopyRemaining != null || onEdit != null || onDelete != null || onMove != null) {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
@@ -124,6 +125,12 @@ fun RecoveryCodeSetCard(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.recovery_codes_edit_title)) },
                                 onClick = { menuOpen = false; onEdit() },
+                            )
+                        }
+                        if (onMove != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.recovery_codes_move)) },
+                                onClick = { menuOpen = false; onMove() },
                             )
                         }
                         if (onDelete != null) {

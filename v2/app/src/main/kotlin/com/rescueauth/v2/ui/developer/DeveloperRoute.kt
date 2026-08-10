@@ -22,6 +22,8 @@ import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveAction
 import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
+import com.rescueauth.v2.ui.components.UndoResult
+import com.rescueauth.v2.ui.components.UndoSnackbarContract
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
 import com.rescueauth.v2.ui.screens.developer.DeveloperAddSheet
 import com.rescueauth.v2.ui.screens.developer.DeveloperDeleteDialog
@@ -44,7 +46,9 @@ fun DeveloperRoute(
     onOpenEntry: ((DeveloperEntryUi) -> Unit)? = null,
     onAddTypeSelected: ((DeveloperFormType) -> Unit)? = null,
 ) {
+    val context = LocalContext.current
     val appScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var showAddSheet by remember { mutableStateOf(false) }
 
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
@@ -64,8 +68,39 @@ fun DeveloperRoute(
     }
     val listState by listViewModel.uiState.collectAsState()
 
+    // P8 §32: an ordinary Developer entry deleted from the Detail screen leaves
+    // a pending Undo token in the shared store. The list route (which survives
+    // the detail pop) shows the Undo Snackbar here so it lives beyond the
+    // post-navigation lifecycle.
+    LaunchedEffect(DeveloperUndoStore.pending) {
+        val pending = DeveloperUndoStore.pending ?: return@LaunchedEffect
+        val message = context.getString(R.string.developer_entry_deleted_message)
+        val actionLabel = context.getString(R.string.undo_snackbar_action)
+        val result = UndoSnackbarContract.showUndoSnackbar(
+            snackbarHostState,
+            message,
+            actionLabel,
+        )
+        if (result == UndoResult.UNDO) {
+            val snapshot = DeveloperUndoStore.consume()
+            if (snapshot != null) {
+                val outcome = runCatching {
+                    VaultAccess.developerRepository()?.restoreFromSnapshot(snapshot)
+                }.getOrNull()?.let { it is com.rescueauth.v2.domain.UndoRestoreOutcome.Restored }
+                if (outcome == true) {
+                    snackbarHostState.showSnackbar(context.getString(R.string.developer_entry_restored_message))
+                } else {
+                    snackbarHostState.showSnackbar(context.getString(R.string.developer_restore_blocked))
+                }
+            }
+        } else {
+            DeveloperUndoStore.clear()
+        }
+    }
+
     DeveloperScreen(
         uiState = listState,
+        snackbarHostState = snackbarHostState,
         onAddClick = { showAddSheet = true },
         onEntryClick = onOpenEntry,
         modifier = modifier,
@@ -171,6 +206,13 @@ fun DeveloperDetailRoute(
                     context.getString(R.string.developer_deleted_message, event.label),
                 )
             }
+            is DeveloperDetailEvent.Restored -> {
+                // Restore feedback is shown by the list route (the detail is
+                // popped after an ordinary delete); keep a safe no-op here.
+            }
+            is DeveloperDetailEvent.RestoreBlocked -> {
+                // Same — surfaced by the list route after navigation.
+            }
             is DeveloperDetailEvent.AuthUnavailable -> {
                 snackbarHostState.showSnackbar(context.getString(R.string.auth_unavailable))
             }
@@ -204,7 +246,20 @@ fun DeveloperDetailRoute(
         getRevealedValue = { viewModel.revealedValue(it) },
         isRevealed = { viewModel.isRevealed(it) },
         onEdit = { if (detail != null) onEdit(detail.stableId) },
-        onDelete = { showDeleteDialog = true },
+        // P8 §14: Android Signing Key keeps destructive confirmation (no Undo);
+        // ordinary Developer entries delete immediately (Undo shown at the list
+        // route via the shared store, P8 §12/§32).
+        onDelete = {
+            if (detail is com.rescueauth.v2.ui.model.DeveloperDetailUi.AndroidSigningKey) {
+                showDeleteDialog = true
+            } else {
+                showDeleteDialog = false
+                appScope.launch {
+                    viewModel.delete()
+                    onBack()
+                }
+            }
+        },
         onRevealStorePassword = { viewModel.reveal(SensitiveAction.REVEAL_SIGNING_STORE_PASSWORD, "storePassword") },
         onCopyStorePassword = { viewModel.copySecret(SensitiveAction.COPY_SIGNING_STORE_PASSWORD, "storePassword", "storePassword") },
         onRevealKeyPassword = { viewModel.reveal(SensitiveAction.REVEAL_SIGNING_KEY_PASSWORD, "keyPassword") },

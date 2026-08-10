@@ -13,6 +13,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -48,6 +50,7 @@ import com.rescueauth.v2.ui.theme.Spacing
 fun DeveloperScreen(
     modifier: Modifier = Modifier,
     uiState: DeveloperListUiState = DeveloperListUiState(),
+    snackbarHostState: SnackbarHostState? = null,
     onAddClick: (() -> Unit)? = null,
     onEntryClick: ((DeveloperEntryUi) -> Unit)? = null,
 ) {
@@ -56,6 +59,7 @@ fun DeveloperScreen(
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.developer_title)) })
         },
+        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = {
             if (onAddClick != null) {
                 FloatingActionButton(onClick = onAddClick) {

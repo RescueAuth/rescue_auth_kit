@@ -63,6 +63,7 @@ sealed interface RecoveryEvent {
     data class Edited(val label: String) : RecoveryEvent
     data class MarkedUsed(val label: String) : RecoveryEvent
     data class MarkedUnused(val label: String) : RecoveryEvent
+    data class Moved(val label: String) : RecoveryEvent
     data class Error(val message: String) : RecoveryEvent
 }
 
@@ -111,8 +112,11 @@ class RecoveryViewModel(
                 } else {
                     collectionJob?.cancel()
                     collectionJob = null
-                    // Session locked: no visible secret may remain in the UI.
+                    // Session locked: no visible secret may remain in the UI, and
+                    // the pending Undo payload (recovery plaintext) is cleared
+                    // (P8 §6).
                     _revealedIds.value = emptySet()
+                    pendingUndo = null
                     _uiState.value = RecoveryUiState(loading = false)
                     _formState.value = RecoveryFormState()
                 }
@@ -320,4 +324,51 @@ class RecoveryViewModel(
             false
         }
     }
+
+    // ------------------------------------------------------------------
+    // Move (P8 §16–§20)
+    // ------------------------------------------------------------------
+
+    /**
+     * All destination Accounts (provider + account metadata) EXCLUDING the
+     * current owning Account, used by the Move picker (P8 §16). Returns an
+     * empty list when there is no other Account (the caller disables Move).
+     */
+    suspend fun availableMoveDestinations(): List<MoveDestination> {
+        val authRepo = authRepositoryProvider() ?: return emptyList()
+        val accounts = runCatching { authRepo.observeAccounts().firstOrNull() ?: emptyList() }
+            .getOrDefault(emptyList())
+        return accounts
+            .filter { it.id != accountId }
+            .map { MoveDestination(accountId = it.id, providerName = it.serviceName, accountName = it.accountName) }
+    }
+
+    /** Moves [setId] to [destinationAccountId] atomically (P8 §19). */
+    suspend fun moveSet(setId: String, destinationAccountId: String): Boolean {
+        val repo = recoveryRepositoryProvider() ?: return false
+        val set = _uiState.value.sets.firstOrNull { it.id == setId } ?: return false
+        return try {
+            repo.moveSet(setId, destinationAccountId)
+            _events.value = RecoveryEvent.Moved(set.title)
+            true
+        } catch (e: RecoveryCodeRepository.NotFoundException) {
+            _events.value = RecoveryEvent.Error("move_failed")
+            false
+        } catch (e: RecoveryCodeRepository.ConflictException) {
+            _events.value = RecoveryEvent.Error("move_conflict")
+            false
+        } catch (e: Exception) {
+            _events.value = RecoveryEvent.Error("move_failed")
+            false
+        }
+    }
+}
+
+/** A safe, non-secret destination Account option for the Recovery Move picker. */
+data class MoveDestination(
+    val accountId: String,
+    val providerName: String,
+    val accountName: String,
+) {
+    val label: String get() = "$providerName · $accountName"
 }

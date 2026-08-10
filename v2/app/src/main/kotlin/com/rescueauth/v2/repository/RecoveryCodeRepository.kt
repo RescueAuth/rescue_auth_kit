@@ -46,6 +46,7 @@ class RecoveryCodeRepository(
 ) {
     class ValidationException(message: String) : Exception(message)
     class NotFoundException(message: String) : Exception(message)
+    class ConflictException(message: String) : Exception(message)
 
     private val setDao: RecoveryCodeSetDao get() = db.recoveryCodeSetDao()
     private val codeDao: RecoveryCodeDao get() = db.recoveryCodeDao()
@@ -227,6 +228,49 @@ class RecoveryCodeRepository(
             val domain = AuthMappers.toDomain(set, codeDao.listBySet(setId))
             setDao.deleteById(setId)
             domain
+        }
+    }
+
+    /**
+     * P8 §16–§20 — Moves a Recovery Code Set to a destination Account.
+     *
+     * The set is an atomic collection: it moves as a whole, preserving the set
+     * stableId / title / createdAt and every child code stableId / value /
+     * USED-UNUSED / usedAt / sortOrder. Only the parent Account relation
+     * changes (P8 §17). Supports cross-provider moves (the destination Account
+     * carries its own Provider serviceName).
+     *
+     * ## Semantics
+     *
+     * - No title-based dedupe: a destination may already hold a same-titled set;
+     *   they simply coexist (title is not identity, P8 §18).
+     * - Moving to the current owning Account is a safe no-op (returns unchanged).
+     * - If the destination Account already holds a set with the SAME stableId
+     *   (theoretically corrupt/impossible), the move is rejected and rolls back
+     *   (P8 §18 / §19).
+     * - The whole move runs in ONE serialized Room transaction; any failure
+     *   rolls back everything, leaving no orphan code (P8 §19).
+     */
+    suspend fun moveSet(setId: String, destinationAccountId: String): RecoveryCodeSet {
+        if (destinationAccountId.isBlank()) throw ValidationException("destination account is required")
+        return vault.mutate {
+            val set = setDao.getById(setId)
+                ?: throw NotFoundException("recovery set not found")
+            val destinationAccount = db.authAccountDao().getById(destinationAccountId)
+                ?: throw NotFoundException("destination account not found")
+            // no-op when already owned by the destination.
+            if (set.accountId == destinationAccountId) {
+                return@mutate AuthMappers.toDomain(set, codeDao.listBySet(setId))
+            }
+            // Reject a same-stableId set already present in the destination
+            // (schema uniqueness / identity collision) — never silent overwrite.
+            val existingInDestination = setDao.listByAccount(destinationAccountId)
+                .firstOrNull { it.stableId == set.stableId }
+            if (existingInDestination != null) {
+                throw ConflictException("a recovery set with this identity already exists in the destination")
+            }
+            setDao.updateAccountId(set.id, destinationAccount.id)
+            AuthMappers.toDomain(set.copy(accountId = destinationAccount.id), codeDao.listBySet(setId))
         }
     }
 

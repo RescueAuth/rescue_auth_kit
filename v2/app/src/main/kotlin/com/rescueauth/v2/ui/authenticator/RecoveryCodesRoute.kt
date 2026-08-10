@@ -20,6 +20,7 @@ import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
+import com.rescueauth.v2.ui.screens.authenticator.MoveRecoveryDialog
 import com.rescueauth.v2.ui.screens.authenticator.RecoveryCodeEditorSheet
 import com.rescueauth.v2.ui.screens.authenticator.RecoveryCodesScreen
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +45,8 @@ fun RecoveryCodesRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     var showEditor by remember { mutableStateOf(false) }
     var editingSetId by remember { mutableStateOf<String?>(null) }
+    var moveSetId by remember { mutableStateOf<String?>(null) }
+    var moveDestinations by remember { mutableStateOf<List<MoveDestination>>(emptyList()) }
 
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
         val sm = VaultAccess.sessionManager
@@ -126,6 +129,11 @@ fun RecoveryCodesRoute(
                     context.getString(R.string.recovery_codes_marked_unused),
                 )
             }
+            is RecoveryEvent.Moved -> {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.recovery_move_moved_message),
+                )
+            }
             is RecoveryEvent.Error -> {
                 snackbarHostState.showSnackbar(context.getString(R.string.common_error_title))
             }
@@ -155,8 +163,30 @@ fun RecoveryCodesRoute(
             showEditor = true
         },
         onDelete = { setId -> appScope.launch { viewModel.deleteSet(setId) } },
+        onMove = { setId ->
+            moveSetId = setId
+            appScope.launch { moveDestinations = viewModel.availableMoveDestinations() }
+        },
         modifier = modifier,
     )
+
+    val movingSet = moveSetId?.let { id -> uiState.sets.firstOrNull { it.id == id } }
+    if (movingSet != null) {
+        MoveRecoveryDialog(
+            setTitle = movingSet.title,
+            destinations = moveDestinations,
+            onConfirm = { dest ->
+                val id = moveSetId
+                moveSetId = null
+                moveDestinations = emptyList()
+                if (id != null) appScope.launch { viewModel.moveSet(id, dest.accountId) }
+            },
+            onDismiss = {
+                moveSetId = null
+                moveDestinations = emptyList()
+            },
+        )
+    }
 
     if (showEditor) {
         RecoveryCodeEditorSheet(
