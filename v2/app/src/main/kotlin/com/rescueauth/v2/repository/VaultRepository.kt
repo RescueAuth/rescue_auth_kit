@@ -1,25 +1,17 @@
 package com.rescueauth.v2.repository
 
 import com.rescueauth.v2.database.AuthAccountDao
-import com.rescueauth.v2.database.AuthAccountEntity
 import com.rescueauth.v2.database.DeveloperEntryDao
 import com.rescueauth.v2.database.ImportRecordDao
-import com.rescueauth.v2.database.ImportRecordEntity
 import com.rescueauth.v2.database.RecoveryCodeDao
-import com.rescueauth.v2.database.RecoveryCodeEntity
 import com.rescueauth.v2.database.RecoveryCodeSetDao
-import com.rescueauth.v2.database.RecoveryCodeSetEntity
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.database.TotpCredentialDao
-import com.rescueauth.v2.database.TotpCredentialEntity
-import com.rescueauth.v2.export.MergePlan
 import com.rescueauth.v2.export.VaultAccount
 import com.rescueauth.v2.export.VaultRecoveryCode
 import com.rescueauth.v2.export.VaultRecoveryCodeSet
 import com.rescueauth.v2.export.VaultSnapshot
 import com.rescueauth.v2.export.VaultTotpCredential
-import com.rescueauth.v2.legacy.LegacyImportBundle
-import com.rescueauth.v2.legacy.LegacyToV2Mapper
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import androidx.room.withTransaction
 import kotlinx.coroutines.sync.Mutex
@@ -45,7 +37,6 @@ class VaultRepository(
     private val session: SecureSessionStateMachine,
 ) {
     class SessionLockedException(message: String = "Session is locked") : Exception(message)
-    class InvalidImportException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
     private val mutex = Mutex()
 
@@ -218,6 +209,7 @@ class VaultRepository(
         snapshot: VaultSnapshot,
         packageIdentity: String? = null,
         seam: WriteSeam = WriteSeam.None,
+        sourceType: String = "V2_PACKAGE",
     ): ImportOutcome {
         checkUnlocked()
         com.rescueauth.v2.export.PackageValidator.validate(snapshot)
@@ -252,7 +244,7 @@ class VaultRepository(
                     developerDao = developerDao,
                     importDao = importDao,
                     seam = seam,
-                ).apply(snapshot, plan, packageIdentity)
+                ).apply(snapshot, plan, packageIdentity, sourceType)
                 ImportOutcome.Applied(result)
             }
         }
@@ -262,106 +254,6 @@ class VaultRepository(
     // Mutations (serialized)
     // ------------------------------------------------------------------
 
-    /**
-     * Imports a validated [LegacyImportBundle] in a single transaction.
-     *
-     * Phase 3 reset: there is NO PRE_IMPORT backup checkpoint anymore — the
-     * automatic-backup snapshot model was removed (manual Export Package only).
-     * The import itself is still transactional: any failure rolls back the
-     * whole import. (A future Phase 3C step funnels the logical records
-     * through the Merge Planner; legacy import currently maps directly to
-     * Room rows exactly as Phase 2 established.)
-     */
-    suspend fun importLegacy(bundle: LegacyImportBundle): ImportSummary {
-        checkUnlocked()
-        return mutex.withLock {
-            db.withTransaction {
-                val result = LegacyToV2Mapper.map(bundle)
-                if (result.accounts.isEmpty() && result.report.notImported.isEmpty()) {
-                    throw InvalidImportException("Nothing to import")
-                }
-
-                val now = java.time.Instant.now().toString()
-                val accounts = result.accounts.map { a ->
-                    AuthAccountEntity(
-                        id = a.id,
-                        stableId = a.id,
-                        serviceName = a.serviceName,
-                        accountName = a.accountName,
-                        favorite = a.favorite,
-                        notes = a.notes,
-                        sortOrder = a.sortOrder,
-                        createdAt = a.createdAt,
-                        updatedAt = a.updatedAt,
-                        legacySourceId = a.legacySourceId,
-                    )
-                }
-                accountDao.insertAll(accounts)
-
-                val totps = mutableListOf<TotpCredentialEntity>()
-                val sets = mutableListOf<RecoveryCodeSetEntity>()
-                val codes = mutableListOf<RecoveryCodeEntity>()
-                for (a in result.accounts) {
-                    for (t in a.totpCredentials) {
-                        totps += TotpCredentialEntity(
-                            id = t.id,
-                            stableId = t.id,
-                            accountId = a.id,
-                            secretBase32 = t.secretBase32,
-                            algorithm = t.algorithm,
-                            digits = t.digits,
-                            periodSeconds = t.periodSeconds,
-                            createdAt = a.createdAt,
-                            legacySourceId = t.legacySourceId,
-                        )
-                    }
-                    for (s in a.recoveryCodeSets) {
-                        sets += RecoveryCodeSetEntity(
-                            id = s.id,
-                            stableId = s.id,
-                            accountId = a.id,
-                            title = s.title,
-                            createdAt = a.createdAt,
-                            legacySourceId = s.legacySourceId,
-                        )
-                        codes += s.codes.map { c ->
-                            RecoveryCodeEntity(
-                                id = c.id,
-                                stableId = c.id,
-                                setId = s.id,
-                                value = c.value,
-                                status = c.status,
-                                usedAt = c.usedAt,
-                                sortOrder = c.sortOrder,
-                            )
-                        }
-                    }
-                }
-                totpDao.insertAll(totps)
-                recoverySetDao.insertAll(sets)
-                recoveryCodeDao.insertAll(codes)
-
-                val fingerprint = bundle.schemaVersion.toString() + ":" + result.accounts.size
-                importDao.insert(
-                    ImportRecordEntity(
-                        id = java.util.UUID.randomUUID().toString(),
-                        stableId = java.util.UUID.randomUUID().toString(),
-                        sourceType = "LEGACY_RAKVAULT",
-                        sourceFingerprint = fingerprint,
-                        importedAt = now,
-                        itemCount = result.accounts.size,
-                        warningCount = result.report.notImported.size + bundle.developerCount,
-                    )
-                )
-
-                ImportSummary(
-                    importedAccounts = result.accounts.size,
-                    notImported = result.report.notImported.map { it.sourceId },
-                    warningCount = result.report.notImported.size + bundle.developerCount,
-                )
-            }
-        }
-    }
 
     /** Marks a recovery code as used (serialized). */
     suspend fun markRecoveryCodeUsed(codeId: String, usedAt: String = java.time.Instant.now().toString()) {
@@ -420,13 +312,6 @@ class VaultRepository(
         if (!session.isUnlocked()) throw SessionLockedException()
     }
 }
-
-/** Result of a legacy import. */
-data class ImportSummary(
-    val importedAccounts: Int,
-    val notImported: List<String>,
-    val warningCount: Int,
-)
 
 /**
  * Outcome of a Phase 3C merge apply.

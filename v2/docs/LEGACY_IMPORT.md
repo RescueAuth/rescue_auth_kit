@@ -142,14 +142,24 @@ XChaCha20-Poly1305 解密（先验证 MAC）→ UTF-8 JSON。
 - `RecoveryCode.value` = 旧 codes 原样；`status` 全部 `UNUSED`（旧版无已使用状态）。
 - `RecoveryCodeSet.legacySourceId` = 旧 set id / credential id。
 
-### 5.4 Developer 数据（不静默丢弃）
+### 5.4 Developer 数据（完整迁移，不静默丢弃）
 
-v1 明确不做 Developer 密钥管理，因此：
+> **Phase 5A/5B 更新（2026-08-09）**：Developer 数据已从旧“暂不导入 / 只读
+> secure note”策略改为**完整迁移**。Legacy v1 Developer Vault 五类（
+> `androidSigningKey` / `apiCredential` / `sshKey` / `envVarSet` /
+> `genericSecret`）全部经 `LegacyVaultSnapshotMapper` → shared `VaultSnapshot`
+> → `MergePlanner` / `VaultRepository.applySnapshot` **正常迁移并持久化**到
+> SQLCipher DB（详见 `docs/PHASE5A_REPORT.md` §9 与
+> `docs/PHASE5B_REPORT.md` §12）。
 
-- 导入预览必须显示 Developer 数据数量。
-- 默认策略：**暂不导入**，写入 `ImportRecord.warningCount` 并生成"未导入报告"
-  （列出条目 id/type/title），保留原始 `.rakvault`。
-- 可选策略：转换为只读 `Legacy secure note`（不进 v1 主导航，仅只读展示）。
+因此：
+
+- 导入预览必须显示 Developer 数据数量（五类分项计数，仅安全 metadata）。
+- **正式契约**：全部五类正常导入、持久化；不降级为只读 secure note、不默认
+  跳过、不默认生成“未导入报告”。P6 只是补 Signing Key / Env Var Set 的
+  Android CRUD/UI，不是补 migration capability。
+- 迁移后数据进入 logical snapshot（`buildDestinationSnapshot` → Native Full
+  Vault Export 不丢失）。
 - 禁止将 Developer payload 写入任何日志、崩溃报告或截图 fixture。
 
 ## 6. 兼容性 Fixture 清单
@@ -306,3 +316,55 @@ Legacy 映射后走**纯 logical `VaultSnapshot` validation**（
 `PackageValidator.validate(VaultSnapshot)` / `validateSnapshot`），不经过
 Native package capacity budget；capacity 只属于 Native package
 `validate(VaultPackagePayload)`。不改 `.rakpkg` format / 16 MiB contract。
+
+---
+
+## 10. Phase 5B — Android Legacy Import UI（接线契约）
+
+Phase 5B 把 Phase 5A core adapter 接到 Android daily-use import flow。详见
+`docs/PHASE5B_REPORT.md`。
+
+### 10.1 入口
+
+- **Settings → Backup / Transfer → Import Legacy v1 Vault**（与 “Import Native
+  Package” 明确分开，ROADMAP §9）。
+- 独立 route `legacy-import`，独立 `LegacyImportRoute` / `LegacyImportScreen`。
+
+### 10.2 流程
+
+```
+Settings → Import Legacy v1 Vault → Choose .rakvault (SAF OpenDocument)
+→ bounded read (≤ 64 MiB + 1) → Enter Legacy Master Password → Decode
+→ Safe Preview → Merge Preview → Confirm Import → Success summary
+```
+
+### 10.3 与 Native 的边界
+
+- **共享**：`VaultSnapshot` / `PackageValidator.validateSnapshot` /
+  `MergePlanner` / `VaultRepository.applySnapshot`（事务 apply）。
+- **不共享**：password/PIN validator、decoder、error enum、format
+  identification state machine。
+- `VaultRepository` **不再 import** `LegacyImportBundle`；旧 `importLegacy`
+  spike 已删除，Legacy 一律走 `applySnapshot(..., sourceType="LEGACY_RAKVAULT")`。
+
+### 10.4 Legacy password 策略
+
+- **不硬编码 `password.length >= 10`**（v1 creation UI policy，非 decoder
+  要求）。任意非空密码提交给 Legacy decoder。
+- 不复用 Native 6-digit PIN policy。
+- 密码不进入 SavedStateHandle / Bundle / rememberSaveable / DataStore /
+  Room / logs；Char/ByteArray best-effort zeroize。
+
+### 10.5 大小上限
+
+- Legacy SAF bounded read 使用 **64 MiB**（`LegacyRakVaultImporter
+.DEFAULT_MAX_INPUT_BYTES`），与 Native `.rakpkg` 16 MiB 解耦。
+- 超限在 decrypt 前拒绝（`LegacyFileError.FileTooLarge`）。
+
+### 10.6 ImportRecord
+
+- `sourceType = "LEGACY_RAKVAULT"`。
+- `sourceFingerprint = b64url(SHA-256(原始加密 .rakvault 字节))`（Phase 5A
+  §11），仅作 source identity，不参与 object identity。
+- 仅 successful transactional apply 后记录（cancel / decode failure / merge
+  blocked / rollback 不记录）。Room schema 不变。

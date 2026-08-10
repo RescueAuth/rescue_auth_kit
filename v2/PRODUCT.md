@@ -95,9 +95,13 @@ export**，不是 DevOps automation platform。
 - **Generic Secret**：arbitrary label=value fields、title/notes；
   create/view/edit/delete/copy。
 
-Legacy（`.rakvault`）导入时的旧 Developer 数据策略保持不变：预览显示
-数量、默认“未导入 + 报告”、可选转只读 secure note、禁止静默丢弃、
-禁止写入日志。
+Legacy（`.rakvault`）导入时的旧 Developer 数据**完整迁移**：Legacy v1
+Developer Vault 五类（Android Signing Key / API Credential / SSH Key /
+Environment Variable Set / Generic Secret）全部正常导入并持久化到 SQLCipher
+DB（经 Legacy mapper → shared `VaultSnapshot` → merge/apply），预览显示
+数量与五类分项（仅安全 metadata），不降级为只读 secure note、不默认跳过、
+禁止静默丢弃、禁止写入日志。P6 只补 Signing Key / Env Var Set 的 Android
+CRUD/UI，不是补 migration capability。
 
 ## 数据归属
 

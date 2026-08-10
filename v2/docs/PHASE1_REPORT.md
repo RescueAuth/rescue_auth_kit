@@ -62,8 +62,11 @@
 
 ## 4. 无法满足的兼容点与风险
 
-1. **旧库 Developer 数据不导入**：v1 不做 Developer 密钥管理，默认生成
-   "未导入报告"并保留原始 `.rakvault`（预览必须显示数量）。
+1. **旧库 Developer 数据不导入**（已解除）：v1 早期阶段确实不导入
+   Developer 数据，默认生成“未导入报告”。**Phase 5A/5B 已改为完整迁移**：
+   Legacy v1 Developer Vault 五类全部正常导入并持久化（经 Legacy mapper →
+   shared `VaultSnapshot` → merge/apply），不降级、不默认跳过（见
+   `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md`）。
 2. **旧恢复码无"已用"状态**：旧 schema 1/2/3 的恢复码均为字符串列表，
    导入后全部 `UNUSED`。用户需自行重新标记（记录于 LEGACY_IMPORT.md）。
 3. **BC 自实现 HChaCha20 的维护风险**（已解除）：BC 1.85 提供原生
@@ -83,4 +86,6 @@
 - 阶段 3：~~BACKUP_FORMAT.md 定稿 + BackupKey/恢复套件~~ → **已改为**
   PACKAGE_FORMAT.md + per-export PIN 的 Export Package + merge-first
   import（Phase 3A 已实现，见 PHASE3_REPORT.md）。
-- 阶段 4：旧库导入完整流程（预览 UI + 事务写入 + Developer 策略）。
+- 阶段 4：旧库导入完整流程（预览 UI + 事务写入 + Developer 完整迁移）
+  （Phase 4/5 已实现：P3/P4/P5 + Phase 5A/5B，见 PHASE4_*_REPORT.md /
+  PHASE5A_REPORT.md / PHASE5B_REPORT.md）。

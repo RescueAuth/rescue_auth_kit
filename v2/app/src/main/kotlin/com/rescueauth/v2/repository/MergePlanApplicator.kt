@@ -114,6 +114,7 @@ class MergePlanApplicator(
         snapshot: VaultSnapshot,
         plan: MergePlan,
         packageIdentity: String?,
+        sourceType: String = "V2_PACKAGE",
     ): ApplyResult {
         preflight(plan)?.let { throw MergePlanBlockedException(it) }
 
@@ -225,7 +226,7 @@ class MergePlanApplicator(
         val importRecord = ImportRecordEntity(
             id = java.util.UUID.randomUUID().toString(),
             stableId = java.util.UUID.randomUUID().toString(),
-            sourceType = "V2_PACKAGE",
+            sourceType = sourceType,
             sourceFingerprint = packageIdentity ?: "merge",
             importedAt = importedAt,
             itemCount = insertedTotpStableIds.size +

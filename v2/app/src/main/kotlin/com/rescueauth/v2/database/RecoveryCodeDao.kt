@@ -12,6 +12,9 @@ interface RecoveryCodeDao {
     @Query("SELECT * FROM recovery_code WHERE setId = :setId ORDER BY sortOrder")
     suspend fun listBySet(setId: String): List<RecoveryCodeEntity>
 
+    @Query("SELECT * FROM recovery_code ORDER BY setId, sortOrder")
+    suspend fun listAll(): List<RecoveryCodeEntity>
+
     @Query("SELECT * FROM recovery_code WHERE setId = :setId ORDER BY sortOrder")
     fun observeBySet(setId: String): Flow<List<RecoveryCodeEntity>>
 
