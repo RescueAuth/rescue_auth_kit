@@ -80,6 +80,24 @@ sealed interface DeveloperDetailUi {
         val fieldLabels: List<String>,
         val notes: String? = null,
     ) : DeveloperDetailUi
+
+    data class AndroidSigningKey(
+        override val stableId: String,
+        override val title: String,
+        val projectName: String,
+        val packageName: String,
+        val keystoreFileName: String,
+        val keyAlias: String,
+        val notes: String? = null,
+    ) : DeveloperDetailUi
+
+    data class EnvironmentVariableSet(
+        override val stableId: String,
+        override val title: String,
+        val projectName: String,
+        val variableNames: List<String>,
+        val notes: String? = null,
+    ) : DeveloperDetailUi
 }
 
 /**

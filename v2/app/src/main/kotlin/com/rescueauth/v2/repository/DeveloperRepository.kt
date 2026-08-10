@@ -3,11 +3,15 @@ package com.rescueauth.v2.repository
 import com.rescueauth.v2.database.DeveloperEntryDao
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.domain.DeveloperEntry
+import com.rescueauth.v2.export.PackageValidator
+import com.rescueauth.v2.export.VaultAndroidSigningKey
 import com.rescueauth.v2.export.VaultApiCredential
 import com.rescueauth.v2.export.VaultDeveloperEntry
+import com.rescueauth.v2.export.VaultEnvironmentVariableSet
 import com.rescueauth.v2.export.VaultGenericSecret
 import com.rescueauth.v2.export.VaultKeyValue
 import com.rescueauth.v2.export.VaultSshKey
+import java.util.Base64
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -72,6 +76,24 @@ class DeveloperRepository(
         const val MAX_FIELDS = 200
         const val MAX_FIELD_LENGTH = 16_384
         const val MAX_ENTRY_TEXT_LENGTH = 200_000
+
+        /**
+         * Raw keystore byte cap, DERIVED from the shared logical/package
+         * per-asset contract [PackageValidator.MAX_KEYSTORE_BASE64_LENGTH]
+         * (Issue #20 P6 §3 / §7). We do not invent a third, unrelated size rule:
+         *
+         * - the shared logical validator caps `keystoreBase64` at
+         *   MAX_KEYSTORE_BASE64_LENGTH (12 MiB of base64 text);
+         * - base64 encodes 3 raw bytes as 4 chars, so the maximum raw byte
+         *   count that can ever encode to ≤ that base64 cap is
+         *   (cap / 4) * 3 = 9 MiB.
+         *
+         * The SAF importer enforces this exact byte cap on the RAW keystore so
+         * any stored keystore is always exportable through the package path
+         * (never a validator-accepted-but-unencodable state).
+         */
+        val MAX_KEYSTORE_RAW_BYTES =
+            (PackageValidator.MAX_KEYSTORE_BASE64_LENGTH / 4) * 3
     }
 
     private val dao: DeveloperEntryDao get() = db.developerEntryDao()
@@ -244,6 +266,150 @@ class DeveloperRepository(
     }
 
     // ------------------------------------------------------------------
+    // Android Signing Key (Phase 4 P6)
+    // ------------------------------------------------------------------
+
+    /**
+     * Creates an Android Signing Key entry (Issue #20 P6 §2/§3).
+     *
+     * [keystoreBytes] are treated as an **opaque binary asset**: they are
+     * base64-encoded as-is (RFC 4648, no line breaks) for the logical model /
+     * package payload, so the stored bytes are an exact round trip. The
+     * repository never inspects, re-encodes, re-parses or normalizes the
+     * keystore contents (no keytool/jarsigner, no certificate parsing).
+     *
+     * [keystoreFileName] is the non-secret stored filename (UX hint).
+     */
+    suspend fun createAndroidSigningKey(
+        title: String,
+        notes: String?,
+        projectName: String,
+        packageName: String,
+        keystoreFileName: String,
+        keystoreBytes: ByteArray,
+        storePassword: String,
+        keyAlias: String,
+        keyPassword: String,
+    ): VaultAndroidSigningKey {
+        validateSigningKey(title, keystoreBytes, keyAlias)
+        val now = java.time.Instant.now().toString()
+        val stableId = UUID.randomUUID().toString()
+        val entry = VaultAndroidSigningKey(
+            stableId = stableId,
+            projectName = projectName.trim(),
+            packageName = packageName.trim(),
+            keystoreFileName = keystoreFileName.trim(),
+            keystoreBase64 = Base64.getEncoder().encodeToString(keystoreBytes),
+            storePassword = storePassword,
+            keyAlias = keyAlias.trim(),
+            keyPassword = keyPassword,
+            title = title.trim(),
+            notes = notes?.trim()?.ifEmpty { null },
+            createdAt = now,
+            updatedAt = now,
+        )
+        persist(entry)
+        return entry
+    }
+
+    /**
+     * Edits an existing Android Signing Key **preserving its stableId /
+     * createdAt** (Issue #20 P6 §4). Metadata edits never delete/recreate the
+     * entry. A replaced keystore (new bytes + filename) keeps the SAME logical
+     * Developer stableId — only the payload changes, so future package merges
+     * treat it by the existing conflict semantics (Issue #20 P6 §15).
+     */
+    suspend fun editAndroidSigningKey(
+        stableId: String,
+        title: String,
+        notes: String?,
+        projectName: String,
+        packageName: String,
+        keystoreFileName: String,
+        keystoreBytes: ByteArray,
+        storePassword: String,
+        keyAlias: String,
+        keyPassword: String,
+    ): VaultAndroidSigningKey {
+        validateSigningKey(title, keystoreBytes, keyAlias)
+        val existing = requireSigningKey(stableId)
+        val updated = existing.copy(
+            projectName = projectName.trim(),
+            packageName = packageName.trim(),
+            keystoreFileName = keystoreFileName.trim(),
+            keystoreBase64 = Base64.getEncoder().encodeToString(keystoreBytes),
+            storePassword = storePassword,
+            keyAlias = keyAlias.trim(),
+            keyPassword = keyPassword,
+            title = title.trim(),
+            notes = notes?.trim()?.ifEmpty { null },
+            updatedAt = java.time.Instant.now().toString(),
+        )
+        persist(updated, existingSortOrder(stableId))
+        return updated
+    }
+
+    // ------------------------------------------------------------------
+    // Environment Variable Set (Phase 4 P6)
+    // ------------------------------------------------------------------
+
+    /**
+     * Creates an Environment Variable Set (Issue #20 P6 §9).
+     *
+     * [variables] preserve their insertion order. Variable values are opaque
+     * secrets and are NEVER trimmed / re-cased / normalized. Variable names are
+     * validated for: non-blank, no exact duplicates within the same set
+     * (case-sensitive — `FOO` and `foo` are distinct), and whitespace handling
+     * per the existing form convention (leading/trailing whitespace is trimmed
+     * from the name only, never from the value — see docs/P6_REPORT.md).
+     */
+    suspend fun createEnvironmentVariableSet(
+        title: String,
+        notes: String?,
+        projectName: String,
+        variables: List<VaultKeyValue>,
+    ): VaultEnvironmentVariableSet {
+        validateEnvVarSet(title, variables)
+        val now = java.time.Instant.now().toString()
+        val stableId = UUID.randomUUID().toString()
+        val entry = VaultEnvironmentVariableSet(
+            stableId = stableId,
+            projectName = projectName.trim(),
+            variables = normalizeEnvVars(variables),
+            title = title.trim(),
+            notes = notes?.trim()?.ifEmpty { null },
+            createdAt = now,
+            updatedAt = now,
+        )
+        persist(entry)
+        return entry
+    }
+
+    /**
+     * Edits an existing Environment Variable Set **preserving its stableId /
+     * createdAt** (Issue #20 P6 §4/§9).
+     */
+    suspend fun editEnvironmentVariableSet(
+        stableId: String,
+        title: String,
+        notes: String?,
+        projectName: String,
+        variables: List<VaultKeyValue>,
+    ): VaultEnvironmentVariableSet {
+        validateEnvVarSet(title, variables)
+        val existing = requireEnvVarSet(stableId)
+        val updated = existing.copy(
+            projectName = projectName.trim(),
+            variables = normalizeEnvVars(variables),
+            title = title.trim(),
+            notes = notes?.trim()?.ifEmpty { null },
+            updatedAt = java.time.Instant.now().toString(),
+        )
+        persist(updated, existingSortOrder(stableId))
+        return updated
+    }
+
+    // ------------------------------------------------------------------
     // Delete
     // ------------------------------------------------------------------
 
@@ -300,6 +466,20 @@ class DeveloperRepository(
             ?: throw ValidationException("entry type is not a generic secret")
     }
 
+    private suspend fun requireSigningKey(stableId: String): VaultAndroidSigningKey {
+        val existing = getByStableId(stableId)
+            ?: throw NotFoundException("developer entry not found")
+        return existing as? VaultAndroidSigningKey
+            ?: throw ValidationException("entry type is not an Android signing key")
+    }
+
+    private suspend fun requireEnvVarSet(stableId: String): VaultEnvironmentVariableSet {
+        val existing = getByStableId(stableId)
+            ?: throw NotFoundException("developer entry not found")
+        return existing as? VaultEnvironmentVariableSet
+            ?: throw ValidationException("entry type is not an environment variable set")
+    }
+
     private fun validateApiCredential(
         title: String,
         serviceName: String,
@@ -336,6 +516,36 @@ class DeveloperRepository(
         }
     }
 
+    private fun validateSigningKey(title: String, keystoreBytes: ByteArray, keyAlias: String) {
+        if (title.trim().isEmpty()) throw ValidationException("title is required")
+        if (keystoreBytes.isEmpty()) throw ValidationException("keystore file is required")
+        if (keystoreBytes.size > MAX_KEYSTORE_RAW_BYTES) {
+            throw ValidationException("keystore file exceeds the size limit")
+        }
+        if (keyAlias.trim().isEmpty()) throw ValidationException("key alias is required")
+        if (title.trim().length > MAX_ENTRY_TEXT_LENGTH) throw ValidationException("title too long")
+    }
+
+    private fun validateEnvVarSet(title: String, variables: List<VaultKeyValue>) {
+        if (title.trim().isEmpty()) throw ValidationException("title is required")
+        if (variables.isEmpty()) throw ValidationException("at least one variable is required")
+        if (variables.size > MAX_FIELDS) throw ValidationException("too many variables")
+        // Names must be non-blank and unique within the set (exact, case-
+        // sensitive duplicate detection — `FOO` and `foo` are distinct, and
+        // whitespace is normalized on the name before the duplicate check so
+        // `FOO` and ` FOO ` are the same name). Values are opaque and never
+        // normalized.
+        val seen = HashSet<String>()
+        for (v in variables) {
+            val name = v.key.trim()
+            if (name.isEmpty()) throw ValidationException("variable name is required")
+            if (!seen.add(name)) {
+                throw ValidationException("duplicate variable name '$name'")
+            }
+            enforceLength("variable value", v.value)
+        }
+    }
+
     private fun enforceLength(field: String, value: String) {
         if (value.length > MAX_FIELD_LENGTH) {
             throw ValidationException("$field is too long")
@@ -350,4 +560,12 @@ class DeveloperRepository(
 
     private fun normalizeFields(fields: List<VaultKeyValue>): List<VaultKeyValue> =
         fields.map { VaultKeyValue(it.key.trim(), it.value) }
+
+    /**
+     * Normalizes an env var set: trims the **name** only (per the existing
+     * form convention, matching generic-secret field labels), NEVER trims or
+     * re-cases the **value** (opaque secret, Issue #20 P6 §10).
+     */
+    private fun normalizeEnvVars(variables: List<VaultKeyValue>): List<VaultKeyValue> =
+        variables.map { VaultKeyValue(it.key.trim(), it.value) }
 }

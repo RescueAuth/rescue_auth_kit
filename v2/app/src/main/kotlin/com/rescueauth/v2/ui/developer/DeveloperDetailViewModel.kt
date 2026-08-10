@@ -1,6 +1,8 @@
 package com.rescueauth.v2.ui.developer
 
+import com.rescueauth.v2.export.VaultAndroidSigningKey
 import com.rescueauth.v2.export.VaultApiCredential
+import com.rescueauth.v2.export.VaultEnvironmentVariableSet
 import com.rescueauth.v2.export.VaultGenericSecret
 import com.rescueauth.v2.export.VaultSshKey
 import com.rescueauth.v2.repository.DeveloperRepository
@@ -44,6 +46,24 @@ sealed interface DeveloperDetailEvent {
     data class CopySecret(val value: String, val label: String) : DeveloperDetailEvent
     data class Deleted(val label: String) : DeveloperDetailEvent
     data class AuthUnavailable(val message: String) : DeveloperDetailEvent
+    /**
+     * A keystore export was authorized — carry the exact raw bytes + suggested
+     * filename so the route can launch the SAF CreateDocument flow. [bytes]
+     * are produced from the repository after a fresh re-auth and never cross a
+     * navigation route / SavedStateHandle / Bundle (Issue #20 P6 §7/§16).
+     */
+    data class ExportKeystore(
+        val bytes: ByteArray,
+        val suggestedFileName: String,
+        val label: String,
+    ) : DeveloperDetailEvent
+
+    /**
+     * A key.properties-like snippet copy was authorized — build the snippet in
+     * memory and carry it to the clipboard layer (never persisted, Issue #20
+     * P6 §8).
+     */
+    data class CopyKeyProperties(val snippet: String, val label: String) : DeveloperDetailEvent
 }
 
 /**
@@ -186,6 +206,139 @@ class DeveloperDetailViewModel(
         }
     }
 
+    /**
+     * Exports the raw keystore bytes. Requires a fresh re-auth for
+     * [SensitiveAction.EXPORT_SIGNING_KEYSTORE] bound to THIS entry's
+     * [stableId]; on success the exact raw bytes are produced from the
+     * repository and emitted as an [DeveloperDetailEvent.ExportKeystore] so the
+     * route can launch the SAF CreateDocument flow (Issue #20 P6 §7).
+     *
+     * On auth cancel/fail/unavailable no output document is ever created and
+     * no export buffer is built (the bytes are only fetched after a successful
+     * one-shot authorization).
+     */
+    fun exportKeystore() {
+        val gate = sensitiveActionGate ?: return
+        if (_uiState.value.authPending) return
+        val request = SensitiveActionRequest(
+            action = SensitiveAction.EXPORT_SIGNING_KEYSTORE,
+            target = SensitiveActionTarget.DeveloperField(stableId = stableId, fieldKey = "keystore"),
+        )
+        _uiState.value = _uiState.value.copy(authPending = true, authUnavailable = false, authCancelled = false)
+        val accepted = gate.authorize(request) { result -> onExportKeystoreAuthResult(result, request) }
+        if (!accepted) {
+            _uiState.value = _uiState.value.copy(authPending = false)
+        }
+    }
+
+    /**
+     * Copies a key.properties-like snippet (all four signing fields). Requires
+     * a fresh re-auth for [SensitiveAction.COPY_SIGNING_KEY_PROPERTIES] bound
+     * to THIS entry's [stableId]; the snippet is built ONLY in memory after a
+     * successful authorization and carried to the clipboard (never persisted —
+     * Issue #20 P6 §8).
+     */
+    fun copyKeyProperties() {
+        val gate = sensitiveActionGate ?: return
+        if (_uiState.value.authPending) return
+        val request = SensitiveActionRequest(
+            action = SensitiveAction.COPY_SIGNING_KEY_PROPERTIES,
+            target = SensitiveActionTarget.DeveloperField(stableId = stableId, fieldKey = "keyProperties"),
+        )
+        _uiState.value = _uiState.value.copy(authPending = true, authUnavailable = false, authCancelled = false)
+        val accepted = gate.authorize(request) { result -> onCopyKeyPropertiesAuthResult(result, request) }
+        if (!accepted) {
+            _uiState.value = _uiState.value.copy(authPending = false)
+        }
+    }
+
+    private fun onExportKeystoreAuthResult(
+        result: SensitiveActionResult,
+        request: SensitiveActionRequest,
+    ) {
+        when (result) {
+            is SensitiveActionResult.Success -> {
+                _uiState.value = _uiState.value.copy(authPending = false)
+                if (result.request == request) {
+                    val gate = sensitiveActionGate
+                    if (gate != null && gate.executePending(request) {
+                        scope.launch {
+                            val repo = developerRepositoryProvider() ?: return@launch
+                            val entry = repo.getByStableId(stableId) as? VaultAndroidSigningKey ?: return@launch
+                            val raw = java.util.Base64.getDecoder().decode(entry.keystoreBase64)
+                            _events.value = DeveloperDetailEvent.ExportKeystore(
+                                bytes = raw,
+                                suggestedFileName = entry.keystoreFileName,
+                                label = entry.title,
+                            )
+                        }
+                    }) {
+                        // executed
+                    }
+                }
+            }
+            SensitiveActionResult.Cancelled,
+            SensitiveActionResult.Failed,
+            -> {
+                _uiState.value = _uiState.value.copy(authPending = false, authCancelled = true)
+            }
+            SensitiveActionResult.Unavailable -> {
+                _uiState.value = _uiState.value.copy(authPending = false, authUnavailable = true)
+                _events.value = DeveloperDetailEvent.AuthUnavailable("unavailable")
+            }
+        }
+    }
+
+    private fun onCopyKeyPropertiesAuthResult(
+        result: SensitiveActionResult,
+        request: SensitiveActionRequest,
+    ) {
+        when (result) {
+            is SensitiveActionResult.Success -> {
+                _uiState.value = _uiState.value.copy(authPending = false)
+                if (result.request == request) {
+                    val gate = sensitiveActionGate
+                    if (gate != null && gate.executePending(request) {
+                        scope.launch {
+                            val repo = developerRepositoryProvider() ?: return@launch
+                            val entry = repo.getByStableId(stableId) as? VaultAndroidSigningKey ?: return@launch
+                            val snippet = buildKeyProperties(entry)
+                            _events.value = DeveloperDetailEvent.CopyKeyProperties(
+                                snippet = snippet,
+                                label = entry.title,
+                            )
+                        }
+                    }) {
+                        // executed
+                    }
+                }
+            }
+            SensitiveActionResult.Cancelled,
+            SensitiveActionResult.Failed,
+            -> {
+                _uiState.value = _uiState.value.copy(authPending = false, authCancelled = true)
+            }
+            SensitiveActionResult.Unavailable -> {
+                _uiState.value = _uiState.value.copy(authPending = false, authUnavailable = true)
+                _events.value = DeveloperDetailEvent.AuthUnavailable("unavailable")
+            }
+        }
+    }
+
+    /**
+     * Builds a key.properties-like snippet from the four stored signing fields.
+     * The neutral format makes no assumption about a Gradle project path /
+     * `../android/` / OS absolute paths — `storeFile` is the stored
+     * [VaultAndroidSigningKey.keystoreFileName] (Issue #20 P6 §8).
+     */
+    private fun buildKeyProperties(entry: VaultAndroidSigningKey): String =
+        buildString {
+            appendLine("storeFile=${entry.keystoreFileName}")
+            appendLine("storePassword=${entry.storePassword}")
+            appendLine("keyAlias=${entry.keyAlias}")
+            appendLine("keyPassword=${entry.keyPassword}")
+        }
+
     private fun onAuthResult(result: SensitiveActionResult, request: SensitiveActionRequest) {
         when (result) {
             is SensitiveActionResult.Success -> {
@@ -277,6 +430,15 @@ class DeveloperDetailViewModel(
                 val generic = entry as? VaultGenericSecret ?: return null
                 generic.fields.firstOrNull { "field:${it.key}" == target.fieldKey }?.value
             }
+            is DeveloperDetailUi.AndroidSigningKey -> when (target.fieldKey) {
+                "storePassword" -> (entry as? VaultAndroidSigningKey)?.storePassword
+                "keyPassword" -> (entry as? VaultAndroidSigningKey)?.keyPassword
+                else -> null
+            }
+            is DeveloperDetailUi.EnvironmentVariableSet -> {
+                val env = entry as? VaultEnvironmentVariableSet ?: return null
+                env.variables.firstOrNull { "var:${it.key}" == target.fieldKey }?.value
+            }
             null -> null
         }
     }
@@ -328,6 +490,21 @@ class DeveloperDetailViewModel(
                 fieldLabels = fields.map { it.key },
                 notes = notes,
             )
-            else -> null // P6 types not editable in P4
+            is VaultAndroidSigningKey -> DeveloperDetailUi.AndroidSigningKey(
+                stableId = stableId,
+                title = title.ifEmpty { projectName },
+                projectName = projectName,
+                packageName = packageName,
+                keystoreFileName = keystoreFileName,
+                keyAlias = keyAlias,
+                notes = notes,
+            )
+            is VaultEnvironmentVariableSet -> DeveloperDetailUi.EnvironmentVariableSet(
+                stableId = stableId,
+                title = title.ifEmpty { projectName },
+                projectName = projectName,
+                variableNames = variables.map { it.key },
+                notes = notes,
+            )
         }
 }

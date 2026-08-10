@@ -53,4 +53,30 @@ enum class SensitiveAction {
 
     /** Copy a Generic Secret field value to the clipboard. */
     COPY_GENERIC_SECRET,
+
+    // --- Phase 4 P6: Android Signing Key & Environment Variable Set ---
+
+    /** Reveal an Android Signing Key store password. */
+    REVEAL_SIGNING_STORE_PASSWORD,
+
+    /** Copy an Android Signing Key store password to the clipboard. */
+    COPY_SIGNING_STORE_PASSWORD,
+
+    /** Reveal an Android Signing Key key password. */
+    REVEAL_SIGNING_KEY_PASSWORD,
+
+    /** Copy an Android Signing Key key password to the clipboard. */
+    COPY_SIGNING_KEY_PASSWORD,
+
+    /** Export the raw Android Signing Key keystore bytes via SAF. */
+    EXPORT_SIGNING_KEYSTORE,
+
+    /** Copy a key.properties-like snippet (all four signing fields). */
+    COPY_SIGNING_KEY_PROPERTIES,
+
+    /** Reveal an Environment Variable Set value. */
+    REVEAL_ENV_VAR_VALUE,
+
+    /** Copy an Environment Variable Set value to the clipboard. */
+    COPY_ENV_VAR_VALUE,
 }

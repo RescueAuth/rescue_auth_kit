@@ -196,6 +196,37 @@
     <string name="developer_error_field">Add at least one field with a label and value.</string>
     <string name="developer_error_field_label">Every field needs a label.</string>
 
+    <!-- Phase 4 P6 — Android Signing Key & Environment Variable Set -->
+    <string name="developer_field_project_name">Project name</string>
+    <string name="developer_field_package_name">Package name</string>
+    <string name="developer_field_keystore_file">Keystore file</string>
+    <string name="developer_field_store_password">Store password</string>
+    <string name="developer_field_key_alias">Key alias</string>
+    <string name="developer_field_key_password">Key password</string>
+    <string name="developer_import_keystore">Import keystore file</string>
+    <string name="developer_replace_keystore">Replace keystore file</string>
+    <string name="developer_clear_keystore">Clear selected keystore</string>
+    <string name="developer_keystore_selected">Keystore selected</string>
+    <string name="developer_keystore_hint">A .jks / .keystore file is stored as-is (opaque bytes). No keytool / signing automation is performed.</string>
+    <string name="developer_keystore_error">Could not read that keystore file. Choose a different file or try again.</string>
+    <string name="developer_export_keystore">Export keystore</string>
+    <string name="developer_copy_key_properties">Copy key.properties</string>
+    <string name="developer_keystore_exported">Keystore exported</string>
+    <string name="developer_key_properties_hint">storeFile path may need adjustment in your project.</string>
+    <string name="developer_field_variable_name">Variable name</string>
+    <string name="developer_field_variable_value">Variable value</string>
+    <string name="developer_add_variable">Add variable</string>
+    <string name="developer_remove_variable">Remove variable</string>
+    <string name="developer_error_keystore">Select a keystore file.</string>
+    <string name="developer_error_store_password">Enter a store password.</string>
+    <string name="developer_error_key_alias">Enter a key alias.</string>
+    <string name="developer_error_key_password">Enter a key password.</string>
+    <string name="developer_error_variable">Add at least one variable.</string>
+    <string name="developer_error_variable_name">Every variable needs a name.</string>
+    <string name="developer_delete_signing_confirm_message">This will permanently delete the stored keystore binary and all credential metadata. This cannot be undone.</string>
+    <string name="developer_delete_env_confirm_message">This will permanently delete the entire variable set. This cannot be undone.</string>
+    <string name="developer_authenticate_to_continue">Authenticate to continue</string>
+
     <!-- Sensitive re-auth status (Phase 4 P4) -->
     <string name="auth_unavailable">Authentication is unavailable on this device. No sensitive value can be revealed or copied.</string>
     <string name="auth_cancelled">Authentication cancelled.</string>

@@ -30,10 +30,9 @@ import com.rescueauth.v2.ui.theme.Spacing
 /**
  * "Add" sheet for the Developer Vault (Phase 4 P4).
  *
- * Offers exactly the three implemented types (API Credential / SSH Key /
- * Generic Secret). Android Signing Key / Environment Variable Set are NOT
- * listed — they are P6 and must not appear as clickable fake features
- * (Issue #20 §19, §31).
+ * Offers all five implemented types (API Credential / SSH Key / Generic
+ * Secret / Android Signing Key / Environment Variable Set). Phase 4 P6 makes
+ * the final two types clickable (Issue #20 P6).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +64,14 @@ fun DeveloperAddSheet(
             AddTypeRow(
                 label = stringResource(R.string.developer_type_generic),
                 onClick = { onSelectType(DeveloperFormType.GENERIC_SECRET) },
+            )
+            AddTypeRow(
+                label = stringResource(R.string.developer_type_signing_key),
+                onClick = { onSelectType(DeveloperFormType.ANDROID_SIGNING_KEY) },
+            )
+            AddTypeRow(
+                label = stringResource(R.string.developer_type_env_var),
+                onClick = { onSelectType(DeveloperFormType.ENVIRONMENT_VARIABLE_SET) },
             )
         }
     }

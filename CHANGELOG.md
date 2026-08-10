@@ -56,6 +56,43 @@ Account 正式 management 能力：Provider（create / rename / delete）与 Acc
 - `ProviderAccountManagementDialogTest`（6）：management dialogs 显示安全
   metadata、cancel 不改动、无 secret 泄漏。
 
+## [v2 phase4-p6 developer-vault-completion] - 2026-08-10（Phase 4 P6 Developer Vault Completion，IMPLEMENTED / PR OPEN）
+
+Issue #20 Phase 4 P6：补齐 Developer Vault 最后两类 Android production
+CRUD/UI（Android Signing Key、Environment Variable Set），完成五类 Developer
+Entry 的正式 Android daily-use closure。复用既有 Developer 单表持久化与
+Sensitive Action gate，Room schema 零升级、package/merge/legacy 语义零改动。
+
+### Added
+
+- **Android Signing Key 全 CRUD/UI**：`DeveloperRepository.create/editAndroidSigningKey`
+  （storePassword / keyPassword / keyAlias / projectName / packageName /
+  keystoreFileName / opaque keystore bytes）；Create flow `Developer → Add →
+  Android Signing Key`；SAF `OpenDocument` 导入 keystore（不信任扩展名/MIME，
+  opaque exact-bytes 保存，大小上限由共享 logical/package per-asset contract
+  推导为 raw bytes，无第三套规则）；list 仅显示安全 metadata；detail 敏感字段
+  默认 masked；delete destructive confirmation（明确删除 keystore binary + 凭据）。
+- **Keystore export**：`EXPORT_SIGNING_KEYSTORE` fresh re-auth → SAF
+  `CreateDocument` 写 exact bytes；auth cancel 不创建输出文档；与 `.rakpkg`
+  Package PIN 无关。
+- **Copy key.properties**：`COPY_SIGNING_KEY_PROPERTIES` fresh re-auth，内存
+  构造中性格式（storeFile/storePassword/keyAlias/keyPassword），不持久化。
+- **Environment Variable Set 全 CRUD/UI**：动态行 add/remove/edit name+value；
+  name 非空 + exact case-sensitive 去重 + 不 uppercase/lowercase normalize；
+  value 作为 opaque secret 保存（不 trim/改写）；顺序保留；每值默认 hidden。
+- **Sensitive Action**：新增 `REVEAL/COPY_SIGNING_STORE_PASSWORD`、
+  `REVEAL/COPY_SIGNING_KEY_PASSWORD`、`EXPORT_SIGNING_KEYSTORE`、
+  `COPY_SIGNING_KEY_PROPERTIES`、`REVEAL/COPY_ENV_VAR_VALUE`，全部绑定
+  stableId+fieldKey、独立 fresh one-shot re-auth。
+- **Reveal lifecycle**：reveal 状态 in-memory only，session lock / 离开页面 /
+  进程重建均清除。
+- **i18n/a11y**：en + zh-CN 补齐 Android Signing Key / Keystore / Env Var 相关
+  标签与可访问性描述。
+
+### Docs
+
+- `docs/PHASE4_P6_REPORT.md`（新增）。
+
 ## [v2 phase5b legacy-import-ui] - 2026-08-09（Phase 5B Legacy v1 Android Import UI，IMPLEMENTED / PR OPEN）
 
 Issue #1 Phase 5B：把 Phase 5A 的 Legacy v1 Core Adapter 正式接到 Android

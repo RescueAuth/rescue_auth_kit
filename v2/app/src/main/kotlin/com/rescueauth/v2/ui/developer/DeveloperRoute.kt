@@ -3,6 +3,8 @@ package com.rescueauth.v2.ui.developer
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -100,6 +102,38 @@ fun DeveloperDetailRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    // Phase 4 P6 §7: SAF CreateDocument for the raw keystore export. The bytes
+    // are held in a plain Compose state (not SavedStateHandle / rememberSaveable
+    // / Bundle) and only exist between a successful fresh re-auth and the SAF
+    // write — released immediately after (Issue #20 P6 §7/§16).
+    var pendingExport: ByteArray? by remember { mutableStateOf(null) }
+    var pendingExportFileName by remember { mutableStateOf("") }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(
+            "application/octet-stream",
+        ),
+    ) { uri ->
+        val bytes = pendingExport ?: return@rememberLauncherForActivityResult
+        pendingExport = null
+        if (uri != null) {
+            appScope.launch {
+                val ok = runCatching {
+                    val resolver = context.contentResolver
+                    val out = resolver.openOutputStream(uri, "w") ?: return@runCatching false
+                    out.use { it.write(bytes); it.flush() }
+                    true
+                }.getOrDefault(false)
+                if (ok) {
+                    snackbarHostState.showSnackbar(context.getString(R.string.developer_keystore_exported))
+                } else {
+                    // Best-effort cleanup of a partially-created SAF document.
+                    runCatching { context.contentResolver.delete(uri, null, null) }
+                    snackbarHostState.showSnackbar(context.getString(R.string.common_error_title))
+                }
+            }
+        }
+    }
+
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
         val sm = VaultAccess.sessionManager
         if (sm != null) {
@@ -140,6 +174,15 @@ fun DeveloperDetailRoute(
             is DeveloperDetailEvent.AuthUnavailable -> {
                 snackbarHostState.showSnackbar(context.getString(R.string.auth_unavailable))
             }
+            is DeveloperDetailEvent.ExportKeystore -> {
+                pendingExport = event.bytes
+                pendingExportFileName = event.suggestedFileName
+                exportLauncher.launch(event.suggestedFileName.ifBlank { "keystore.jks" })
+            }
+            is DeveloperDetailEvent.CopyKeyProperties -> {
+                copyToClipboard(context, event.snippet, event.label)
+                snackbarHostState.showSnackbar(context.getString(R.string.developer_copied))
+            }
         }
         viewModel.onEventShown()
     }
@@ -162,12 +205,27 @@ fun DeveloperDetailRoute(
         isRevealed = { viewModel.isRevealed(it) },
         onEdit = { if (detail != null) onEdit(detail.stableId) },
         onDelete = { showDeleteDialog = true },
+        onRevealStorePassword = { viewModel.reveal(SensitiveAction.REVEAL_SIGNING_STORE_PASSWORD, "storePassword") },
+        onCopyStorePassword = { viewModel.copySecret(SensitiveAction.COPY_SIGNING_STORE_PASSWORD, "storePassword", "storePassword") },
+        onRevealKeyPassword = { viewModel.reveal(SensitiveAction.REVEAL_SIGNING_KEY_PASSWORD, "keyPassword") },
+        onCopyKeyPassword = { viewModel.copySecret(SensitiveAction.COPY_SIGNING_KEY_PASSWORD, "keyPassword", "keyPassword") },
+        onExportKeystore = { viewModel.exportKeystore() },
+        onCopyKeyProperties = { viewModel.copyKeyProperties() },
+        onRevealEnvVar = { key -> viewModel.reveal(SensitiveAction.REVEAL_ENV_VAR_VALUE, key) },
+        onCopyEnvVar = { key -> viewModel.copySecret(SensitiveAction.COPY_ENV_VAR_VALUE, key, "env") },
         modifier = modifier,
     )
 
     if (showDeleteDialog && detail != null) {
         DeveloperDeleteDialog(
             title = detail.title,
+            message = when (detail) {
+                is com.rescueauth.v2.ui.model.DeveloperDetailUi.AndroidSigningKey ->
+                    context.getString(R.string.developer_delete_signing_confirm_message)
+                is com.rescueauth.v2.ui.model.DeveloperDetailUi.EnvironmentVariableSet ->
+                    context.getString(R.string.developer_delete_env_confirm_message)
+                else -> context.getString(R.string.developer_delete_confirm_message)
+            },
             onConfirm = {
                 showDeleteDialog = false
                 appScope.launch {
@@ -252,6 +310,17 @@ fun DeveloperFormRoute(
         onFieldValueChange = viewModel::onFieldValueChange,
         onAddField = viewModel::addField,
         onRemoveField = viewModel::removeField,
+        onProjectNameChange = viewModel::onProjectNameChange,
+        onPackageNameChange = viewModel::onPackageNameChange,
+        onStorePasswordChange = viewModel::onStorePasswordChange,
+        onKeyAliasChange = viewModel::onKeyAliasChange,
+        onKeyPasswordChange = viewModel::onKeyPasswordChange,
+        onKeystoreSelected = viewModel::onKeystoreSelected,
+        onClearKeystore = viewModel::clearKeystoreBuffer,
+        onVariableNameChange = viewModel::onVariableNameChange,
+        onVariableValueChange = viewModel::onVariableValueChange,
+        onAddVariable = viewModel::addVariable,
+        onRemoveVariable = viewModel::removeVariable,
         onSubmit = { appScope.launch { viewModel.submit() } },
         modifier = modifier,
     )
