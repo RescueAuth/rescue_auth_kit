@@ -1,5 +1,6 @@
 package com.rescueauth.v2.ui
 
+import com.rescueauth.v2.BuildConfig
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -29,6 +30,8 @@ import com.rescueauth.v2.ui.developer.DeveloperFormType
 import com.rescueauth.v2.ui.developer.DeveloperRoute
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
+import com.rescueauth.v2.ui.screens.about.AboutRoute
+import com.rescueauth.v2.ui.screens.about.AboutTestTags
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportMode
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
@@ -187,7 +190,17 @@ fun RescueAuthApp(
                     onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
                     onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
                     onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
+                    onAboutClick = { navController.navigate(RescueAuthRoutes.ABOUT) },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_SETTINGS),
+                )
+            }
+            composable(RescueAuthRoutes.ABOUT) {
+                AboutRoute(
+                    versionName = versionName ?: "",
+                    versionCode = BuildConfig.VERSION_CODE.toLong(),
+                    encodedPublicKey = BuildConfig.UPDATE_PUBLIC_KEY,
+                    onBack = { navController.popBackStack() },
+                    modifier = Modifier.testTag(AboutTestTags.SCREEN),
                 )
             }
             composable(RescueAuthRoutes.EXPORT) {

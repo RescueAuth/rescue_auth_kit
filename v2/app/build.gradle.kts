@@ -18,6 +18,18 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // Phase 6 L2: Ed25519 update-manifest public key (Base64-encoded raw
+        // 32-byte key). This is a RELEASE PROVISIONING boundary — not set by
+        // default. When unset the update check returns NOT_CONFIGURED and the
+        // Vault keeps working (fail open). The PRIVATE key is a CI secret only
+        // and is never committed here.
+        val updatePublicKey = (project.findProperty("UPDATE_PUBLIC_KEY") as? String)?.trim().orEmpty()
+        buildConfigField(
+            "String",
+            "UPDATE_PUBLIC_KEY",
+            "\"${updatePublicKey.replace("\"", "\\\"")}\"",
+        )
+
         // Room schema export (migration/schema tests + review).
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
@@ -127,6 +139,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.bouncycastle.bcprov)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.androidx.test.core)

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -16,11 +18,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
+
+object SettingsTestTags {
+    const val ABOUT_ROW = "settings_about_row"
+}
 
 /**
  * Settings top-level screen.
@@ -37,6 +44,7 @@ fun SettingsScreen(
     onExportClick: (() -> Unit)? = null,
     onImportClick: (() -> Unit)? = null,
     onLegacyImportClick: (() -> Unit)? = null,
+    onAboutClick: (() -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -48,7 +56,8 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = Spacing.md),
+                .padding(horizontal = Spacing.md)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             SettingsSectionLabel(stringResource(R.string.settings_backup_transfer_section))
@@ -86,6 +95,13 @@ fun SettingsScreen(
                 enabled = false,
                 onClick = null,
             )
+            SettingsRow(
+                title = stringResource(R.string.settings_about),
+                subtitle = stringResource(R.string.settings_about_subtitle),
+                enabled = onAboutClick != null,
+                onClick = onAboutClick,
+                modifier = Modifier.testTag(SettingsTestTags.ABOUT_ROW),
+            )
         }
     }
 }
@@ -106,6 +122,7 @@ private fun SettingsRow(
     subtitle: String? = null,
     enabled: Boolean,
     onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     val contentColor = if (enabled) {
         MaterialTheme.colorScheme.onSurface
@@ -113,7 +130,7 @@ private fun SettingsRow(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = { onClick?.invoke() })
             .padding(vertical = Spacing.sm),

@@ -285,6 +285,16 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 | --- | --- | --- | --- | --- |
 | **L1 — Localization（en + zh-CN）** | 建立 i18n 结构；daily-use release 前恢复全部核心页面文案 | 双语 UI | 任意阶段可并行开始 | M |
 | **L2 — About / Update Check** | version/about、检查发布、外部打开 release | 用户可看到版本与更新入口（不自动安装） | — | S |
+
+> **L2 状态（Issue #20 Phase 6 L2）**：**IMPLEMENTED / PR OPEN**。About 页
+> （runtime versionName/versionCode、product description、Check for Updates、
+> update 状态机、severity、minSupported 更强警告、Open Release Page）已接入
+> Settings → About；固定 CNB 清单 + Ed25519 验签（BouncyCastle）已实现，
+> 签名覆盖 exact raw bytes，`.sig` 为 Base64 原始 64-byte；schema v1 strict
+> validation；manual only（无 WorkManager/后台）；update data fail closed /
+> app fail open；INTERNET 权限显式声明；UI 状态机 + error taxonomy 冻结。
+> 发布基础设施（`rescueauth-updates` 仓库、生产 update 公钥 provisioning）
+> 未完成 —— 见 `docs/UPDATE_PROTOCOL.md` §Release Infrastructure Pending。
 | **L3 — Clipboard / security polish** | clipboard auto-clear（DEFER 项）安全实现（不清除用户后续复制的其他内容）；动画/无障碍 polish | 后期安全打磨 | — | S |
 
 > Update Check 具体实现可复用旧版 UpdateChecker 语义 + 新
