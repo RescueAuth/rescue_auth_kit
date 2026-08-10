@@ -132,6 +132,17 @@ class AuthenticatorRepository(
     }
 
     /**
+     * P7 Account Pin/Unpin. Product-facing alias over the shared serialized
+     * [VaultRepository.setPinned] boundary — never touches the DAO from a
+     * Composable. `true` pins, `false` unpins; preserves the account id /
+     * stableId / all children, and updates `updatedAt` via the existing
+     * contract. A locked session fails safely.
+     */
+    suspend fun setPinned(accountId: String, pinned: Boolean) {
+        vault.setPinned(accountId, pinned)
+    }
+
+    /**
      * Batch-imports multiple TOTP credentials (Phase 4 P2 migration path).
      *
      * Funnels every imported credential through the same production

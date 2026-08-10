@@ -45,7 +45,9 @@ fun PinIndicator(
         ) {
             Icon(
                 imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                contentDescription = stringResource(R.string.account_pinned_label),
+                contentDescription = stringResource(
+                    if (isPinned) R.string.account_unpin else R.string.account_pin,
+                ),
                 tint = if (isPinned) {
                     MaterialTheme.colorScheme.primary
                 } else {

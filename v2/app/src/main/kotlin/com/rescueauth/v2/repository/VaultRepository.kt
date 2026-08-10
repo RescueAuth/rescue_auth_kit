@@ -275,7 +275,7 @@ class VaultRepository(
         }
     }
 
-    /** Toggles an account's favorite flag. */
+    /** Toggles an account's favorite flag (internal persisted compatibility field). */
     suspend fun setFavorite(accountId: String, favorite: Boolean) {
         checkUnlocked()
         mutex.withLock {
@@ -283,6 +283,19 @@ class VaultRepository(
                 accountDao.setFavorite(accountId, favorite, java.time.Instant.now().toString())
             }
         }
+    }
+
+    /**
+     * P7 product-facing alias for Account Pin/Unpin.
+     *
+     * Reuses the existing `favorite` storage column as the persisted pin state
+     * (no Room/package schema migration, P7 §17). Pin (`true`) / Unpin
+     * (`false`) is a serialized mutation that checks the session and updates
+     * `updatedAt` per the existing contract. `favorite` is retained only as an
+     * internal compatibility field; the product/UI exposes Pin/Unpin only.
+     */
+    suspend fun setPinned(accountId: String, pinned: Boolean) {
+        setFavorite(accountId, pinned)
     }
 
     suspend fun deleteAccount(accountId: String) {

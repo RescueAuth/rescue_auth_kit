@@ -29,6 +29,25 @@
     <string name="account_pinned_label">Pinned</string>
     <string name="account_actions_label">Actions</string>
 
+    <!-- Phase 4 P7 — Account Pin / Unpin -->
+    <string name="account_pin">Pin</string>
+    <string name="account_unpin">Unpin</string>
+    <string name="a11y_pin_account">Pin account</string>
+    <string name="a11y_unpin_account">Unpin account</string>
+
+    <!-- Phase 4 P7 — Global Search -->
+    <string name="search_title">Search vault</string>
+    <string name="search_hint">Search vault</string>
+    <string name="search_clear">Clear search</string>
+    <string name="search_empty_query">Type to search your vault</string>
+    <string name="search_no_results">No results</string>
+    <string name="search_type_provider">Providers</string>
+    <string name="search_type_account">Accounts</string>
+    <string name="search_type_totp">Authenticator</string>
+    <string name="search_type_recovery">Recovery Codes</string>
+    <string name="search_type_developer">Developer</string>
+    <string name="search_type_other">Results</string>
+
     <!-- Provider & Account management (Phase 4 — hierarchy management) -->
     <string name="provider_add_provider">Add Provider</string>
     <string name="provider_actions">Provider actions</string>

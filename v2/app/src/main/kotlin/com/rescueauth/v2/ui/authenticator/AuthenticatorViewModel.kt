@@ -288,12 +288,18 @@ class AuthenticatorViewModel(
         // Provider-grouped view (Phase 4 — Provider/Account management): group
         // the flat account list under their serviceName. A Provider is the
         // serviceName grouping — no separate entity, no Provider stableId.
+        // P7 Pin ordering: within each Provider, pinned accounts sort before
+        // unpinned; inside a pinned/unpinned tier the existing stable sort
+        // (by accountName) is preserved.
         val providers = accountUis.groupBy { it.providerName }
             .map { (name, group) ->
                 com.rescueauth.v2.ui.model.ProviderUi(
                     id = "provider:" + name,
                     serviceName = name,
-                    accounts = group.sortedBy { it.accountName },
+                    accounts = group.sortedWith(
+                        compareByDescending<com.rescueauth.v2.ui.model.AccountUi> { it.isPinned }
+                            .thenBy { it.accountName },
+                    ),
                 )
             }
             .sortedBy { it.serviceName }
@@ -598,6 +604,17 @@ class AuthenticatorViewModel(
     /** User tapped an account row — the caller navigates to its detail screen. */
     fun openAccount(accountId: String) {
         _events.value = AuthenticatorEvent.OpenAccount(accountId)
+    }
+
+    /**
+     * P7 Account Pin/Unpin toggle (serialized repository mutation; session-
+     * locked fails safely). The real Room Flow is the source of truth — the
+     * list updates optimistically via the Flow on the next emission.
+     */
+    suspend fun togglePin(accountId: String) {
+        val repo = repositoryProvider() ?: return
+        val pinned = _uiState.value.accounts.firstOrNull { it.id == accountId }?.isPinned ?: return
+        runCatching { repo.setPinned(accountId, !pinned) }
     }
 
     suspend fun deleteCard(card: TotpCardUi): Boolean {
