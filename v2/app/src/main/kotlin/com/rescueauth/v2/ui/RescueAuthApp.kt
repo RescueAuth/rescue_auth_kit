@@ -37,6 +37,7 @@ import com.rescueauth.v2.ui.screens.exportimport.ExportImportMode
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
 import com.rescueauth.v2.ui.screens.legacyimport.LegacyImportRoute
+import com.rescueauth.v2.ui.search.SearchRoute
 
 object RescueAuthTestTags {
     const val NAV_AUTHENTICATOR = "nav_authenticator"
@@ -112,7 +113,38 @@ fun RescueAuthApp(
                     onOpenAccount = { accountId ->
                         navController.navigate("authenticator/account/$accountId")
                     },
+                    onOpenSearch = {
+                        navController.navigate(RescueAuthRoutes.SEARCH)
+                    },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR),
+                )
+            }
+            composable(RescueAuthRoutes.SEARCH) {
+                SearchRoute(
+                    onBack = { navController.popBackStack() },
+                    onResultClick = { result ->
+                        when (result) {
+                            is com.rescueauth.v2.search.SearchResult.Provider -> {
+                                navController.popBackStack()
+                                // Provider = serviceName grouping; landing on the
+                                // Authenticator home (its natural context).
+                            }
+                            is com.rescueauth.v2.search.SearchResult.Account -> {
+                                navController.navigate("authenticator/account/${result.navigationId}")
+                            }
+                            is com.rescueauth.v2.search.SearchResult.Totp -> {
+                                // Open the owning Account detail (P7 §12).
+                                navController.navigate("authenticator/account/${result.accountId}")
+                            }
+                            is com.rescueauth.v2.search.SearchResult.RecoverySet -> {
+                                navController.navigate("authenticator/account/${result.accountId}")
+                            }
+                            is com.rescueauth.v2.search.SearchResult.Developer -> {
+                                navController.navigate(RescueAuthRoutes.developerEntry(result.navigationId))
+                            }
+                        }
+                    },
+                    modifier = Modifier.testTag("screen_search"),
                 )
             }
             composable(

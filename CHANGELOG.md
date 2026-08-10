@@ -70,6 +70,54 @@ Update Check，接入 Settings → About。`docs/UPDATE_PROTOCOL.md` 从 Draft �
   `docs/UPDATE_PROTOCOL.md` §Release Infrastructure Pending）。
 - 本轮未做 release publishing pipeline / production signing。
 
+## [v2 phase4-p7 search+pin] - 2026-08-10（Phase 4 P7 Global Search + Account Pin/Unpin，IMPLEMENTED / PR OPEN）
+
+Issue #20：Global Search（safe metadata only）+ Account Pin/Unpin（Account only）。
+**Room schema / package format 零改动**（Pin 复用现有 `favorite` 兼容字段）。
+不做 P8；不做 Favorites/Tags/Folder/Rating。与并行 Phase 6 L2（About/Update）互不等待。
+
+### Added
+
+- **Global Search（in-memory safe projection）**：
+  - `SearchMatcher`（core）：Unicode-safe case-insensitive contains + multi-token
+    AND；deterministic；无 fuzzy/Levenshtein/semantic/pinyin/regex。
+  - `SearchDocument` / `SearchResult` / `SearchIndex`（app）：显式 safe 投影；
+    Provider（serviceName）、Account（name+service）、TOTP（display context）、
+    Recovery Set（title+context）、Developer（title + 各类型非敏感 metadata）。
+  - `DeveloperRepository.observeSearchMetadata()` / `DeveloperMappers.toSearchMetadata()`：
+    Developer safe 投影，绝不暴露 secret / notes / publicKey。
+  - `SearchViewModel` / `SearchRoute` / `SearchScreen`：query in-memory only、
+    会话锁定/离开/进程重建清空、不写 Room/DataStore/SavedStateHandle/Bundle/
+    logs/analytics、无 search history。
+  - 入口：Authenticator TopAppBar search icon → Search route；结果导航到真实
+    stable/current IDs（Account/TOTP→Account detail，Recovery→Account detail，
+    Developer→Developer detail，Provider→home）。
+- **Account Pin/Unpin（Account only）**：
+  - `VaultRepository.setPinned` / `AuthenticatorRepository.setPinned`（product alias
+    → existing `setFavorite` storage field）；串行 mutation + session-locked 安全失败。
+  - 每个 Provider 内 pinned accounts 排前、稳定排序保留；不复制/不改 stableId/
+    不改 Provider 关系/无 shadow row。
+  - UI：Account 溢出菜单 Pin/Unpin；`PinIndicator` a11y contentDescription 区分
+    Pin/Unpin。
+  - storage=`favorite`（内部兼容字段）/ product=`pinned`（`AccountUi.isPinned`）；
+    无 schema/package 迁移。
+
+### Tests
+
+- `SearchMatcherTest`（core，8）、`SearchIndexTest`（app，23，含 secret-exclusion）、
+  `SearchViewModelLifecycleTest`（2）、`P7PinTest`（7）、
+  `P7PackageCompatibilityTest`（5）：合计 45 个新增测试，全 PASS。
+- secret-exclusion：TOTP secret/code、Recovery plaintext、apiKey/apiSecret、
+  SSH privateKey/passphrase、signing store/keyPassword、keystore base64、Env/Generic
+  value、Developer notes 均不可搜索；`SearchResult.toString()` 不含 fixture secret。
+- package 兼容：pinned Account Full Vault + Selected Items round-trip，stableId
+  不变、无 format/version 变化。
+
+### Notes
+
+- 不新增 ADR（无 schema/package 语义变化）。
+- `local.properties` 加入本地 `sdk.dir`（不提交）。
+
 ## [v2 provider-account-management] - 2026-08-10（Phase 4 Provider & Account Full Management，IMPLEMENTED / PR OPEN）
 
 Issue #32：在现有 minimal hierarchy（TOTP + Recovery loop）之上补齐 Provider /

@@ -29,6 +29,25 @@
     <string name="account_pinned_label">已置顶</string>
     <string name="account_actions_label">操作</string>
 
+    <!-- Phase 4 P7 — Account Pin / Unpin -->
+    <string name="account_pin">置顶</string>
+    <string name="account_unpin">取消置顶</string>
+    <string name="a11y_pin_account">置顶账户</string>
+    <string name="a11y_unpin_account">取消置顶账户</string>
+
+    <!-- Phase 4 P7 — Global Search -->
+    <string name="search_title">搜索保险库</string>
+    <string name="search_hint">搜索保险库</string>
+    <string name="search_clear">清除搜索</string>
+    <string name="search_empty_query">输入以搜索您的保险库</string>
+    <string name="search_no_results">无结果</string>
+    <string name="search_type_provider">服务</string>
+    <string name="search_type_account">账户</string>
+    <string name="search_type_totp">身份验证器</string>
+    <string name="search_type_recovery">恢复代码</string>
+    <string name="search_type_developer">开发者</string>
+    <string name="search_type_other">结果</string>
+
     <!-- Provider & Account management (Phase 4 — hierarchy management) -->
     <string name="provider_add_provider">添加服务</string>
     <string name="provider_actions">服务操作</string>

@@ -20,6 +20,9 @@ object RescueAuthRoutes {
     /** Phase 4 P1: Add TOTP sheet hosted above the Authenticator screen. */
     const val AUTHENTICATOR_ADD = "authenticator/add"
 
+    // --- Phase 4 P7: Global Search ---
+    const val SEARCH = "search"
+
     // --- Phase 3D: Export / Import (Backup / Transfer) ---
     const val EXPORT = "export"
     const val IMPORT = "import"

@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 fun AuthenticatorRoute(
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     onOpenAccount: ((String) -> Unit)? = null,
+    onOpenSearch: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -205,6 +206,8 @@ fun AuthenticatorRoute(
         onCopyClick = { viewModel.copyCode(it) },
         onDeleteClick = { appScope.launch { viewModel.deleteCard(it) } },
         onOpenAccount = onOpenAccount?.let { cb -> { accountId -> cb(accountId) } },
+        onOpenSearch = onOpenSearch,
+        onTogglePin = { account -> appScope.launch { viewModel.togglePin(account.id) } },
         onAddProviderClick = { showAddProvider = true },
         onRenameProvider = { provider -> providerToRename = provider },
         onDeleteProvider = { provider -> providerToDelete = provider },

@@ -49,6 +49,50 @@ internal object DeveloperMappers {
     fun toLogical(entity: DeveloperEntryEntity): VaultDeveloperEntry =
         json.decodeFromString(VaultDeveloperEntry.serializer(), entity.payloadJson)
 
+    /**
+     * P7 Global Search — extracts ONLY the safe, non-secret metadata from the
+     * typed logical payload. No secret field, notes, or publicKey is ever
+     * indexed (P7 §6/§7). This is the single source for Developer search docs.
+     */
+    fun toSearchMetadata(entry: VaultDeveloperEntry): DeveloperSearchMetadata =
+        when (entry) {
+            is com.rescueauth.v2.export.VaultAndroidSigningKey -> DeveloperSearchMetadata(
+                stableId = entry.stableId,
+                title = entry.title,
+                type = com.rescueauth.v2.domain.DeveloperEntryType.ANDROID_SIGNING_KEY.name,
+                projectName = entry.projectName,
+                packageName = entry.packageName,
+                keystoreFileName = entry.keystoreFileName,
+                keyAlias = entry.keyAlias,
+            )
+            is com.rescueauth.v2.export.VaultApiCredential -> DeveloperSearchMetadata(
+                stableId = entry.stableId,
+                title = entry.title,
+                type = com.rescueauth.v2.domain.DeveloperEntryType.API_CREDENTIAL.name,
+                serviceName = entry.serviceName,
+                accountName = entry.accountName,
+            )
+            is com.rescueauth.v2.export.VaultSshKey -> DeveloperSearchMetadata(
+                stableId = entry.stableId,
+                title = entry.title,
+                type = com.rescueauth.v2.domain.DeveloperEntryType.SSH_KEY.name,
+                keyName = entry.keyName,
+            )
+            is com.rescueauth.v2.export.VaultEnvironmentVariableSet -> DeveloperSearchMetadata(
+                stableId = entry.stableId,
+                title = entry.title,
+                type = com.rescueauth.v2.domain.DeveloperEntryType.ENVIRONMENT_VARIABLE_SET.name,
+                projectName = entry.projectName,
+                variableNames = entry.variables.map { it.key },
+            )
+            is com.rescueauth.v2.export.VaultGenericSecret -> DeveloperSearchMetadata(
+                stableId = entry.stableId,
+                title = entry.title,
+                type = com.rescueauth.v2.domain.DeveloperEntryType.GENERIC_SECRET.name,
+                fieldLabels = entry.fields.map { it.key },
+            )
+        }
+
     fun toDomain(entity: DeveloperEntryEntity): DeveloperEntry = DeveloperEntry(
         id = entity.id,
         stableId = entity.stableId,
