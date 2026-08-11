@@ -30,6 +30,7 @@ fun AboutRoute(
     encodedPublicKey: String?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -65,5 +66,6 @@ fun AboutRoute(
         },
         onBack = onBack,
         modifier = modifier,
+        onNavigate = onNavigate,
     )
 }

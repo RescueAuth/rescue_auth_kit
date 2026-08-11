@@ -48,8 +48,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.repository.DeveloperRepository
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.developer.DeveloperFormState
 import com.rescueauth.v2.ui.developer.DeveloperFormType
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -105,6 +108,7 @@ fun DeveloperFormScreen(
     onRemoveVariable: (Int) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     var keystoreError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -124,11 +128,24 @@ fun DeveloperFormScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        stringResource(
-                            if (form.isEditing) R.string.developer_edit_title
-                            else R.string.developer_add_title,
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.developer_title),
+                                destination = RescueAuthRoutes.DEVELOPER,
+                            ),
+                            BreadcrumbItem(label = formTypeLabel(form.type)),
+                            BreadcrumbItem(
+                                label = stringResource(
+                                    if (form.isEditing) R.string.developer_edit_title
+                                    else R.string.developer_add_title,
+                                ),
+                                isCurrent = true,
+                            ),
                         ),
+                        onNavigate = onNavigate,
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
                     )
                 },
                 navigationIcon = {
@@ -532,6 +549,15 @@ private fun SecretField(
             }
         },
     )
+}
+
+@Composable
+private fun formTypeLabel(type: DeveloperFormType): String = when (type) {
+    DeveloperFormType.API_CREDENTIAL -> stringResource(R.string.developer_type_api_credential)
+    DeveloperFormType.SSH_KEY -> stringResource(R.string.developer_type_ssh_key)
+    DeveloperFormType.GENERIC_SECRET -> stringResource(R.string.developer_type_generic)
+    DeveloperFormType.ANDROID_SIGNING_KEY -> stringResource(R.string.developer_type_signing_key)
+    DeveloperFormType.ENVIRONMENT_VARIABLE_SET -> stringResource(R.string.developer_type_env_var)
 }
 
 @Composable

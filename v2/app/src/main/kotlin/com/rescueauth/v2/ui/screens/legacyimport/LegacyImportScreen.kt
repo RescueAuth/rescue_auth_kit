@@ -34,6 +34,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.rescueauth.v2.R
 import com.rescueauth.v2.legacyimport.LegacyImportPreview
 import com.rescueauth.v2.legacyimport.LegacyImportViewModel
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.Spacing
 
 object LegacyImportTestTags {
@@ -80,11 +83,33 @@ fun LegacyImportScreen(
     onDismissResult: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize().testTag(LegacyImportTestTags.SCREEN),
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.legacy_import_title)) })
+            TopAppBar(
+                title = {
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_title),
+                                destination = RescueAuthRoutes.SETTINGS,
+                            ),
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_backup_transfer_section),
+                            ),
+                            BreadcrumbItem(
+                                label = stringResource(R.string.legacy_import_title),
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = onNavigate,
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
+                },
+            )
         },
     ) { padding ->
         Column(

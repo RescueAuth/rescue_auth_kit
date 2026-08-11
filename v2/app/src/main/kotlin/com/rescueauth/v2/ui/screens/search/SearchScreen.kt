@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.search.SearchResult
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.search.SearchUiState
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
@@ -75,7 +77,19 @@ fun SearchScreen(
             .testTag(SearchTestTags.SCREEN_SEARCH),
     ) {
         TopAppBar(
-            title = { Text(stringResource(R.string.search_title)) },
+            title = {
+                BreadcrumbTopBar(
+                    items = listOf(
+                        BreadcrumbItem(
+                            label = stringResource(R.string.search_title),
+                            isCurrent = true,
+                        ),
+                    ),
+                    onNavigate = {},
+                    ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                    moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                )
+            },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(

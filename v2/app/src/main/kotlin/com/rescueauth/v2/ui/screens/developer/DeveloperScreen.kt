@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.components.DeveloperEntryCard
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
@@ -57,7 +59,21 @@ fun DeveloperScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.developer_title)) })
+            TopAppBar(
+                title = {
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.developer_title),
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = {},
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
+                },
+            )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = {

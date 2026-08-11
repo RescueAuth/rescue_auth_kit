@@ -25,11 +25,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryUiState
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RecoveryCodeSetCard
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.RecoveryCodeUi
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -59,19 +62,29 @@ fun RecoveryCodesScreen(
     onEdit: ((String) -> Unit)? = null,
     onDelete: ((String) -> Unit)? = null,
     onMove: ((String) -> Unit)? = null,
+    onNavigate: ((String) -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(stringResource(R.string.recovery_codes_title))
-                        Text(
-                            text = "${uiState.providerName} · ${uiState.accountName}",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.authenticator_title),
+                                destination = RescueAuthRoutes.AUTHENTICATOR,
+                            ),
+                            BreadcrumbItem(label = uiState.providerName),
+                            BreadcrumbItem(
+                                label = uiState.accountName,
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = onNavigate ?: {},
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
                 },
                 navigationIcon = {
                     if (onBack != null) {

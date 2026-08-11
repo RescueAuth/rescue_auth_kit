@@ -471,4 +471,9 @@
     <!-- Accessibility -->
     <string name="a11y_back">返回</string>
     <string name="a11y_sensitive_value">敏感值</string>
+
+    <!-- Breadcrumb navigation (Issue #62) -->
+    <string name="breadcrumb_ellipsis">显示更多上级页面</string>
+    <string name="breadcrumb_more_ancestors">更多上级页面</string>
+    <string name="breadcrumb_current_page">%1$s，当前页面</string>
 </resources>

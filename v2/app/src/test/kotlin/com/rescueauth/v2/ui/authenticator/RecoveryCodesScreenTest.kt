@@ -72,4 +72,31 @@ class RecoveryCodesScreenTest {
         // Masked code value is never plaintext on the collapsed card.
         composeRule.onNodeWithText("AAAA-1111", substring = true).assertDoesNotExist()
     }
+
+    /**
+     * Issue #62 §8/§11 — the breadcrumb reflects the navigation context even
+     * when the account-detail screen is reached directly (e.g. a Search
+     * deep-link), because it is derived from screen state, not from "which
+     * button was just tapped".
+     */
+    @Test
+    fun accountDetailShowsBreadcrumbPathForDeepLinkContext() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                RecoveryCodesScreen(
+                    uiState = RecoveryUiState(
+                        loading = false,
+                        providerName = "GitHub",
+                        accountName = "xincy22",
+                        sets = listOf(sampleSet),
+                    ),
+                    onAddClick = {},
+                )
+            }
+        }
+        // Breadcrumb path: Authenticator > GitHub > xincy22 (current).
+        composeRule.onNodeWithText("Authenticator").assertIsDisplayed()
+        composeRule.onNodeWithText("GitHub").assertIsDisplayed()
+        composeRule.onNodeWithText("xincy22").assertIsDisplayed()
+    }
 }

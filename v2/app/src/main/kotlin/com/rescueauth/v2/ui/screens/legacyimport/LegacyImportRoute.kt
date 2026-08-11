@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 fun LegacyImportRoute(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -85,5 +86,6 @@ fun LegacyImportRoute(
         },
         onBack = onBack,
         modifier = modifier,
+        onNavigate = onNavigate,
     )
 }
