@@ -534,17 +534,18 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 > **V2.0 FEATURE COMPLETE = YES**（经最终 release-readiness 审计确认，全部
 > v2.0 正式产品能力已实现并有测试覆盖）。
 >
-> **V2.0 RELEASED = NO**：FEATURE COMPLETE 不等于已发布。仍待 release
-> provisioning 步骤（见 AGENTS.md / 最终审计报告 M 节）：production Android
-> signing、production Update Ed25519 provisioning、`rescueauth-updates`
-> 基础设施、signed release smoke、FTL / final device regression。
+> **V2.0 RELEASED = NO**：FEATURE COMPLETE 不等于已发布。Android production
+> signing identity 已 provision；仍待 production Update Ed25519 provisioning、
+> `rescueauth-updates` 基础设施、signed release real-device smoke、FTL / final
+> device regression。
 >
-> **Release Provisioning Step 1 = IMPLEMENTED / PR OPEN**（见
+> **Release Provisioning Step 1 = MERGED；Step 2 = PROVISIONED**（见
 > `docs/RELEASE_PROVISIONING.md`）：新 App `applicationId=com.rescueauth.v2`
 >（≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side）、`versionName="1.0.0"`、
 > `versionCode=10000` 已冻结；production signing 基础设施已建立（无 debug
 > fallback；无 config 时 release 为 unsigned；`validateReleaseSigning` 显式校验）。
-> **Production Android signing key = NOT GENERATED**。
+> Production Android signing identity 的公开证书元数据固定于
+> `release/android-signing-certificate.txt`；private material 不进入本仓库。
 
 **不阻塞 V2.0 FEATURE COMPLETE**（按 Roadmap §18 deferred policy 处理）：
 
