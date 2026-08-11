@@ -10,6 +10,31 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 android-production-signing-provisioning] - 2026-08-11
+
+RescueAuth `com.rescueauth.v2` 的长期 Android production signing identity 已
+provision。PKCS12/private key/password 仅保存在仓库外和 CNB Secret Repository；
+主仓只固定公开证书 metadata、master-only 手动流水线与安全重建/验证脚本。
+
+### Added
+
+- `v2/release/android-signing-certificate.txt`：公开 production certificate
+  identity assertion（RSA 4096 / SHA256withRSA / 40-year validity / SHA-256）。
+- `.cnb/web_trigger.yml`：只允许 `main` + `master` 触发 production signing。
+- `scripts/build-production-apk.sh`：runner temp PKCS12 重建、`0600` 权限、退出
+  cleanup、Gradle signing validation、APK signer/package/version/debuggable 断言。
+- `.cnb.yml`：production secrets 仅 stage-scoped import
+  `android-signing.yml`；PR/fork/push/tag/comment/API/任意分支均不读取。
+- 第一份 local production-signed `1.0.0` candidate 已通过 `apksigner`、manifest
+  identity/version/debuggable 与 16K alignment 验证；APK SHA-256 =
+  `71D32E2DF3DFAD426DA8A4873AD4058C2A4BF354A28966DC096A06366BA4D931`。
+
+### Security
+
+- 本仓库不含 production keystore、Base64、password 或 private key。
+- Update Ed25519 identity 未生成；没有更新 `latest.json`，没有发布 release。
+- Independent offline backup 与 real-device side-by-side smoke 仍待用户完成。
+
 ## [v2 release-provisioning-step-1] - 2026-08-10（Release Provisioning Step 1 — App Identity / Version + Production Signing Infrastructure，PR OPEN）
 
 Issue #38 Release Provisioning Step 1。**冻结新 RescueAuth Android application
