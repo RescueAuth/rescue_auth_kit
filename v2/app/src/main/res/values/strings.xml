@@ -9,7 +9,7 @@
 
     <!-- Startup auth (Issue #50) -->
     <string name="startup_intro_title">Use phone to unlock</string>
-    <string name="startup_intro_body">Unlock RescueAuth with your phone\'s fingerprint or lock screen password.</string>
+    <string name="startup_intro_body">Verify with your fingerprint or lock screen password.</string>
     <string name="startup_intro_continue">Enable</string>
     <string name="startup_exit">Exit</string>
     <string name="startup_no_secure_title">Secure device lock required</string>

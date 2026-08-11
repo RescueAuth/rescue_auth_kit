@@ -9,7 +9,7 @@
 
     <!-- Startup auth (Issue #50) -->
     <string name="startup_intro_title">使用手机解锁</string>
-    <string name="startup_intro_body">使用手机的指纹或锁屏密码解锁拾遗坊。</string>
+    <string name="startup_intro_body">通过指纹或锁屏密码验证即可。</string>
     <string name="startup_intro_continue">开启</string>
     <string name="startup_exit">退出</string>
     <string name="startup_no_secure_title">需要安全的设备锁屏</string>
