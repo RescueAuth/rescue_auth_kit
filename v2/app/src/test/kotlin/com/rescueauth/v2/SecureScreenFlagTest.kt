@@ -5,6 +5,8 @@ import android.view.WindowManager
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.rescueauth.v2.database.RescueAuthDatabase
+import com.rescueauth.v2.security.FakeStartupAuthPrompt
+import com.rescueauth.v2.security.StartupAuthResult
 import com.rescueauth.v2.security.VaultKeyCrypto
 import com.rescueauth.v2.security.VaultKeyManager
 import com.rescueauth.v2.session.SecureSessionStateMachine
@@ -69,6 +71,14 @@ class SecureScreenFlagTest {
         val activity = controller.get()
         // Inject BEFORE onCreate runs.
         activity.sessionManagerFactory = ::fakeSessionManager
+        // Fake the startup prompt so the launch never touches a real
+        // BiometricPrompt (Robolectric has no biometric service). Report
+        // Unavailable (no secure device) so the activity settles into the
+        // blocking state without launching a prompt.
+        activity.startupAuthPromptFactory = { FakeStartupAuthPrompt(
+            availableAuthenticators = null,
+            nextResult = StartupAuthResult.Unavailable,
+        ) }
         controller.setup() // onCreate → onStart → onResume
 
         val flags = activity.window.attributes.flags

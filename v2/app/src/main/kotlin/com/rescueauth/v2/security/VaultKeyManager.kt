@@ -15,6 +15,14 @@ class VaultKeyManager(private val crypto: VaultKeyCrypto) {
     class KeyInvalidatedException(message: String, cause: Throwable? = null) : Exception(message, cause)
     class KeystoreUnavailableException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+    /**
+     * Raised when the Keystore operation needs a user-authentication token
+     * that is absent (Android `UserNotAuthenticatedException`). Maps to
+     * `AUTH_REQUIRED` in the startup taxonomy — distinct from Keystore
+     * unavailability and from key invalidation.
+     */
+    class AuthRequiredException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
     val hasVaultKey: Boolean
         get() = !crypto.readWrapped().isNullOrBlank()
 
@@ -27,6 +35,14 @@ class VaultKeyManager(private val crypto: VaultKeyCrypto) {
         return try {
             crypto.wrap(vaultKey) { blob -> crypto.persistBlob(blob) }
             vaultKey
+        } catch (e: VaultKeyCrypto.AuthRequiredException) {
+            // Never hide a missing user-auth token as "Keystore unavailable"
+            // (the startup crash root cause) — map it to AUTH_REQUIRED.
+            throw AuthRequiredException(e.message ?: "Keystore requires user authentication", e)
+        } catch (e: VaultKeyCrypto.KeyInvalidatedException) {
+            throw KeyInvalidatedException(e.message ?: "Keystore key invalidated", e)
+        } catch (e: KeyInvalidatedException) {
+            throw e
         } catch (e: Exception) {
             throw KeystoreUnavailableException("VaultKey wrap failed: ${e.message}", e)
         }
@@ -41,6 +57,8 @@ class VaultKeyManager(private val crypto: VaultKeyCrypto) {
             ?: throw NoVaultKeyException("No wrapped VaultKey on this install")
         return try {
             crypto.unwrap(blob)
+        } catch (e: VaultKeyCrypto.AuthRequiredException) {
+            throw AuthRequiredException(e.message ?: "Keystore requires user authentication", e)
         } catch (e: VaultKeyCrypto.KeyInvalidatedException) {
             throw KeyInvalidatedException(e.message ?: "Keystore key invalidated", e)
         } catch (e: Exception) {
