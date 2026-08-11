@@ -19,10 +19,12 @@ import com.rescueauth.v2.session.SessionManager
 import com.rescueauth.v2.session.VaultUnlockOutcome
 import com.rescueauth.v2.ui.RescueAuthApp
 import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
+import com.rescueauth.v2.ui.screens.startup.StartupAuthHost
 import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
-import com.rescueauth.v2.ui.screens.startup.StartupLockScreen
+import com.rescueauth.v2.ui.screens.startup.StartupIntroScreen
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,20 +45,25 @@ import kotlinx.coroutines.launch
  * which threw an unhandled `UserNotAuthenticatedException` when no valid
  * auth token existed — the P1 startup crash on a freshly booted device.
  *
- * The new flow is **authentication-first**:
+ * The flow is **authentication-first and lock-screen-free**:
  *
  * ```
  * App launch
  *   → determine startup mode (first-run create vs existing unlock)
- *   → show locked state, prompt system authentication
+ *   → FIRST_RUN: show one-time security intro, then prompt authentication
+ *   → UNLOCK:    prompt authentication automatically (no button tap)
  *   → (biometric OR device credential) success
  *   → then run createVaultAndOpen() / unlock()  (Keystore operation)
  *   → open Vault
  * ```
  *
- * Keystore crypto is **never** executed before a successful authentication.
- * `UserNotAuthenticatedException` is still mapped defensively to AUTH_REQUIRED
- * (never crash / never "Keystore unavailable") to absorb token-expiry races.
+ * There is no interactive lock screen in the normal flow: authentication is
+ * requested automatically (Issue #50 UX rework). A user cancel finishes the
+ * Activity instead of dropping into a locked screen. During authentication a
+ * neutral, non-sensitive host is shown. Keystore crypto is **never** executed
+ * before a successful authentication. `UserNotAuthenticatedException` is
+ * mapped defensively to AUTH_REQUIRED (never crash / never "Keystore
+ * unavailable") to absorb token-expiry races.
  *
  * Other Phase 2/4 semantics are preserved unchanged: `FLAG_SECURE`, background
  * masking + auto-lock timeout, and the sensitive-action fresh re-auth gate.
@@ -84,11 +91,13 @@ class MainActivity : AppCompatActivity() {
     private enum class StartupUiState {
         /** Not yet determined — waiting for the first onResume. */
         INIT,
-        /** Session locked — show the lock screen and prompt authentication. */
-        LOCKED,
+        /** First-run: one-time security explanation before creating the Vault. */
+        INTRO,
+        /** System authentication is being requested / showing — neutral host. */
+        AUTHENTICATING,
         /** Device has no usable secure lock — show the blocking screen. */
         NO_SECURE_DEVICE,
-        /** Unrecoverable state (key invalidated / DB corrupt) — show + exit. */
+        /** Unrecoverable state (key invalidated / DB corrupt / repeated race) — show + exit. */
         BLOCKED,
         /** Vault open — show the app shell. */
         UNLOCKED,
@@ -97,8 +106,18 @@ class MainActivity : AppCompatActivity() {
     private val _uiState = MutableStateFlow(StartupUiState.INIT)
     private val uiState: StateFlow<StartupUiState> = _uiState.asStateFlow()
 
+    /** Whether the current [StartupUiState.BLOCKED] is a key-invalidation error. */
+    private var blockedIsKeyInvalidated = false
+
     /** Whether the system auth prompt should be auto-launched on resume. */
     private var authPromptPending = false
+
+    /** Whether the first-run intro has been acknowledged (Continue tapped). */
+    private var introAcknowledged = false
+
+    /** Guards against infinite auth-required prompt loops (Issue #50 UX §8). */
+    private val authRaceCount = AtomicInteger(0)
+    private val maxAuthRaceRetries = 2
 
     private var startupAuthPrompt: StartupAuthPrompt? = null
 
@@ -160,20 +179,35 @@ class MainActivity : AppCompatActivity() {
                 RescueAuthTheme {
                     val ui by uiState.collectAsState()
                     when (ui) {
-                        StartupUiState.INIT,
-                        StartupUiState.LOCKED,
-                        -> StartupLockScreen(
-                            onUnlock = { requestAuthentication() },
+                        StartupUiState.INIT -> {
+                            // Neutral placeholder until the first onResume decides.
+                            StartupAuthHost()
+                        }
+                        StartupUiState.INTRO -> StartupIntroScreen(
+                            onContinue = { onIntroContinue() },
                             onExit = { finish() },
                         )
+                        StartupUiState.AUTHENTICATING -> StartupAuthHost()
                         StartupUiState.NO_SECURE_DEVICE -> NoSecureDeviceScreen(
                             onExit = { finish() },
                         )
-                        StartupUiState.BLOCKED -> StartupBlockedScreen(
-                            title = getString(R.string.startup_key_invalidated_title),
-                            body = getString(R.string.startup_key_invalidated_body),
-                            onExit = { finish() },
-                        )
+                        StartupUiState.BLOCKED -> {
+                            val title = if (blockedIsKeyInvalidated) {
+                                getString(R.string.startup_key_invalidated_title)
+                            } else {
+                                getString(R.string.startup_error_title)
+                            }
+                            val body = if (blockedIsKeyInvalidated) {
+                                getString(R.string.startup_key_invalidated_body)
+                            } else {
+                                getString(R.string.startup_error_body)
+                            }
+                            StartupBlockedScreen(
+                                title = title,
+                                body = body,
+                                onExit = { finish() },
+                            )
+                        }
                         StartupUiState.UNLOCKED -> RescueAuthApp(
                             versionName = BuildConfig.VERSION_NAME,
                         )
@@ -232,9 +266,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Test-visible (internal) so startup-flow tests can simulate the user
+     * tapping **Continue** on the first-run security intro without driving the
+     * Compose UI.
+     */
+    internal fun onIntroContinue() {
+        introAcknowledged = true
+        _uiState.value = StartupUiState.AUTHENTICATING
+        requestAuthentication()
+    }
+
+    /**
      * Runs the startup authentication flow. Resolves usable authenticators,
      * then (re)launches the system prompt. After a successful authentication
      * it runs the (now safe) Keystore operation.
+     *
+     * First-run: the one-time security intro is shown first; authentication is
+     * only requested after the user taps **Continue**. Existing-vault launches
+     * request authentication automatically with no intermediate button.
      */
     private fun requestAuthentication() {
         authPromptPending = false
@@ -246,6 +295,13 @@ class MainActivity : AppCompatActivity() {
             _uiState.value = StartupUiState.UNLOCKED
             return
         }
+        // First-run: gate on the one-time security intro before prompting.
+        if (startupMode == StartupMode.FIRST_RUN && !introAcknowledged) {
+            // Show the intro; do not launch the prompt until the user continues.
+            _uiState.value = StartupUiState.INTRO
+            return
+        }
+        _uiState.value = StartupUiState.AUTHENTICATING
         if (!promptActive.compareAndSet(false, true)) return
 
         val prompt = startupAuthPrompt
@@ -267,14 +323,21 @@ class MainActivity : AppCompatActivity() {
         val launched = prompt.tryStart { result ->
             promptActive.set(false)
             when (result) {
-                StartupAuthResult.Success -> onAuthenticationSucceeded()
+                StartupAuthResult.Success -> {
+                    authRaceCount.set(0)
+                    onAuthenticationSucceeded()
+                }
                 StartupAuthResult.Cancelled -> {
-                    // User cancelled — do NOT open the Vault, do not crash.
-                    _uiState.value = StartupUiState.LOCKED
+                    // User cancelled — do NOT open the Vault, do not show a
+                    // locked screen; finish the Activity (Issue #50 UX §4).
+                    _uiState.value = StartupUiState.INIT
+                    finish()
                 }
                 StartupAuthResult.Failed -> {
                     // Transient failure — allow the system to retry.
-                    _uiState.value = StartupUiState.LOCKED
+                    _uiState.value = StartupUiState.AUTHENTICATING
+                    authPromptPending = true
+                    if (isResumedFlag) requestAuthentication()
                 }
                 StartupAuthResult.Unavailable -> {
                     _uiState.value = StartupUiState.NO_SECURE_DEVICE
@@ -292,10 +355,16 @@ class MainActivity : AppCompatActivity() {
      * executed during startup — and it is guaranteed to be after auth success.
      */
     private fun onAuthenticationSucceeded() {
-        val outcome = when (startupMode) {
-            StartupMode.FIRST_RUN -> sessionManager.createVaultAndOpen()
-            StartupMode.UNLOCK -> sessionManager.unlock()
+        // Decide the Keystore operation dynamically: if a Vault already exists
+        // (e.g. first-run created it and the session later relocked), unlock it
+        // instead of re-creating a new Vault and discarding the old one
+        // (Issue #50 UX §5, §8 — never create a new Vault on relock).
+        val operation: () -> VaultUnlockOutcome = when {
+            !sessionManager.needsFirstRunSetup() -> sessionManager::unlock
+            startupMode == StartupMode.FIRST_RUN -> sessionManager::createVaultAndOpen
+            else -> sessionManager::unlock
         }
+        val outcome = operation()
         when (outcome) {
             is VaultUnlockOutcome.Success -> {
                 // First-run: the returned fresh key must be zeroed after the DB
@@ -306,16 +375,23 @@ class MainActivity : AppCompatActivity() {
             }
             VaultUnlockOutcome.AuthRequired -> {
                 // Rare race: auth token expired between prompt success and the
-                // crypto op. Re-prompt — never crash / never mislabel.
-                _uiState.value = StartupUiState.LOCKED
+                // crypto op. Re-prompt — never crash / never mislabel — but
+                // guard against an infinite prompt loop (Issue #50 UX §8).
+                if (authRaceCount.incrementAndGet() > maxAuthRaceRetries) {
+                    blockedIsKeyInvalidated = false
+                    _uiState.value = StartupUiState.BLOCKED
+                    return
+                }
+                _uiState.value = StartupUiState.AUTHENTICATING
                 authPromptPending = true
                 if (isResumedFlag) requestAuthentication()
             }
             VaultUnlockOutcome.AuthCancelled -> {
-                _uiState.value = StartupUiState.LOCKED
+                _uiState.value = StartupUiState.INIT
+                finish()
             }
             VaultUnlockOutcome.AuthFailed -> {
-                _uiState.value = StartupUiState.LOCKED
+                _uiState.value = StartupUiState.AUTHENTICATING
                 authPromptPending = true
                 if (isResumedFlag) requestAuthentication()
             }
@@ -325,11 +401,13 @@ class MainActivity : AppCompatActivity() {
             VaultUnlockOutcome.KeyInvalidated -> {
                 // Biometric enrollment changed — this is NOT "please authenticate",
                 // it is a distinct invalidated-key error (Issue #50 §12).
+                blockedIsKeyInvalidated = true
                 _uiState.value = StartupUiState.BLOCKED
             }
             VaultUnlockOutcome.KeystoreUnavailable,
             VaultUnlockOutcome.VaultCorrupt,
             -> {
+                blockedIsKeyInvalidated = false
                 _uiState.value = StartupUiState.BLOCKED
             }
         }

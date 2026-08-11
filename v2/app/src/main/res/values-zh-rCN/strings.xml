@@ -7,15 +7,18 @@
     <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
     <string name="unlock_cancel">取消</string>
 
-    <!-- Startup lock screen (Issue #50) -->
-    <string name="startup_locked_title">RescueAuth 已锁定</string>
-    <string name="startup_locked_body">使用指纹、人脸或设备 PIN 解锁以打开您的保险库。</string>
-    <string name="startup_unlock">解锁</string>
+    <!-- Startup auth (Issue #50) -->
+    <string name="startup_intro_title">保护您的本地保险库</string>
+    <string name="startup_intro_body">拾遗坊使用手机的系统锁屏认证（指纹、PIN、图案或密码）保护您的本地保险库。无需另外设置主密码。</string>
+    <string name="startup_intro_continue">继续</string>
     <string name="startup_exit">退出</string>
     <string name="startup_no_secure_title">需要安全的设备锁屏</string>
     <string name="startup_no_secure_body">RescueAuth 需要安全的设备锁屏（PIN、图案、密码或强生物识别）来保护您的保险库。请在系统设置中配置后再试。</string>
+    <string name="startup_no_secure_action">前往系统设置</string>
     <string name="startup_key_invalidated_title">保险库密钥已失效</string>
     <string name="startup_key_invalidated_body">您的保险库密钥因生物识别变更而失效。请重新录入生物识别后重启 RescueAuth。</string>
+    <string name="startup_error_title">无法打开保险库</string>
+    <string name="startup_error_body">RescueAuth 无法打开您的保险库。请重试，或重启应用。</string>
 
     <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
     <string name="reauth_title">验证以继续</string>
