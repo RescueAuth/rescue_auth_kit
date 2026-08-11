@@ -4,6 +4,7 @@
 #   $  (fallback branch)
 #     issue.comment@npc     -> NPC issue-comment runner (existing, untouched)
 #     pull_request.comment@npc -> NPC PR-comment runner (existing, untouched)
+#     web_trigger_production_signing -> master-only manual production signing
 #   main
 #     push                  -> full cloud test loop incl. guarded Firebase Test Lab
 #
@@ -45,6 +46,48 @@ $:
           options:
             model: deepseek-v4-flash
             contextWindow: "1m"
+  # The only secret-bearing Android production signing pipeline. Its button is
+  # restricted by .cnb/web_trigger.yml to the exact main branch and master role.
+  # PR, fork, push, tag, comment, API and arbitrary-branch events cannot select
+  # this event. The script repeats the repository/event/branch assertions before
+  # it decodes the keystore.
+  web_trigger_production_signing:
+    - name: production-sign-rescueauth-1.0.0
+      docker:
+        image: cimg/android:2026.08
+      lock:
+        key: rescueauth-production-signing
+        wait: true
+      stages:
+        - name: core-jvm-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :core:test
+        - name: app-robolectric-unit-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:testDebugUnitTest
+        - name: android-lint
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:lintDebug
+        - name: build-androidtest-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebugAndroidTest
+        - name: production-sign-and-verify
+          # Stage-scoped least privilege: no earlier test/build stage can read
+          # Android signing material. The referenced Secret Repository file is
+          # independent from firebase-test-lab.yml.
+          imports:
+            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/android-signing.yml
+          script: |
+            set -eu
+            test "${CNB_REPO_SLUG:-}" = "xincy22/rescue_auth_kit"
+            test "${CNB_EVENT:-}" = "web_trigger_production_signing"
+            test "${CNB_BRANCH:-}" = "main"
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            bash scripts/build-production-apk.sh
 
 main:
   push:
