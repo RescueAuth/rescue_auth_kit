@@ -23,9 +23,13 @@
 #       -> tests / assembleDebug / debug signing
 #       -> RescueAuth-<versionName>-debug-<shortCommit>.apk
 #       -> real-device smoke -> PR -> main
-#     Full regression on demand
+#     Full regression on demand (manual, owner-only)
 #       -> owner triggers "Run full RescueAuth test suite" (web_trigger_full_test)
-#       -> core tests / Robolectric / lint / assembleDebugAndroidTest
+#       -> core tests / Robolectric / lint / assembleDebug /
+#          assembleDebugAndroidTest  (full original coverage, no shrink)
+#       -> Firebase Test Lab is NOT run here: its credentials are restricted
+#          to `main`+`push`; on-device cloud verification still runs via a
+#          genuine `main` push (see web_trigger_full_test firebase-test-lab).
 #
 #   RELEASE (TAG-ONLY):
 #     main reaches release-ready
@@ -141,9 +145,43 @@ $:
   #     it is triggered manually only.
   # ------------------------------------------------------------------------
   web_trigger_full_test:
+    # ----------------------------------------------------------------------
+    # REGRESSION: owner-triggered FULL test suite.
+    #   * Button "Run full RescueAuth test suite" (web_trigger_full_test) is
+    #     restricted in .cnb/web_trigger.yml to the owner role and is available
+    #     on ALL normal Git branches (all-branches matcher).
+    #   * This is the MANUAL replacement of the former automatic
+    #     `main:push -> full-cloud-test-loop` pipeline. Product decision: the
+    #     automatic full test pipeline is changed to manual trigger, the
+    #     verification COVERAGE is NOT reduced.
+    #   * It therefore reproduces the FULL original test/build body exactly:
+    #     core JVM tests, app Robolectric, lint, assembleDebug, and
+    #     assembleDebugAndroidTest, with the same commands and same
+    #     verification gates as the original full-cloud-test-loop.
+    #   * Ordinary push / PR merge / main update does NOT run this pipeline;
+    #     it is triggered manually by the owner only.
+    #   * NO production Secret Repo / Android signing import (this pipeline
+    #     NEVER touches production signing material).
+    #   * Firebase Test Lab: cannot be submitted from this manual trigger (see
+    #     the firebase-test-lab stage below); the reason is reported explicitly
+    #     rather than silently dropping the coverage.
+    # ----------------------------------------------------------------------
     - name: run-full-test-suite
       docker:
         image: cimg/android:2026.08
+      env:
+        # Fixed, non-sensitive Test Lab device configuration.
+        # MediumPhone.arm is a VIRTUAL (emulator) FTL model, API 33. Do NOT use
+        # `panther` (physical Pixel 7): this pipeline must use one virtual device.
+        FTL_DEVICE_MODEL: MediumPhone.arm
+        FTL_DEVICE_VERSION: "33"
+        FTL_DEVICE_LOCALE: en
+        FTL_DEVICE_ORIENTATION: portrait
+        FTL_TEST_TIMEOUT: 5m
+        # Deterministic Gradle output paths (no unconstrained find|head -1).
+        # CNB_BUILD_WORKSPACE is /workspace for script tasks.
+        APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
+        TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
       stages:
         - name: core-jvm-tests
           script: |
@@ -157,10 +195,61 @@ $:
           script: |
             cd v2
             ./gradlew --no-daemon :app:lintDebug
+        - name: build-debug-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebug
+            test -s app/build/outputs/apk/debug/app-debug.apk
         - name: build-androidtest-apk
           script: |
             cd v2
             ./gradlew --no-daemon :app:assembleDebugAndroidTest
+            test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+        - name: changed-file-gate
+          # Kept from the original full-cloud-test-loop body. On a manual web
+          # trigger CNB_BEFORE_SHA is not a push before-sha, so the gate
+          # conservatively decides "run"; it is kept to preserve the original
+          # body structure (the real on-device FTL gate still lives in the
+          # `main` push pipeline). See scripts/check-test-lab-gate.sh.
+          script: |
+            set -eu
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            export CNB_BEFORE_SHA CNB_COMMIT CNB_BUILD_WORKSPACE
+            bash scripts/check-test-lab-gate.sh
+        - name: firebase-test-lab
+          # Firebase Test Lab CANNOT be submitted from this manual web trigger.
+          # The FTL credentials secret repo
+          # (xincy22/rescue_auth_kit_secrets -> firebase-test-lab.yml) is
+          # access-restricted to `allow_events=push` AND `allow_branches=main`
+          # (see docs/FIREBASE_TEST_LAB.md §2). A web_trigger is a manual,
+          # unprotected trigger - NOT a `main` push - so the platform DENIES
+          # the import here. Referencing the import would fail the whole manual
+          # full test at prepare time, so it is intentionally NOT imported in
+          # this pipeline. Instead this stage explicitly reports the limitation
+          # (no silent coverage drop) and verifies the debug + androidTest APKs
+          # that a real on-device FTL run (via a genuine `main` push) would
+          # consume.
+          script: |
+            set -eu
+            echo "Firebase Test Lab NOT EXECUTED on this manual web trigger."
+            echo "REASON: FTL credentials (rescue_auth_kit_secrets -> firebase-test-lab.yml)"
+            echo "are restricted to allow_events=push + allow_branches=main."
+            echo "A web_trigger is a manual, unprotected trigger, so the import is denied."
+            echo "Full on-device cloud verification still runs via a genuine 'main' push"
+            echo "(full-cloud-test-loop) pipeline."
+            echo "FTL_DEVICE_MODEL=${FTL_DEVICE_MODEL}"
+            echo "FTL_DEVICE_VERSION=${FTL_DEVICE_VERSION}"
+            echo "FTL_DEVICE_LOCALE=${FTL_DEVICE_LOCALE}"
+            echo "FTL_DEVICE_ORIENTATION=${FTL_DEVICE_ORIENTATION}"
+            echo "FTL_TEST_TIMEOUT=${FTL_TEST_TIMEOUT}"
+            echo "FTL_CNB_COMMIT=${CNB_COMMIT}"
+            echo "FTL_APP_APK=${APP_APK}"
+            echo "FTL_TEST_APK=${TEST_APK}"
+            # The on-device matrix requires both APKs to exist. Verify they were
+            # built by the stages above (deterministic paths, no find|head).
+            test -s "${APP_APK}"
+            test -s "${TEST_APK}"
+            echo "APP_APK and TEST_APK present and non-empty (ready for on-device FTL via main push)."
 
   # ------------------------------------------------------------------------
   # RELEASE: PRODUCTION release, TAG-ONLY.

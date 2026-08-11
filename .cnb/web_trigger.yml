@@ -11,8 +11,20 @@ branch:
         event: web_trigger_debug_apk
         permissions:
           roles: [owner]
+
+  # REGRESSION: owner-triggered FULL test suite ("Run full RescueAuth test
+  # suite"). Since this is an owner-only manual operation, it is intentionally
+  # made available on ALL normal Git branches (not tied to any
+  # feature/fix/auto naming convention), so the owner can run the full
+  # regression directly from whichever branch is under test. The matcher `.*`
+  # is the simplest reliable all-branches matcher supported by the CNB web
+  # trigger schema (a bare prefix regex like `^main` would wrongly match
+  # `mainfoo` / `featureABC`, so it is avoided here). Restricted to the owner
+  # role (write permission is also required by the platform).
+  - reg: ".*"
+    buttons:
       - name: Run full RescueAuth test suite
-        description: Run the full regression test suite (core JVM, app Robolectric, lint, assembleDebugAndroidTest) on the selected branch. No production secrets are used.
+        description: Run the full regression test suite (core JVM, app Robolectric, lint, assembleDebug, assembleDebugAndroidTest) on the selected branch. No production secrets are used. Firebase Test Lab on-device verification is not submitted from this manual trigger (its credentials are restricted to main+push).
         event: web_trigger_full_test
         permissions:
           roles: [owner]
