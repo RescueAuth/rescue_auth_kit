@@ -33,18 +33,22 @@ data class AccountUi(
 }
 
 /**
- * Pure UI model for a TOTP credential. Contains display metadata only — the
- * Base32 secret is deliberately **not** present in this model (the production
- * code-generation path will belong to a later slice and must not flow through
- * the UI as plaintext unless explicitly revealed).
+ * Pure UI model for a TOTP credential. Contains display metadata plus the
+ * currently generated code and countdown — the Base32 secret is deliberately
+ * **not** present in this model so it can never flow through the UI layer
+ * as plaintext.
  */
 data class TotpCredentialUi(
     val id: String,
+    val stableId: String,
     val issuer: String,
     val accountName: String,
+    val algorithm: String = "SHA1",
     val digits: Int = 6,
     val periodSeconds: Int = 30,
     val currentCode: String? = null,
+    val remainingSeconds: Int = 0,
+    val progressFraction: Float = 0f,
 )
 
 /**

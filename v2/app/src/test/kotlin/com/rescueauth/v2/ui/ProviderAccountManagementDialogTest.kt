@@ -135,7 +135,7 @@ class ProviderAccountManagementDialogTest {
                         id = "s1",
                         providerName = "GitHub",
                         accountName = "alice",
-                        totpCredentials = listOf(TotpCredentialUi(id = "t1", issuer = "GitHub", accountName = "alice")),
+                        totpCredentials = listOf(TotpCredentialUi(id = "t1", stableId = "t1", issuer = "GitHub", accountName = "alice")),
                         recoverySets = emptyList(),
                     ),
                     destination = AccountUi(
