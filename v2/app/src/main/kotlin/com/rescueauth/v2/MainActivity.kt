@@ -21,6 +21,7 @@ import com.rescueauth.v2.ui.RescueAuthApp
 import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
 import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
 import com.rescueauth.v2.ui.screens.startup.StartupLockScreen
+import com.rescueauth.v2.ui.screens.startup.StartupSplashScreen
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
@@ -82,7 +83,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Compose-visible startup UI state. */
     private enum class StartupUiState {
-        /** Not yet determined — waiting for the first onResume. */
+        /** Not yet determined — waiting for the first onResume; renders the startup splash. */
         INIT,
         /** Session locked — show the lock screen and prompt authentication. */
         LOCKED,
@@ -160,9 +161,8 @@ class MainActivity : AppCompatActivity() {
                 RescueAuthTheme {
                     val ui by uiState.collectAsState()
                     when (ui) {
-                        StartupUiState.INIT,
-                        StartupUiState.LOCKED,
-                        -> StartupLockScreen(
+                        StartupUiState.INIT -> StartupSplashScreen()
+                        StartupUiState.LOCKED -> StartupLockScreen(
                             onUnlock = { requestAuthentication() },
                             onExit = { finish() },
                         )
