@@ -7,7 +7,7 @@
 ## 项目状态
 
 - v2 是**全新 Android 原生应用**（Kotlin + Jetpack Compose + Room/SQLCipher），
-  与旧 Flutter 项目并行存在。旧项目保留在仓库根目录，冻结于 tag `v1.2.0`。
+  与旧 Flutter 项目并行存在。旧项目保留在仓库根目录，冻结于 tag `legacy-v1.2.0`。
 - **产品定位（2026-08-07，Issue #17 定稿）**：v2 = Android-only、local-first、
   encrypted personal security vault，包含三大正式能力：
   **Authenticator（Provider/Account/TOTP/Recovery Codes）**、
@@ -15,7 +15,7 @@
   **Portable Vault Package（manual export、per-export PIN、merge-first import）**。
 - v2 代码位于 `v2/` 目录；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
-- **App 身份 / 版本（Release Provisioning，见 `docs/RELEASE_PROVISIONING.md`）**：新 App `applicationId = com.rescueauth.v2`（≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side 安装）、`namespace = com.rescueauth.v2`、`versionName = "1.0.0"`、`versionCode = 10000`。**“v2” 是 generation/rewrite 名称，不等于 `versionName`**（V2.0 FEATURE COMPLETE ≠ versionName 2.0.0）。新 App 独立 release sequence，从 `1.0.0` 开始。Production signing 基础设施已建立（`v2/keystore.properties` / env vars；无 debug fallback；无 config 时 release 为 unsigned；`validateReleaseSigning` 显式校验）。**Production Android signing identity = PROVISIONED（2026-08-11）**；公开证书元数据固定于 `release/android-signing-certificate.txt`，private material 仅存于外部保管位置与 CNB Secret Repository。第一份 local production-signed `1.0.0` candidate 已通过 signer/package/version/debuggable/16K alignment 验证。CNB production signing 只能由 `main` 上 master-only Web Trigger 触发，secret 仅注入最终 signing stage。
+- **App 身份 / 版本（Release Provisioning，见 `docs/RELEASE_PROVISIONING.md`）**：新 App `applicationId = com.rescueauth.v2`（≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side 安装）、`namespace = com.rescueauth.v2`、`versionName = "1.0.0"`、`versionCode = 10000`。**“v2” 是 generation/rewrite 名称，不等于 `versionName`**（V2.0 FEATURE COMPLETE ≠ versionName 2.0.0）。新 App 独立 release sequence，从 `1.0.0` 开始。Production signing 基础设施已建立（`v2/keystore.properties` / env vars；无 debug fallback；无 config 时 release 为 unsigned；`validateReleaseSigning` 显式校验）。**Production Android signing identity = PROVISIONED（2026-08-11）**；公开证书元数据固定于 `release/android-signing-certificate.txt`，private material 仅存于外部保管位置与 CNB Secret Repository。第一份 local production-signed `1.0.0` candidate 已通过 signer/package/version/debuggable/16K alignment 验证。**Build & Release Workflow 已建立（issue #48）**：CNB production release 现在为 **tag-only**，仅由 `rescueauth-vX.Y.Z` release tag 的 `tag_push` 触发（格式与 tag↔versionName 严格校验，FAIL CLOSED）；`main` / feature / fix 分支不可生产发布。日常真机 smoke 用 Debug Pipeline（`web_trigger_debug_apk`，`Build debug RescueAuth`，owner 手动触发，不读取任何 production secret）。secret 仅注入 production signing stage；Debug 流水线不导入 Secret Repo。
 - 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）CLOSED（已 merge #34），P7（Search + Pin）CLOSED（已 merge #35），P8（Delete Undo 完善）CLOSED（已 merge #37），PA（Provider & Account Full Management，Issue #32）CLOSED（已 merge #33）**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md` / `docs/PHASE4_P7_REPORT.md` / `docs/PHASE4_P8_REPORT.md` / `docs/PHASE4_PA_REPORT.md`）
   （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
   Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
@@ -195,7 +195,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 
 ## 阶段进度跟踪（source of truth: `ROADMAP.md §5`）
 
-- [x] 阶段 0：冻结旧项目（tag `v1.2.0`）+ legacy fixtures + 映射文档
+- [x] 阶段 0：冻结旧项目（tag `legacy-v1.2.0`）+ legacy fixtures + 映射文档
 - [x] 阶段 1：最小 Kotlin/Android 工程 + Argon2id/XChaCha20-Poly1305 解密 spike
 - [x] phase1-fix：entry-centric 映射 + 非法参数不静默替换 + BC 1.85 官方 XChaCha20
 - [x] 阶段 2：数据库 schema v1 + VaultKey/Keystore + 串行 repository + 自动锁

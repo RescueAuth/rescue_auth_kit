@@ -7,8 +7,77 @@ RescueAuthKit 是一个很小但很"偏执"的 **Android 个人安全库**：可
 导出/导入格式，让你可以在设备间迁移数据而不用猜哪个应用支持什么。
 
 > **注意**：仓库正在 `v2/` 下重写为**原生 Android 应用**（Kotlin + Room/SQLCipher，
-> 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `v1.2.0`，仅作
+> 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `legacy-v1.2.0`，仅作
 > 参考与一次性迁移。v2 状态与构建命令见 [`v2/AGENTS.md`](v2/AGENTS.md)。
+
+## 分支 / 版本 / 发布策略
+
+> **`main` 是开发分支；release 是 tag。**
+
+### Development（开发）
+
+`main` 是活跃开发分支。它可能包含尚未进入稳定版本的功能变更。
+
+**不要**把当前的 `main` 当作稳定版本。
+
+### Legacy RescueAuth（旧版发布）
+
+旧版发布使用：
+
+```
+legacy-vX.Y.Z
+```
+
+例如：
+
+```
+legacy-v1.0.0
+legacy-v1.0.1
+legacy-v1.1.0
+legacy-v1.2.0
+```
+
+旧版 applicationId：
+
+```
+com.xincy.rescue_auth_kit
+```
+
+### Current RescueAuth（当前 RescueAuth 发布）
+
+当前发布使用：
+
+```
+rescueauth-vX.Y.Z
+```
+
+例如：
+
+```
+rescueauth-v1.0.0
+rescueauth-v1.0.1
+rescueauth-v1.1.0
+...
+```
+
+当前 applicationId：
+
+```
+com.rescueauth.v2
+```
+
+### Development（开发）
+
+`main` 是活跃开发分支，不是稳定发布。正式的稳定源码快照以 tag 标识。
+
+### 构建入口
+
+| 用途 | 入口 |
+|--------|-------------|
+| 开发（真机 smoke 用的 debug APK） | `main` / feature / fix 分支上的 Web 触发器 **"Build debug RescueAuth"** |
+| 正式生产发布 | 推送 `rescueauth-vX.Y.Z` **release tag**（tag-only 流水线） |
+
+`main` / feature / fix 分支**绝不**直接进行生产发布。
 
 ## 我为什么写这个
 
@@ -48,7 +117,7 @@ RescueAuthKit 是一个很小但很"偏执"的 **Android 个人安全库**：可
 
 ## 旧 Flutter 应用（v1.x，已冻结）
 
-原始的跨平台 Flutter 应用，冻结于 tag `v1.2.0`。仍完整可用，但不再是活跃
+原始的跨平台 Flutter 应用，冻结于 tag `legacy-v1.2.0`。仍完整可用，但不再是活跃
 开发目标。
 
 ---

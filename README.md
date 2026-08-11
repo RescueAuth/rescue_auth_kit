@@ -9,9 +9,81 @@ between devices without guessing which app supports what.
 
 > **Note:** The repository is being rewritten as a **native Android app** under
 > [`v2/`](v2/) (Kotlin + Room/SQLCipher, encrypted database, biometric unlock).
-> The legacy Flutter app below is frozen at tag `v1.2.0` and kept for reference
-> and one-time migration. See [`v2/AGENTS.md`](v2/AGENTS.md) for the v2 status
-> and build commands.
+> The legacy Flutter app below is frozen at tag `legacy-v1.2.0` and kept for
+> reference and one-time migration. See [`v2/AGENTS.md`](v2/AGENTS.md) for the
+> v2 status and build commands.
+
+## Branch / Version / Release Policy
+
+> **`main` is development; tags are releases.**
+
+### Development
+
+`main` is the active development branch.
+
+It may contain changes that have not been included in a stable release.
+
+Do **not** treat current `main` as a stable release.
+
+### Legacy RescueAuth
+
+Legacy releases use:
+
+```
+legacy-vX.Y.Z
+```
+
+Examples:
+
+```
+legacy-v1.0.0
+legacy-v1.0.1
+legacy-v1.1.0
+legacy-v1.2.0
+```
+
+Legacy applicationId:
+
+```
+com.xincy.rescue_auth_kit
+```
+
+### Current RescueAuth
+
+Current releases use:
+
+```
+rescueauth-vX.Y.Z
+```
+
+Examples:
+
+```
+rescueauth-v1.0.0
+rescueauth-v1.0.1
+rescueauth-v1.1.0
+...
+```
+
+Current applicationId:
+
+```
+com.rescueauth.v2
+```
+
+### Development
+
+`main` is the active development branch and is not a stable release. Official
+stable source snapshots are identified by tags.
+
+### Build entry points
+
+| Intent | Entry point |
+|--------|-------------|
+| Development (debug APK for real-device smoke) | Web trigger **"Build debug RescueAuth"** on `main` / feature / fix branches |
+| Formal production release | Push a `rescueauth-vX.Y.Z` **release tag** (tag-only pipeline) |
+
+`main` / feature / fix branches are **never** production-released directly.
 
 ## Why I built this
 
@@ -55,8 +127,8 @@ project flips the priority:
 
 ## Legacy Flutter app (v1.x, frozen)
 
-The original cross-platform Flutter app, frozen at tag `v1.2.0`. It remains
-fully functional but is no longer the active development target.
+The original cross-platform Flutter app, frozen at tag `legacy-v1.2.0`. It
+remains fully functional but is no longer the active development target.
 
 ---
 

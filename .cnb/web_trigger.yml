@@ -1,8 +1,18 @@
 branch:
-  - reg: ^main$
+  # DEVELOPMENT: owner-triggered Debug APK build. Available on main and any
+  # feature/fix development branch, so the owner can build a real-device smoke
+  # APK directly from the branch under test without merging to main and without
+  # any production signing. Restricted to the owner role (write permission is
+  # also required by the platform).
+  - reg: "^(main|feature|fix)"
     buttons:
-      - name: Build production-signed RescueAuth 1.0.0
-        description: Run the trusted production signing and APK identity verification flow.
-        event: web_trigger_production_signing
+      - name: Build debug RescueAuth
+        description: Build a standard Android DEBUG APK for real-device smoke testing (no production signing).
+        event: web_trigger_debug_apk
         permissions:
           roles: [owner]
+
+  # NOTE: The former main-only "Build production-signed RescueAuth 1.0.0"
+  # button is REMOVED. Production releases are now tag-only and are triggered
+  # by pushing a `rescueauth-vX.Y.Z` tag (see .cnb.yml `tag_push`). main and
+  # feature/fix branches are intentionally NOT production-releaseable.

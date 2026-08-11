@@ -6,9 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **v2 重写（2026-08-06）**：仓库自 `main` 起进入 Android 原生重写阶段，
-> 代码位于 `v2/`（Kotlin + Room/SQLCipher），旧 Flutter 应用冻结于 tag `v1.2.0`。
+> 代码位于 `v2/`（Kotlin + Room/SQLCipher），旧 Flutter 应用冻结于 tag `legacy-v1.2.0`。
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
+
+## [v2 build-release-workflow] - 2026-08-11
+
+正式建立长期 Build & Release Workflow（issue #48）。策略核心：**`main` 是开发分支；release 是 tag**；tag 命名空间标识产品世代。
+
+### Added
+
+- **Debug Pipeline**：`.cnb/web_trigger.yml` 新增 `Build debug RescueAuth`（`web_trigger_debug_apk`），owner 可在 `main` / feature / fix 分支手动触发；`scripts/build-debug-apk.sh` 构建标准 debug APK（applicationId/versionName/versionCode/debuggable=true/有效 debug 签名校验），产物命名为 `RescueAuth-<versionName>-debug-<shortCommit>.apk` 并作为 commit 附件上传。**不读取任何 production secret**。
+- **Production tag-only release pipeline**：`.cnb.yml` 新增 `tag_push` 生产发布流水线，仅接受 `rescueauth-vX.Y.Z` release tag；`scripts/release-version.sh` + `scripts/validate-release-tag.sh` 硬校验 tag 格式并 FAIL CLOSED（拒绝 `legacy-vX.Y.Z` legacy tag / `main` / feature 分支）。`scripts/build-production-apk.sh` 改为从 tag 动态推导 release 版本，断言 APK `versionName` 与 tag 严格一致，产物为 `RescueAuth-X.Y.Z.apk` 并挂到 release tag 指向的 commit。
+- 回归测试：`scripts/test/test-release-version.sh`、`test-validate-release-tag.sh`、`test-build-debug-apk.sh`（均离线、不依赖真实 secret）。
+
+### Changed
+
+- **退役 main production release 入口**：移除只允许 `main`+`master` 的 `Build production-signed RescueAuth 1.0.0` Web Trigger。生产发布改为仅由合法 `rescueauth-vX.Y.Z` tag 触发。
+- **Legacy tag 命名空间化**：历史无前缀 tag `vX.Y.Z` 重命名为 `legacy-vX.Y.Z`（`v1.0.0→legacy-v1.0.0`、`v1.0.1→legacy-v1.0.1`、`v1.1.0→legacy-v1.1.0`、`v1.2.0→legacy-v1.2.0`），对象/commit 原样保留；不保留旧 `vX.Y.Z` alias。`scripts/release-version.sh` 新增仅用于分类/文档/测试的轻量 `LEGACY_TAG_REGEX`（`^legacy-v[0-9]+\.[0-9]+\.[0-9]+$`），但不会把 legacy tag 引入生产路径。
+- 根 `README.md` / `README.zh-CN.md` 新增 **Branch / Version / Release Policy** 章节；`v2/docs/RELEASE_PROVISIONING.md` 新增 §10a Build & Release Workflow；`v2/AGENTS.md` 同步更新。
+
+### Security
+
+- production signing secrets 仍仅 stage-scoped import 到 production signing stage；Debug 流水线完全不触碰。tag 格式校验在 secret 注入之前执行。
+- 未创建 `rescueauth-v1.0.0`，未发布 1.0.0。
 
 ## [v2 android-production-signing-provisioning] - 2026-08-11
 
@@ -1168,7 +1189,7 @@ Phase 2 收口 / 状态同步：数据库 instrumented 验证在 Firebase Test L
 
 ### Added
 
-- 冻结旧 Flutter 应用（不可变 tag `v1.2.0`）。
+- 冻结旧 Flutter 应用（不可变 tag `legacy-v1.2.0`）。
 - 生成 legacy import fixtures（正/负向，SHA-256 固定）。
 - 映射文档 `v2/docs/LEGACY_IMPORT.md`。
 

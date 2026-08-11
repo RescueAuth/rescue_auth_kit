@@ -287,19 +287,26 @@ Without production signing secrets, normal CI continues to support:
 
 - `:app:assembleRelease` runs **unsigned** (no debug signing).
 - The Secret Repository file `android-signing.yml` supplies only these variables
-  to the final signing stage:
+  to the **`tag_push`** production signing stage:
   `RESCUEAUTH_KEYSTORE_BASE64`, `RESCUEAUTH_STORE_PASSWORD`,
   `RESCUEAUTH_KEY_PASSWORD`, and `RESCUEAUTH_KEY_ALIAS`.
-- `.cnb/web_trigger.yml` exposes the production flow only on exact branch `main`
-  and only to the `master` role. PR, fork, push, tag, comment, API, and arbitrary
-  branch events do not import Android signing secrets.
+- Production release is **tag-only** (see §10a below): it runs on the
+  `tag_push` event from a `rescueauth-vX.Y.Z` tag. `main` and feature/fix
+  branches are never production-released. The former main-only production web
+  trigger has been removed.
+- `scripts/validate-release-tag.sh` (run as the FIRST stage, before any secret
+  import) FAILS CLOSED unless `CNB_BRANCH` matches
+  `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$` (rejects legacy `legacy-vX.Y.Z` tags,
+  `main`, feature branches and arbitrary strings).
 - `scripts/build-production-apk.sh` reconstructs a `0600` PKCS12 under a runner
   temp directory, validates its public certificate fingerprint, runs
   `validateReleaseSigning` + `assembleRelease`, verifies the APK signer and
   manifest identity/version/debuggable state, then unlinks the temporary store.
+  It derives the release version from the tag and asserts the APK `versionName`
+  equals it (tag `rescueauth-v1.0.0` -> `versionName 1.0.0`). `versionCode` is
+  read from the actual Gradle build, never from the tag.
 - The job does not upload the PKCS12 or its Base64 transport value. A signed APK
-  may be retained separately after successful verification; this provisioning
-  step does not publish a release.
+  is attached to the release tag's commit after verification.
 
 ### First production-signed candidate audit (local, not published)
 
@@ -313,6 +320,86 @@ Without production signing secrets, normal CI continues to support:
   `debuggable=false`: PASS.
 - 16 KiB zip alignment verification: PASS.
 - Real-device side-by-side smoke: PENDING.
+
+---
+
+## 10a. Build & Release Workflow (formal)
+
+Long-term policy: **`main` is development; tags are releases.** See also the
+root `README.md` "Branch / Version / Release Policy".
+
+### Git / version model
+
+- `main` = continuous development branch. Never treated as a stable release.
+- feature/fix branch = work in progress.
+- Stable release = the **immutable** commit snapshot a release tag points to.
+- No `develop` / `release/*` / `hotfix/*` / complex Git Flow.
+- Published release tags must never be moved, reused, rewritten, deleted, or
+  re-pointed at another commit.
+
+### Tag namespaces
+
+| Namespace | App | Example | Entry into new production path? |
+|-----------|-----|---------|---------------------------------|
+| Legacy `legacy-vX.Y.Z` | legacy `com.xincy.rescue_auth_kit` | `legacy-v1.0.0`, `legacy-v1.1.0`, `legacy-v1.2.0` | **No** — preserved, rejected |
+| New namespaced `rescueauth-vX.Y.Z` | current `com.rescueauth.v2` | `rescueauth-v1.0.0` | **Yes** — the only accepted production tag |
+
+`rescueauth-` is a Git **tag namespace**, not part of the Android `versionName`.
+Tag `rescueauth-v1.0.0` corresponds to Android `versionName 1.0.0`. The new App's
+independent release line starts at `1.0.0`.
+
+### Daily development — Debug Pipeline
+
+Web trigger **"Build debug RescueAuth"** (`web_trigger_debug_apk`), available to
+`owner` on `main` / feature / fix branches:
+
+```
+tests / assembleDebug
+  -> debug signing (standard Android debug key)
+  -> verify applicationId=com.rescueauth.v2, debuggable=true, valid debug sig
+  -> RescueAuth-<versionName>-debug-<shortCommit>.apk
+  -> commit attachment (downloadable, single APK)
+```
+
+- No production Secret Repo import. No production signing password / keystore.
+- No `validateReleaseSigning` / `assembleRelease`.
+- Used for real-device `.rakvault` smoke before merging to `main`.
+
+### Formal production release — Tag-only pipeline
+
+1. `main` reaches release-ready (feature/fix merged, real-device smoke PASS).
+2. Confirm `versionName` / `versionCode` in `v2/app/build.gradle.kts`.
+3. Owner creates an **annotated** release tag, e.g. `git tag -a rescueauth-v1.0.0`,
+   and pushes it.
+4. `tag_push` pipeline runs `scripts/validate-release-tag.sh` FIRST (FAIL CLOSED
+   unless the tag matches `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$`).
+5. `build-production-apk.sh` re-validates the tag, derives the version, imports
+   the Secret Repo **only in the signing stage**, reconstructs the temporary
+   PKCS12, runs `validateReleaseSigning` + `assembleRelease`.
+6. `apksigner verify` + exactly-one-signer + pinned cert fingerprint + APK
+   identity assertions (applicationId, versionName == tag version, versionCode,
+   debuggable=false).
+7. Artifact `RescueAuth-X.Y.Z.apk` is attached to the release tag's commit.
+8. Final real-device smoke, then publish / release.
+
+### Tag/version assertion (long-term contract)
+
+- `tag -> versionName`: tag `rescueauth-vX.Y.Z` must equal Android `versionName`
+  `X.Y.Z`. Mismatch FAILS (not hardcoded to `1.0.0`).
+- `versionCode`: taken from the actual Gradle build, reported, never derived
+  from the tag. Must stay monotonically increasing in the new App's own line.
+- Legacy tags (namespace `legacy-vX.Y.Z`) are rejected by the production path.
+
+### Regression tests
+
+Offline (no Android SDK, no secrets):
+
+```
+bash scripts/test/test-release-version.sh       # tag parsing / version extraction
+bash scripts/test/test-validate-release-tag.sh  # production tag gate FAIL CLOSED
+bash scripts/test/test-build-debug-apk.sh       # debug contract (no secrets, naming)
+bash scripts/test/test-build-production-apk.sh  # apksigner parser regression
+```
 
 ---
 
@@ -402,3 +489,8 @@ bridge).
 | `rescueauth-updates` production infra | PENDING |
 | Real-device side-by-side smoke | PENDING |
 | FTL | PENDING |
+| Debug APK pipeline (`web_trigger_debug_apk`) | **ESTABLISHED** (issue #48) |
+| Production tag-only release pipeline (`tag_push`) | **ESTABLISHED** (issue #48) |
+| `main` production release entry | **REMOVED** — tag-only now (issue #48) |
+| New release tag `rescueauth-v1.0.0` | **NOT CREATED** (waiting for release-ready) |
+| 1.0.0 published | **NO** |
