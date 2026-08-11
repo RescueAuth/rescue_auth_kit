@@ -176,6 +176,25 @@ if [[ -n "${RESCUEAUTH_SIGNED_APK_OUTPUT:-}" ]]; then
   apk_path="$RESCUEAUTH_SIGNED_APK_OUTPUT"
 fi
 
+# Deterministic, user-facing production artifact name. The original Gradle
+# output (app-release.apk) is left untouched; we make a byte-identical copy
+# under a versioned filename that the attachment upload stage consumes.
+readonly production_dir="$v2_root/app/build/outputs/production"
+readonly production_apk="$production_dir/RescueAuth-1.0.0.apk"
+mkdir -p "$production_dir"
+install -m 0644 "$apk_path" "$production_apk"
+
+# Recompute the SHA-256 of the renamed copy and require it to match the
+# already-verified source APK byte-for-byte before reporting success. This is
+# the same bytes verification the attachment stage relies on.
+if command -v sha256sum >/dev/null 2>&1; then
+  production_sha256=$(sha256sum "$production_apk" | awk '{ print toupper($1) }')
+else
+  production_sha256=$(shasum -a 256 "$production_apk" | awk '{ print toupper($1) }')
+fi
+[[ "$production_sha256" == "$apk_sha256" ]] \
+  || die "Production renamed APK SHA-256 does not match the verified source APK."
+
 echo "PRODUCTION_SIGNING=PASS"
 echo "APK_PATH=$apk_path"
 echo "APK_SHA256=$apk_sha256"
@@ -184,3 +203,5 @@ echo "APPLICATION_ID=$application_id"
 echo "VERSION_NAME=$version_name"
 echo "VERSION_CODE=$version_code"
 echo "DEBUGGABLE=$debuggable"
+echo "PRODUCTION_APK=$production_apk"
+echo "PRODUCTION_APK_SHA256=$production_sha256"
