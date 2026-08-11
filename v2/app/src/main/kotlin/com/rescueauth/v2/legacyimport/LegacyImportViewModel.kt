@@ -266,13 +266,31 @@ class LegacyImportViewModel(
                 val bytes = fileIo.readBounded(context, uri)
                 if (generation != operationGeneration) return@launch
                 val service = resolveService()
-                val preview = service.decodeForPreview(bytes, password)
+                // Validate the Legacy password against the `.rakvault` file
+                // FIRST, independently of the v2 session state. A correct Legacy
+                // password is therefore never masked as a v2 "vault locked"
+                // error (RELEASE BLOCKER #46).
+                service.decodeAndMap(bytes, password)
+                if (generation != operationGeneration) return@launch
+                // The merge preview needs the v2 destination vault. If the v2
+                // session is locked, surface a clear, distinct "unlock v2 vault"
+                // step rather than a dead-end.
+                val preview = try {
+                    service.buildPreview()
+                } catch (e: VaultRepository.SessionLockedException) {
+                    if (generation != operationGeneration) return@launch
+                    _state.value = State.Error(
+                        "Your RescueAuth vault is locked. Unlock it to continue the legacy import.",
+                        ErrorAction.RESTART,
+                    )
+                    return@launch
+                }
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Preview(preview)
             } catch (e: VaultRepository.SessionLockedException) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "Your vault is locked. Unlock it and try again.",
+                    "Your RescueAuth vault is locked. Unlock it to continue the legacy import.",
                     ErrorAction.RESTART,
                 )
             } catch (e: LegacyRakVaultImporter.ImportException) {
@@ -361,7 +379,7 @@ class LegacyImportViewModel(
             } catch (e: VaultRepository.SessionLockedException) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "Your vault is locked. Unlock it and try again.",
+                    "Your RescueAuth vault is locked. Unlock it to continue the legacy import.",
                     ErrorAction.RESTART,
                 )
             } catch (e: Exception) {

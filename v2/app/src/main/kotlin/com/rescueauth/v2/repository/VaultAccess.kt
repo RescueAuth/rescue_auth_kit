@@ -168,11 +168,18 @@ object VaultAccess {
      * Phase 5B — the Legacy v1 `.rakvault` import use-case service for the
      * current open DB, or null while locked. Shares the single [VaultRepository]
      * mutex (serialized with Export/Import and all daily-use CRUD).
+     *
+     * Unlike the other production services, this one is returned even while the
+     * session is locked (with a null vault): the Legacy password decode is
+     * independent of the v2 session, so a correct Legacy password is never
+     * masked as a v2 "vault locked" error (RELEASE BLOCKER #46). The vault is
+     * required only at [com.rescueauth.v2.legacyimport.LegacyImportService.buildPreview]
+     * / [com.rescueauth.v2.legacyimport.LegacyImportService.confirmImport].
      */
     fun legacyImportService(): LegacyImportService? {
-        val vault = vaultRepository() ?: return null
         val sm = sessionManager ?: return null
-        val db = sm.databaseOrNull() ?: return null
+        val db = sm.databaseOrNull()
+        val vault = vaultRepository() // null while locked
         val cached = cachedLegacyImportService
         if (cached != null && cachedDb === db) return cached
         val svc = LegacyImportService(vault)
