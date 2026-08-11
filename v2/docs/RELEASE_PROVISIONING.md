@@ -1,12 +1,11 @@
 # RescueAuth v2 — Release Provisioning
 
-> **Status: Release Provisioning Step 1 — App Identity / Version + Android
-> Production Signing Infrastructure = IMPLEMENTED / PR OPEN**
+> **Status: Release Provisioning Step 1 = MERGED; Step 2 — Android production
+> signing identity + CNB secret provisioning = PROVISIONED (2026-08-11)**
 >
-> This is the first step toward the first public RescueAuth release. It **freezes
-> the app identity and version** and **builds the production signing
-> infrastructure**. It does **NOT** generate a production key, does NOT publish
-> an APK, and does NOT run FTL.
+> The app identity/version are frozen, a long-lived production signing identity
+> has been generated, and CNB has a master-only manual signing flow. This does
+> **not** publish an APK, generate the Update Ed25519 key, or run FTL.
 
 ---
 
@@ -233,44 +232,49 @@ The `.example` template contains only placeholders
 
 ---
 
-## 9. Production signing key generation
+## 9. Production signing identity
 
-The real production signing key is generated **offline by the user in a trusted
-local environment** — CodeBuddy / CI does **not** run it. This section only
-documents the operation.
+The real production signing key was generated on a trusted local host on
+2026-08-11. The private key exists only inside a password-protected PKCS12
+container outside this repository. The local primary copy must be backed up
+independently before public release.
 
 ```bash
-# Generate the RescueAuth production signing keystore (OFFLINE, trusted host).
-# Adjust -storepass / -keypass to strong random values. DO NOT commit these.
-# Validity: long-term (>= 25 years). Algorithm: RSA 4096 / SHA-256 (modern
-# Android/JDK production compatibility).
+# Historical provisioning command shape. Passwords came from a 48-byte CSPRNG
+# source and were supplied through environment-backed keytool password options;
+# they were never command-line literals and are intentionally omitted here.
 keytool -genkeypair \
   -v \
-  -keystore rescueauth-release.jks \
+  -storetype PKCS12 \
+  -keystore rescueauth-v2-release.p12 \
   -alias rescueauth-v2 \
   -keyalg RSA \
   -keysize 4096 \
   -sigalg SHA256withRSA \
-  -validity 10950 \
-  -storepass CHANGE_ME \
-  -keypass CHANGE_ME \
-  -dname "CN=RescueAuth, OU=Mobile, O=RescueAuth, L=, S=, C=US"
+  -validity 14600 \
+  -storepass:env RESCUEAUTH_STORE_PASSWORD \
+  -keypass:env RESCUEAUTH_KEY_PASSWORD \
+  -dname "CN=RescueAuth,OU=Release,O=xincy22"
 ```
 
 - **Alias chosen: `rescueauth-v2`** (stable, simple). Though the public release
   version starts at `1.0.0`, the internal alias may use the generation name `v2`.
-- Keep the keystore in a trusted, backed-up location **outside** the repo.
-- Record the absolute path and the four config values into the local
-  (gitignored) `v2/keystore.properties`, or export the four env vars on the
-  production build host.
-
-> `storePassword` / `keyPassword` in the command above are placeholders only.
+- **Store type:** PKCS12.
+- **Alias:** `rescueauth-v2`.
+- **Key:** RSA 4096; certificate signature `SHA256withRSA`.
+- **Subject:** `CN=RescueAuth, OU=Release, O=xincy22`.
+- **Validity:** 2026-08-11T03:32:22Z through 2066-08-01T03:32:22Z.
+- **Certificate SHA-256:**
+  `2C56E6B764F5664DFD34EA7BFB38F07F1B991055093754E4104714C527584944`.
+- The machine-readable public assertion is
+  `release/android-signing-certificate.txt`. It contains no secret material.
+- Independent offline backup: **PENDING USER ACTION**.
 
 ---
 
 ## 10. CI behavior
 
-Without production signing secrets, CI continues to support:
+Without production signing secrets, normal CI continues to support:
 
 ```
 ./gradlew :core:test
@@ -282,9 +286,33 @@ Without production signing secrets, CI continues to support:
 ```
 
 - `:app:assembleRelease` runs **unsigned** (no debug signing).
-- A future production job injects an external keystore + secrets and produces a
-  **signed** release artifact. Real CNB secrets are **not** configured in this
-  PR.
+- The Secret Repository file `android-signing.yml` supplies only these variables
+  to the final signing stage:
+  `RESCUEAUTH_KEYSTORE_BASE64`, `RESCUEAUTH_STORE_PASSWORD`,
+  `RESCUEAUTH_KEY_PASSWORD`, and `RESCUEAUTH_KEY_ALIAS`.
+- `.cnb/web_trigger.yml` exposes the production flow only on exact branch `main`
+  and only to the `master` role. PR, fork, push, tag, comment, API, and arbitrary
+  branch events do not import Android signing secrets.
+- `scripts/build-production-apk.sh` reconstructs a `0600` PKCS12 under a runner
+  temp directory, validates its public certificate fingerprint, runs
+  `validateReleaseSigning` + `assembleRelease`, verifies the APK signer and
+  manifest identity/version/debuggable state, then unlinks the temporary store.
+- The job does not upload the PKCS12 or its Base64 transport value. A signed APK
+  may be retained separately after successful verification; this provisioning
+  step does not publish a release.
+
+### First production-signed candidate audit (local, not published)
+
+- Artifact: `RescueAuth-1.0.0-production-signed.apk`.
+- APK SHA-256:
+  `71D32E2DF3DFAD426DA8A4873AD4058C2A4BF354A28966DC096A06366BA4D931`.
+- `apksigner verify --verbose --print-certs`: PASS; one signer; APK Signature
+  Scheme v2.
+- Signer certificate SHA-256 matches the pinned production certificate: PASS.
+- `applicationId=com.rescueauth.v2`, `versionName=1.0.0`, `versionCode=10000`,
+  `debuggable=false`: PASS.
+- 16 KiB zip alignment verification: PASS.
+- Real-device side-by-side smoke: PENDING.
 
 ---
 
@@ -364,8 +392,12 @@ bridge).
 | New App release version | **1.0.0** |
 | V2.0 FEATURE COMPLETE | YES |
 | V2.0 RELEASED | NO |
-| Release Provisioning Step 1 (identity/version/signing infra) | IMPLEMENTED / PR OPEN |
-| Production Android signing key | **NOT GENERATED** |
+| Release Provisioning Step 1 (identity/version/signing infra) | MERGED (#40) |
+| Release Provisioning Step 2 (Android signing identity + CNB secrets) | **PROVISIONED** |
+| Production Android signing certificate SHA-256 | `2C56E6B764F5664DFD34EA7BFB38F07F1B991055093754E4104714C527584944` |
+| First local production-signed 1.0.0 candidate | **VERIFIED / NOT PUBLISHED** |
+| Candidate APK SHA-256 | `71D32E2DF3DFAD426DA8A4873AD4058C2A4BF354A28966DC096A06366BA4D931` |
+| Independent offline backup | PENDING USER ACTION |
 | Production Update Ed25519 key | **NOT GENERATED** |
 | `rescueauth-updates` production infra | PENDING |
 | Real-device side-by-side smoke | PENDING |
