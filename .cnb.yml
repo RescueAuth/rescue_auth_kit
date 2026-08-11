@@ -88,6 +88,24 @@ $:
             test "${CNB_BRANCH:-}" = "main"
             cd "${CNB_BUILD_WORKSPACE:-/workspace}"
             bash scripts/build-production-apk.sh
+        - name: upload-signed-apk-attachment
+          # Independent attachment stage, runs ONLY after the signing and
+          # verification stage above has fully succeeded (a stage failure jumps
+          # to failStages, so no APK is ever uploaded on signing failure).
+          #
+          # NO imports on purpose: this stage must NOT see any production
+          # signing material (RESCUEAUTH_KEYSTORE_BASE64 / *_PASSWORD / alias).
+          # The signing stage's Secret Repo imports are stage-scoped and stay
+          # confined to `production-sign-and-verify`; the temporary keystore is
+          # already cleaned up there. This stage only consumes the single
+          # already-signed, already-verified APK bytes copied into the
+          # workspace by the signing script.
+          #
+          # Uploads exactly one file as the current commit's attachment.
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - "./v2/app/build/outputs/production/RescueAuth-1.0.0.apk"
 
 main:
   push:
