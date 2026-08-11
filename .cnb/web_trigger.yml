@@ -1,10 +1,10 @@
 branch:
   # DEVELOPMENT: owner-triggered Debug APK build. Available on main and any
-  # feature/fix development branch, so the owner can build a real-device smoke
-  # APK directly from the branch under test without merging to main and without
-  # any production signing. Restricted to the owner role (write permission is
-  # also required by the platform).
-  - reg: "^(main|feature|fix)"
+  # feature/fix/auto development branch, so the owner can build a real-device
+  # smoke APK directly from the branch under test without merging to main and
+  # without any production signing. Restricted to the owner role (write
+  # permission is also required by the platform).
+  - reg: "^(main|feature|fix|auto)"
     buttons:
       - name: Build debug RescueAuth
         description: Build a standard Android DEBUG APK for real-device smoke testing (no production signing).
