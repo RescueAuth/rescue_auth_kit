@@ -1,8 +1,11 @@
 package com.rescueauth.v2.ui.screens.startup
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
@@ -14,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,6 +56,13 @@ fun StartupLockScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        // Brand header (Issue #64): app logo + localized brand name. The logo is
+        // purely decorative (contentDescription = null) so TalkBack reads the
+        // brand name exactly once, not twice.
+        StartupBrandHeader()
+
+        Spacer(Modifier.height(24.dp))
+
         Icon(
             imageVector = Icons.Filled.Lock,
             contentDescription = null,
@@ -87,6 +98,27 @@ fun StartupLockScreen(
             Text(text = stringResource(R.string.startup_exit))
         }
     }
+}
+
+/**
+ * Brand header for the startup visual: the app logo with the localized brand
+ * name beneath it. Uses [MaterialTheme.colorScheme] colors so it adapts to
+ * Light and Dark modes, and never hard-codes a single-theme color.
+ */
+@Composable
+private fun StartupBrandHeader() {
+    Image(
+        painter = painterResource(R.drawable.ic_launcher_foreground),
+        contentDescription = null,
+        modifier = Modifier.size(88.dp),
+    )
+    Text(
+        text = stringResource(R.string.startup_brand_name),
+        style = MaterialTheme.typography.headlineMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 8.dp),
+    )
 }
 
 /**

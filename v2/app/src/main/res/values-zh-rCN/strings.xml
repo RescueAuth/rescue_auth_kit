@@ -2,6 +2,9 @@
 <resources>
     <string name="app_name">RescueAuth</string>
 
+    <!-- Startup brand name shown in the startup splash / lock visual (Issue #64). -->
+    <string name="startup_brand_name">拾遗坊</string>
+
     <!-- Unlock prompt (BiometricPrompt) -->
     <string name="unlock_title">解锁 RescueAuth</string>
     <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
