@@ -28,7 +28,17 @@ class AndroidKeystoreVaultKeyCrypto(
     override fun wrap(vaultKey: ByteArray, persist: (String) -> Unit) {
         val key = ensureKey()
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, key)
+        try {
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+        } catch (e: android.security.keystore.UserNotAuthenticatedException) {
+            // No valid auth token for the user-authentication-required key. This
+            // is a startup-contract violation (auth was not performed first) or
+            // a token-expiry race — never a crash / "Keystore unavailable".
+            throw VaultKeyCrypto.AuthRequiredException("Keystore key requires user authentication", e)
+        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
+            // Biometric enrollment changed / key permanently invalidated.
+            throw VaultKeyManager.KeyInvalidatedException("Keystore wrap key invalidated", e)
+        }
         val iv = cipher.iv
         val wrapped = cipher.doFinal(vaultKey)
         persist(Blob.encode(iv, wrapped))
@@ -49,6 +59,10 @@ class AndroidKeystoreVaultKeyCrypto(
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_BITS, iv))
             cipher.doFinal(ciphertext)
+        } catch (e: android.security.keystore.UserNotAuthenticatedException) {
+            // Auth token expired between the BiometricPrompt success and the
+            // unwrap — defensive mapping to AUTH_REQUIRED, never a crash.
+            throw VaultKeyCrypto.AuthRequiredException("Keystore key requires user authentication", e)
         } catch (e: java.security.InvalidKeyException) {
             throw VaultKeyManager.KeyInvalidatedException("Keystore key invalidated: ${e.message}", e)
         } catch (e: javax.crypto.AEADBadTagException) {

@@ -4,72 +4,126 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
-import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
+import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.security.SensitiveActionController
 import com.rescueauth.v2.security.SensitiveActionGate
-import com.rescueauth.v2.security.VaultKeyManager
-import com.rescueauth.v2.repository.VaultAccess
+import com.rescueauth.v2.security.StartupAuthPrompt
+import com.rescueauth.v2.security.StartupAuthResult
+import com.rescueauth.v2.security.StartupUnlockController
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.session.SessionManager
-import com.rescueauth.v2.ui.RescueAuthRoot
+import com.rescueauth.v2.session.VaultUnlockOutcome
+import com.rescueauth.v2.ui.RescueAuthApp
+import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
+import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
+import com.rescueauth.v2.ui.screens.startup.StartupLockScreen
+import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.ThemeColor
 import com.rescueauth.v2.ui.theme.ThemePreferences
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
  * Root activity — the Compose host for the RescueAuth v2 app shell.
  *
- * **Phase 2 platform/session semantics are preserved unchanged:**
- * - `FLAG_SECURE` on the root window (blocks screenshots & recents preview).
- * - Background masking: an opaque overlay is shown in [onStop] and removed in
- *   [onStart] (after optional re-auth).
- * - First-run: create the VaultKey; otherwise unlock via BiometricPrompt.
- * - Auto-lock: [SessionManager.onAppBackgrounded] with the configured timeout.
+ * **Startup authentication contract (Issue #50).**
  *
- * **Minimal UI-hosting change only:** the previous `simple_list_item_1`
- * placeholder TextView is replaced by a [ComposeView] hosting [RescueAuthApp].
- * The BiometricPrompt contract (phase2-blocker-hotfix), the state machine and
- * the session manager are untouched.
+ * The Android Keystore wrap key requires user authentication
+ * (`setUserAuthenticationRequired(true)`). The previous first-run path
+ * executed `createVault()` (a Keystore operation) directly in `onCreate`,
+ * which threw an unhandled `UserNotAuthenticatedException` when no valid
+ * auth token existed — the P1 startup crash on a freshly booted device.
  *
- * The shell is presentation-only: it renders the three top-level destinations
- * and does not read any Vault data. Real Vault CRUD belongs to later vertical
- * slices.
+ * The new flow is **authentication-first**:
+ *
+ * ```
+ * App launch
+ *   → determine startup mode (first-run create vs existing unlock)
+ *   → show locked state, prompt system authentication
+ *   → (biometric OR device credential) success
+ *   → then run createVaultAndOpen() / unlock()  (Keystore operation)
+ *   → open Vault
+ * ```
+ *
+ * Keystore crypto is **never** executed before a successful authentication.
+ * `UserNotAuthenticatedException` is still mapped defensively to AUTH_REQUIRED
+ * (never crash / never "Keystore unavailable") to absorb token-expiry races.
+ *
+ * Other Phase 2/4 semantics are preserved unchanged: `FLAG_SECURE`, background
+ * masking + auto-lock timeout, and the sensitive-action fresh re-auth gate.
+ *
+ * Theme color (Issue #52): the selected [ThemeColor] is collected as early as
+ * possible in the composition so the startup gate, unlock UI and the app shell
+ * all render with the correct theme from the very first frame (no flash). It is
+ * read via DataStore (async, off the main thread) and does not depend on the
+ * Vault being unlocked.
  */
 class MainActivity : AppCompatActivity() {
 
     /** Test-only injection point for a fake [SessionManager]. */
     internal var sessionManagerFactory: ((MainActivity) -> SessionManager)? = null
 
+    /** Test-only injection point for a fake [StartupAuthPrompt]. */
+    internal var startupAuthPromptFactory: ((MainActivity) -> StartupAuthPrompt)? = null
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private lateinit var sessionManager: SessionManager
+    /** Test-visible (internal) so startup-flow tests can assert session state. */
+    internal lateinit var sessionManager: SessionManager
     private lateinit var stateMachine: SecureSessionStateMachine
     private var maskView: FrameLayout? = null
-    private var authRequested = false
+
+    /** How this launch should open the Vault (first-run vs existing). */
+    private var startupMode: StartupMode = StartupMode.UNLOCK
+
+    private enum class StartupMode { FIRST_RUN, UNLOCK }
+
+    /** Compose-visible startup UI state. */
+    private enum class StartupUiState {
+        /** Not yet determined — waiting for the first onResume. */
+        INIT,
+        /** Session locked — show the lock screen and prompt authentication. */
+        LOCKED,
+        /** Device has no usable secure lock — show the blocking screen. */
+        NO_SECURE_DEVICE,
+        /** Unrecoverable state (key invalidated / DB corrupt) — show + exit. */
+        BLOCKED,
+        /** Vault open — show the app shell. */
+        UNLOCKED,
+    }
+
+    private val _uiState = MutableStateFlow(StartupUiState.INIT)
+    private val uiState: StateFlow<StartupUiState> = _uiState.asStateFlow()
+
+    /** Whether the system auth prompt should be auto-launched on resume. */
+    private var authPromptPending = false
+
+    private var startupAuthPrompt: StartupAuthPrompt? = null
 
     /**
      * Phase 4 P4: the production sensitive-action re-auth gate.
-     *
-     * Owned by the Activity because the real [BiometricPrompt] needs a resumed
-     * FragmentActivity host. Recreated on every Activity create and destroyed
-     * on destroy — a pending sensitive authorization never survives
-     * Activity/process recreation (Issue #20 §6/§15).
      */
     private lateinit var sensitiveActionController: SensitiveActionController
     private lateinit var sensitiveActionGate: SensitiveActionGate
 
-    /** True between onResume() and onPause() — used to gate authenticate(). */
+    /** True between onResume() and onPause(). */
     private var isResumedFlag = false
 
     /** Guards against duplicate/overlapping prompt launches. */
-    private val biometricPromptActive = AtomicBoolean(false)
+    private val promptActive = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,6 +134,16 @@ class MainActivity : AppCompatActivity() {
         sessionManager = sessionManagerFactory?.invoke(this)
             ?: SessionManager(this, stateMachine, scope)
         VaultAccess.sessionManager = sessionManager
+
+        startupMode = if (sessionManager.needsFirstRunSetup()) {
+            StartupMode.FIRST_RUN
+        } else {
+            StartupMode.UNLOCK
+        }
+
+        // Startup unlock prompt (auth-first — never crypto-first, Issue #50).
+        startupAuthPrompt = startupAuthPromptFactory?.invoke(this)
+            ?: StartupUnlockController(this)
 
         // Sensitive-action fresh re-auth gate (single orchestration path).
         sensitiveActionController = SensitiveActionController(this)
@@ -92,8 +156,7 @@ class MainActivity : AppCompatActivity() {
         SensitiveActionAccess.gate = sensitiveActionGate
 
         // Session lock invalidates any pending sensitive action / one-shot
-        // authorization (Issue #20 §6): a lock while a prompt is showing must
-        // not leave a stale authorized-but-unexecuted action behind.
+        // authorization (Issue #20 §6).
         scope.launch {
             stateMachine.state.collect { state ->
                 if (state != SecureSessionStateMachine.State.UNLOCKED) {
@@ -102,49 +165,74 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Compose host for the app shell. The shell is presentation-only and
-        // does not need the unlocked session; it never reads Vault data.
+        // Compose host — renders a startup gate until the Vault is unlocked.
+        // The theme-color preference is wired in as early as possible so both
+        // the gate/lock screens and the app shell apply the saved theme.
         val themePreferences = ThemePreferences(this)
         val composeView = ComposeView(this).apply {
             setContent {
-                RescueAuthRoot(
-                    themePreferences = themePreferences,
-                    versionName = BuildConfig.VERSION_NAME,
-                )
+                val context = LocalContext.current
+                val prefs = remember(themePreferences, context) {
+                    themePreferences ?: ThemePreferences(context)
+                }
+                val themeColor by prefs.themeColor.collectAsState(initial = ThemeColor.DEFAULT)
+                val scope = rememberCoroutineScope()
+
+                RescueAuthTheme(themeColor = themeColor) {
+                    val ui by uiState.collectAsState()
+                    when (ui) {
+                        StartupUiState.INIT,
+                        StartupUiState.LOCKED,
+                        -> StartupLockScreen(
+                            onUnlock = { requestAuthentication() },
+                            onExit = { finish() },
+                        )
+                        StartupUiState.NO_SECURE_DEVICE -> NoSecureDeviceScreen(
+                            onExit = { finish() },
+                        )
+                        StartupUiState.BLOCKED -> StartupBlockedScreen(
+                            title = getString(R.string.startup_key_invalidated_title),
+                            body = getString(R.string.startup_key_invalidated_body),
+                            onExit = { finish() },
+                        )
+                        StartupUiState.UNLOCKED -> RescueAuthApp(
+                            versionName = BuildConfig.VERSION_NAME,
+                            themeColor = themeColor,
+                            onThemeColorSelected = { color ->
+                                scope.launch { prefs.setThemeColor(color) }
+                            },
+                        )
+                    }
+                }
             }
         }
         setContentView(composeView)
 
-        if (sessionManager.needsFirstRunSetup()) {
-            val key = sessionManager.createVault()
-            sessionManager.unlockWithFreshKey(key)
-            key.fill(0)
-        } else {
-            authRequested = true
-        }
+        // Never execute Keystore crypto here. Authentication happens in
+        // onResume → requestAuthentication() → success → Keystore operation.
+        authPromptPending = true
     }
 
     override fun onStart() {
         super.onStart()
         sessionManager.onAppForegrounded()
         removeMask()
+        // Returning to foreground after a session lock must re-authenticate.
+        if (!stateMachine.isUnlocked()) {
+            authPromptPending = true
+        }
     }
 
     override fun onResume() {
         super.onResume()
         isResumedFlag = true
-        // Never authenticate before the Activity is RESUMED (the platform
-        // requires a resumed host for BiometricPrompt); `onCreate` only
-        // records that authentication is needed.
-        if (authRequested && !stateMachine.isUnlocked()) {
-            promptBiometricUnlock()
+        if (authPromptPending) {
+            requestAuthentication()
         }
     }
 
     override fun onPause() {
         isResumedFlag = false
-        // A prompt that is still showing while the Activity pauses must never
-        // outlive the resumed host; its pending authorization is discarded.
         if (::sensitiveActionGate.isInitialized) {
             sensitiveActionGate.onLifecyclePause()
         }
@@ -157,81 +245,118 @@ class MainActivity : AppCompatActivity() {
         sessionManager.onAppBackgrounded(lockAfterMillis = 30_000L)
     }
 
-    private fun promptBiometricUnlock() {
-        if (!isResumedFlag || isFinishing || isDestroyed) return
-        if (stateMachine.isUnlocked()) return
-        if (!biometricPromptActive.compareAndSet(false, true)) return
+    override fun onDestroy() {
+        if (::sensitiveActionGate.isInitialized) {
+            sensitiveActionGate.onLifecycleDestroy()
+        }
+        SensitiveActionAccess.clear()
+        super.onDestroy()
+        sessionManager.lock()
+        VaultAccess.clear()
+        scope.cancel()
+    }
 
-        val authenticators = resolveAvailableAuthenticators()
-        if (authenticators == null) {
-            biometricPromptActive.set(false)
+    /**
+     * Runs the startup authentication flow. Resolves usable authenticators,
+     * then (re)launches the system prompt. After a successful authentication
+     * it runs the (now safe) Keystore operation.
+     */
+    private fun requestAuthentication() {
+        authPromptPending = false
+        if (!isResumedFlag || isFinishing || isDestroyed) {
+            authPromptPending = true
+            return
+        }
+        if (stateMachine.isUnlocked()) {
+            _uiState.value = StartupUiState.UNLOCKED
+            return
+        }
+        if (!promptActive.compareAndSet(false, true)) return
+
+        val prompt = startupAuthPrompt
+        if (prompt == null) {
+            promptActive.set(false)
+            _uiState.value = StartupUiState.BLOCKED
             return
         }
 
-        try {
-            val executor = ContextCompat.getMainExecutor(this)
-            val prompt = BiometricPrompt(
-                this,
-                executor,
-                object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        biometricPromptActive.set(false)
-                        if (sessionManager.unlock()) {
-                            removeMask()
-                        }
-                    }
+        val authenticators = prompt.resolveAvailableAuthenticators()
+        if (authenticators == null) {
+            // No PIN / password / pattern and no strong biometric: blocking
+            // state, never a silent bypass (Issue #50 §9).
+            promptActive.set(false)
+            _uiState.value = StartupUiState.NO_SECURE_DEVICE
+            return
+        }
 
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                        // Cancel, lockout and hardware errors must NOT relaunch
-                        // the prompt automatically (avoids an auth loop).
-                        biometricPromptActive.set(false)
-                    }
-
-                    override fun onAuthenticationFailed() {
-                        // Biometric not recognized: the system prompt stays
-                        // open for another attempt — do not relaunch or close.
-                    }
-                },
-            )
-            val builder = BiometricPrompt.PromptInfo.Builder()
-                .setTitle(getString(R.string.unlock_title))
-                .setSubtitle(getString(R.string.unlock_subtitle))
-                .setAllowedAuthenticators(authenticators)
-            // DEVICE_CREDENTIAL forbids a negative button (PromptInfo.build()
-            // throws IllegalArgumentException otherwise). Biometric-only
-            // prompts keep a "Cancel" negative button.
-            if (authenticators and BiometricManager.Authenticators.DEVICE_CREDENTIAL == 0) {
-                builder.setNegativeButtonText(getString(R.string.unlock_cancel))
+        val launched = prompt.tryStart { result ->
+            promptActive.set(false)
+            when (result) {
+                StartupAuthResult.Success -> onAuthenticationSucceeded()
+                StartupAuthResult.Cancelled -> {
+                    // User cancelled — do NOT open the Vault, do not crash.
+                    _uiState.value = StartupUiState.LOCKED
+                }
+                StartupAuthResult.Failed -> {
+                    // Transient failure — allow the system to retry.
+                    _uiState.value = StartupUiState.LOCKED
+                }
+                StartupAuthResult.Unavailable -> {
+                    _uiState.value = StartupUiState.NO_SECURE_DEVICE
+                }
             }
-            prompt.authenticate(builder.build())
-        } catch (e: Exception) {
-            // A prompt that cannot be launched must never crash the Activity;
-            // surface the reason instead and allow a manual retry.
-            biometricPromptActive.set(false)
+        }
+        if (!launched) {
+            promptActive.set(false)
         }
     }
 
     /**
-     * Returns the authenticators that are actually usable on this device, or
-     * null when none are enrolled/available. `DEVICE_CREDENTIAL` is always
-     * considered when the platform cannot be queried, because the device
-     * credential prompt is system-provided and needs no biometric enrollment.
+     * After a successful system authentication, run the Keystore operation
+     * for the current startup mode. This is the ONLY place Keystore crypto is
+     * executed during startup — and it is guaranteed to be after auth success.
      */
-    private fun resolveAvailableAuthenticators(): Int? {
-        return try {
-            val manager = BiometricManager.from(this)
-            val strong = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            val device = manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-            var mask = 0
-            if (strong == BiometricManager.BIOMETRIC_SUCCESS) {
-                mask = mask or BiometricManager.Authenticators.BIOMETRIC_STRONG
+    private fun onAuthenticationSucceeded() {
+        val outcome = when (startupMode) {
+            StartupMode.FIRST_RUN -> sessionManager.createVaultAndOpen()
+            StartupMode.UNLOCK -> sessionManager.unlock()
+        }
+        when (outcome) {
+            is VaultUnlockOutcome.Success -> {
+                // First-run: the returned fresh key must be zeroed after the DB
+                // is opened (SessionManager holds its own copy).
+                outcome.freshFirstRunKey?.fill(0)
+                _uiState.value = StartupUiState.UNLOCKED
+                removeMask()
             }
-            if (device == BiometricManager.BIOMETRIC_SUCCESS) {
-                mask = mask or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            VaultUnlockOutcome.AuthRequired -> {
+                // Rare race: auth token expired between prompt success and the
+                // crypto op. Re-prompt — never crash / never mislabel.
+                _uiState.value = StartupUiState.LOCKED
+                authPromptPending = true
+                if (isResumedFlag) requestAuthentication()
             }
-            if (mask == 0) null else mask
-        } catch (e: Exception) {
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            VaultUnlockOutcome.AuthCancelled -> {
+                _uiState.value = StartupUiState.LOCKED
+            }
+            VaultUnlockOutcome.AuthFailed -> {
+                _uiState.value = StartupUiState.LOCKED
+                authPromptPending = true
+                if (isResumedFlag) requestAuthentication()
+            }
+            VaultUnlockOutcome.NoSecureDevice -> {
+                _uiState.value = StartupUiState.NO_SECURE_DEVICE
+            }
+            VaultUnlockOutcome.KeyInvalidated -> {
+                // Biometric enrollment changed — this is NOT "please authenticate",
+                // it is a distinct invalidated-key error (Issue #50 §12).
+                _uiState.value = StartupUiState.BLOCKED
+            }
+            VaultUnlockOutcome.KeystoreUnavailable,
+            VaultUnlockOutcome.VaultCorrupt,
+            -> {
+                _uiState.value = StartupUiState.BLOCKED
+            }
         }
     }
 
@@ -246,16 +371,5 @@ class MainActivity : AppCompatActivity() {
 
     private fun removeMask() {
         maskView?.let { (window.decorView as FrameLayout).removeView(it) }
-    }
-
-    override fun onDestroy() {
-        if (::sensitiveActionGate.isInitialized) {
-            sensitiveActionGate.onLifecycleDestroy()
-        }
-        SensitiveActionAccess.clear()
-        super.onDestroy()
-        sessionManager.lock()
-        VaultAccess.clear()
-        scope.cancel()
     }
 }

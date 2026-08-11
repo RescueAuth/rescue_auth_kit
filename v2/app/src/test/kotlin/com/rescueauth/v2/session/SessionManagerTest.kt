@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.rescueauth.v2.database.RescueAuthDatabase
+import com.rescueauth.v2.security.FakeVaultKeyCrypto
+import com.rescueauth.v2.security.VaultKeyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -44,6 +46,24 @@ class SessionManagerTest {
             stateMachine = SecureSessionStateMachine(),
             scope = CoroutineScope(SupervisorJob() + dispatcher),
             databaseFactory = dbFactory,
+        )
+    }
+
+    private fun testManagerWithCrypto(
+        dispatcher: kotlinx.coroutines.CoroutineDispatcher,
+        crypto: FakeVaultKeyCrypto,
+    ): SessionManager {
+        val dbFactory: (Context, ByteArray) -> RescueAuthDatabase = { ctx, _ ->
+            Room.inMemoryDatabaseBuilder(ctx, RescueAuthDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+        }
+        return SessionManager(
+            context = context,
+            stateMachine = SecureSessionStateMachine(),
+            scope = CoroutineScope(SupervisorJob() + dispatcher),
+            databaseFactory = dbFactory,
+            vaultKeyManagerFactory = { VaultKeyManager(crypto) },
         )
     }
 
@@ -98,5 +118,75 @@ class SessionManagerTest {
         assertTrue(mgr.databaseOrNull() != null)
         mgr.lock()
         assertFalse(mgr.databaseOrNull() != null)
+    }
+
+    // ---- Startup-auth taxonomy (Issue #50) ----
+
+    @Test
+    fun `first-run createVaultAndOpen with no valid auth returns AuthRequired without crashing`() {
+        val crypto = FakeVaultKeyCrypto().apply { requireAuthOnWrap = true }
+        val mgr = testManagerWithCrypto(Dispatchers.Unconfined, crypto)
+
+        val outcome = mgr.createVaultAndOpen()
+        assertTrue("expected AuthRequired but was $outcome", outcome is VaultUnlockOutcome.AuthRequired)
+        // Vault must NOT be opened, session stays locked.
+        assertNull(mgr.databaseOrNull())
+        assertFalse(mgr.sessionState.isUnlocked())
+    }
+
+    @Test
+    fun `first-run createVaultAndOpen succeeds after auth returns fresh key and opens vault`() {
+        val crypto = FakeVaultKeyCrypto()
+        val mgr = testManagerWithCrypto(Dispatchers.Unconfined, crypto)
+
+        val outcome = mgr.createVaultAndOpen()
+        assertTrue("expected Success but was $outcome", outcome is VaultUnlockOutcome.Success)
+        val freshKey = (outcome as VaultUnlockOutcome.Success).freshFirstRunKey
+        assertNotNull(freshKey)
+        assertTrue(mgr.sessionState.isUnlocked())
+        assertNotNull(mgr.databaseOrNull())
+        // Caller zeroes the returned key; the internal copy is independent.
+        freshKey?.fill(0)
+        mgr.lock()
+    }
+
+    @Test
+    fun `existing vault unlock without valid auth returns AuthRequired and stays locked`() {
+        val crypto = FakeVaultKeyCrypto()
+        val mgr = testManagerWithCrypto(Dispatchers.Unconfined, crypto)
+        mgr.createVaultAndOpen()
+        mgr.lock()
+        crypto.requireAuthOnUnwrap = true
+
+        val outcome = mgr.unlock()
+        assertTrue("expected AuthRequired but was $outcome", outcome is VaultUnlockOutcome.AuthRequired)
+        assertFalse(mgr.sessionState.isUnlocked())
+        assertNull(mgr.databaseOrNull())
+    }
+
+    @Test
+    fun `existing vault unlock succeeds and opens vault`() {
+        val crypto = FakeVaultKeyCrypto()
+        val mgr = testManagerWithCrypto(Dispatchers.Unconfined, crypto)
+        mgr.createVaultAndOpen()
+        mgr.lock()
+
+        val outcome = mgr.unlock()
+        assertTrue("expected Success but was $outcome", outcome is VaultUnlockOutcome.Success)
+        assertTrue(mgr.sessionState.isUnlocked())
+        assertNotNull(mgr.databaseOrNull())
+    }
+
+    @Test
+    fun `keystore invalidation during unlock maps to KeyInvalidated`() {
+        val crypto = FakeVaultKeyCrypto()
+        val mgr = testManagerWithCrypto(Dispatchers.Unconfined, crypto)
+        mgr.createVaultAndOpen()
+        mgr.lock()
+        crypto.invalidateOnUnwrap = true
+
+        val outcome = mgr.unlock()
+        assertTrue("expected KeyInvalidated but was $outcome", outcome is VaultUnlockOutcome.KeyInvalidated)
+        assertFalse(mgr.sessionState.isUnlocked())
     }
 }
