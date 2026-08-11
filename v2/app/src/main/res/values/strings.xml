@@ -2,6 +2,9 @@
 <resources>
     <string name="app_name">RescueAuth</string>
 
+    <!-- Startup brand name shown in the startup splash page (Issue #64). -->
+    <string name="startup_brand_name">RescueAuth</string>
+
     <!-- Unlock prompt (BiometricPrompt) -->
     <string name="unlock_title">Unlock RescueAuth</string>
     <string name="unlock_subtitle">Use your fingerprint, face, or device credential</string>
