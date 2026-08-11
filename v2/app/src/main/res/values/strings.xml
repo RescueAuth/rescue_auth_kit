@@ -8,9 +8,9 @@
     <string name="unlock_cancel">Cancel</string>
 
     <!-- Startup auth (Issue #50) -->
-    <string name="startup_intro_title">Protect your local vault</string>
-    <string name="startup_intro_body">RescueAuth uses your phone\'s system lock screen (fingerprint, PIN, pattern, or password) to protect your local vault. No separate master password is needed.</string>
-    <string name="startup_intro_continue">Continue</string>
+    <string name="startup_intro_title">Use phone to unlock</string>
+    <string name="startup_intro_body">Unlock RescueAuth with your phone\'s fingerprint or lock screen password.</string>
+    <string name="startup_intro_continue">Enable</string>
     <string name="startup_exit">Exit</string>
     <string name="startup_no_secure_title">Secure device lock required</string>
     <string name="startup_no_secure_body">RescueAuth requires a secure device lock (PIN, pattern, password, or strong biometric) to protect your vault. Configure one in system settings, then try again.</string>

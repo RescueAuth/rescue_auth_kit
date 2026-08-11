@@ -35,19 +35,20 @@ object StartupLockTestTags {
 }
 
 /**
- * One-time onboarding / security explanation shown only before the very first
- * Vault is created (Issue #50 §2).
+ * One-time notice shown only on the very first install, explaining that the
+ * user is enabling "unlock with phone" (Issue #50 UX rework).
  *
- * This is NOT a lock screen and requires no user input other than confirming
- * they understand the local-vault protection model. Tapping **Continue**
- * launches the system authentication prompt (fingerprint / face / PIN /
- * pattern / password); on success the first-run Vault is created and the app
- * opens. It is never shown for existing-vault launches.
+ * This is deliberately **not** a security onboarding page — it is a trivial
+ * first-time "enable use your phone to unlock" screen. It does not explain
+ * implementation details (vault, Keystore, master password, encryption, auth
+ * token). Tapping **Enable** launches the existing system authentication
+ * prompt (fingerprint / lock screen); on success the Vault is created and the
+ * app opens. It is never shown again once acknowledged. Existing-vault
+ * launches skip it entirely.
  */
 @Composable
 fun StartupIntroScreen(
     onContinue: () -> Unit,
-    onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -82,14 +83,6 @@ fun StartupIntroScreen(
                 .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
         ) {
             Text(text = stringResource(R.string.startup_intro_continue))
-        }
-        OutlinedButton(
-            onClick = onExit,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .testTag(StartupLockTestTags.EXIT_BUTTON),
-        ) {
-            Text(text = stringResource(R.string.startup_exit))
         }
     }
 }

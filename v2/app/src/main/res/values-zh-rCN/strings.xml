@@ -8,9 +8,9 @@
     <string name="unlock_cancel">取消</string>
 
     <!-- Startup auth (Issue #50) -->
-    <string name="startup_intro_title">保护您的本地保险库</string>
-    <string name="startup_intro_body">拾遗坊使用手机的系统锁屏认证（指纹、PIN、图案或密码）保护您的本地保险库。无需另外设置主密码。</string>
-    <string name="startup_intro_continue">继续</string>
+    <string name="startup_intro_title">使用手机解锁</string>
+    <string name="startup_intro_body">使用手机的指纹或锁屏密码解锁拾遗坊。</string>
+    <string name="startup_intro_continue">开启</string>
     <string name="startup_exit">退出</string>
     <string name="startup_no_secure_title">需要安全的设备锁屏</string>
     <string name="startup_no_secure_body">RescueAuth 需要安全的设备锁屏（PIN、图案、密码或强生物识别）来保护您的保险库。请在系统设置中配置后再试。</string>

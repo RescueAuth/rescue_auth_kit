@@ -29,27 +29,21 @@ class StartupLockScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun introScreenShowsContinueAndExitAndInvokesCallbacks() {
-        var continued = false
-        var exited = false
+    fun introScreenShowsEnableAndInvokesCallback() {
+        var enabled = false
         composeRule.setContent {
             RescueAuthTheme {
                 StartupIntroScreen(
-                    onContinue = { continued = true },
-                    onExit = { exited = true },
+                    onContinue = { enabled = true },
                 )
             }
         }
         composeRule.onNodeWithTag(StartupLockTestTags.INTRO_SCREEN).assertIsDisplayed()
-        composeRule.onNodeWithText("Protect your local vault").assertIsDisplayed()
-        composeRule.onNodeWithText("Continue").assertIsDisplayed()
-        composeRule.onNodeWithText("Exit").assertIsDisplayed()
+        composeRule.onNodeWithText("Use phone to unlock").assertIsDisplayed()
+        composeRule.onNodeWithText("Enable").assertIsDisplayed()
 
         composeRule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performClick()
-        assertTrue("Continue callback must fire", continued)
-
-        composeRule.onNodeWithTag(StartupLockTestTags.EXIT_BUTTON).performClick()
-        assertTrue("Exit callback must fire", exited)
+        assertTrue("Enable callback must fire", enabled)
     }
 
     @Test

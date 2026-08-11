@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
  * ```
  * App launch
  *   → determine startup mode (first-run create vs existing unlock)
- *   → FIRST_RUN: show one-time security intro, then prompt authentication
+ *   → FIRST_RUN: show one-time "use phone to unlock" intro, then prompt auth
  *   → UNLOCK:    prompt authentication automatically (no button tap)
  *   → (biometric OR device credential) success
  *   → then run createVaultAndOpen() / unlock()  (Keystore operation)
@@ -69,6 +69,12 @@ import kotlinx.coroutines.launch
  * masking + auto-lock timeout, and the sensitive-action fresh re-auth gate.
  */
 class MainActivity : AppCompatActivity() {
+
+    /** Non-sensitive preference file name (first-run auth intro state). */
+    companion object {
+        private const val STARTUP_PREFS_NAME = "startup_auth_intro"
+        private const val KEY_FIRST_RUN_INTRO_CONFIRMED = "first_run_intro_confirmed"
+    }
 
     /** Test-only injection point for a fake [SessionManager]. */
     internal var sessionManagerFactory: ((MainActivity) -> SessionManager)? = null
@@ -91,7 +97,7 @@ class MainActivity : AppCompatActivity() {
     private enum class StartupUiState {
         /** Not yet determined — waiting for the first onResume. */
         INIT,
-        /** First-run: one-time security explanation before creating the Vault. */
+        /** First-run: one-time "use phone to unlock" notice before creating the Vault. */
         INTRO,
         /** System authentication is being requested / showing — neutral host. */
         AUTHENTICATING,
@@ -112,14 +118,29 @@ class MainActivity : AppCompatActivity() {
     /** Whether the system auth prompt should be auto-launched on resume. */
     private var authPromptPending = false
 
-    /** Whether the first-run intro has been acknowledged (Continue tapped). */
-    private var introAcknowledged = false
+    /**
+     * Simple, non-sensitive preference file for the first-run auth intro
+     * acknowledgment. It is intentionally NOT tied to Vault creation: once the
+     * user has seen the intro and tapped **Enable**, we never show it again,
+     * even if they cancelled system authentication before the Vault was created
+     * (Issue #50 — "user saw & enabled" is distinct from "Vault created").
+     */
+    private val startupPrefs by lazy {
+        getSharedPreferences(STARTUP_PREFS_NAME, MODE_PRIVATE)
+    }
 
     /** Guards against infinite auth-required prompt loops (Issue #50 UX §8). */
     private val authRaceCount = AtomicInteger(0)
     private val maxAuthRaceRetries = 2
 
     private var startupAuthPrompt: StartupAuthPrompt? = null
+
+    private fun isFirstRunIntroConfirmed(): Boolean =
+        startupPrefs.getBoolean(KEY_FIRST_RUN_INTRO_CONFIRMED, false)
+
+    private fun setFirstRunIntroConfirmed() {
+        startupPrefs.edit().putBoolean(KEY_FIRST_RUN_INTRO_CONFIRMED, true).apply()
+    }
 
     /**
      * Phase 4 P4: the production sensitive-action re-auth gate.
@@ -185,7 +206,6 @@ class MainActivity : AppCompatActivity() {
                         }
                         StartupUiState.INTRO -> StartupIntroScreen(
                             onContinue = { onIntroContinue() },
-                            onExit = { finish() },
                         )
                         StartupUiState.AUTHENTICATING -> StartupAuthHost()
                         StartupUiState.NO_SECURE_DEVICE -> NoSecureDeviceScreen(
@@ -267,11 +287,13 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Test-visible (internal) so startup-flow tests can simulate the user
-     * tapping **Continue** on the first-run security intro without driving the
-     * Compose UI.
+     * tapping **Enable** on the first-run intro without driving the Compose UI.
      */
     internal fun onIntroContinue() {
-        introAcknowledged = true
+        // Persist the acknowledgment immediately — before authentication. Even
+        // if the user cancels system auth and the Vault is never created, we
+        // must not show this one-time intro again on the next launch.
+        setFirstRunIntroConfirmed()
         _uiState.value = StartupUiState.AUTHENTICATING
         requestAuthentication()
     }
@@ -281,9 +303,10 @@ class MainActivity : AppCompatActivity() {
      * then (re)launches the system prompt. After a successful authentication
      * it runs the (now safe) Keystore operation.
      *
-     * First-run: the one-time security intro is shown first; authentication is
-     * only requested after the user taps **Continue**. Existing-vault launches
-     * request authentication automatically with no intermediate button.
+     * First-run: the one-time intro is shown first (until the user has
+     * acknowledged it, which is persisted independently of Vault creation);
+     * authentication is only requested after the user taps **Enable**.
+     * Existing-vault launches request authentication automatically.
      */
     private fun requestAuthentication() {
         authPromptPending = false
@@ -295,9 +318,11 @@ class MainActivity : AppCompatActivity() {
             _uiState.value = StartupUiState.UNLOCKED
             return
         }
-        // First-run: gate on the one-time security intro before prompting.
-        if (startupMode == StartupMode.FIRST_RUN && !introAcknowledged) {
-            // Show the intro; do not launch the prompt until the user continues.
+        // First-run: gate on the one-time intro before prompting. The intro is
+        // shown only until the user has acknowledged it (persisted), which is
+        // independent of whether the Vault was successfully created.
+        if (startupMode == StartupMode.FIRST_RUN && !isFirstRunIntroConfirmed()) {
+            // Show the intro; do not launch the prompt until the user enables it.
             _uiState.value = StartupUiState.INTRO
             return
         }
