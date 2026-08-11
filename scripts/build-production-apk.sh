@@ -118,14 +118,41 @@ apksigner_bin=$(resolve_android_tool apksigner)
 apkanalyzer_bin=$(resolve_android_tool apkanalyzer)
 verification_file="$signing_temp_dir/apksigner-verification.txt"
 
-"$apksigner_bin" verify --verbose --print-certs "$apk_path" | tee "$verification_file"
-signer_count=$(grep -c '^Signer #[0-9][0-9]* certificate SHA-256 digest:' "$verification_file" || true)
-[[ "$signer_count" == "1" ]] || die "Release APK must contain exactly one signer."
+# Parse the authoritative signer COUNT from apksigner's verbose `--print-certs`
+# output. The real output emits a single summary line `Number of signers: N`.
+# Per-signer metadata lines such as `V2 Signer: certificate SHA-256 digest:`
+# describe ONE signer and must NOT be counted. We rely solely on the summary
+# line and FAIL CLOSED when it is missing or not a clean integer.
+#
+# Returns the count on stdout, or nothing (empty) when undeterminable.
+parse_signer_count() { # verification-file
+  local file="$1"
+  local line
+  line=$(grep -E '^Number of signers: [0-9]+$' "$file" 2>/dev/null | head -n 1 || true)
+  [[ -n "$line" ]] || return 0
+  grep -oE '[0-9]+$' <<<"$line"
+}
 
-apk_cert_sha256=$(
-  sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$verification_file" \
-    | normalize_fingerprint
-)
+# Extract the first signer's certificate SHA-256 digest from apksigner's
+# verbose `--print-certs` output. The digest line is `V2 Signer: certificate
+# SHA-256 digest: <hex>`; we normalize it to the canonical uppercase form the
+# pinned fingerprint comparison expects. Returns the normalized digest, or
+# nothing when the line is absent.
+parse_signer_fingerprint() { # verification-file
+  local file="$1"
+  local line
+  line=$(grep -E '^V2 Signer: certificate SHA-256 digest:' "$file" 2>/dev/null | head -n 1 || true)
+  [[ -n "$line" ]] || return 0
+  sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' <<<"$line" | normalize_fingerprint
+}
+
+"$apksigner_bin" verify --verbose --print-certs "$apk_path" | tee "$verification_file"
+
+signer_count=$(parse_signer_count "$verification_file")
+[[ "$signer_count" == "1" ]] || die "Release APK must contain exactly one signer (found: ${signer_count:-0})."
+
+apk_cert_sha256=$(parse_signer_fingerprint "$verification_file")
+[[ -n "$apk_cert_sha256" ]] || die "Release APK signer certificate digest could not be determined."
 [[ "$apk_cert_sha256" == "$expected_cert_sha256" ]] || die "Release APK signer does not match the pinned production identity."
 
 application_id=$("$apkanalyzer_bin" manifest application-id "$apk_path")
