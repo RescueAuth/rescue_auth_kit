@@ -59,7 +59,15 @@ import com.rescueauth.v2.repository.VaultRepository
  *   master password (Issue #1 §15).
  */
 class LegacyImportService(
-    private val vault: VaultRepository,
+    /**
+     * The v2 destination vault. Required ONLY for building the merge preview
+     * ([buildPreview]) and for the transactional apply ([confirmImport]). It is
+     * nullable so the Legacy password can be validated against the `.rakvault`
+     * file independently of the v2 session state — a correct Legacy password is
+     * never masked as a v2 "vault locked" error just because the v2 session
+     * happens to be locked (RELEASE BLOCKER #46).
+     */
+    private val vault: VaultRepository?,
     private val importer: LegacyRakVaultImporter = LegacyRakVaultImporter(),
 ) {
 
@@ -79,20 +87,22 @@ class LegacyImportService(
 
     /**
      * Decodes [encryptedBytes] (already bounded by the SAF layer) with
-     * [password] and builds a safe preview against the current destination.
+     * [password] and maps it into a shared [VaultSnapshot], storing the
+     * decoded session.
      *
-     * The decrypted bundle + mapped snapshot stay in the active session for
-     * the subsequent [confirmImport]. [password] is NOT retained.
+     * This step does NOT depend on the v2 session state: the Legacy password is
+     * always validated against the `.rakvault` file here, so a correct Legacy
+     * password can never be masked as a v2 "vault locked" error (RELEASE
+     * BLOCKER #46).
      *
      * @throws LegacyRakVaultImporter.ImportException on any decode failure
      *   (typed [LegacyRakVaultImporter.ErrorKind])
      * @throws LegacyVaultSnapshotMapper.LegacyMappingException on mapping failure
-     * @throws VaultRepository.SessionLockedException when the session is locked
      */
-    suspend fun decodeForPreview(
+    suspend fun decodeAndMap(
         encryptedBytes: ByteArray,
         password: CharArray,
-    ): LegacyImportPreview {
+    ): VaultSnapshot {
         val passwordString = String(password)
         val bundle: LegacyImportBundle = try {
             importer.import(encryptedBytes, passwordString)
@@ -104,12 +114,40 @@ class LegacyImportService(
         // Shared logical validation only (never the Native package capacity
         // budget — ADR-0010 §6 / PHASE5A §17a).
         com.rescueauth.v2.export.PackageValidator.validateSnapshot(snapshot)
-
-        val destination = vault.buildDestinationSnapshot()
-        val plan = MergePlanner.plan(destination, snapshot)
-        val preview = LegacyImportPreview.from(bundle, snapshot, plan, fingerprint)
         active = LegacyImportSession(bundle, snapshot, fingerprint)
-        return preview
+        return snapshot
+    }
+
+    /**
+     * Convenience wrapper: decodes + maps the legacy file and builds the safe
+     * merge preview in one call. Requires the v2 vault to be unlocked (because
+     * the preview is built against the current destination).
+     *
+     * Prefer calling [decodeAndMap] then [buildPreview] separately when the v2
+     * session may be locked, so the Legacy password is validated first
+     * (RELEASE BLOCKER #46).
+     */
+    suspend fun decodeForPreview(
+        encryptedBytes: ByteArray,
+        password: CharArray,
+    ): LegacyImportPreview {
+        decodeAndMap(encryptedBytes, password)
+        return buildPreview()
+    }
+
+    /**
+     * Builds the safe merge preview for the active decoded session against the
+     * current v2 destination. Requires the v2 vault to be unlocked.
+     *
+     * @throws VaultRepository.SessionLockedException when the v2 session is
+     *   locked (the destination vault is not available).
+     */
+    suspend fun buildPreview(): LegacyImportPreview {
+        val session = active
+            ?: throw IllegalStateException("no active legacy import session")
+        val destination = requireVault().buildDestinationSnapshot()
+        val plan = MergePlanner.plan(destination, session.snapshot)
+        return LegacyImportPreview.from(session.bundle, session.snapshot, plan, session.sourceFingerprint)
     }
 
     /**
@@ -131,12 +169,15 @@ class LegacyImportService(
             ),
         )
         active = null
-        return vault.applySnapshot(
+        return requireVault().applySnapshot(
             snapshot = session.snapshot,
             packageIdentity = session.sourceFingerprint,
             sourceType = sourceTypeLegacy,
         )
     }
+
+    private fun requireVault(): VaultRepository =
+        vault ?: throw VaultRepository.SessionLockedException()
 }
 
 /**

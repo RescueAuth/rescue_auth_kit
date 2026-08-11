@@ -18,6 +18,7 @@ import java.util.Base64
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -425,5 +426,64 @@ class LegacyImportServiceTest {
         }
         svc.clearSession()
         assertNull(svc.activeSession())
+    }
+
+    // ------------------------------------------------------------------
+    // RELEASE BLOCKER #46: the Legacy password decode is independent of the
+    // v2 session state. A correct password is always validated against the
+    // `.rakvault` file; a null vault (locked v2 session) only blocks the
+    // merge preview / apply — it never masks the password as "vault locked".
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `decodeAndMap validates a correct password with a null vault`() = runBlocking {
+        // Simulate a locked v2 session: the service is constructed without a
+        // vault (this is exactly what `VaultAccess.legacyImportService()` now
+        // returns while the session is LOCKED).
+        val svc = LegacyImportService(vault = null)
+        val bytes = loadFixture("frozen_v1_producer_schema3")
+        val snapshot = svc.decodeAndMap(bytes, "test-password-frozen".toCharArray())
+        // The correct Legacy password decodes and maps even without a v2 vault.
+        assertEquals(1, snapshot.accounts.size)
+        assertTrue(svc.activeSession() != null)
+    }
+
+    @Test
+    fun `decodeAndMap throws auth error for wrong password even with a null vault`() = runBlocking {
+        val svc = LegacyImportService(vault = null)
+        val bytes = loadFixture("frozen_v1_producer_schema3")
+        try {
+            svc.decodeAndMap(bytes, "wrong-password".toCharArray())
+            fail("expected wrong-password failure")
+        } catch (e: LegacyRakVaultImporter.ImportException) {
+            // Distinct auth failure — NOT a generic "vault locked".
+            assertEquals(LegacyRakVaultImporter.ErrorKind.AUTHENTICATION_FAILED, e.kind)
+        }
+    }
+
+    @Test
+    fun `buildPreview throws SessionLockedException when vault is null`() = runBlocking {
+        val svc = LegacyImportService(vault = null)
+        val bytes = loadFixture("frozen_v1_producer_schema3")
+        svc.decodeAndMap(bytes, "test-password-frozen".toCharArray())
+        try {
+            svc.buildPreview()
+            fail("expected SessionLockedException")
+        } catch (e: VaultRepository.SessionLockedException) {
+            assertNotNull(e)
+        }
+    }
+
+    @Test
+    fun `confirmImport throws SessionLockedException when vault is null`() = runBlocking {
+        val svc = LegacyImportService(vault = null)
+        val bytes = loadFixture("frozen_v1_producer_schema3")
+        svc.decodeAndMap(bytes, "test-password-frozen".toCharArray())
+        try {
+            svc.confirmImport()
+            fail("expected SessionLockedException")
+        } catch (e: VaultRepository.SessionLockedException) {
+            assertNotNull(e)
+        }
     }
 }

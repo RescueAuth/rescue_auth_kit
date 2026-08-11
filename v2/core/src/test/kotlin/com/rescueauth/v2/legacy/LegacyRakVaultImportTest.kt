@@ -165,4 +165,65 @@ class LegacyRakVaultImportTest {
         assertEquals(2, bundle.developerCount) // surfaced for preview / policy
         assertFalse(bundle.developerEntries.isEmpty())
     }
+
+    // ------------------------------------------------------------------
+    // RELEASE BLOCKER #46 — the import must classify failures into distinct
+    // categories, never collapse them all into a single generic "vault
+    // locked" style error. These lock the real-fixture error taxonomy.
+    // ------------------------------------------------------------------
+
+    private fun errorKind(name: String, password: String): LegacyRakVaultImporter.ErrorKind? {
+        val e = assertThrows(LegacyRakVaultImporter.ImportException::class.java) {
+            LegacyRakVaultImporter().import(loadFixture(name), password)
+        }
+        return e.kind
+    }
+
+    @Test
+    fun `correct password imports successfully on the real frozen fixture`() {
+        // Acceptance A: known-good real v1 `.rakvault` + correct password -> PASS.
+        val bundle = LegacyRakVaultImporter()
+            .import(loadFixture("schema3_normal"), "test-password-3")
+        assertEquals(3, bundle.schemaVersion)
+        assertEquals(2, bundle.totpEntries.size)
+        assertEquals(1, bundle.recoveryCodeSets.size)
+    }
+
+    @Test
+    fun `wrong password is classified as AUTHENTICATION_FAILED not generic`() {
+        // Acceptance B: wrong password must be a distinct auth failure.
+        assertEquals(
+            LegacyRakVaultImporter.ErrorKind.AUTHENTICATION_FAILED,
+            errorKind("schema3_normal", "wrong-password"),
+        )
+    }
+
+    @Test
+    fun `tampered ciphertext is classified as INVALID_ENVELOPE not auth`() {
+        // Byte-level tampering corrupts the base64 envelope, so the file is
+        // rejected as a malformed envelope (distinct from wrong password).
+        assertEquals(
+            LegacyRakVaultImporter.ErrorKind.INVALID_ENVELOPE,
+            errorKind("tampered_ciphertext", "test-password-1"),
+        )
+    }
+
+    @Test
+    fun `truncated file is classified as a malformed envelope not auth`() {
+        // A truncated file cannot even be parsed as a valid envelope.
+        assertEquals(
+            LegacyRakVaultImporter.ErrorKind.INVALID_ENVELOPE,
+            errorKind("truncated_ciphertext", "test-password-1"),
+        )
+    }
+
+    @Test
+    fun `unsupported kdf params are classified as UNSUPPORTED_FORMAT not auth`() {
+        // Extreme (out-of-safe-range) KDF params are rejected as unsupported
+        // protection settings, NOT as a wrong password / vault locked.
+        assertEquals(
+            LegacyRakVaultImporter.ErrorKind.UNSUPPORTED_FORMAT,
+            errorKind("extreme_kdf_params", "test-password-1"),
+        )
+    }
 }

@@ -71,6 +71,7 @@ class LegacyImportViewModelTest {
             scope = CoroutineScope(Dispatchers.Unconfined),
         )
 
+
     private fun awaitSettled(vm: LegacyImportViewModel) = runBlocking {
         withTimeout(10_000L) {
             while (true) {
@@ -319,6 +320,51 @@ class LegacyImportViewModelTest {
         awaitSettled(vm)
         assertNull(vm.activeSession())
         assertEquals(LegacyImportViewModel.State.AwaitingPassword, vm.state.value)
+    }
+
+    // ------------------------------------------------------------------
+    // RELEASE BLOCKER: a correct Legacy password must never surface as
+    // "vault locked" just because the v2 session happens to be locked.
+    // The legacy password is validated against the .rakvault file FIRST,
+    // independently of the v2 session state.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `correct password with an unlocked v2 session reaches a preview (import passes)`() = runBlocking {
+        // With the v2 session unlocked, a correct Legacy password must decode
+        // and reach the safe preview (never a wrong-password / vault-locked
+        // error). RELEASE BLOCKER #46 acceptance criterion A.
+        val vm = newVm(FakeLegacyFileIo(stored = loadFixture("frozen_v1_producer_schema3")))
+        vm.handlePickedDocument(Uri.parse("content://legacy/frozen"), "frozen.rakvault", null)
+        awaitSettled(vm)
+        vm.submitPassword(frozenPassword.toCharArray())
+        awaitSettled(vm)
+        val s = vm.state.value
+        assertTrue("correct password must reach the preview, got state=$s",
+            s is LegacyImportViewModel.State.Preview)
+    }
+
+    @Test
+    fun `wrong password is a distinct auth error not a vault locked dead-end`() = runBlocking {
+        // A wrong Legacy password must surface as a wrong-password / retry
+        // error — never as "vault locked". RELEASE BLOCKER #46 acceptance
+        // criterion B.
+        val vm = newVm(FakeLegacyFileIo(stored = loadFixture("frozen_v1_producer_schema3")))
+        vm.handlePickedDocument(Uri.parse("content://legacy/frozen"), "frozen.rakvault", null)
+        awaitSettled(vm)
+        vm.submitPassword("wrong-password".toCharArray())
+        awaitSettled(vm)
+
+        val s = vm.state.value
+        assertTrue("wrong password must be an auth error, got state=$s",
+            s is LegacyImportViewModel.State.Error)
+        val err = s as LegacyImportViewModel.State.Error
+        assertTrue("wrong password surfaced as vault-locked: ${err.message}",
+            !err.message.contains("vault is locked", ignoreCase = true))
+        assertTrue("expected wrong-password/retry error, got: ${err.message}",
+            err.message.contains("password may be incorrect", ignoreCase = true) ||
+                err.message.contains("corrupted", ignoreCase = true))
+        assertEquals(LegacyImportViewModel.ErrorAction.RETRY_PASSWORD, err.action)
     }
 
     // ------------------------------------------------------------------
