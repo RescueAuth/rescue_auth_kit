@@ -7,3 +7,14 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# RescueAuth production Android signing secrets (Release Provisioning Step 1).
+# The production private key must live entirely OUTSIDE the repo. Only the
+# root/local production signing location is ignored; the `.example` template is
+# committed. Developer Vault synthetic keystore fixtures are in-memory byte
+# arrays in test sources and are unaffected.
+/keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx

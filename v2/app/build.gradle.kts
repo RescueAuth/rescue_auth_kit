@@ -1,9 +1,72 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.compose)
 }
+
+// ---------------------------------------------------------------------------
+// RescueAuth production Android signing configuration
+// ---------------------------------------------------------------------------
+// Release Provisioning Step 1 (docs/RELEASE_PROVISIONING.md).
+//
+// The production signing PRIVATE KEY must live entirely OUTSIDE the repo. It
+// is loaded at Gradle configuration time from ONE of two sources (both
+// optional, both must be complete to enable production signing):
+//
+//   1. a local `keystore.properties` file next to the v2 Gradle project root
+//      (the file is gitignored; see `keystore.properties.example`), or
+//   2. environment variables / Gradle `-P` properties:
+//        RESCUEAUTH_STORE_FILE / RESCUEAUTH_STORE_PASSWORD /
+//        RESCUEAUTH_KEY_ALIAS / RESCUEAUTH_KEY_PASSWORD
+//
+// Rules enforced here:
+//   * When ALL four fields resolve to non-blank values the `release` build
+//     uses the new RescueAuth production signing identity.
+//   * When ANY field is missing/blank, `release` builds UNSIGNED (never a
+//     debug-signing fallback, never auto-generated keystore, never a silent
+//     fake signature). Normal dev/CI can always build an unsigned release.
+//   * `validateReleaseSigning` fails clearly with an explicit message when a
+//     caller explicitly asks for a signed release but the config is
+//     incomplete (no NPE / FileNotFound mystery / silent fallback).
+//
+// NO secret is ever printed, logged, or exposed via BuildConfig here.
+
+val signingProps = Properties()
+val localKeystorePropertiesFile = rootProject.file("keystore.properties")
+if (localKeystorePropertiesFile.isFile) {
+    signingProps.load(FileInputStream(localKeystorePropertiesFile))
+}
+
+fun resolveSecret(prop: String, envName: String): String? {
+    // Prefer the local keystore.properties value, then env var / -P.
+    val fromProps = signingProps.getProperty(prop)?.trim().orEmpty()
+    if (fromProps.isNotEmpty()) return fromProps
+    val fromEnv = providers.gradleProperty(envName).orNull
+        ?: System.getenv(envName)
+    return fromEnv?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+val signingStoreFile = resolveSecret("storeFile", "RESCUEAUTH_STORE_FILE")
+val signingStorePassword = resolveSecret("storePassword", "RESCUEAUTH_STORE_PASSWORD")
+val signingKeyAlias = resolveSecret("keyAlias", "RESCUEAUTH_KEY_ALIAS")
+val signingKeyPassword = resolveSecret("keyPassword", "RESCUEAUTH_KEY_PASSWORD")
+
+val hasProductionSigningConfig = listOf(
+    signingStoreFile,
+    signingStorePassword,
+    signingKeyAlias,
+    signingKeyPassword,
+).all { !it.isNullOrBlank() }
+
+// A signing storeFile path that does not exist is a hard error for a signed
+// build, never a silent unsigned fallback.
+val signingStorePath: File? = signingStoreFile?.let { File(it) }
+
+// ---------------------------------------------------------------------------
 
 android {
     namespace = "com.rescueauth.v2"
@@ -36,9 +99,26 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasProductionSigningConfig) {
+            create("release") {
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+                storeFile = signingStorePath
+                storePassword = signingStorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Only wire the production signing identity when the full config is
+            // present. When it is absent the release build stays UNSIGNED — this
+            // deliberately never falls back to debug signing.
+            if (hasProductionSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     buildFeatures {
@@ -85,6 +165,57 @@ android {
         getByName("debug") {
             assets.srcDir("$projectDir/schemas")
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// validateReleaseSigning
+// ---------------------------------------------------------------------------
+// Explicitly validates that a *signed* release is actually possible. This is
+// for callers who intentionally want a production-signed build. When the
+// production signing config is incomplete (or the keystore file is missing)
+// this task FAILS with a clear message — never an NPE, never a silent
+// fallback, never a silent debug signature.
+//
+// Normal dev/CI (`assembleRelease` without secrets) does NOT run this task and
+// continues to produce an unsigned release, so the pipeline stays green.
+//
+// To enable signed release output on a production job, provide the four fields
+// via a local `keystore.properties` or environment variables, then run:
+//   ./gradlew :app:validateReleaseSigning :app:assembleRelease
+
+tasks.register("validateReleaseSigning") {
+    group = "release"
+    description = "Fail clearly if a production-signed release cannot be built."
+    doLast {
+        val missing = buildList {
+            if (signingStoreFile.isNullOrBlank()) add("storeFile")
+            if (signingStorePassword.isNullOrBlank()) add("storePassword")
+            if (signingKeyAlias.isNullOrBlank()) add("keyAlias")
+            if (signingKeyPassword.isNullOrBlank()) add("keyPassword")
+        }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Missing RescueAuth production signing configuration: " +
+                    missing.joinToString() +
+                    ". Provide all four fields via v2/keystore.properties " +
+                    "(see keystore.properties.example) or environment variables " +
+                    "RESCUEAUTH_STORE_FILE / RESCUEAUTH_STORE_PASSWORD / " +
+                    "RESCUEAUTH_KEY_ALIAS / RESCUEAUTH_KEY_PASSWORD. " +
+                    "See docs/RELEASE_PROVISIONING.md."
+            )
+        }
+        if (signingStorePath == null || !signingStorePath.isFile) {
+            throw GradleException(
+                "RescueAuth production signing keystore not found: " +
+                    (signingStorePath?.absolutePath ?: "<null>") +
+                    ". See docs/RELEASE_PROVISIONING.md."
+            )
+        }
+        logger.lifecycle(
+            "RescueAuth production signing configuration is valid " +
+                "(storeFile=${signingStorePath.absolutePath}, keyAlias=$signingKeyAlias)."
+        )
     }
 }
 
