@@ -1,5 +1,6 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,8 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,28 +39,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.AuthenticatorUiState
 import com.rescueauth.v2.ui.authenticator.TotpCardUi
+import com.rescueauth.v2.ui.components.CountdownIndicator
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
-import com.rescueauth.v2.ui.components.ProviderAccountListItem
-import com.rescueauth.v2.ui.components.TotpCard
 import com.rescueauth.v2.ui.model.AccountUi
+import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
+import com.rescueauth.v2.ui.model.TotpCredentialUi
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
  * Authenticator top-level screen — production data path (Phase 4 P1/P3).
  *
- * Renders the real Provider/Account list ([uiState.accounts]) with a recovery
- * summary line (counts only, never secret values), plus the live TOTP list
- * with codes + countdown, an EmptyState for an empty vault and a FAB that
- * opens the Add TOTP flow (owned by the caller/Route). Tapping an account row
- * opens its detail destination (Recovery Codes). Composable never touches
- * Room entities; it only consumes UI models and callbacks.
+ * Renders a Provider → Account → TOTP nested list so the user sees current
+ * TOTP codes directly on the home screen without navigating to a detail page.
+ * Each account card shows its TOTP codes (current code, countdown, copy
+ * action) and a recovery summary line (counts only, never secret values).
+ * An EmptyState is shown for an empty vault and a FAB opens the Add TOTP flow.
+ *
+ * Composable never touches Room entities; it only consumes UI models and
+ * callbacks.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,69 +152,236 @@ fun AuthenticatorScreen(
                     contentPadding = PaddingValues(Spacing.md),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    // Provider-grouped list (Phase 4 — Provider/Account
-                    // management). Each Provider row exposes a menu
-                    // (Rename / Add Account / Delete) and each Account row
-                    // exposes a menu (Rename / Move / Merge / Delete). The
-                    // home list only shows counts — code values live in the
-                    // account detail screen and are never expanded here.
-                    items(
-                        count = uiState.providers.size,
-                        key = { index -> uiState.providers[index].id },
-                    ) { pIndex ->
-                        val provider = uiState.providers[pIndex]
-                        ProviderGroupHeader(
-                            provider = provider,
-                            onRename = onRenameProvider,
-                            onAddAccount = onAddAccount,
-                            onDelete = onDeleteProvider,
-                        )
-                    }
-
-                    // Provider/Account rows with a recovery summary (P3). The
-                    // home list only shows counts — code values live in the
-                    // account detail screen and are never expanded here.
-                    items(
-                        count = uiState.accounts.size,
-                        key = { index -> uiState.accounts[index].id },
-                    ) { index ->
-                        val account = uiState.accounts[index]
-                        ProviderAccountListItem(
-                            account = account,
-                            onClick = onOpenAccount?.let { { it(account.id) } },
-                            trailingAction = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RecoverySummaryLabel(account)
-                                    AccountActionsMenu(
-                                        account = account,
-                                        onTogglePin = onTogglePin,
-                                        onRename = onRenameAccount,
-                                        onMove = onMoveAccount,
-                                        onMerge = onMergeAccount,
-                                        onDelete = onDeleteAccount,
-                                    )
-                                }
-                            },
-                        )
-                    }
-
-                    // Live TOTP cards (P1) remain directly visible.
-                    items(
-                        count = uiState.totpCards.size,
-                        key = { index -> uiState.totpCards[index].credentialId },
-                    ) { index ->
-                        val card = uiState.totpCards[index]
-                        TotpCard(
-                            credential = card,
-                            onCopyClick = onCopyClick?.let { { it(card) } },
-                            onDeleteClick = onDeleteClick?.let { { it(card) } },
-                        )
+                    // Provider → Account → TOTP nested display.
+                    // Each Provider is a visual grouping header. Each Account
+                    // is a card that directly shows its TOTP codes (current
+                    // code, countdown, copy) so the user sees codes at a
+                    // glance without navigating to a detail screen.
+                    uiState.providers.forEachIndexed { pIndex, provider ->
+                        item(key = "provider_${provider.id}") {
+                            ProviderGroupHeader(
+                                provider = provider,
+                                onRename = onRenameProvider,
+                                onAddAccount = onAddAccount,
+                                onDelete = onDeleteProvider,
+                            )
+                        }
+                        provider.accounts.forEach { account ->
+                            item(key = "account_${account.id}") {
+                                AccountWithTotpCard(
+                                    account = account,
+                                    onCopyClick = onCopyClick,
+                                    onDeleteClick = onDeleteClick,
+                                    onOpenAccount = onOpenAccount?.let { { it(account.id) } },
+                                    onTogglePin = onTogglePin,
+                                    onRename = onRenameAccount,
+                                    onMove = onMoveAccount,
+                                    onMerge = onMergeAccount,
+                                    onDelete = onDeleteAccount,
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
+
+/**
+ * Account card that directly shows its TOTP codes inline.
+ *
+ * Each TOTP code is rendered as a row with:
+ * - Account name (if different from provider)
+ * - Current code (large monospace, clickable to copy)
+ * - Countdown indicator (remaining seconds + progress ring)
+ * - Copy and Delete icon buttons
+ *
+ * Multiple TOTPs under the same account are all shown — no silent dropping.
+ */
+@Composable
+private fun AccountWithTotpCard(
+    account: AccountUi,
+    onCopyClick: ((TotpCardUi) -> Unit)? = null,
+    onDeleteClick: ((TotpCardUi) -> Unit)? = null,
+    onOpenAccount: (() -> Unit)? = null,
+    onTogglePin: ((AccountUi) -> Unit)? = null,
+    onRename: ((AccountUi) -> Unit)? = null,
+    onMove: ((AccountUi) -> Unit)? = null,
+    onMerge: ((AccountUi) -> Unit)? = null,
+    onDelete: ((AccountUi) -> Unit)? = null,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            // Account header row: provider name + pin + actions menu
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = account.accountName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (account.isPinned) {
+                            androidx.compose.foundation.layout.Spacer(
+                                modifier = Modifier.padding(start = Spacing.xs),
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.PushPin,
+                                contentDescription = stringResource(R.string.account_pinned_label),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                    // Recovery summary (counts only, never secret values)
+                    if (account.recoverySets.isNotEmpty()) {
+                        Text(
+                            text = stringResource(
+                                R.string.recovery_codes_account_summary,
+                                account.remainingRecoveryCount,
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                AccountActionsMenu(
+                    account = account,
+                    onTogglePin = onTogglePin,
+                    onRename = onRename,
+                    onMove = onMove,
+                    onMerge = onMerge,
+                    onDelete = onDelete,
+                )
+            }
+
+            // TOTP codes — all of them, no silent dropping
+            account.totpCredentials.forEach { totp ->
+                TotpInlineRow(
+                    totp = totp,
+                    onCopyClick = onCopyClick?.let { cb ->
+                        { cb(totp.toTotpCardUi(account)) }
+                    },
+                    onDeleteClick = onDeleteClick?.let { cb ->
+                        { cb(totp.toTotpCardUi(account)) }
+                    },
+                )
+            }
+
+            // If account has no TOTP codes but has recovery sets, show a
+            // hint to open the detail for recovery codes.
+            if (account.totpCredentials.isEmpty() && account.recoverySets.isNotEmpty() && onOpenAccount != null) {
+                Text(
+                    text = stringResource(R.string.recovery_codes_account_summary, account.remainingRecoveryCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onOpenAccount),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One TOTP code row shown inline within an account card.
+ *
+ * Shows the current code (large, monospace, clickable to copy), a live
+ * [CountdownIndicator], and Copy/Delete actions. The code text is clickable
+ * to copy as well.
+ */
+@Composable
+private fun TotpInlineRow(
+    totp: TotpCredentialUi,
+    onCopyClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null,
+) {
+    val code = totp.currentCode ?: "••••••"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = code,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = MaterialTheme.typography.headlineMedium.letterSpacing,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = if (onCopyClick != null) {
+                    Modifier.clickable(onClick = onCopyClick)
+                } else {
+                    Modifier
+                },
+            )
+        }
+        CountdownIndicator(
+            progressFraction = totp.progressFraction,
+            remainingSeconds = totp.remainingSeconds,
+            ringSize = 48,
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (onCopyClick != null) {
+                IconButton(
+                    onClick = onCopyClick,
+                    modifier = Modifier.semantics { role = Role.Button },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ContentCopy,
+                        contentDescription = stringResource(R.string.totp_copy_code),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (onDeleteClick != null) {
+                IconButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier.semantics { role = Role.Button },
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.totp_delete),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Converts a [TotpCredentialUi] back to [TotpCardUi] for callback compat. */
+private fun TotpCredentialUi.toTotpCardUi(account: AccountUi): TotpCardUi = TotpCardUi(
+    credentialId = id,
+    stableId = stableId,
+    accountId = account.id,
+    issuer = account.providerName,
+    accountName = account.accountName,
+    algorithm = algorithm,
+    digits = digits,
+    periodSeconds = periodSeconds,
+    currentCode = currentCode ?: "••••••",
+    remainingSeconds = remainingSeconds,
+    progressFraction = progressFraction,
+)
 
 @Composable
 private fun RecoverySummaryLabel(account: AccountUi) {
@@ -222,7 +404,7 @@ private fun RecoverySummaryLabel(account: AccountUi) {
  */
 @Composable
 private fun ProviderGroupHeader(
-    provider: com.rescueauth.v2.ui.model.ProviderUi,
+    provider: ProviderUi,
     onRename: ((String) -> Unit)?,
     onAddAccount: ((String) -> Unit)?,
     onDelete: ((String) -> Unit)?,
@@ -379,12 +561,61 @@ private fun AuthenticatorScreenWithDataPreview() {
                         id = "a1",
                         providerName = "GitHub",
                         accountName = "alice@example.com",
+                        totpCredentials = listOf(
+                            TotpCredentialUi(
+                                id = "t1",
+                                stableId = "t1",
+                                issuer = "GitHub",
+                                accountName = "alice@example.com",
+                                algorithm = "SHA1",
+                                digits = 6,
+                                periodSeconds = 30,
+                                currentCode = "123 456",
+                                remainingSeconds = 24,
+                                progressFraction = 0.8f,
+                            ),
+                        ),
                         recoverySets = listOf(
                             RecoveryCodeSetUi(
                                 id = "s1",
                                 title = "Backup codes",
                                 usedCount = 1,
                                 totalCount = 3,
+                            ),
+                        ),
+                    ),
+                ),
+                providers = listOf(
+                    ProviderUi(
+                        id = "provider:GitHub",
+                        serviceName = "GitHub",
+                        accounts = listOf(
+                            AccountUi(
+                                id = "a1",
+                                providerName = "GitHub",
+                                accountName = "alice@example.com",
+                                totpCredentials = listOf(
+                                    TotpCredentialUi(
+                                        id = "t1",
+                                        stableId = "t1",
+                                        issuer = "GitHub",
+                                        accountName = "alice@example.com",
+                                        algorithm = "SHA1",
+                                        digits = 6,
+                                        periodSeconds = 30,
+                                        currentCode = "123 456",
+                                        remainingSeconds = 24,
+                                        progressFraction = 0.8f,
+                                    ),
+                                ),
+                                recoverySets = listOf(
+                                    RecoveryCodeSetUi(
+                                        id = "s1",
+                                        title = "Backup codes",
+                                        usedCount = 1,
+                                        totalCount = 3,
+                                    ),
+                                ),
                             ),
                         ),
                     ),
