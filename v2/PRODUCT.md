@@ -59,7 +59,7 @@ Entry（Android Signing Key / API Credential / SSH Key / Env Var Set /
 Generic Secret）的存储/查看/复制/导出；**手动**加密导出（per-export PIN
 的 Export Package）+ merge-first 导入 + Selective Export/Import；
 Global Search + Pin；Delete Undo；Sensitive Action Re-authentication；
-生物识别/设备凭据解锁；后台遮罩 + `FLAG_SECURE`；中英双语；固定清单式
+生物识别/设备凭据解锁；后台遮罩；中英双语；固定清单式
 更新检查 + 外部打开发布页。
 
 > 注意：v1 不包含 automatic/scheduled/background backup、保留策略、

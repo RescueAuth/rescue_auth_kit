@@ -103,7 +103,7 @@ com.rescueauth.v2
 
 - **位置**：`v2/` — Kotlin + Jetpack Compose + Room/SQLCipher。
 - **状态**：阶段 0/1/2 已收口合并进 `main`（加密数据库、VaultKey/Keystore、
-  安全会话、自动锁、遮罩 + FLAG_SECURE）；数据库 instrumented 测试
+  安全会话、自动锁、后台遮罩）；数据库 instrumented 测试
   （`RescueAuthDatabaseInstrumentedTest`，6 用例）已在 Firebase Test Lab
   真实执行 **6/6 PASS**（MediumPhone.arm / API 33）。**Phase 3 进行中**：
   Phase 3A（Package + Merge Foundation）已在 PR #18 实现 —— 逻辑导出包模型、

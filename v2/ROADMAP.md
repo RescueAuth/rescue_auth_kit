@@ -190,8 +190,8 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 - **Phase 0 CLOSED** — 冻结 v1.2.0 + legacy fixtures + 映射文档
 - **Phase 1 CLOSED** — Kotlin/Android 工程 + Argon2id/XChaCha20 解密 spike
 - **Phase 2 CLOSED** — Room+SQLCipher / VaultKey+Keystore / 安全会话 /
-  自动锁 / 遮罩 + FLAG_SECURE / 串行 repository（数据库 instrumented
-  6/6 PASS）
+  自动锁 / 后台遮罩 / 串行 repository（数据库 instrumented 6/6 PASS）。
+  （不再全局 `FLAG_SECURE`，允许截图 —— Issue #57。）
 
 ### 5.1 工作分类（Roadmap 明确区分）
 

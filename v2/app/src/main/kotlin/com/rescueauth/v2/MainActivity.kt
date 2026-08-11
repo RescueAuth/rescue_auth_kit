@@ -1,7 +1,6 @@
 package com.rescueauth.v2
 
 import android.os.Bundle
-import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.collectAsState
@@ -58,8 +57,14 @@ import kotlinx.coroutines.launch
  * `UserNotAuthenticatedException` is still mapped defensively to AUTH_REQUIRED
  * (never crash / never "Keystore unavailable") to absorb token-expiry races.
  *
- * Other Phase 2/4 semantics are preserved unchanged: `FLAG_SECURE`, background
- * masking + auto-lock timeout, and the sensitive-action fresh re-auth gate.
+ * Other Phase 2/4 semantics are preserved unchanged: background masking +
+ * auto-lock timeout, and the sensitive-action fresh re-auth gate.
+ *
+ * Screen-capture policy: RescueAuth deliberately does **not** set a global
+ * `FLAG_SECURE` / secure-window policy, so users can screenshot / screen-record
+ * the app normally. Long-lived secrets still require a fresh re-auth before
+ * reveal/copy, and background masking + auto-lock still protect the UI when the
+ * app is backgrounded.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -116,8 +121,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Block screenshots & recents preview for the whole activity.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // No global FLAG_SECURE / secure-window policy — screenshots and screen
+        // recording are allowed on ordinary pages (see class doc).
 
         stateMachine = SecureSessionStateMachine()
         sessionManager = sessionManagerFactory?.invoke(this)

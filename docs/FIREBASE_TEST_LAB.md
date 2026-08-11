@@ -90,11 +90,11 @@ PR 分支（如 `auto/xxx`）不属于 `main`，无法满足密钥仓库
 
 > **Test Lab 只运行 androidTest APK 中的测试**：FTL instrumentation matrix
 > 只执行 `--test=<TEST_APK>`（`app-debug-androidTest.apk`）中的用例。
-> JVM unit test 与 Robolectric unit test（含 `SecureScreenFlagTest`）在
-> 本地 stage（`:app:testDebugUnitTest`）中运行，**不会**被 Test Lab 执行。
-> `SecureScreenFlagTest` 是 **Robolectric unit test**（位于
+> JVM unit test 与 Robolectric unit test 在本地 stage（`:app:testDebugUnitTest`）
+> 中运行，**不会**被 Test Lab 执行。这些是 Robolectric unit test（位于
 > `v2/app/src/test/`，`@RunWith(RobolectricTestRunner)`），不是
 > androidTest/instrumentation test。
+> （注：`SecureScreenFlagTest` 已随 Issue #57 移除——不再全局阻止截图。）
 
 ---
 

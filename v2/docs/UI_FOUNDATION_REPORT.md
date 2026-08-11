@@ -80,8 +80,8 @@ MainActivity (Compose host, Phase 2 安全语义保持不变)
 - 把 `simple_list_item_1` 占位 TextView 换成 `ComposeView` hosting
   `RescueAuthTheme { RescueAuthApp(...) }`。
 - **未改动**：BiometricPrompt 触发时机/认证器解析、`SessionManager`、
-  `SecureSessionStateMachine`、`FLAG_SECURE`、后台遮罩、auto-lock、
-  Keystore 失效处理、Vault lifecycle。
+  `SecureSessionStateMachine`、后台遮罩、auto-lock、
+  Keystore 失效处理、Vault lifecycle（无全局 `FLAG_SECURE`，允许截图）。
 - Biometric 文案改用 string resource（en + zh-CN）。
 - 因修改 MainActivity，补充验证 `assembleDebugAndroidTest`（通过）。
 
