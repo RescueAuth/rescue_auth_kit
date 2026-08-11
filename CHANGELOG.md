@@ -10,6 +10,26 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 > 以下条目反映 v2 里程碑（phase 0/1/phase1-fix/phase2/phase2-blocker-hotfix/
 > phase2-closure/roadmap-v2），均已合并进 `main`。
 
+## [v2 build-release-workflow] - 2026-08-11
+
+正式建立长期 Build & Release Workflow（issue #48）。策略核心：**`main` 是开发分支；release 是 tag**。
+
+### Added
+
+- **Debug Pipeline**：`.cnb/web_trigger.yml` 新增 `Build debug RescueAuth`（`web_trigger_debug_apk`），owner 可在 `main` / feature / fix 分支手动触发；`scripts/build-debug-apk.sh` 构建标准 debug APK（applicationId/versionName/versionCode/debuggable=true/有效 debug 签名校验），产物命名为 `RescueAuth-<versionName>-debug-<shortCommit>.apk` 并作为 commit 附件上传。**不读取任何 production secret**。
+- **Production tag-only release pipeline**：`.cnb.yml` 新增 `tag_push` 生产发布流水线，仅接受 `rescueauth-vX.Y.Z` release tag；`scripts/release-version.sh` + `scripts/validate-release-tag.sh` 硬校验 tag 格式并 FAIL CLOSED（拒绝 legacy 无前缀 tag / `main` / feature 分支）。`scripts/build-production-apk.sh` 改为从 tag 动态推导 release 版本，断言 APK `versionName` 与 tag 严格一致，产物为 `RescueAuth-X.Y.Z.apk` 并挂到 release tag 指向的 commit。
+- 回归测试：`scripts/test/test-release-version.sh`、`test-validate-release-tag.sh`、`test-build-debug-apk.sh`（均离线、不依赖真实 secret）。
+
+### Changed
+
+- **退役 main production release 入口**：移除只允许 `main`+`master` 的 `Build production-signed RescueAuth 1.0.0` Web Trigger。生产发布改为仅由合法 `rescueauth-vX.Y.Z` tag 触发。
+- 根 `README.md` / `README.zh-CN.md` 新增 **Branch / Version / Release Policy** 章节；`v2/docs/RELEASE_PROVISIONING.md` 新增 §10a Build & Release Workflow；`v2/AGENTS.md` 同步更新。
+
+### Security
+
+- production signing secrets 仍仅 stage-scoped import 到 production signing stage；Debug 流水线完全不触碰。tag 格式校验在 secret 注入之前执行。
+- 未创建 `rescueauth-v1.0.0`，未发布 1.0.0。
+
 ## [v2 android-production-signing-provisioning] - 2026-08-11
 
 RescueAuth `com.rescueauth.v2` 的长期 Android production signing identity 已

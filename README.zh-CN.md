@@ -10,6 +10,69 @@ RescueAuthKit 是一个很小但很"偏执"的 **Android 个人安全库**：可
 > 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `v1.2.0`，仅作
 > 参考与一次性迁移。v2 状态与构建命令见 [`v2/AGENTS.md`](v2/AGENTS.md)。
 
+## 分支 / 版本 / 发布策略
+
+> **`main` 是开发分支；release 是 tag。**
+
+### Development（开发）
+
+`main` 是活跃开发分支。它可能包含尚未进入稳定版本的功能变更。
+
+**不要**把当前的 `main` 当作稳定版本。
+
+### Legacy releases（旧版发布）
+
+诸如以下的历史无命名空间 tag：
+
+```
+v1.0.0
+v1.1.0
+v1.2.0
+```
+
+属于**旧版 RescueAuth** 应用：
+
+```
+com.xincy.rescue_auth_kit
+```
+
+这些 tag 作为**不可变的历史发布快照**保留。
+
+**不要**删除、移动或复用它们。
+
+### Current RescueAuth releases（当前 RescueAuth 发布）
+
+当前 RescueAuth：
+
+```
+com.rescueauth.v2
+```
+
+从 **`1.0.0`** 开始独立的发布线。
+
+稳定发布使用**带命名空间的 tag**：
+
+```
+rescueauth-v1.0.0
+rescueauth-v1.0.1
+rescueauth-v1.1.0
+...
+```
+
+正式生产 APK **只能**从这些 release tag 构建。
+
+> `rescueauth-` 是 Git **tag 命名空间**，不属于 Android `versionName`。
+> tag `rescueauth-v1.0.0` 对应 Android `versionName = 1.0.0`。
+
+### 构建入口
+
+| 用途 | 入口 |
+|--------|-------------|
+| 开发（真机 smoke 用的 debug APK） | `main` / feature / fix 分支上的 Web 触发器 **"Build debug RescueAuth"** |
+| 正式生产发布 | 推送 `rescueauth-vX.Y.Z` **release tag**（tag-only 流水线） |
+
+`main` / feature / fix 分支**绝不**直接进行生产发布。
+
 ## 我为什么写这个
 
 很多认证器应用在"迁移数据"这件事上体验很差：要么不支持导出，要么格式不通用，

@@ -2,28 +2,49 @@
 #
 # Pipeline layout:
 #   $  (fallback branch)
-#     issue.comment@npc     -> NPC issue-comment runner (existing, untouched)
+#     issue.comment@npc        -> NPC issue-comment runner (existing, untouched)
 #     pull_request.comment@npc -> NPC PR-comment runner (existing, untouched)
-#     web_trigger_production_signing -> master-only manual production signing
+#     web_trigger_debug_apk    -> owner-triggered DEBUG APK build (any dev branch)
+#     tag_push                 -> PRODUCTION release, ONLY from rescueauth-vX.Y.Z tags
 #   main
 #     push                  -> full cloud test loop incl. guarded Firebase Test Lab
 #
-# Security boundary (see docs/FIREBASE_TEST_LAB.md):
+# ---------------------------------------------------------------------------
+# Build & Release Workflow (see README "Branch / Version / Release Policy"):
+#
+#   DEVELOPMENT:
+#     feature/fix branch or main
+#       -> owner triggers "Build debug RescueAuth" (web_trigger_debug_apk)
+#       -> tests / assembleDebug / debug signing
+#       -> RescueAuth-<versionName>-debug-<shortCommit>.apk
+#       -> real-device smoke -> PR -> main
+#
+#   RELEASE (TAG-ONLY):
+#     main reaches release-ready
+#       -> owner creates annotated tag:  rescueauth-vX.Y.Z
+#       -> tag_push pipeline (below)
+#       -> assert tag format ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$
+#       -> assert tag version == Android versionName
+#       -> production Secret Repo import (signing stage only)
+#       -> temporary PKCS12 -> production signing
+#       -> apksigner verify + pinned cert fingerprint + APK identity
+#       -> RescueAuth-X.Y.Z.apk attached to the tag's commit
+#
+#   main / feature / fix branches are NEVER production-released.
+#   Legacy unprefixed tags (vX.Y.Z) are preserved AS-IS and never enter the
+#   new production release path.
+#
+# ---------------------------------------------------------------------------
+# Security boundary:
 #   * Firebase credentials are imported ONLY by the `main`+`push` pipeline below.
-#   * PR branches, issue events, NPC comment events, tag events and any other
-#     branch/event MUST NOT import the firebase-test-lab.yml secret file.
-#   * A PR branch therefore cannot (and must not) run a real Test Lab matrix;
-#     the first real execution only happens after this config reaches `main`.
-#   * `imports` is scoped to the `firebase-test-lab` stage ONLY: inside
-#     `full-cloud-test-loop` the injected secret variables are visible to that
-#     single execution unit (core/JVM, Robolectric, lint, APK builds and the
-#     changed-file gate cannot read them).
+#   * The production Android signing Secret Repo
+#     (xincy22/rescue_auth_kit_secrets -> android-signing.yml) is imported ONLY
+#     by the `production-sign-and-verify` stage of the `tag_push` pipeline. No
+#     other stage/pipeline imports it. The debug pipeline NEVER imports it.
+#   * The production release-tag gate (validate-release-tag) runs BEFORE the
+#     signing stage, so an invalid tag never reaches the secret-bearing stage.
 #   * `main` must stay a protected branch; every .cnb.yml / Gradle / build-script
 #     change requires a human diff review (see docs/FIREBASE_TEST_LAB.md §2).
-#
-# The full `main` push flow:
-#   JVM/core tests -> Robolectric unit tests -> lint -> debug APK ->
-#   androidTest APK -> changed-file gating -> single virtual-device FTL matrix.
 
 $:
   issue.comment@npc:
@@ -46,18 +67,20 @@ $:
           options:
             model: deepseek-v4-flash
             contextWindow: "1m"
-  # The only secret-bearing Android production signing pipeline. Its button is
-  # restricted by .cnb/web_trigger.yml to the exact main branch and master role.
-  # PR, fork, push, tag, comment, API and arbitrary-branch events cannot select
-  # this event. The script repeats the repository/event/branch assertions before
-  # it decodes the keystore.
-  web_trigger_production_signing:
-    - name: production-sign-rescueauth-1.0.0
+
+  # ------------------------------------------------------------------------
+  # DEVELOPMENT: owner-triggered DEBUG APK build.
+  #   * Button "Build debug RescueAuth" (web_trigger_debug_apk) is restricted
+  #     in .cnb/web_trigger.yml to the owner role on main / feature / fix
+  #     branches.
+  #   * Builds a standard Android DEBUG APK for real-device smoke testing.
+  #   * NEVER imports the production Secret Repo and NEVER touches production
+  #     signing passwords / keystores / validation.
+  # ------------------------------------------------------------------------
+  web_trigger_debug_apk:
+    - name: build-debug-rescueauth
       docker:
         image: cimg/android:2026.08
-      lock:
-        key: rescueauth-production-signing
-        wait: true
       stages:
         - name: core-jvm-tests
           script: |
@@ -71,41 +94,94 @@ $:
           script: |
             cd v2
             ./gradlew --no-daemon :app:lintDebug
-        - name: build-androidtest-apk
+        - name: build-debug-apk
+          # Builds, verifies (applicationId / versionName / versionCode /
+          # debuggable=true / valid debug signature) and produces the
+          # descriptive artifact RescueAuth-<versionName>-debug-<sha>.apk.
+          # NO imports on purpose: this stage must never see production
+          # signing material.
+          script: |
+            set -eu
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            bash scripts/build-debug-apk.sh
+        - name: upload-debug-apk
+          # Uploads exactly the single descriptive debug APK as a commit
+          # attachment (CNB_COMMIT default target). The glob matches only the
+          # `RescueAuth-*.apk` file the build script produced.
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - "./v2/app/build/outputs/debug/RescueAuth-*.apk"
+
+  # ------------------------------------------------------------------------
+  # RELEASE: PRODUCTION release, TAG-ONLY.
+  #   Triggered by `tag_push`. The source is the commit the pushed tag points
+  #   to (CNB_COMMIT); CNB_BRANCH is the tag name. Only a tag matching
+  #   ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$ proceeds; anything else (legacy
+  #   unprefixed tags, `main`, feature branches) FAILS CLOSED before any
+  #   secret is imported.
+  # ------------------------------------------------------------------------
+  tag_push:
+    - name: production-release-rescueauth
+      docker:
+        image: cimg/android:2026.08
+      lock:
+        key: rescueauth-production-release
+        wait: true
+      stages:
+        - name: validate-release-tag
+          # Hard FAIL-CLOSED tag gate. Runs BEFORE any secret import, so an
+          # invalid tag never reaches the production Secret Repo.
+          script: |
+            set -eu
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            version="$(bash scripts/validate-release-tag.sh "${CNB_BRANCH:-}")"
+            echo "RELEASE_TAG=${CNB_BRANCH:-}"
+            echo "RELEASE_VERSION=${version}"
+        - name: core-jvm-tests
           script: |
             cd v2
-            ./gradlew --no-daemon :app:assembleDebugAndroidTest
+            ./gradlew --no-daemon :core:test
+        - name: app-robolectric-unit-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:testDebugUnitTest
+        - name: android-lint
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:lintDebug
         - name: production-sign-and-verify
           # Stage-scoped least privilege: no earlier test/build stage can read
           # Android signing material. The referenced Secret Repository file is
-          # independent from firebase-test-lab.yml.
+          # independent from firebase-test-lab.yml. The script re-validates the
+          # tag, derives the version, reconstructs the temporary PKCS12,
+          # runs validateReleaseSigning + assembleRelease, and verifies signer,
+          # pinned certificate fingerprint, applicationId, versionName
+          # (must equal tag-derived version), versionCode and debuggable=false.
           imports:
             - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/android-signing.yml
           script: |
             set -eu
             test "${CNB_REPO_SLUG:-}" = "xincy22/rescue_auth_kit"
-            test "${CNB_EVENT:-}" = "web_trigger_production_signing"
-            test "${CNB_BRANCH:-}" = "main"
+            test "${CNB_EVENT:-}" = "tag_push"
             cd "${CNB_BUILD_WORKSPACE:-/workspace}"
             bash scripts/build-production-apk.sh
-        - name: upload-signed-apk-attachment
+        - name: upload-release-apk
           # Independent attachment stage, runs ONLY after the signing and
           # verification stage above has fully succeeded (a stage failure jumps
           # to failStages, so no APK is ever uploaded on signing failure).
           #
           # NO imports on purpose: this stage must NOT see any production
-          # signing material (RESCUEAUTH_KEYSTORE_BASE64 / *_PASSWORD / alias).
-          # The signing stage's Secret Repo imports are stage-scoped and stay
-          # confined to `production-sign-and-verify`; the temporary keystore is
-          # already cleaned up there. This stage only consumes the single
-          # already-signed, already-verified APK bytes copied into the
-          # workspace by the signing script.
-          #
-          # Uploads exactly one file as the current commit's attachment.
+          # signing material. It only consumes the single already-signed,
+          # already-verified APK copied into the workspace by the signing
+          # script. It attaches the APK to the release tag's commit (CNB_COMMIT
+          # is the commit the tag points to), establishing the unambiguous
+          # association between the artifact and the rescueauth-vX.Y.Z tag.
           image: cnbcool/attachments:latest
           settings:
+            commit: $CNB_COMMIT
             attachments:
-              - "./v2/app/build/outputs/production/RescueAuth-1.0.0.apk"
+              - "./v2/app/build/outputs/production/RescueAuth-*.apk"
 
 main:
   push:

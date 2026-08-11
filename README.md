@@ -13,6 +13,72 @@ between devices without guessing which app supports what.
 > and one-time migration. See [`v2/AGENTS.md`](v2/AGENTS.md) for the v2 status
 > and build commands.
 
+## Branch / Version / Release Policy
+
+> **`main` is development; tags are releases.**
+
+### Development
+
+`main` is the active development branch.
+
+It may contain changes that have not been included in a stable release.
+
+Do **not** treat current `main` as a stable release.
+
+### Legacy releases
+
+Historical unprefixed tags such as:
+
+```
+v1.0.0
+v1.1.0
+v1.2.0
+```
+
+belong to the **legacy RescueAuth** application:
+
+```
+com.xincy.rescue_auth_kit
+```
+
+These tags are preserved as **immutable historical release snapshots**.
+
+Do **not** delete, move or reuse them.
+
+### Current RescueAuth releases
+
+Current RescueAuth:
+
+```
+com.rescueauth.v2
+```
+
+starts its independent release line from **`1.0.0`**.
+
+Stable releases use **namespaced tags**:
+
+```
+rescueauth-v1.0.0
+rescueauth-v1.0.1
+rescueauth-v1.1.0
+...
+```
+
+Official production APKs are built **only** from these release tags.
+
+> `rescueauth-` is a Git **tag namespace**, not part of the Android
+> `versionName`. Tag `rescueauth-v1.0.0` corresponds to Android
+> `versionName = 1.0.0`.
+
+### Build entry points
+
+| Intent | Entry point |
+|--------|-------------|
+| Development (debug APK for real-device smoke) | Web trigger **"Build debug RescueAuth"** on `main` / feature / fix branches |
+| Formal production release | Push a `rescueauth-vX.Y.Z` **release tag** (tag-only pipeline) |
+
+`main` / feature / fix branches are **never** production-released directly.
+
 ## Why I built this
 
 Most authenticator apps make migration the hardest part of the experience. This
