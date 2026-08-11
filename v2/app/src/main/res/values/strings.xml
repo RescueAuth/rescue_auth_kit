@@ -279,6 +279,15 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
+    <string name="settings_appearance_section">Appearance</string>
+    <string name="settings_theme_color">Theme color</string>
+    <string name="settings_theme_color_selected">Selected</string>
+    <string name="theme_color_shiyi_orange">Shiyi Orange</string>
+    <string name="theme_color_cyan_blue">Cyan Blue</string>
+    <string name="theme_color_jade_green">Jade Green</string>
+    <string name="theme_color_indigo">Indigo</string>
+    <string name="theme_color_violet">Violet</string>
+    <string name="theme_color_rose">Rose</string>
     <string name="settings_security_section">Security</string>
     <string name="settings_about_section">About</string>
     <string name="settings_backup_transfer_section">Backup / Transfer</string>

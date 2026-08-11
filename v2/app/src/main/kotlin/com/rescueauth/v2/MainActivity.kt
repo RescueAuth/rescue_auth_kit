@@ -15,8 +15,8 @@ import com.rescueauth.v2.security.VaultKeyManager
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.session.SessionManager
-import com.rescueauth.v2.ui.RescueAuthApp
-import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.RescueAuthRoot
+import com.rescueauth.v2.ui.theme.ThemePreferences
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,11 +104,13 @@ class MainActivity : AppCompatActivity() {
 
         // Compose host for the app shell. The shell is presentation-only and
         // does not need the unlocked session; it never reads Vault data.
+        val themePreferences = ThemePreferences(this)
         val composeView = ComposeView(this).apply {
             setContent {
-                RescueAuthTheme {
-                    RescueAuthApp(versionName = BuildConfig.VERSION_NAME)
-                }
+                RescueAuthRoot(
+                    themePreferences = themePreferences,
+                    versionName = BuildConfig.VERSION_NAME,
+                )
             }
         }
         setContentView(composeView)
