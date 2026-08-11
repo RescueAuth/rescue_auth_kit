@@ -2,12 +2,16 @@ package com.rescueauth.v2.ui.screens.legacyimport
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -49,6 +53,19 @@ object LegacyImportTestTags {
  * Preview → Confirm Import → Success summary. The password is held in
  * transient local state only (never SavedStateHandle / Bundle / rememberSaveable
  * / DataStore / Room / logs); the ViewModel zeroizes it after each submit.
+ *
+ * ## Layout contract (Issue #51)
+ *
+ * ```
+ * Scaffold
+ * └── Column (fillMaxSize, imePadding)
+ *     ├── Content (weight(1f), verticalScroll)
+ *     └── Actions (fixed at bottom)
+ * ```
+ *
+ * The Content area scrolls when long and shrinks when short; the bottom
+ * Actions (Cancel / Confirm) are always reachable regardless of content
+ * length, screen size, font scale, or IME visibility.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,51 +91,76 @@ fun LegacyImportScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
                 .padding(horizontal = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             when (state) {
                 is LegacyImportViewModel.State.Idle -> {
-                    Text(
-                        text = stringResource(R.string.legacy_import_intro),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.legacy_import_notice),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Button(
-                        onClick = onPickFile,
+                    // Short content — wrapped in a scrollable column so large
+                    // fonts / small screens never clip the "Pick file" button.
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag(LegacyImportTestTags.PICK_FILE),
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Text(stringResource(R.string.legacy_import_pick_file))
+                        Text(
+                            text = stringResource(R.string.legacy_import_intro),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.legacy_import_notice),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            onClick = onPickFile,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(LegacyImportTestTags.PICK_FILE),
+                        ) {
+                            Text(stringResource(R.string.legacy_import_pick_file))
+                        }
                     }
                 }
                 is LegacyImportViewModel.State.FileSelected -> {
-                    Text(
-                        text = stringResource(R.string.legacy_import_file_selected),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = state.fileName ?: stringResource(R.string.common_unknown),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.common_working),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.legacy_import_file_selected),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = state.fileName ?: stringResource(R.string.common_unknown),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.common_working),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
                 is LegacyImportViewModel.State.AwaitingPassword -> {
+                    // Password entry — scrollable content + fixed action row so
+                    // the IME never obscures Cancel/Submit (Issue #51 §9).
                     LegacyPasswordEntry(
                         onSubmit = onSubmitPassword,
                         onCancel = onCancelPassword,
                     )
                 }
                 is LegacyImportViewModel.State.Decrypting -> {
-                    Text(stringResource(R.string.common_working))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        Text(stringResource(R.string.common_working))
+                    }
                 }
                 is LegacyImportViewModel.State.Preview -> {
                     LegacyPreviewContent(
@@ -128,27 +170,88 @@ fun LegacyImportScreen(
                     )
                 }
                 is LegacyImportViewModel.State.Applying -> {
-                    Text(stringResource(R.string.common_working))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        Text(stringResource(R.string.common_working))
+                    }
                 }
                 is LegacyImportViewModel.State.Success -> {
-                    LegacyResultContent(
-                        result = state,
-                        onDismiss = onDismissResult,
-                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        if (state.blocked) {
+                            Text(
+                                text = stringResource(R.string.import_result_blocked_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.import_result_blocked_body,
+                                    state.conflicts,
+                                    state.stateDivergences,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.import_result_title),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            if (state.imported == 0 && state.duplicates > 0) {
+                                Text(
+                                    text = stringResource(R.string.import_result_nothing_new),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(
+                                        R.string.import_result_summary,
+                                        state.imported,
+                                        state.duplicates,
+                                        state.developerImported,
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = onDismissResult,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.common_close))
+                    }
                 }
                 is LegacyImportViewModel.State.Error -> {
-                    Text(
-                        text = stringResource(R.string.legacy_import_error_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    Text(
-                        text = state.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.legacy_import_error_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     when (state.action) {
                         LegacyImportViewModel.ErrorAction.RETRY_PASSWORD -> {
-                            Button(onClick = onRetryPassword, modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = onRetryPassword,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
                                 Text(stringResource(R.string.common_retry))
                             }
                         }
@@ -170,13 +273,14 @@ fun LegacyImportScreen(
 }
 
 /**
- * Legacy Master Password entry. The password is transient local state only;
- * any non-empty password is submitted to the legacy decoder (NO `>=10`
- * gate — that is a v1 creation-UI policy, not a decoder requirement,
- * Issue #1 §6).
+ * Legacy Master Password entry (Issue #51 §9).
+ *
+ * The password is held in transient local state here and zeroized by the
+ * caller after each submit. The content area scrolls (for small screens /
+ * large fonts / IME) while the action row stays pinned to the bottom.
  */
 @Composable
-private fun LegacyPasswordEntry(
+private fun ColumnScope.LegacyPasswordEntry(
     onSubmit: (CharArray) -> Boolean,
     onCancel: () -> Unit,
 ) {
@@ -184,7 +288,12 @@ private fun LegacyPasswordEntry(
     var revealed by remember { mutableStateOf(false) }
     val transformation = if (revealed) VisualTransformation.None else PasswordVisualTransformation()
 
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
         Text(
             text = stringResource(R.string.legacy_password_title),
             style = MaterialTheme.typography.titleMedium,
@@ -216,44 +325,59 @@ private fun LegacyPasswordEntry(
                 )
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    }
+
+    // Fixed bottom action row — always reachable even with IME open.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(LegacyImportTestTags.PASSWORD_CANCEL),
         ) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(LegacyImportTestTags.PASSWORD_CANCEL),
-            ) {
-                Text(stringResource(R.string.common_cancel))
-            }
-            Button(
-                onClick = {
-                    val p = password.toCharArray()
-                    if (!onSubmit(p)) {
-                        p.fill('\u0000')
-                    }
-                    // On success the ViewModel owns the array and zeroizes it.
-                },
-                enabled = password.isNotEmpty(),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(LegacyImportTestTags.PASSWORD_SUBMIT),
-            ) {
-                Text(stringResource(R.string.pin_submit))
-            }
+            Text(stringResource(R.string.common_cancel))
+        }
+        Button(
+            onClick = {
+                val p = password.toCharArray()
+                if (!onSubmit(p)) {
+                    p.fill('\u0000')
+                }
+                // On success the ViewModel owns the array and zeroizes it.
+            },
+            enabled = password.isNotEmpty(),
+            modifier = Modifier
+                .weight(1f)
+                .testTag(LegacyImportTestTags.PASSWORD_SUBMIT),
+        ) {
+            Text(stringResource(R.string.pin_submit))
         }
     }
 }
 
+/**
+ * Safe Legacy preview — scrollable content + pinned bottom actions.
+ *
+ * The content area (metadata + merge summary) scrolls independently when the
+ * preview is long; the Cancel / Import row is always visible at the bottom so
+ * a real-device user can always complete the import (Issue #51 §3/§5/§6).
+ */
 @Composable
-private fun LegacyPreviewContent(
+private fun ColumnScope.LegacyPreviewContent(
     preview: LegacyImportPreview,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    // Scrollable content area (weight 1f so actions stay pinned at bottom).
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
         Text(
             text = stringResource(R.string.legacy_preview_title),
             style = MaterialTheme.typography.titleMedium,
@@ -302,36 +426,39 @@ private fun LegacyPreviewContent(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(LegacyImportTestTags.CANCEL),
-            ) {
-                Text(stringResource(R.string.common_cancel))
-            }
-            Button(
-                onClick = onConfirm,
-                enabled = !preview.blocked,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(LegacyImportTestTags.CONFIRM),
-            ) {
-                Text(stringResource(R.string.preview_confirm_import))
-            }
-        }
         if (preview.blocked) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = stringResource(R.string.legacy_preview_blocked_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        // Bottom spacer so the last row never rubs against the action bar.
+        Spacer(modifier = Modifier.height(Spacing.sm))
+    }
+
+    // Fixed bottom action row — always visible, never scrolled out of view.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(LegacyImportTestTags.CANCEL),
+        ) {
+            Text(stringResource(R.string.common_cancel))
+        }
+        Button(
+            onClick = onConfirm,
+            enabled = !preview.blocked,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(LegacyImportTestTags.CONFIRM),
+        ) {
+            Text(stringResource(R.string.preview_confirm_import))
         }
     }
 }
@@ -348,53 +475,5 @@ private fun PreviewRow(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(text = value, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-private fun LegacyResultContent(
-    result: LegacyImportViewModel.State.Success,
-    onDismiss: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        if (result.blocked) {
-            Text(
-                text = stringResource(R.string.import_result_blocked_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-            Text(
-                text = stringResource(
-                    R.string.import_result_blocked_body,
-                    result.conflicts,
-                    result.stateDivergences,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else {
-            Text(
-                text = stringResource(R.string.import_result_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            if (result.imported == 0 && result.duplicates > 0) {
-                Text(
-                    text = stringResource(R.string.import_result_nothing_new),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                Text(
-                    text = stringResource(
-                        R.string.import_result_summary,
-                        result.imported,
-                        result.duplicates,
-                        result.developerImported,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-        Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.common_close))
-        }
     }
 }
