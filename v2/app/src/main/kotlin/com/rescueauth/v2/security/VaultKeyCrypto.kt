@@ -17,6 +17,19 @@ interface VaultKeyCrypto {
     class KeyInvalidatedException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
     /**
+     * Raised by [wrap]/[unwrap] when the Keystore key requires a user
+     * authentication that has no valid token at the time of the operation
+     * (Android `UserNotAuthenticatedException`).
+     *
+     * This is **not** an error the caller should treat as "Keystore
+     * unavailable" or crash on — it means the authentication-first startup
+     * contract was violated by a race (e.g. the auth token expired between
+     * the BiometricPrompt success and the crypto operation). It maps to
+     * `AUTH_REQUIRED` in the startup taxonomy.
+     */
+    class AuthRequiredException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+    /**
      * Wraps [vaultKey] and hands the blob to [persist] for storage.
      */
     fun wrap(vaultKey: ByteArray, persist: (String) -> Unit)

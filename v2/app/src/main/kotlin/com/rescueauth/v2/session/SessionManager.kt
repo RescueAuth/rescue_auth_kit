@@ -59,19 +59,51 @@ class SessionManager(
     fun needsFirstRunSetup(): Boolean = !vaultKeyManager.hasVaultKey
 
     /**
-     * First-run setup: generate + wrap the VaultKey. Returns the fresh key
-     * so the caller can open the DB immediately (caller zeroes it after).
+     * First-run setup: generates + wraps the VaultKey and opens the DB.
+     *
+     * The caller must have completed a successful system authentication
+     * prompt **before** calling this — the Keystore operation is never
+     * executed first (Issue #50). On success returns the fresh key (which the
+     * caller must zero) inside [VaultUnlockOutcome.Success]; on any Keystore /
+     * crypto failure returns a typed [VaultUnlockOutcome] instead of crashing.
      */
-    fun createVault(): ByteArray = vaultKeyManager.generateAndWrap()
+    fun createVaultAndOpen(): VaultUnlockOutcome {
+        if (!stateMachine.beginAuthentication()) {
+            return if (stateMachine.isUnlocked()) VaultUnlockOutcome.Success(null) else VaultUnlockOutcome.AuthFailed
+        }
+        return try {
+            val key = vaultKeyManager.generateAndWrap()
+            val db = databaseFactory(context, key)
+            vaultKey?.fill(0)
+            vaultKey = key.copyOf()
+            database = db
+            stateMachine.onAuthenticationSuccess()
+            VaultUnlockOutcome.Success(key)
+        } catch (e: VaultKeyManager.AuthRequiredException) {
+            stateMachine.onAuthenticationFailure()
+            VaultUnlockOutcome.AuthRequired
+        } catch (e: VaultKeyManager.KeyInvalidatedException) {
+            stateMachine.onKeystoreInvalidated()
+            VaultUnlockOutcome.KeyInvalidated
+        } catch (e: VaultKeyManager.KeystoreUnavailableException) {
+            stateMachine.onAuthenticationFailure()
+            VaultUnlockOutcome.KeystoreUnavailable
+        } catch (e: Exception) {
+            stateMachine.onAuthenticationFailure()
+            VaultUnlockOutcome.VaultCorrupt
+        }
+    }
 
     /**
-     * Unlocks the session. Caller must have completed a successful
-     * BiometricPrompt before calling this.
+     * Unlocks the session. Caller must have completed a successful system
+     * authentication prompt before calling this (Issue #50 — auth-first).
      *
-     * @return true on success; false if the state machine rejected the call.
+     * @return a typed [VaultUnlockOutcome]; on success the session is UNLOCKED.
      */
-    fun unlock(): Boolean {
-        if (!stateMachine.beginAuthentication()) return false
+    fun unlock(): VaultUnlockOutcome {
+        if (!stateMachine.beginAuthentication()) {
+            return if (stateMachine.isUnlocked()) VaultUnlockOutcome.Success(null) else VaultUnlockOutcome.AuthFailed
+        }
         return try {
             val key = vaultKeyManager.unwrap()
             val db = databaseFactory(context, key)
@@ -79,13 +111,19 @@ class SessionManager(
             vaultKey = key
             database = db
             stateMachine.onAuthenticationSuccess()
-            true
+            VaultUnlockOutcome.Success(null)
+        } catch (e: VaultKeyManager.AuthRequiredException) {
+            stateMachine.onAuthenticationFailure()
+            VaultUnlockOutcome.AuthRequired
         } catch (e: VaultKeyManager.KeyInvalidatedException) {
             stateMachine.onKeystoreInvalidated()
-            false
+            VaultUnlockOutcome.KeyInvalidated
+        } catch (e: VaultKeyManager.KeystoreUnavailableException) {
+            stateMachine.onAuthenticationFailure()
+            VaultUnlockOutcome.KeystoreUnavailable
         } catch (e: Exception) {
             stateMachine.onAuthenticationFailure()
-            false
+            VaultUnlockOutcome.VaultCorrupt
         }
     }
 

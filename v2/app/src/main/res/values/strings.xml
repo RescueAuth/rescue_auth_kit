@@ -7,6 +7,16 @@
     <string name="unlock_subtitle">Use your fingerprint, face, or device credential</string>
     <string name="unlock_cancel">Cancel</string>
 
+    <!-- Startup lock screen (Issue #50) -->
+    <string name="startup_locked_title">RescueAuth is locked</string>
+    <string name="startup_locked_body">Unlock with your fingerprint, face, or device PIN to open your vault.</string>
+    <string name="startup_unlock">Unlock</string>
+    <string name="startup_exit">Exit</string>
+    <string name="startup_no_secure_title">Secure device lock required</string>
+    <string name="startup_no_secure_body">RescueAuth requires a secure device lock (PIN, pattern, password, or strong biometric) to protect your vault. Configure one in system settings, then try again.</string>
+    <string name="startup_key_invalidated_title">Vault key invalidated</string>
+    <string name="startup_key_invalidated_body">Your vault key was invalidated by a biometric change. Re-enroll your biometrics, then restart RescueAuth.</string>
+
     <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
     <string name="reauth_title">Authenticate to continue</string>
     <string name="reauth_subtitle">Use your fingerprint, face, or device credential to authorize this action</string>

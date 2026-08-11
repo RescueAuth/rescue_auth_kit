@@ -63,6 +63,35 @@ class VaultKeyManagerTest {
     }
 
     @Test
+    fun `no-auth during wrap maps to AuthRequiredException not KeystoreUnavailable`() {
+        val crypto = FakeVaultKeyCrypto().apply { requireAuthOnWrap = true }
+        val mgr = VaultKeyManager(crypto)
+        try {
+            mgr.generateAndWrap()
+            assertTrue("expected AuthRequiredException", false)
+        } catch (e: VaultKeyManager.AuthRequiredException) {
+            // expected — must NOT be KeystoreUnavailable and must NOT crash.
+        } catch (e: Exception) {
+            assertTrue("wrong exception type: ${e.javaClass.simpleName}", false)
+        }
+    }
+
+    @Test
+    fun `no-auth during unwrap maps to AuthRequiredException not KeyInvalidated`() {
+        val crypto = FakeVaultKeyCrypto().apply { requireAuthOnUnwrap = true }
+        val mgr = VaultKeyManager(crypto)
+        mgr.generateAndWrap()
+        try {
+            mgr.unwrap()
+            assertTrue("expected AuthRequiredException", false)
+        } catch (e: VaultKeyManager.AuthRequiredException) {
+            // expected.
+        } catch (e: Exception) {
+            assertTrue("wrong exception type: ${e.javaClass.simpleName}", false)
+        }
+    }
+
+    @Test
     fun `corrupt blob throws KeyInvalidatedException`() {
         val inner = FakeVaultKeyCrypto()
         val crypto = object : VaultKeyCrypto {
