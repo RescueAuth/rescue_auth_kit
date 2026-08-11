@@ -5,4 +5,4 @@ branch:
         description: Run the trusted production signing and APK identity verification flow.
         event: web_trigger_production_signing
         permissions:
-          roles: [master]
+          roles: [owner]
