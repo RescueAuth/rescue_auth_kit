@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">RescueAuth</string>
+    <string name="app_name">拾遗坊</string>
 
     <!-- Unlock prompt (BiometricPrompt) -->
-    <string name="unlock_title">解锁 RescueAuth</string>
+    <string name="unlock_title">解锁 拾遗坊</string>
     <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
     <string name="unlock_cancel">取消</string>
 
@@ -287,6 +287,15 @@
 
     <!-- Settings -->
     <string name="settings_title">设置</string>
+    <string name="settings_appearance_section">外观</string>
+    <string name="settings_theme_color">主题色</string>
+    <string name="settings_theme_color_selected">已选择</string>
+    <string name="theme_color_shiyi_orange">拾遗橙</string>
+    <string name="theme_color_cyan_blue">青蓝</string>
+    <string name="theme_color_jade_green">翠绿</string>
+    <string name="theme_color_indigo">靛蓝</string>
+    <string name="theme_color_violet">紫罗兰</string>
+    <string name="theme_color_rose">玫红</string>
     <string name="settings_security_section">安全</string>
     <string name="settings_about_section">关于</string>
     <string name="settings_backup_transfer_section">备份 / 迁移</string>

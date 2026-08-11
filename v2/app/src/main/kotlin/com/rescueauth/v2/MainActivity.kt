@@ -6,7 +6,10 @@ import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.security.SensitiveActionController
@@ -22,6 +25,8 @@ import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
 import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
 import com.rescueauth.v2.ui.screens.startup.StartupLockScreen
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.ThemeColor
+import com.rescueauth.v2.ui.theme.ThemePreferences
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +65,12 @@ import kotlinx.coroutines.launch
  *
  * Other Phase 2/4 semantics are preserved unchanged: `FLAG_SECURE`, background
  * masking + auto-lock timeout, and the sensitive-action fresh re-auth gate.
+ *
+ * Theme color (Issue #52): the selected [ThemeColor] is collected as early as
+ * possible in the composition so the startup gate, unlock UI and the app shell
+ * all render with the correct theme from the very first frame (no flash). It is
+ * read via DataStore (async, off the main thread) and does not depend on the
+ * Vault being unlocked.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -155,9 +166,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Compose host — renders a startup gate until the Vault is unlocked.
+        // The theme-color preference is wired in as early as possible so both
+        // the gate/lock screens and the app shell apply the saved theme.
+        val themePreferences = ThemePreferences(this)
         val composeView = ComposeView(this).apply {
             setContent {
-                RescueAuthTheme {
+                val context = LocalContext.current
+                val prefs = remember(themePreferences, context) {
+                    themePreferences ?: ThemePreferences(context)
+                }
+                val themeColor by prefs.themeColor.collectAsState(initial = ThemeColor.DEFAULT)
+                val scope = rememberCoroutineScope()
+
+                RescueAuthTheme(themeColor = themeColor) {
                     val ui by uiState.collectAsState()
                     when (ui) {
                         StartupUiState.INIT,
@@ -176,6 +197,10 @@ class MainActivity : AppCompatActivity() {
                         )
                         StartupUiState.UNLOCKED -> RescueAuthApp(
                             versionName = BuildConfig.VERSION_NAME,
+                            themeColor = themeColor,
+                            onThemeColorSelected = { color ->
+                                scope.launch { prefs.setThemeColor(color) }
+                            },
                         )
                     }
                 }
