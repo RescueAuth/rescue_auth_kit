@@ -81,9 +81,17 @@ stable source snapshots are identified by tags.
 | Intent | Entry point |
 |--------|-------------|
 | Development (debug APK for real-device smoke) | Web trigger **"Build debug RescueAuth"** on `main` / feature / fix branches |
+| Full regression test suite (manual) | Web trigger **"Run full RescueAuth test suite"** on `main` / feature / fix / auto branches |
 | Formal production release | Push a `rescueauth-vX.Y.Z` **release tag** (tag-only pipeline) |
 
 `main` / feature / fix branches are **never** production-released directly.
+
+**Test trigger policy:** ordinary push / PR merge / main update does **not**
+automatically run the full regression suite. When you need a full validation,
+trigger it manually via the **"Run full RescueAuth test suite"** web trigger
+(core JVM tests, app Robolectric, lint, `assembleDebugAndroidTest`). Real-device
+smoke builds stay under **"Build debug RescueAuth"**; formal releases stay under
+the `rescueauth-vX.Y.Z` **tag** pipeline.
 
 ## Why I built this
 

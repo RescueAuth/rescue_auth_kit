@@ -5,9 +5,14 @@
 #     issue.comment@npc        -> NPC issue-comment runner (existing, untouched)
 #     pull_request.comment@npc -> NPC PR-comment runner (existing, untouched)
 #     web_trigger_debug_apk    -> owner-triggered DEBUG APK build (any dev branch)
+#     web_trigger_full_test    -> owner-triggered FULL regression test suite (any dev branch)
 #     tag_push                 -> PRODUCTION release, ONLY from rescueauth-vX.Y.Z tags
-#   main
-#     push                  -> full cloud test loop incl. guarded Firebase Test Lab
+#
+# TEST TRIGGER POLICY:
+#   Ordinary push / PR merge / main update does NOT automatically run the full
+#   test suite. Full regression is triggered MANUALLY by the owner via the
+#   "Run full RescueAuth test suite" web trigger (web_trigger_full_test).
+#   Production tag releases (tag_push) keep their own mandatory test/lint gate.
 #
 # ---------------------------------------------------------------------------
 # Build & Release Workflow (see README "Branch / Version / Release Policy"):
@@ -18,6 +23,9 @@
 #       -> tests / assembleDebug / debug signing
 #       -> RescueAuth-<versionName>-debug-<shortCommit>.apk
 #       -> real-device smoke -> PR -> main
+#     Full regression on demand
+#       -> owner triggers "Run full RescueAuth test suite" (web_trigger_full_test)
+#       -> core tests / Robolectric / lint / assembleDebugAndroidTest
 #
 #   RELEASE (TAG-ONLY):
 #     main reaches release-ready
@@ -36,11 +44,15 @@
 #
 # ---------------------------------------------------------------------------
 # Security boundary:
-#   * Firebase credentials are imported ONLY by the `main`+`push` pipeline below.
+#   * There is NO automatic full-test pipeline on push/merge to main. The
+#     Firebase Test Lab path (previously on `main`+`push`) no longer runs
+#     automatically; the Test Lab scripts remain in scripts/ but are not wired
+#     into any pipeline here.
 #   * The production Android signing Secret Repo
 #     (xincy22/rescue_auth_kit_secrets -> android-signing.yml) is imported ONLY
 #     by the `production-sign-and-verify` stage of the `tag_push` pipeline. No
-#     other stage/pipeline imports it. The debug pipeline NEVER imports it.
+#     other stage/pipeline imports it. The debug pipeline and the manual full
+#     test pipeline NEVER import it.
 #   * The production release-tag gate (validate-release-tag) runs BEFORE the
 #     signing stage, so an invalid tag never reaches the secret-bearing stage.
 #   * `main` must stay a protected branch; every .cnb.yml / Gradle / build-script
@@ -114,6 +126,43 @@ $:
               - "./v2/app/build/outputs/debug/RescueAuth-*.apk"
 
   # ------------------------------------------------------------------------
+  # REGRESSION: owner-triggered FULL test suite.
+  #   * Button "Run full RescueAuth test suite" (web_trigger_full_test) is
+  #     restricted in .cnb/web_trigger.yml to the owner role on main / feature
+  #     / fix / auto / other normal development branches.
+  #   * Reuses the existing test stages: core JVM, app Robolectric, lint and
+  #     assembleDebugAndroidTest. Nothing is skipped or weakened; a test
+  #     failure FAILS the pipeline.
+  #   * NO imports on purpose: this pipeline NEVER touches the production
+  #     Secret Repo, Android signing keystore or any production password.
+  #   * It does NOT build/upload a Debug APK; that is the separate
+  #     "Build debug RescueAuth" (web_trigger_debug_apk) responsibility.
+  #   * Ordinary push / PR merge / main update does NOT run this pipeline;
+  #     it is triggered manually only.
+  # ------------------------------------------------------------------------
+  web_trigger_full_test:
+    - name: run-full-test-suite
+      docker:
+        image: cimg/android:2026.08
+      stages:
+        - name: core-jvm-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :core:test
+        - name: app-robolectric-unit-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:testDebugUnitTest
+        - name: android-lint
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:lintDebug
+        - name: build-androidtest-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebugAndroidTest
+
+  # ------------------------------------------------------------------------
   # RELEASE: PRODUCTION release, TAG-ONLY.
   #   Triggered by `tag_push`. The source is the commit the pushed tag points
   #   to (CNB_COMMIT); CNB_BRANCH is the tag name. Only a tag matching
@@ -183,95 +232,3 @@ $:
             attachments:
               - "./v2/app/build/outputs/production/RescueAuth-*.apk"
 
-main:
-  push:
-    - name: full-cloud-test-loop
-      # Pinned, reproducible Android CI image (JDK 17/21 + Android SDK 34/35/36
-      # + build-tools 35.0.0, all version-pinned by the image tag). The same
-      # image also carries a pinned gcloud SDK for the Test Lab stage.
-      docker:
-        image: cimg/android:2026.08
-      env:
-        # Fixed, non-sensitive Test Lab device configuration.
-        # MediumPhone.arm is a VIRTUAL (emulator) FTL model, API 33. Do NOT use
-        # `panther` (physical Pixel 7): this pipeline must use one virtual device.
-        FTL_DEVICE_MODEL: MediumPhone.arm
-        FTL_DEVICE_VERSION: "33"
-        FTL_DEVICE_LOCALE: en
-        FTL_DEVICE_ORIENTATION: portrait
-        FTL_TEST_TIMEOUT: 5m
-        # Deterministic Gradle output paths (no unconstrained find|head -1).
-        # CNB_BUILD_WORKSPACE is /workspace for script tasks.
-        APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
-        TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-      stages:
-        - name: core-jvm-tests
-          script: |
-            cd v2
-            ./gradlew --no-daemon :core:test
-        - name: app-robolectric-unit-tests
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:testDebugUnitTest
-        - name: android-lint
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:lintDebug
-        - name: build-debug-apk
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:assembleDebug
-            test -s app/build/outputs/apk/debug/app-debug.apk
-        - name: build-androidtest-apk
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:assembleDebugAndroidTest
-            test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-        - name: changed-file-gate
-          # Skips Test Lab for documentation-only pushes. Never skips based on
-          # arbitrary strings in commit messages. Always compares the FULL
-          # CNB_BEFORE_SHA..CNB_COMMIT range; runs Test Lab when the range is
-          # empty/invalid/all-zero. See scripts/check-test-lab-gate.sh.
-          # NOTE: inline `script:` runs under /bin/sh (POSIX), so bash-only
-          # features (set -o pipefail, [[ ]]) must NOT be used here. The gate
-          # script itself is bash and is invoked explicitly via `bash`.
-          script: |
-            set -eu
-            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
-            export CNB_BEFORE_SHA CNB_COMMIT CNB_BUILD_WORKSPACE
-            bash scripts/check-test-lab-gate.sh
-        - name: firebase-test-lab
-          # Stage-scoped imports: the injected secret variables are visible ONLY
-          # to this stage (and its single job). Every other stage of
-          # `full-cloud-test-loop` (core/JVM, Robolectric, lint, APK builds,
-          # changed-file gate) cannot read them.
-          # Secrets are ONLY readable on `main` push (repository restricted to
-          # repository=xincy22/rescue_auth_kit, event=push, branch=main).
-          imports:
-            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
-          script: |
-            set -eu
-            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
-            gate=$(grep -E '^TEST_LAB_GATE=' .cnb-gate.env 2>/dev/null | cut -d= -f2- || true)
-            if [ "$gate" = "skip" ]; then
-              echo "TEST LAB NOT EXECUTED: documentation-only change"
-              exit 0
-            fi
-            echo "FTL_DEVICE_MODEL=${FTL_DEVICE_MODEL}"
-            echo "FTL_DEVICE_VERSION=${FTL_DEVICE_VERSION}"
-            echo "FTL_DEVICE_LOCALE=${FTL_DEVICE_LOCALE}"
-            echo "FTL_DEVICE_ORIENTATION=${FTL_DEVICE_ORIENTATION}"
-            echo "FTL_TEST_TIMEOUT=${FTL_TEST_TIMEOUT}"
-            echo "FTL_CNB_COMMIT=${CNB_COMMIT}"
-            echo "FTL_APP_APK=${APP_APK}"
-            echo "FTL_TEST_APK=${TEST_APK}"
-            # The runner enforces: single virtual device, no retries, no
-            # orchestrator, waits for the matrix to finish, preserves gcloud's
-            # raw exit code and classifies it (incl. CONFIGURATION FAILURE and
-            # QUOTA EXHAUSTED annotations) in the build log.
-            export APP_APK TEST_APK FIREBASE_PROJECT_ID \
-                   GCP_SERVICE_ACCOUNT_JSON_BASE64 \
-                   FTL_DEVICE_MODEL FTL_DEVICE_VERSION FTL_DEVICE_LOCALE \
-                   FTL_DEVICE_ORIENTATION FTL_TEST_TIMEOUT
-            export CNB_COMMIT
-            bash scripts/run-firebase-test-lab.sh

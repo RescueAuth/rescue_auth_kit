@@ -11,6 +11,11 @@ branch:
         event: web_trigger_debug_apk
         permissions:
           roles: [owner]
+      - name: Run full RescueAuth test suite
+        description: Run the full regression test suite (core JVM, app Robolectric, lint, assembleDebugAndroidTest) on the selected branch. No production secrets are used.
+        event: web_trigger_full_test
+        permissions:
+          roles: [owner]
 
   # NOTE: The former main-only "Build production-signed RescueAuth 1.0.0"
   # button is REMOVED. Production releases are now tag-only and are triggered
