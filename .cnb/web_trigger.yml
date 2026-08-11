@@ -1,0 +1,8 @@
+branch:
+  - reg: ^main$
+    buttons:
+      - name: Build production-signed RescueAuth 1.0.0
+        description: Run the trusted production signing and APK identity verification flow.
+        event: web_trigger_production_signing
+        permissions:
+          roles: [master]
