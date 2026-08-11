@@ -7,7 +7,7 @@ RescueAuthKit 是一个很小但很"偏执"的 **Android 个人安全库**：可
 导出/导入格式，让你可以在设备间迁移数据而不用猜哪个应用支持什么。
 
 > **注意**：仓库正在 `v2/` 下重写为**原生 Android 应用**（Kotlin + Room/SQLCipher，
-> 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `v1.2.0`，仅作
+> 加密数据库 + 生物识别解锁）。下方旧 Flutter 应用冻结于 tag `legacy-v1.2.0`，仅作
 > 参考与一次性迁移。v2 状态与构建命令见 [`v2/AGENTS.md`](v2/AGENTS.md)。
 
 ## 分支 / 版本 / 发布策略
@@ -20,37 +20,38 @@ RescueAuthKit 是一个很小但很"偏执"的 **Android 个人安全库**：可
 
 **不要**把当前的 `main` 当作稳定版本。
 
-### Legacy releases（旧版发布）
+### Legacy RescueAuth（旧版发布）
 
-诸如以下的历史无命名空间 tag：
+旧版发布使用：
 
 ```
-v1.0.0
-v1.1.0
-v1.2.0
+legacy-vX.Y.Z
 ```
 
-属于**旧版 RescueAuth** 应用：
+例如：
+
+```
+legacy-v1.0.0
+legacy-v1.0.1
+legacy-v1.1.0
+legacy-v1.2.0
+```
+
+旧版 applicationId：
 
 ```
 com.xincy.rescue_auth_kit
 ```
 
-这些 tag 作为**不可变的历史发布快照**保留。
+### Current RescueAuth（当前 RescueAuth 发布）
 
-**不要**删除、移动或复用它们。
-
-### Current RescueAuth releases（当前 RescueAuth 发布）
-
-当前 RescueAuth：
+当前发布使用：
 
 ```
-com.rescueauth.v2
+rescueauth-vX.Y.Z
 ```
 
-从 **`1.0.0`** 开始独立的发布线。
-
-稳定发布使用**带命名空间的 tag**：
+例如：
 
 ```
 rescueauth-v1.0.0
@@ -59,10 +60,15 @@ rescueauth-v1.1.0
 ...
 ```
 
-正式生产 APK **只能**从这些 release tag 构建。
+当前 applicationId：
 
-> `rescueauth-` 是 Git **tag 命名空间**，不属于 Android `versionName`。
-> tag `rescueauth-v1.0.0` 对应 Android `versionName = 1.0.0`。
+```
+com.rescueauth.v2
+```
+
+### Development（开发）
+
+`main` 是活跃开发分支，不是稳定发布。正式的稳定源码快照以 tag 标识。
 
 ### 构建入口
 
@@ -111,7 +117,7 @@ rescueauth-v1.1.0
 
 ## 旧 Flutter 应用（v1.x，已冻结）
 
-原始的跨平台 Flutter 应用，冻结于 tag `v1.2.0`。仍完整可用，但不再是活跃
+原始的跨平台 Flutter 应用，冻结于 tag `legacy-v1.2.0`。仍完整可用，但不再是活跃
 开发目标。
 
 ---

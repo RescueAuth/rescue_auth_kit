@@ -296,7 +296,7 @@ Without production signing secrets, normal CI continues to support:
   trigger has been removed.
 - `scripts/validate-release-tag.sh` (run as the FIRST stage, before any secret
   import) FAILS CLOSED unless `CNB_BRANCH` matches
-  `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$` (rejects legacy unprefixed tags,
+  `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$` (rejects legacy `legacy-vX.Y.Z` tags,
   `main`, feature branches and arbitrary strings).
 - `scripts/build-production-apk.sh` reconstructs a `0600` PKCS12 under a runner
   temp directory, validates its public certificate fingerprint, runs
@@ -341,7 +341,7 @@ root `README.md` "Branch / Version / Release Policy".
 
 | Namespace | App | Example | Entry into new production path? |
 |-----------|-----|---------|---------------------------------|
-| Legacy unprefixed `vX.Y.Z` | legacy `com.xincy.rescue_auth_kit` | `v1.0.0`, `v1.1.0`, `v1.2.0` | **No** — preserved AS-IS, rejected |
+| Legacy `legacy-vX.Y.Z` | legacy `com.xincy.rescue_auth_kit` | `legacy-v1.0.0`, `legacy-v1.1.0`, `legacy-v1.2.0` | **No** — preserved, rejected |
 | New namespaced `rescueauth-vX.Y.Z` | current `com.rescueauth.v2` | `rescueauth-v1.0.0` | **Yes** — the only accepted production tag |
 
 `rescueauth-` is a Git **tag namespace**, not part of the Android `versionName`.
@@ -388,7 +388,7 @@ tests / assembleDebug
   `X.Y.Z`. Mismatch FAILS (not hardcoded to `1.0.0`).
 - `versionCode`: taken from the actual Gradle build, reported, never derived
   from the tag. Must stay monotonically increasing in the new App's own line.
-- Legacy unprefixed tags are rejected by the production path.
+- Legacy tags (namespace `legacy-vX.Y.Z`) are rejected by the production path.
 
 ### Regression tests
 

@@ -11,19 +11,23 @@
 #
 # Release policy (see README "Branch / Version / Release Policy"):
 #
-#   * New RescueAuth stable releases use the namespaced tag namespace:
+#   * Current RescueAuth stable releases use the namespaced tag namespace:
 #         rescueauth-vX.Y.Z
 #     where X.Y.Z is the Android `versionName` (e.g. tag `rescueauth-v1.0.0`
 #     corresponds to Android `versionName = 1.0.0`).
 #   * The `rescueauth-` prefix is a Git TAG namespace, NOT part of the Android
 #     versionName.
-#   * Legacy unprefixed tags (`v1.0.0`, `v1.1.0`, `v1.2.0`, ...) belong to the
-#     legacy RescueAuth app (applicationId `com.xincy.rescue_auth_kit`) and MUST
-#     NOT be accepted by the current production release path.
+#   * Legacy RescueAuth (applicationId `com.xincy.rescue_auth_kit`) uses its own
+#     tag namespace `legacy-vX.Y.Z` (e.g. `legacy-v1.2.0`). Legacy tags MUST NOT
+#     be accepted by the current production release path.
 #   * `main` and feature/fix branches MUST NOT be production-released.
 #
 # The canonical release-tag regex (POSIX ERE, applied to the whole tag string):
 #     ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$
+#
+# Legacy tags use a separate namespace `legacy-vX.Y.Z` (kept as a lightweight
+# constant here for documentation / classification / tests only; it is NEVER
+# used to build a legacy production release).
 #
 # Usage from a sourced script:
 #     source scripts/release-version.sh
@@ -38,8 +42,14 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     exit 2
 fi
 
-# Canonical POSIX ERE for a namespaced RescueAuth release tag.
+# Canonical POSIX ERE for a namespaced Current RescueAuth release tag.
 readonly RELEASE_TAG_REGEX='^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$'
+
+# Legacy RescueAuth tag namespace (documentation / classification / tests only).
+# Legacy is frozen and has NO production pipeline; this constant exists solely
+# so tooling can distinguish `legacy-vX.Y.Z` from `rescueauth-vX.Y.Z` without
+# ever routing a legacy tag into the Current production release path.
+readonly LEGACY_TAG_REGEX='^legacy-v[0-9]+\.[0-9]+\.[0-9]+$'
 
 # release_tag_is_valid <tag>
 #   Returns 0 (true) when <tag> matches the namespaced release-tag regex,

@@ -7,7 +7,7 @@
 ## 项目状态
 
 - v2 是**全新 Android 原生应用**（Kotlin + Jetpack Compose + Room/SQLCipher），
-  与旧 Flutter 项目并行存在。旧项目保留在仓库根目录，冻结于 tag `v1.2.0`。
+  与旧 Flutter 项目并行存在。旧项目保留在仓库根目录，冻结于 tag `legacy-v1.2.0`。
 - **产品定位（2026-08-07，Issue #17 定稿）**：v2 = Android-only、local-first、
   encrypted personal security vault，包含三大正式能力：
   **Authenticator（Provider/Account/TOTP/Recovery Codes）**、
@@ -195,7 +195,7 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
 
 ## 阶段进度跟踪（source of truth: `ROADMAP.md §5`）
 
-- [x] 阶段 0：冻结旧项目（tag `v1.2.0`）+ legacy fixtures + 映射文档
+- [x] 阶段 0：冻结旧项目（tag `legacy-v1.2.0`）+ legacy fixtures + 映射文档
 - [x] 阶段 1：最小 Kotlin/Android 工程 + Argon2id/XChaCha20-Poly1305 解密 spike
 - [x] phase1-fix：entry-centric 映射 + 非法参数不静默替换 + BC 1.85 官方 XChaCha20
 - [x] 阶段 2：数据库 schema v1 + VaultKey/Keystore + 串行 repository + 自动锁

@@ -9,9 +9,9 @@ between devices without guessing which app supports what.
 
 > **Note:** The repository is being rewritten as a **native Android app** under
 > [`v2/`](v2/) (Kotlin + Room/SQLCipher, encrypted database, biometric unlock).
-> The legacy Flutter app below is frozen at tag `v1.2.0` and kept for reference
-> and one-time migration. See [`v2/AGENTS.md`](v2/AGENTS.md) for the v2 status
-> and build commands.
+> The legacy Flutter app below is frozen at tag `legacy-v1.2.0` and kept for
+> reference and one-time migration. See [`v2/AGENTS.md`](v2/AGENTS.md) for the
+> v2 status and build commands.
 
 ## Branch / Version / Release Policy
 
@@ -25,37 +25,38 @@ It may contain changes that have not been included in a stable release.
 
 Do **not** treat current `main` as a stable release.
 
-### Legacy releases
+### Legacy RescueAuth
 
-Historical unprefixed tags such as:
+Legacy releases use:
 
 ```
-v1.0.0
-v1.1.0
-v1.2.0
+legacy-vX.Y.Z
 ```
 
-belong to the **legacy RescueAuth** application:
+Examples:
+
+```
+legacy-v1.0.0
+legacy-v1.0.1
+legacy-v1.1.0
+legacy-v1.2.0
+```
+
+Legacy applicationId:
 
 ```
 com.xincy.rescue_auth_kit
 ```
 
-These tags are preserved as **immutable historical release snapshots**.
+### Current RescueAuth
 
-Do **not** delete, move or reuse them.
-
-### Current RescueAuth releases
-
-Current RescueAuth:
+Current releases use:
 
 ```
-com.rescueauth.v2
+rescueauth-vX.Y.Z
 ```
 
-starts its independent release line from **`1.0.0`**.
-
-Stable releases use **namespaced tags**:
+Examples:
 
 ```
 rescueauth-v1.0.0
@@ -64,11 +65,16 @@ rescueauth-v1.1.0
 ...
 ```
 
-Official production APKs are built **only** from these release tags.
+Current applicationId:
 
-> `rescueauth-` is a Git **tag namespace**, not part of the Android
-> `versionName`. Tag `rescueauth-v1.0.0` corresponds to Android
-> `versionName = 1.0.0`.
+```
+com.rescueauth.v2
+```
+
+### Development
+
+`main` is the active development branch and is not a stable release. Official
+stable source snapshots are identified by tags.
 
 ### Build entry points
 
@@ -121,8 +127,8 @@ project flips the priority:
 
 ## Legacy Flutter app (v1.x, frozen)
 
-The original cross-platform Flutter app, frozen at tag `v1.2.0`. It remains
-fully functional but is no longer the active development target.
+The original cross-platform Flutter app, frozen at tag `legacy-v1.2.0`. It
+remains fully functional but is no longer the active development target.
 
 ---
 

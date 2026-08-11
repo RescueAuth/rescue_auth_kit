@@ -41,6 +41,8 @@ expect_version "rescueauth-v12.3.45" "12.3.45" "rescueauth-v12.3.45 -> PASS"
 
 echo
 echo "== 2. legacy / invalid tags fail closed =="
+expect_reject "legacy-v1.0.0"        "legacy-v1.0.0 -> FAIL CLOSED"
+expect_reject "legacy-v1.2.0"        "legacy-v1.2.0 -> FAIL CLOSED"
 expect_reject "v1.0.0"            "legacy v1.0.0 -> FAIL CLOSED"
 expect_reject "v1.1.0"            "legacy v1.1.0 -> FAIL CLOSED"
 expect_reject "v1.2.0"            "legacy v1.2.0 -> FAIL CLOSED"

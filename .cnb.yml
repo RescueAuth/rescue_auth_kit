@@ -31,7 +31,7 @@
 #       -> RescueAuth-X.Y.Z.apk attached to the tag's commit
 #
 #   main / feature / fix branches are NEVER production-released.
-#   Legacy unprefixed tags (vX.Y.Z) are preserved AS-IS and never enter the
+#   Legacy tags (namespace legacy-vX.Y.Z) are preserved and never enter the
 #   new production release path.
 #
 # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ $:
   #   Triggered by `tag_push`. The source is the commit the pushed tag points
   #   to (CNB_COMMIT); CNB_BRANCH is the tag name. Only a tag matching
   #   ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$ proceeds; anything else (legacy
-  #   unprefixed tags, `main`, feature branches) FAILS CLOSED before any
+  #   `legacy-vX.Y.Z` tags, `main`, feature branches) FAILS CLOSED before any
   #   secret is imported.
   # ------------------------------------------------------------------------
   tag_push:

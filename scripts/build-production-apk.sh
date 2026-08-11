@@ -69,13 +69,13 @@ source "$repo_root/scripts/release-version.sh"
 # The production release version is derived from the tag, never from a
 # hardcoded string and never from `main`. If the tag is missing or does not
 # match `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$`, the build stops immediately.
-# This rejects legacy unprefixed tags (v1.0.0, ...), `main`, feature branches,
+# This rejects legacy tags (legacy-vX.Y.Z), `main`, feature branches,
 # and arbitrary strings.
 if [[ -z "$release_tag" ]]; then
   die "No release tag provided: production release must be built from a rescueauth-vX.Y.Z tag (got empty CNB_BRANCH / RESCUEAUTH_RELEASE_TAG)."
 fi
 if ! release_tag_is_valid "$release_tag"; then
-  die "Invalid production release tag '$release_tag': must match ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$ (legacy unprefixed tags and non-release branches are not accepted)."
+  die "Invalid production release tag '$release_tag': must match ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$ (legacy tags and non-release branches are not accepted)."
 fi
 readonly expected_version_name="$(release_version_from_tag "$release_tag")"
 [[ -n "$expected_version_name" ]] || die "Could not derive release version from tag '$release_tag'."

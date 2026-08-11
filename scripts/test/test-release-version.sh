@@ -43,6 +43,8 @@ expect_tag_valid "rescueauth-v0.0.0"   "rescueauth-v0.0.0 -> valid"
 
 echo
 echo "== 2. invalid tags (must be rejected) =="
+expect_tag_invalid "legacy-v1.0.0"     "legacy-v1.0.0 -> reject"
+expect_tag_invalid "legacy-v1.2.0"     "legacy-v1.2.0 -> reject"
 expect_tag_invalid "v1.0.0"             "legacy v1.0.0 -> reject"
 expect_tag_invalid "v1.1.0"             "legacy v1.1.0 -> reject"
 expect_tag_invalid "release-1.0.0"      "release-1.0.0 -> reject"
@@ -65,6 +67,11 @@ expect_version "rescueauth-v12.3.45" "12.3.45" "rescueauth-v12.3.45 -> 12.3.45"
 
 echo
 echo "== 4. version extraction fails closed on invalid tag =="
+if release_version_from_tag "legacy-v1.0.0" >/dev/null 2>&1; then
+    bad "version extraction from legacy-namespaced tag should fail"
+else
+    ok "version extraction from legacy-namespaced tag fails closed"
+fi
 if release_version_from_tag "v1.0.0" >/dev/null 2>&1; then
     bad "version extraction from legacy tag should fail"
 else
@@ -83,6 +90,26 @@ if [[ "$RELEASE_TAG_REGEX" == '^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
 else
     bad "RELEASE_TAG_REGEX constant changed"
 fi
+if [[ "$LEGACY_TAG_REGEX" == '^legacy-v[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
+    ok "LEGACY_TAG_REGEX constant (classification only)"
+else
+    bad "LEGACY_TAG_REGEX constant changed"
+fi
+if [[ "$LEGACY_TAG_REGEX" == "$RELEASE_TAG_REGEX" ]]; then
+    bad "legacy and release regex must not be identical"
+else
+    ok "legacy and release tag namespaces are distinct"
+fi
+
+# Classification-only check: LEGACY_TAG_REGEX must classify the legacy namespace
+# but MUST NOT make a legacy tag acceptable to the production parser.
+for lt in legacy-v1.0.0 legacy-v1.2.0; do
+    if [[ "$lt" =~ $LEGACY_TAG_REGEX ]] && ! release_tag_is_valid "$lt"; then
+        ok "classification: '$lt' matches legacy regex, rejected by production parser"
+    else
+        bad "classification: '$lt' legacy/parser split broken"
+    fi
+done
 
 echo
 echo "== summary =="
