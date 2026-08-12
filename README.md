@@ -81,9 +81,20 @@ stable source snapshots are identified by tags.
 | Intent | Entry point |
 |--------|-------------|
 | Development (debug APK for real-device smoke) | Web trigger **"Build debug RescueAuth"** on `main` / feature / fix branches |
+| Full regression test suite (manual, no secrets) | Web trigger **"Run full RescueAuth test suite"** on any branch |
+| Firebase on-device device tests (manual, `main` only) | Web trigger **"Run Firebase device tests"** on `main` only |
 | Formal production release | Push a `rescueauth-vX.Y.Z` **release tag** (tag-only pipeline) |
 
 `main` / feature / fix branches are **never** production-released directly.
+
+**Test trigger policy:** ordinary push / PR merge / main update does **not**
+automatically run any RescueAuth test (including Firebase Test Lab). When you
+need a full regression, trigger it manually via the **"Run full RescueAuth
+test suite"** web trigger (core JVM tests, app Robolectric, lint,
+`assembleDebug`, `assembleDebugAndroidTest`; no secrets). For on-device cloud
+verification, use the **"Run Firebase device tests"** web trigger on `main`
+only. Real-device smoke builds stay under **"Build debug RescueAuth"**; formal
+releases stay under the `rescueauth-vX.Y.Z` **tag** pipeline.
 
 ## Why I built this
 
@@ -120,7 +131,8 @@ project flips the priority:
   semantic fingerprint, merge planner, schema v2 (see `v2/docs/PHASE3_REPORT.md`).
 - **Build**: `cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
   (needs JDK 17 + Android SDK 35). Instrumented tests run on Firebase Test Lab
-  via `main` push (see `docs/FIREBASE_TEST_LAB.md`).
+  manually via the **"Run Firebase device tests"** web trigger on `main` only
+  (see `docs/FIREBASE_TEST_LAB.md`).
 - **Docs**: see `v2/docs/` (PHASE reports, ADRs, LEGACY_IMPORT, PACKAGE_FORMAT,
   THREAT_MODEL, UPDATE_PROTOCOL) and the formal roadmap in
   [`v2/ROADMAP.md`](v2/ROADMAP.md).

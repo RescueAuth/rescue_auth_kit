@@ -240,6 +240,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.activity.compose)
+    // Local, non-sensitive UI preferences (theme color).
+    implementation(libs.androidx.datastore.preferences)
 
     // Jetpack Compose UI foundation (BOM-managed)
     implementation(platform(libs.androidx.compose.bom))

@@ -24,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
+import com.rescueauth.v2.ui.theme.ThemeColor
 
 object SettingsTestTags {
     const val ABOUT_ROW = "settings_about_row"
@@ -41,6 +42,8 @@ object SettingsTestTags {
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     versionName: String? = null,
+    themeColor: ThemeColor = ThemeColor.DEFAULT,
+    onThemeColorSelected: ((ThemeColor) -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
     onImportClick: (() -> Unit)? = null,
     onLegacyImportClick: (() -> Unit)? = null,
@@ -84,6 +87,11 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = Spacing.sm),
+            )
+            SettingsSectionLabel(stringResource(R.string.settings_appearance_section))
+            ThemeColorPreference(
+                selected = themeColor,
+                onSelect = { onThemeColorSelected?.invoke(it) },
             )
             HorizontalDivider()
             SettingsSectionLabel(stringResource(R.string.settings_about_section))

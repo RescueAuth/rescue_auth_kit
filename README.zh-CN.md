@@ -75,9 +75,17 @@ com.rescueauth.v2
 | 用途 | 入口 |
 |--------|-------------|
 | 开发（真机 smoke 用的 debug APK） | `main` / feature / fix 分支上的 Web 触发器 **"Build debug RescueAuth"** |
+| 完整回归测试（手动，无密钥） | 任意分支上的 Web 触发器 **"Run full RescueAuth test suite"** |
+| Firebase 云上设备测试（手动，仅 `main`） | `main` 上的 Web 触发器 **"Run Firebase device tests"** |
 | 正式生产发布 | 推送 `rescueauth-vX.Y.Z` **release tag**（tag-only 流水线） |
 
 `main` / feature / fix 分支**绝不**直接进行生产发布。
+
+**测试触发策略：** 普通 push / PR merge / `main` update 都不自动运行任何
+RescueAuth 测试（含 Firebase Test Lab）。需要完整回归时，由 owner 手动点击
+**"Run full RescueAuth test suite"**（core JVM、Robolectric、lint、
+`assembleDebug`、`assembleDebugAndroidTest`，无密钥）；需要云上设备验证时，
+在 `main` 上点击 **"Run Firebase device tests"**（仅此按钮可使用 FTL 凭据）。
 
 ## 我为什么写这个
 
@@ -110,8 +118,9 @@ com.rescueauth.v2
   stable identity + semantic fingerprint、merge planner、schema v2
   （见 `v2/docs/PHASE3_REPORT.md`）。
 - **构建**：`cd v2 && ./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug`
-  （需 JDK 17 + Android SDK 35）。Instrumented 测试经 `main` push 在
-  Firebase Test Lab 执行（见 `docs/FIREBASE_TEST_LAB.md`）。
+  （需 JDK 17 + Android SDK 35）。Instrumented 测试通过 `main` 上的手动按钮
+  **"Run Firebase device tests"** 在 Firebase Test Lab 执行（见
+  `docs/FIREBASE_TEST_LAB.md`）。
 - **文档**：见 `v2/docs/`（PHASE 报告、ADR、LEGACY_IMPORT、PACKAGE_FORMAT、
   THREAT_MODEL、UPDATE_PROTOCOL）与正式路线图 [`v2/ROADMAP.md`](v2/ROADMAP.md)。
 

@@ -34,7 +34,7 @@ data class AuthenticatorUiState(
     /** Provider-grouped view (Phase 4 — Provider/Account Full Management). */
     val providers: List<com.rescueauth.v2.ui.model.ProviderUi> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = !loading && error == null && totpCards.isEmpty() && accounts.isEmpty()
+    val isEmpty: Boolean get() = !loading && error == null && totpCards.isEmpty() && accounts.isEmpty() && providers.isEmpty()
 }
 
 /**
@@ -282,10 +282,15 @@ class AuthenticatorViewModel(
                     .map { card ->
                         com.rescueauth.v2.ui.model.TotpCredentialUi(
                             id = card.credentialId,
+                            stableId = card.stableId,
                             issuer = card.issuer,
                             accountName = card.accountName,
+                            algorithm = card.algorithm,
                             digits = card.digits,
                             periodSeconds = card.periodSeconds,
+                            currentCode = card.currentCode,
+                            remainingSeconds = card.remainingSeconds,
+                            progressFraction = card.progressFraction,
                         )
                     },
                 recoverySets = setsByAccount[account.id].orEmpty().map { set ->
