@@ -171,6 +171,15 @@ class MainActivity : AppCompatActivity() {
     /** Guards against duplicate/overlapping prompt launches. */
     private val promptActive = AtomicBoolean(false)
 
+    /**
+     * True while the activity is pausing because it went to background (NOT a
+     * user-initiated cancel of the BiometricPrompt). When true, a Cancelled
+     * result from the startup auth prompt must NOT finish the Activity — the
+     * app should stay alive and re-request authentication on the next
+     * foreground resume (Issue #70).
+     */
+    private var isPausingForBackground = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // No global FLAG_SECURE / secure-window policy — screenshots and screen
@@ -272,10 +281,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        isPausingForBackground = false
         sessionManager.onAppForegrounded()
         removeMask()
-        // Returning to foreground after a session lock must re-authenticate.
-        if (!stateMachine.isUnlocked()) {
+        if (stateMachine.isUnlocked()) {
+            // Session still unlocked (short background below the auto-lock
+            // timeout): restore the app shell. This also recovers from a
+            // BiometricPrompt cancelled by onPause while the session was
+            // already unlocked (Issue #70).
+            _uiState.value = StartupUiState.UNLOCKED
+        } else {
+            // Session locked — re-authentication is required on resume.
             authPromptPending = true
         }
     }
@@ -290,9 +306,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         isResumedFlag = false
+        isPausingForBackground = true
         if (::sensitiveActionGate.isInitialized) {
             sensitiveActionGate.onLifecyclePause()
         }
+        // Cancel any in-flight startup auth prompt so its internal state
+        // (promptShowing / pending callback) is cleared. Without this, a
+        // BiometricPrompt dismissed by the system when the activity leaves
+        // foreground leaves promptActive stuck true and the next foreground
+        // resume can never re-request authentication (Issue #70).
+        startupAuthPrompt?.cancel()
         super.onPause()
     }
 
@@ -381,10 +404,18 @@ class MainActivity : AppCompatActivity() {
                     onAuthenticationSucceeded()
                 }
                 StartupAuthResult.Cancelled -> {
-                    // User cancelled — do NOT open the Vault, do not show a
-                    // locked screen; finish the Activity (Issue #50 UX §4).
-                    _uiState.value = StartupUiState.INIT
-                    finish()
+                    if (isPausingForBackground) {
+                        // The prompt was cancelled because the app went to
+                        // background (NOT a user-initiated cancel). Keep the
+                        // Activity alive — onStart/onResume will re-request
+                        // authentication when the user returns (Issue #70).
+                        promptActive.set(false)
+                    } else {
+                        // User cancelled — do NOT open the Vault, do not show a
+                        // locked screen; finish the Activity (Issue #50 UX §4).
+                        _uiState.value = StartupUiState.INIT
+                        finish()
+                    }
                 }
                 StartupAuthResult.Failed -> {
                     // Transient failure — allow the system to retry.
