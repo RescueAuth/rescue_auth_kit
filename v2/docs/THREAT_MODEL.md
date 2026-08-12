@@ -35,7 +35,7 @@
 | 威胁 | 缓解 |
 | --- | --- |
 | 设备丢失 | 恢复套件（二维码+密钥文件）离线恢复；`BackupKey` 与 `VaultKey` 分离（Phase 2）；Phase 3 起为 manual Export Package + merge import |
-| 锁屏数据泄露 | 数据库关闭 + 密钥清零 + 后台遮罩 + `FLAG_SECURE` |
+| 锁屏数据泄露 | 数据库关闭 + 密钥清零 + 后台遮罩（不再全局 `FLAG_SECURE`，允许截图） |
 | Keystore 密钥失效 | 不得删库；引导用户用恢复套件/备份恢复 |
 | 恶意/损坏备份文件 | AEAD 先验 MAC；KDF 参数上限校验（防 OOM）；大小上限 |
 | 恶意 `.rakvault` | header 校验（magic/version/KDF 上限）后再执行 Argon2 |

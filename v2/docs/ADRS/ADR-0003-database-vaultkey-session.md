@@ -91,7 +91,10 @@ UNLOCKED ──keystore invalidated──▶ KEY_INVALIDATED (需恢复流程)
   （立即/30s/1m/5m）后台超时后调用 `lock()`。
 - 后台遮罩：`MainActivity.onStop` 显示遮罩层；`onStart` 判断是否需要
   重新认证。
-- `FLAG_SECURE`：敏感页面 Window 设置 `FLAG_SECURE`，阻止截图/最近任务预览。
+- 屏幕截图策略：**不再全局设置 `FLAG_SECURE` / secure-window policy**。
+  App 普通页面允许用户正常截图/录屏（Issue #57 产品决策）。长生命周期
+  secret 的 reveal/copy 仍由 fresh re-auth 门控，后台遮罩 + auto-lock
+  仍在后台时保护 UI。
 
 ### 5. 测试策略
 
@@ -99,7 +102,7 @@ UNLOCKED ──keystore invalidated──▶ KEY_INVALIDATED (需恢复流程)
   串行 repository（用 fake DAO）、损坏数据库安全失败（模拟）、
   16KB page 配置断言。
 - **Robolectric 测试**：Room + SQLCipher 生命周期、锁定后数据库关闭、
-  后台超时锁定、截图保护配置、Keystore 失效（mock）。
+  后台超时锁定、Keystore 失效（mock）。
 - **Instrumented 测试**：真机/模拟器验证。数据库 6 用例已在 Firebase
   Test Lab 真实执行 **6/6 PASS**（MediumPhone.arm / API 33，见
   PHASE2_REPORT §3）；生物识别 / Keystore 认证有效期 / 截图保护等仍为

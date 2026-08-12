@@ -202,12 +202,12 @@ cd v2 && ./gradlew :app:connectedDebugAndroidTest
   - [x] ADR-0003（VaultKey/Keystore/会话/16KB；§2 备份部分已被 Phase 3 reset 取代）
   - [x] Room + SQLCipher（Zetetic sqlcipher-android 4.17.0）+ schema v1 实体/DAO
   - [x] VaultKey（Keystore 包装/解包）+ 安全会话状态机 + SessionManager（自动锁/后台）
-  - [x] 串行 repository（Mutex + withTransaction）+ FLAG_SECURE
-  - [x] JVM/Robolectric 测试（并发、锁定、超时、密钥失效、16KB page、真实 FLAG_SECURE、SQLCipher native loader 并发契约）
+  - [x] 串行 repository（Mutex + withTransaction）+ 后台遮罩
+  - [x] JVM/Robolectric 测试（并发、锁定、超时、密钥失效、16KB page、SQLCipher native loader 并发契约）
   - [x] phase2-blocker-hotfix（PR #6）：BiometricPrompt 崩溃修复 + instrumented 可编译 + 真实断言
   - [x] SQLCipher native 加载（PR #15）：`SQLCipherNativeLoader` 在数据库唯一入口加载
   - [x] **instrumented 真机验证（数据库 6 用例）**：6/6 PASS（Firebase Test Lab）
-  - [ ] 生物识别 / Keystore 认证有效期 / 截图保护 / 锁屏行为等**仍待真机验证**（non-blocking）
+  - [ ] 生物识别 / Keystore 认证有效期 / 锁屏行为等**仍待真机验证**（non-blocking）（不再全局截图保护，允许截图 —— Issue #57）
 - [ ] 阶段 3：Package + Merge（**STARTED**）
   - [x] **3A Package + Merge Foundation**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + 纯 merge planner + schema v1→v2 + 自动备份抽象清理，PR #18）
   - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）

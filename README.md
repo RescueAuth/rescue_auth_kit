@@ -123,7 +123,7 @@ project flips the priority:
 
 - **Location**: `v2/` — Kotlin + Jetpack Compose + Room/SQLCipher.
 - **Status**: phases 0/1/2 are closed and merged to `main` (encrypted DB,
-  VaultKey/Keystore, secure session, auto-lock, mask + FLAG_SECURE); the
+  VaultKey/Keystore, secure session, auto-lock, background mask); the
   database instrumentation tests (`RescueAuthDatabaseInstrumentedTest`, 6 cases)
   have **passed 6/6 on Firebase Test Lab** (MediumPhone.arm / API 33).
   **Phase 3 is in progress**: Phase 3A (Package + Merge Foundation) is
