@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 import com.rescueauth.v2.ui.theme.ThemeColor
@@ -52,7 +54,21 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.settings_title)) })
+            TopAppBar(
+                title = {
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_title),
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = {},
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
+                },
+            )
         },
     ) { padding ->
         Column(

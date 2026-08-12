@@ -39,6 +39,7 @@ fun RecoveryCodesRoute(
     accountId: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -167,6 +168,7 @@ fun RecoveryCodesRoute(
             moveSetId = setId
             appScope.launch { moveDestinations = viewModel.availableMoveDestinations() }
         },
+        onNavigate = onNavigate,
         modifier = modifier,
     )
 

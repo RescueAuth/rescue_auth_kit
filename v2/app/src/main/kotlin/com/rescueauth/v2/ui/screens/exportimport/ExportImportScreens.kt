@@ -39,6 +39,9 @@ import com.rescueauth.v2.exportimport.ExportImportViewModel
 import com.rescueauth.v2.exportimport.ExportScopeSpec
 import com.rescueauth.v2.exportimport.ImportScopeSpec
 import com.rescueauth.v2.exportimport.PinPolicy
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.Spacing
 
 object ExportImportTestTags {
@@ -90,10 +93,34 @@ fun ExportVaultScreen(
     onCancel: () -> Unit,
     onDismissResult: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.export_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_title),
+                                destination = RescueAuthRoutes.SETTINGS,
+                            ),
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_backup_transfer_section),
+                            ),
+                            BreadcrumbItem(
+                                label = stringResource(R.string.export_title),
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = onNavigate,
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
+                },
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -222,10 +249,34 @@ fun ImportNativePackageScreen(
     onCancel: () -> Unit,
     onDismissResult: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.import_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_title),
+                                destination = RescueAuthRoutes.SETTINGS,
+                            ),
+                            BreadcrumbItem(
+                                label = stringResource(R.string.settings_backup_transfer_section),
+                            ),
+                            BreadcrumbItem(
+                                label = stringResource(R.string.import_title),
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = onNavigate,
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
+                },
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier

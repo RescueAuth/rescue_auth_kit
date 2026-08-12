@@ -473,4 +473,9 @@
     <!-- Accessibility -->
     <string name="a11y_back">Back</string>
     <string name="a11y_sensitive_value">Sensitive value</string>
+
+    <!-- Breadcrumb navigation (Issue #62) -->
+    <string name="breadcrumb_ellipsis">Show more ancestors</string>
+    <string name="breadcrumb_more_ancestors">More ancestors</string>
+    <string name="breadcrumb_current_page">%1$s, current page</string>
 </resources>

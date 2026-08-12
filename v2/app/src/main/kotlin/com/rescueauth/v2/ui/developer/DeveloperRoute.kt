@@ -131,6 +131,7 @@ fun DeveloperDetailRoute(
     onBack: () -> Unit,
     onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -269,6 +270,7 @@ fun DeveloperDetailRoute(
         onRevealEnvVar = { key -> viewModel.reveal(SensitiveAction.REVEAL_ENV_VAR_VALUE, key) },
         onCopyEnvVar = { key -> viewModel.copySecret(SensitiveAction.COPY_ENV_VAR_VALUE, key, "env") },
         modifier = modifier,
+        onNavigate = onNavigate,
     )
 
     if (showDeleteDialog && detail != null) {
@@ -303,6 +305,7 @@ fun DeveloperFormRoute(
     onBack: () -> Unit,
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -378,6 +381,7 @@ fun DeveloperFormRoute(
         onRemoveVariable = viewModel::removeVariable,
         onSubmit = { appScope.launch { viewModel.submit() } },
         modifier = modifier,
+        onNavigate = onNavigate,
     )
 }
 

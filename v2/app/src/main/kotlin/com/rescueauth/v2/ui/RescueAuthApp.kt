@@ -162,6 +162,15 @@ fun RescueAuthApp(
                 RecoveryCodesRoute(
                     accountId = accountId,
                     onBack = { navController.popBackStack() },
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(RescueAuthRoutes.DEVELOPER) {
@@ -192,6 +201,15 @@ fun RescueAuthApp(
                     onEdit = { stableId ->
                         navController.navigate(RescueAuthRoutes.developerEdit(stableId))
                     },
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(
@@ -217,6 +235,15 @@ fun RescueAuthApp(
                     initialType = type,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(RescueAuthRoutes.SETTINGS) {
@@ -238,6 +265,15 @@ fun RescueAuthApp(
                     encodedPublicKey = BuildConfig.UPDATE_PUBLIC_KEY,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag(AboutTestTags.SCREEN),
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(RescueAuthRoutes.EXPORT) {
@@ -245,6 +281,15 @@ fun RescueAuthApp(
                     mode = ExportImportMode.EXPORT,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_export"),
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(RescueAuthRoutes.IMPORT) {
@@ -252,12 +297,30 @@ fun RescueAuthApp(
                     mode = ExportImportMode.IMPORT,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_import"),
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
             composable(RescueAuthRoutes.LEGACY_IMPORT) {
                 LegacyImportRoute(
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_legacy_import"),
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
         }

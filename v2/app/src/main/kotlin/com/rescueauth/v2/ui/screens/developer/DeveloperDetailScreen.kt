@@ -31,11 +31,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.security.SensitiveAction
+import com.rescueauth.v2.ui.components.BreadcrumbItem
+import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.components.DestructiveConfirmationDialog
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.developer.DeveloperDetailUiState
 import com.rescueauth.v2.ui.model.DeveloperDetailUi
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -77,13 +80,35 @@ fun DeveloperDetailScreen(
     onRevealEnvVar: (String) -> Unit,
     onCopyEnvVar: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(uiState.detail?.title ?: stringResource(R.string.developer_detail_title))
+                    val detail = uiState.detail
+                    BreadcrumbTopBar(
+                        items = listOf(
+                            BreadcrumbItem(
+                                label = stringResource(R.string.developer_title),
+                                destination = RescueAuthRoutes.DEVELOPER,
+                            ),
+                            if (detail != null) {
+                                BreadcrumbItem(label = developerTypeLabel(detail))
+                            } else {
+                                BreadcrumbItem(label = stringResource(R.string.developer_title))
+                            },
+                            BreadcrumbItem(
+                                label = detail?.title
+                                    ?: stringResource(R.string.developer_detail_title),
+                                isCurrent = true,
+                            ),
+                        ),
+                        onNavigate = onNavigate,
+                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
+                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -290,6 +315,15 @@ fun DeveloperDetailScreen(
             }
         }
     }
+}
+
+@Composable
+private fun developerTypeLabel(detail: DeveloperDetailUi): String = when (detail) {
+    is DeveloperDetailUi.ApiCredential -> stringResource(R.string.developer_type_api_credential)
+    is DeveloperDetailUi.SshKey -> stringResource(R.string.developer_type_ssh_key)
+    is DeveloperDetailUi.GenericSecret -> stringResource(R.string.developer_type_generic)
+    is DeveloperDetailUi.AndroidSigningKey -> stringResource(R.string.developer_type_signing_key)
+    is DeveloperDetailUi.EnvironmentVariableSet -> stringResource(R.string.developer_type_env_var)
 }
 
 @Composable
