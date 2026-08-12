@@ -5,19 +5,45 @@
 #     issue.comment@npc        -> NPC issue-comment runner (existing, untouched)
 #     pull_request.comment@npc -> NPC PR-comment runner (existing, untouched)
 #     web_trigger_debug_apk    -> owner-triggered DEBUG APK build (any dev branch)
+#     web_trigger_full_test    -> owner-triggered FULL regression test suite (all branches, NO secrets)
+#     web_trigger_firebase_test-> owner-triggered Firebase Test Lab on-device tests (main only)
 #     tag_push                 -> PRODUCTION release, ONLY from rescueauth-vX.Y.Z tags
-#   main
-#     push                  -> full cloud test loop incl. guarded Firebase Test Lab
+#
+# ===========================================================================
+# TEST TRIGGER POLICY (product decision):
+#   * push branch                        -> NO AUTO TEST
+#   * PR merge to main                   -> NO AUTO TEST
+#   * main update                        -> NO AUTO TEST
+#   * Full regression (core+Robolectric+lint+assembleDebug+androidTest) -> MANUAL
+#       via "Run full RescueAuth test suite" (web_trigger_full_test)
+#   * Firebase device (on-device FTL)    -> MANUAL
+#       via "Run Firebase device tests"  (web_trigger_firebase_test)
+#   * Production rescueauth-vX.Y.Z       -> automatic release gates unchanged (tag_push)
+#
+#   There is NO pipeline triggered by `main: push` / `pull_request.merged` that
+#   runs any Firebase Test Lab, Android test or Gradle test stage. The former
+#   `main: push -> full-cloud-test-loop` automatic pipeline is REMOVED and is
+#   NOT re-added. Firebase Test Lab now runs ONLY from the manual, owner-only
+#   "Run Firebase device tests" button.
 #
 # ---------------------------------------------------------------------------
 # Build & Release Workflow (see README "Branch / Version / Release Policy"):
 #
-#   DEVELOPMENT:
+#   DEVELOPMENT (all manual, owner-only):
 #     feature/fix branch or main
 #       -> owner triggers "Build debug RescueAuth" (web_trigger_debug_apk)
 #       -> tests / assembleDebug / debug signing
 #       -> RescueAuth-<versionName>-debug-<shortCommit>.apk
 #       -> real-device smoke -> PR -> main
+#     Full regression on demand (manual, owner-only, all branches)
+#       -> owner triggers "Run full RescueAuth test suite" (web_trigger_full_test)
+#       -> core tests / Robolectric / lint / assembleDebug /
+#          assembleDebugAndroidTest  (full original coverage, no shrink, NO secrets)
+#     On-device cloud verification on demand (manual, owner-only, main only)
+#       -> owner triggers "Run Firebase device tests" (web_trigger_firebase_test)
+#       -> assemble/validate debug APK + androidTest APK
+#       -> Firebase Test Lab single virtual device matrix (FTL credentials
+#          imported ONLY here, via the firebase-test-lab.yml secret repo)
 #
 #   RELEASE (TAG-ONLY):
 #     main reaches release-ready
@@ -36,11 +62,17 @@
 #
 # ---------------------------------------------------------------------------
 # Security boundary:
-#   * Firebase credentials are imported ONLY by the `main`+`push` pipeline below.
+#   * There is NO automatic full-test / Firebase Test Lab pipeline on push/merge
+#     to main. Tests and Firebase Test Lab are MANUAL and owner-only.
+#   * The Firebase Test Lab Secret Repo
+#     (xincy22/rescue_auth_kit_secrets -> firebase-test-lab.yml) is imported ONLY
+#     by the `firebase-test-lab` stage of the `web_trigger_firebase_test`
+#     pipeline. No other stage/pipeline imports it.
 #   * The production Android signing Secret Repo
 #     (xincy22/rescue_auth_kit_secrets -> android-signing.yml) is imported ONLY
 #     by the `production-sign-and-verify` stage of the `tag_push` pipeline. No
-#     other stage/pipeline imports it. The debug pipeline NEVER imports it.
+#     other stage/pipeline imports it. Neither the debug pipeline nor the two
+#     manual test pipelines ever import android-signing.yml.
 #   * The production release-tag gate (validate-release-tag) runs BEFORE the
 #     signing stage, so an invalid tag never reaches the secret-bearing stage.
 #   * `main` must stay a protected branch; every .cnb.yml / Gradle / build-script
@@ -114,6 +146,136 @@ $:
               - "./v2/app/build/outputs/debug/RescueAuth-*.apk"
 
   # ------------------------------------------------------------------------
+  # REGRESSION: owner-triggered FULL test suite.
+  #   * Button "Run full RescueAuth test suite" (web_trigger_full_test) is
+  #     restricted in .cnb/web_trigger.yml to the owner role and is available
+  #     on ALL branches (all-branches matcher `.*`).
+  #   * Runs the FULL regression body: core JVM tests, app Robolectric, lint,
+  #     assembleDebug, assembleDebugAndroidTest, plus a non-secret artifact
+  #     validation step. Nothing is skipped or weakened; a test failure FAILS
+  #     the pipeline.
+  #   * NO imports on purpose: this pipeline NEVER touches the Firebase Test
+  #     Lab secret repo, the production Android signing Secret Repo, or any
+  #     production password. Firebase Test Lab is deliberately NOT part of this
+  #     pipeline; on-device FTL runs separately via the manual
+  #     "Run Firebase device tests" button (web_trigger_firebase_test).
+  #   * Ordinary push / PR merge / main update does NOT run this pipeline;
+  #     it is triggered manually by the owner only.
+  # ------------------------------------------------------------------------
+  web_trigger_full_test:
+    - name: run-full-test-suite
+      docker:
+        image: cimg/android:2026.08
+      # No imports: this pipeline must never see Firebase Test Lab credentials
+      # or any production signing material.
+      stages:
+        - name: core-jvm-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :core:test
+        - name: app-robolectric-unit-tests
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:testDebugUnitTest
+        - name: android-lint
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:lintDebug
+        - name: build-debug-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebug
+            test -s app/build/outputs/apk/debug/app-debug.apk
+        - name: build-androidtest-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebugAndroidTest
+            test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+        - name: validate-artifacts
+          # Meaningful, secret-free verification that both Gradle artifacts the
+          # full suite is supposed to produce actually exist and are non-empty.
+          # (The on-device Firebase Test Lab matrix that would consume these
+          # APKs is NOT run here; it is a separate manual pipeline.)
+          script: |
+            set -eu
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            app_apk="v2/app/build/outputs/apk/debug/app-debug.apk"
+            test_apk="v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            test -s "${app_apk}"
+            test -s "${test_apk}"
+            echo "DEBUG_APK_PRESENT=${app_apk}"
+            echo "ANDROIDTEST_APK_PRESENT=${test_apk}"
+            echo "Full regression suite PASSED. Firebase Test Lab is intentionally"
+            echo "NOT run from this pipeline; use the manual 'Run Firebase device tests'"
+            echo "button (web_trigger_firebase_test) for on-device cloud verification."
+
+  # ------------------------------------------------------------------------
+  # FIREBASE DEVICE TESTS: owner-triggered Firebase Test Lab on-device testing.
+  #   * Button "Run Firebase device tests" (web_trigger_firebase_test) is
+  #     restricted in .cnb/web_trigger.yml to the owner role on `main` ONLY.
+  #   * Builds and validates the debug APK and the androidTest APK, then submits
+  #     a SINGLE Firebase Test Lab virtual-device instrumentation matrix.
+  #   * This is the ONLY pipeline that may import the Firebase Test Lab
+  #     credentials (xincy22/rescue_auth_kit_secrets -> firebase-test-lab.yml).
+  #     Those credentials are imported STAGE-scoped so only the firebase-test-lab
+  #     stage sees them.
+  #   * The FTL secret repo must declare `allow_events` to include this
+  #     web_trigger event (web_trigger is a TRUSTED event; see the Final Report)
+  #     and `allow_branches: main`. See docs/FIREBASE_TEST_LAB.md.
+  #   * It NEVER touches the production Android signing Secret Repo.
+  #   * Ordinary push / PR merge / main update does NOT run this pipeline; it is
+  #     triggered manually by the owner only.
+  # ------------------------------------------------------------------------
+  web_trigger_firebase_test:
+    - name: run-firebase-device-tests
+      docker:
+        image: cimg/android:2026.08
+      env:
+        # Fixed, non-sensitive Test Lab device configuration.
+        # MediumPhone.arm is a VIRTUAL (emulator) FTL model, API 33. Do NOT use
+        # `panther` (physical Pixel 7): this pipeline must use one virtual device.
+        FTL_DEVICE_MODEL: MediumPhone.arm
+        FTL_DEVICE_VERSION: "33"
+        FTL_DEVICE_LOCALE: en
+        FTL_DEVICE_ORIENTATION: portrait
+        FTL_TEST_TIMEOUT: 5m
+        # Deterministic Gradle output paths (no unconstrained find|head -1).
+        # CNB_BUILD_WORKSPACE is /workspace for script tasks.
+        APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
+        TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      stages:
+        - name: build-debug-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebug
+            test -s app/build/outputs/apk/debug/app-debug.apk
+        - name: build-androidtest-apk
+          script: |
+            cd v2
+            ./gradlew --no-daemon :app:assembleDebugAndroidTest
+            test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+        - name: validate-apks
+          # Secret-free pre-flight: confirm both APKs exist before touching the
+          # credential-bearing stage. This stage must never see FTL credentials,
+          # so it runs BEFORE the credential import below.
+          script: |
+            set -eu
+            test -s "${APP_APK}"
+            test -s "${TEST_APK}"
+            echo "DEBUG_APK_PRESENT=${APP_APK}"
+            echo "ANDROIDTEST_APK_PRESENT=${TEST_APK}"
+        - name: firebase-test-lab
+          # STAGE-scoped import (least privilege): only this stage can read the
+          # Firebase Test Lab credentials. The preceding build/validate stages
+          # and the whole rest of the pipeline cannot see them.
+          imports:
+            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
+          script: |
+            set -eu
+            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
+            bash scripts/run-firebase-test-lab.sh
+
+  # ------------------------------------------------------------------------
   # RELEASE: PRODUCTION release, TAG-ONLY.
   #   Triggered by `tag_push`. The source is the commit the pushed tag points
   #   to (CNB_COMMIT); CNB_BRANCH is the tag name. Only a tag matching
@@ -183,95 +345,3 @@ $:
             attachments:
               - "./v2/app/build/outputs/production/RescueAuth-*.apk"
 
-main:
-  push:
-    - name: full-cloud-test-loop
-      # Pinned, reproducible Android CI image (JDK 17/21 + Android SDK 34/35/36
-      # + build-tools 35.0.0, all version-pinned by the image tag). The same
-      # image also carries a pinned gcloud SDK for the Test Lab stage.
-      docker:
-        image: cimg/android:2026.08
-      env:
-        # Fixed, non-sensitive Test Lab device configuration.
-        # MediumPhone.arm is a VIRTUAL (emulator) FTL model, API 33. Do NOT use
-        # `panther` (physical Pixel 7): this pipeline must use one virtual device.
-        FTL_DEVICE_MODEL: MediumPhone.arm
-        FTL_DEVICE_VERSION: "33"
-        FTL_DEVICE_LOCALE: en
-        FTL_DEVICE_ORIENTATION: portrait
-        FTL_TEST_TIMEOUT: 5m
-        # Deterministic Gradle output paths (no unconstrained find|head -1).
-        # CNB_BUILD_WORKSPACE is /workspace for script tasks.
-        APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
-        TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-      stages:
-        - name: core-jvm-tests
-          script: |
-            cd v2
-            ./gradlew --no-daemon :core:test
-        - name: app-robolectric-unit-tests
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:testDebugUnitTest
-        - name: android-lint
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:lintDebug
-        - name: build-debug-apk
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:assembleDebug
-            test -s app/build/outputs/apk/debug/app-debug.apk
-        - name: build-androidtest-apk
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:assembleDebugAndroidTest
-            test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-        - name: changed-file-gate
-          # Skips Test Lab for documentation-only pushes. Never skips based on
-          # arbitrary strings in commit messages. Always compares the FULL
-          # CNB_BEFORE_SHA..CNB_COMMIT range; runs Test Lab when the range is
-          # empty/invalid/all-zero. See scripts/check-test-lab-gate.sh.
-          # NOTE: inline `script:` runs under /bin/sh (POSIX), so bash-only
-          # features (set -o pipefail, [[ ]]) must NOT be used here. The gate
-          # script itself is bash and is invoked explicitly via `bash`.
-          script: |
-            set -eu
-            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
-            export CNB_BEFORE_SHA CNB_COMMIT CNB_BUILD_WORKSPACE
-            bash scripts/check-test-lab-gate.sh
-        - name: firebase-test-lab
-          # Stage-scoped imports: the injected secret variables are visible ONLY
-          # to this stage (and its single job). Every other stage of
-          # `full-cloud-test-loop` (core/JVM, Robolectric, lint, APK builds,
-          # changed-file gate) cannot read them.
-          # Secrets are ONLY readable on `main` push (repository restricted to
-          # repository=xincy22/rescue_auth_kit, event=push, branch=main).
-          imports:
-            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
-          script: |
-            set -eu
-            cd "${CNB_BUILD_WORKSPACE:-/workspace}"
-            gate=$(grep -E '^TEST_LAB_GATE=' .cnb-gate.env 2>/dev/null | cut -d= -f2- || true)
-            if [ "$gate" = "skip" ]; then
-              echo "TEST LAB NOT EXECUTED: documentation-only change"
-              exit 0
-            fi
-            echo "FTL_DEVICE_MODEL=${FTL_DEVICE_MODEL}"
-            echo "FTL_DEVICE_VERSION=${FTL_DEVICE_VERSION}"
-            echo "FTL_DEVICE_LOCALE=${FTL_DEVICE_LOCALE}"
-            echo "FTL_DEVICE_ORIENTATION=${FTL_DEVICE_ORIENTATION}"
-            echo "FTL_TEST_TIMEOUT=${FTL_TEST_TIMEOUT}"
-            echo "FTL_CNB_COMMIT=${CNB_COMMIT}"
-            echo "FTL_APP_APK=${APP_APK}"
-            echo "FTL_TEST_APK=${TEST_APK}"
-            # The runner enforces: single virtual device, no retries, no
-            # orchestrator, waits for the matrix to finish, preserves gcloud's
-            # raw exit code and classifies it (incl. CONFIGURATION FAILURE and
-            # QUOTA EXHAUSTED annotations) in the build log.
-            export APP_APK TEST_APK FIREBASE_PROJECT_ID \
-                   GCP_SERVICE_ACCOUNT_JSON_BASE64 \
-                   FTL_DEVICE_MODEL FTL_DEVICE_VERSION FTL_DEVICE_LOCALE \
-                   FTL_DEVICE_ORIENTATION FTL_TEST_TIMEOUT
-            export CNB_COMMIT
-            bash scripts/run-firebase-test-lab.sh
