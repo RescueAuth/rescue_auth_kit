@@ -279,4 +279,97 @@ class MainActivityStartupAuthTest {
         assertNull("crypto must not run on no-secure-device", crypto.readWrapped())
         teardown(controller)
     }
+
+    // ---- H. Background/foreground re-entry (Issue #70) ----
+    //
+    // When a BiometricPrompt is showing and the activity goes to background
+    // (e.g. the user presses Home), the prompt is dismissed by the system. The
+    // startup auth controller must release its internal state so that on the
+    // next foreground resume the app can re-request authentication. Before the
+    // fix, promptActive stayed true and the next resume never launched a new
+    // prompt — the user was stuck on the neutral auth host forever.
+
+    @Test
+    fun `background during auth then foreground resumes re-requests auth`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt = FakeStartupAuthPrompt(availableAuthenticators = 1, nextResult = StartupAuthResult.Success)
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup() // onCreate → onStart → onResume
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // Existing vault → auth requested automatically.
+        assertTrue("first launch must request auth", prompt.promptLaunched)
+
+        // User presses Home while the prompt is showing → onPause fires and
+        // cancels the prompt.
+        controller.pause()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue("prompt must be cancelled when activity pauses", prompt.cancelCalled)
+        // The Activity must NOT be finished because the cancel came from going
+        // to background, not a user-initiated cancel.
+        assertFalse("activity must not finish on background", activity.isFinishing)
+
+        controller.stop()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // Simulate the 30s auto-lock happening while in background.
+        activity.sessionManager.lock()
+
+        // User returns to the app → onStart + onResume must re-request auth.
+        controller.start()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        controller.resume()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // The prompt must have been launched again (new tryStart call).
+        assertTrue("auth must be re-requested after background/foreground", prompt.promptLaunched)
+
+        // Complete auth successfully.
+        prompt.deliver(StartupAuthResult.Success)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue("vault must open after re-auth", activity.sessionManager.sessionState.isUnlocked())
+
+        teardown(controller)
+    }
+
+    @Test
+    fun `background during auth and short return below auto-lock restores shell`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt = FakeStartupAuthPrompt(availableAuthenticators = 1, nextResult = StartupAuthResult.Success)
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup() // onCreate → onStart → onResume
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // Existing vault → auth requested automatically.
+        assertTrue("first launch must request auth", prompt.promptLaunched)
+
+        // Complete auth so the session becomes UNLOCKED.
+        prompt.deliver(StartupAuthResult.Success)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue("vault must open after auth", activity.sessionManager.sessionState.isUnlocked())
+
+        // User presses Home while the app is unlocked.
+        controller.pause()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        controller.stop()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // User returns quickly (< 30s) — session was NOT locked. The app shell
+        // must be restored, not the auth host.
+        controller.start()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        controller.resume()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        assertTrue("vault must remain open on quick return", activity.sessionManager.sessionState.isUnlocked())
+        teardown(controller)
+    }
 }
