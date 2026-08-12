@@ -14,7 +14,9 @@ import com.rescueauth.v2.session.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -370,6 +372,205 @@ class MainActivityStartupAuthTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
         assertTrue("vault must remain open on quick return", activity.sessionManager.sessionState.isUnlocked())
+        teardown(controller)
+    }
+
+    // ====================================================================
+    // Issue #70 — second-launch auth deadlock regression tests.
+    // ====================================================================
+
+    /** Idles the Robolectric main looper so lifecycle/coroutine work runs. */
+    private fun idle() {
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+    }
+
+    // ---- Test A — exact deadlock: tryStart returns false then retry succeeds ----
+
+    @Test
+    fun `existing vault tryStart host not ready then retry opens vault`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        // First launch attempt is rejected (host lifecycle not ready), the
+        // scheduler must retry and the second attempt must succeed.
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        ).apply { launchResults = listOf(false, true) }
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup() // onCreate → onStart → onResume
+        idle()
+
+        // The request must NOT have been silently dropped: the scheduler
+        // retried after tryStart returned false.
+        assertTrue(
+            "scheduler must retry after a false tryStart",
+            prompt.successfulLaunchCount >= 1,
+        )
+        assertTrue(
+            "a rejected attempt must have been observed",
+            prompt.launchAttemptCount >= 2,
+        )
+
+        // Auth was re-requested (a prompt is active) — complete it.
+        prompt.deliver(StartupAuthResult.Success)
+        idle()
+        assertTrue("vault must open after retried auth", activity.sessionManager.sessionState.isUnlocked())
+        teardown(controller)
+    }
+
+    // ---- Test B — repeated relock + foreground always re-requests auth (5x) ----
+
+    @Test
+    fun `repeated relock and foreground re-requests auth for five cycles`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        )
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup() // initial launch → auto auth
+        idle()
+        assertTrue("initial launch must request auth", prompt.promptLaunched)
+        prompt.deliver(StartupAuthResult.Success)
+        idle()
+        assertTrue("initial unlock", activity.sessionManager.sessionState.isUnlocked())
+
+        // 5 relock → background → foreground → re-auth cycles.
+        repeat(5) { cycle ->
+            activity.sessionManager.lock()
+            assertFalse("cycle $cycle must lock", activity.sessionManager.sessionState.isUnlocked())
+
+            // Background.
+            controller.pause(); idle()
+            controller.stop(); idle()
+
+            // Foreground → a brand-new prompt must be launched.
+            controller.start(); idle()
+            controller.resume(); idle()
+            assertTrue("cycle $cycle must re-request auth", prompt.promptLaunched)
+            assertTrue(
+                "cycle $cycle must not reuse a stale prompt",
+                prompt.isPromptActive(),
+            )
+
+            prompt.deliver(StartupAuthResult.Success)
+            idle()
+            assertTrue("cycle $cycle must unlock after auth", activity.sessionManager.sessionState.isUnlocked())
+        }
+
+        // 1 initial + 5 relock cycles = 6 successful launches.
+        assertEquals("every cycle must really re-request auth", 6, prompt.successfulLaunchCount)
+        teardown(controller)
+    }
+
+    // ---- Test C — AUTHENTICATING invariant never dead (prompt or pending) ----
+
+    @Test
+    fun `authenticating invariant holds and request never dropped after tryStart false`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        // First attempt rejected; the retry succeeds and leaves a prompt active.
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        ).apply { launchResults = listOf(false, true) }
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup()
+        idle()
+
+        // We are (or have just been) in AUTHENTICATING with a rejected first
+        // attempt — the invariant must hold: either a prompt is active or a
+        // request is pending. It must never be both false.
+        assertTrue(
+            "AUTHENTICATING must keep prompt active or request pending",
+            activity.authenticatingInvariantHolds(),
+        )
+        assertTrue("request must have been retried", prompt.successfulLaunchCount >= 1)
+
+        prompt.deliver(StartupAuthResult.Success)
+        idle()
+        assertTrue("vault must open after invariant-preserving retry", activity.sessionManager.sessionState.isUnlocked())
+        teardown(controller)
+    }
+
+    // ---- Test D — first install (intro → Enable → prompt → create) still works ----
+
+    @Test
+    fun `first install intro enable prompt success creates vault via scheduler`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = false) }
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        )
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup()
+        idle()
+        // First-run: intro must gate before any prompt (no auto prompt).
+        assertFalse("first run must not prompt before Enable", prompt.promptLaunched)
+        assertFalse("vault must not open before Enable", activity.sessionManager.sessionState.isUnlocked())
+
+        activity.onIntroContinue()
+        idle()
+        assertTrue("prompt must launch after Enable", prompt.promptLaunched)
+
+        prompt.deliver(StartupAuthResult.Success)
+        idle()
+        assertTrue("vault must be created after auth", activity.sessionManager.sessionState.isUnlocked())
+        teardown(controller)
+    }
+
+    // ---- Test E — background timeout relock → foreground new prompt, data preserved ----
+
+    @Test
+    fun `background timeout relock then foreground re-prompts and preserves vault`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        )
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup()
+        idle()
+        assertTrue("initial auth requested", prompt.promptLaunched)
+        prompt.deliver(StartupAuthResult.Success)
+        idle()
+        assertTrue("initial unlock", activity.sessionManager.sessionState.isUnlocked())
+
+        // Background.
+        controller.pause(); idle()
+        controller.stop(); idle()
+        // Simulate the 30s auto-lock timeout happening while in background.
+        activity.sessionManager.lock()
+        assertFalse("timeout must lock session", activity.sessionManager.sessionState.isUnlocked())
+
+        // Foreground → a new prompt must be requested automatically.
+        controller.start(); idle()
+        controller.resume(); idle()
+        assertTrue("new prompt must be requested after timeout relock", prompt.promptLaunched)
+
+        prompt.deliver(StartupAuthResult.Success)
+        idle()
+        assertTrue("vault must reopen after timeout relock", activity.sessionManager.sessionState.isUnlocked())
+        // Existing-vault data is preserved: the DB was reopened, not recreated.
+        assertNotNull("existing vault data must be preserved", activity.sessionManager.databaseOrNull())
         teardown(controller)
     }
 }

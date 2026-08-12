@@ -29,9 +29,13 @@ import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ThemeColor
 import com.rescueauth.v2.ui.theme.ThemePreferences
 import java.util.concurrent.atomic.AtomicBoolean
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withStateAtLeast
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -165,11 +169,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sensitiveActionController: SensitiveActionController
     private lateinit var sensitiveActionGate: SensitiveActionGate
 
-    /** True between onResume() and onPause(). */
-    private var isResumedFlag = false
-
     /** Guards against duplicate/overlapping prompt launches. */
     private val promptActive = AtomicBoolean(false)
+
+    /**
+     * Active lifecycle-aware auth scheduler job. Replaced on every
+     * [scheduleAuthentication] so stale waits never double-launch the prompt.
+     */
+    private var authSchedulerJob: Job? = null
 
     /**
      * True while the activity is pausing because it went to background (NOT a
@@ -274,9 +281,10 @@ class MainActivity : AppCompatActivity() {
         }
         setContentView(composeView)
 
-        // Never execute Keystore crypto here. Authentication happens in
-        // onResume → requestAuthentication() → success → Keystore operation.
-        authPromptPending = true
+        // Never execute Keystore crypto here. Authentication is scheduled
+        // lifecycle-aware (see scheduleAuthentication) so the prompt only
+        // launches once AndroidX Lifecycle truly reaches RESUMED.
+        scheduleAuthentication()
     }
 
     override fun onStart() {
@@ -291,21 +299,22 @@ class MainActivity : AppCompatActivity() {
             // already unlocked (Issue #70).
             _uiState.value = StartupUiState.UNLOCKED
         } else {
-            // Session locked — re-authentication is required on resume.
-            authPromptPending = true
+            // Session locked — schedule re-authentication for when the
+            // lifecycle truly reaches RESUMED.
+            scheduleAuthentication()
         }
     }
 
     override fun onResume() {
         super.onResume()
-        isResumedFlag = true
-        if (authPromptPending) {
-            requestAuthentication()
-        }
+        // No synchronous requestAuthentication() here. Authentication is
+        // scheduled lifecycle-aware so it only runs once AndroidX Lifecycle
+        // reports RESUMED — the raw onResume callback can fire before the
+        // lifecycle state updates, which previously lost the auth request
+        // (Issue #70 second-launch deadlock).
     }
 
     override fun onPause() {
-        isResumedFlag = false
         isPausingForBackground = true
         if (::sensitiveActionGate.isInitialized) {
             sensitiveActionGate.onLifecyclePause()
@@ -346,7 +355,52 @@ class MainActivity : AppCompatActivity() {
         // must not show this one-time intro again on the next launch.
         setFirstRunIntroConfirmed()
         _uiState.value = StartupUiState.AUTHENTICATING
-        requestAuthentication()
+        // Unified lifecycle-aware scheduler — the Activity is already in
+        // stable RESUMED when the user taps Enable, so this launches promptly.
+        scheduleAuthentication()
+    }
+
+    /**
+     * Unified, lifecycle-aware auth scheduler. Every caller that needs
+     * authentication (existing-vault startup, session relock + foreground,
+     * AuthRequired race, transient auth failure, first-run Enable) funnels
+     * through here: it marks the request pending and only consumes it once
+     * [Lifecycle.State.RESUMED] is actually reached.
+     *
+     * This is the single replacement for the old raw
+     * `onResume → requestAuthentication()` path, which could run before
+     * AndroidX Lifecycle reported RESUMED and silently drop the request
+     * (Issue #70 second-launch deadlock). No arbitrary delays — this is a
+     * lifecycle race, not a timing problem.
+     */
+    private fun scheduleAuthentication() {
+        authPromptPending = true
+        if (isFinishing || isDestroyed) return
+        authSchedulerJob?.cancel()
+        authSchedulerJob = lifecycleScope.launch {
+            withStateAtLeast(Lifecycle.State.RESUMED) {
+                // Only launch if still pending and not already mid-prompt.
+                if (authPromptPending) {
+                    requestAuthentication()
+                }
+            }
+        }
+    }
+
+    /**
+     * Test-visible invariant check (Issue #70): while the startup UI is in
+     * [StartupUiState.AUTHENTICATING], at least one of the following must hold:
+     *
+     *  A. a system auth prompt is active, or
+     *  B. an auth request is pending and waiting for a valid RESUMED
+     *     opportunity.
+     *
+     * Returns true when the invariant holds, false otherwise. Only meaningful
+     * when invoked on the main thread after the scheduler has run.
+     */
+    internal fun authenticatingInvariantHolds(): Boolean {
+        if (_uiState.value != StartupUiState.AUTHENTICATING) return true
+        return promptActive.get() || authPromptPending
     }
 
     /**
@@ -361,7 +415,12 @@ class MainActivity : AppCompatActivity() {
      */
     private fun requestAuthentication() {
         authPromptPending = false
-        if (!isResumedFlag || isFinishing || isDestroyed) {
+        // No isResumedFlag / raw-resume check here. The caller
+        // (scheduleAuthentication) guarantees the lifecycle has reached RESUMED
+        // before invoking this; this method only reacts to host-level guards.
+        if (isFinishing || isDestroyed) {
+            // Host cannot launch a prompt — keep it pending for the next valid
+            // opportunity rather than dropping the request (Issue #70).
             authPromptPending = true
             return
         }
@@ -407,9 +466,12 @@ class MainActivity : AppCompatActivity() {
                     if (isPausingForBackground) {
                         // The prompt was cancelled because the app went to
                         // background (NOT a user-initiated cancel). Keep the
-                        // Activity alive — onStart/onResume will re-request
-                        // authentication when the user returns (Issue #70).
+                        // Activity alive and keep the request pending so the
+                        // AUTHENTICATING invariant (prompt active OR request
+                        // pending) holds; the lifecycle-aware scheduler will
+                        // re-launch the prompt on the next RESUMED (Issue #70).
                         promptActive.set(false)
+                        scheduleAuthentication()
                     } else {
                         // User cancelled — do NOT open the Vault, do not show a
                         // locked screen; finish the Activity (Issue #50 UX §4).
@@ -418,10 +480,11 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 StartupAuthResult.Failed -> {
-                    // Transient failure — allow the system to retry.
+                    // Transient failure — keep AUTHENTICATING and re-schedule
+                    // so the system gets another attempt at the next valid
+                    // RESUMED opportunity (never a synchronous recursive retry).
                     _uiState.value = StartupUiState.AUTHENTICATING
-                    authPromptPending = true
-                    if (isResumedFlag) requestAuthentication()
+                    scheduleAuthentication()
                 }
                 StartupAuthResult.Unavailable -> {
                     _uiState.value = StartupUiState.NO_SECURE_DEVICE
@@ -429,7 +492,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (!launched) {
+            // tryStart returned false: the host was not ready (e.g. an
+            // overlapping prompt or the lifecycle was not truly RESUMED yet).
+            // Never silently drop the request — restore the pending flag and
+            // re-schedule at the next valid RESUMED opportunity. This is the
+            // core fix for the second-launch deadlock where the app sat on
+            // AUTHENTICATING with no active prompt and no pending request.
             promptActive.set(false)
+            scheduleAuthentication()
         }
     }
 
@@ -467,8 +537,7 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 _uiState.value = StartupUiState.AUTHENTICATING
-                authPromptPending = true
-                if (isResumedFlag) requestAuthentication()
+                scheduleAuthentication()
             }
             VaultUnlockOutcome.AuthCancelled -> {
                 _uiState.value = StartupUiState.INIT
@@ -476,8 +545,7 @@ class MainActivity : AppCompatActivity() {
             }
             VaultUnlockOutcome.AuthFailed -> {
                 _uiState.value = StartupUiState.AUTHENTICATING
-                authPromptPending = true
-                if (isResumedFlag) requestAuthentication()
+                scheduleAuthentication()
             }
             VaultUnlockOutcome.NoSecureDevice -> {
                 _uiState.value = StartupUiState.NO_SECURE_DEVICE
