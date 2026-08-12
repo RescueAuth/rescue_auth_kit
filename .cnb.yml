@@ -32,7 +32,8 @@
 #   DEVELOPMENT (all manual, owner-only):
 #     feature/fix branch or main
 #       -> owner triggers "Build debug RescueAuth" (web_trigger_debug_apk)
-#       -> tests / assembleDebug / debug signing
+#       -> FAST real-device smoke APK factory (NO core/Robolectric/lint):
+#          assembleDebug / debug signing / APK validation
 #       -> RescueAuth-<versionName>-debug-<shortCommit>.apk
 #       -> real-device smoke -> PR -> main
 #     Full regression on demand (manual, owner-only, all branches)
@@ -110,22 +111,16 @@ $:
   #     signing passwords / keystores / validation.
   # ------------------------------------------------------------------------
   web_trigger_debug_apk:
+    # SIMPLIFIED per issue #69: this pipeline is a FAST real-device smoke APK
+    # factory. It does NOT run the core JVM tests, the app Robolectric unit
+    # tests, or lint — that full regression lives in web_trigger_full_test
+    # ("Run full RescueAuth test suite"). Debug pipeline is owner-only, uses
+    # standard Android debug signing, and NEVER imports the production Secret
+    # Repo.
     - name: build-debug-rescueauth
       docker:
         image: cimg/android:2026.08
       stages:
-        - name: core-jvm-tests
-          script: |
-            cd v2
-            ./gradlew --no-daemon :core:test
-        - name: app-robolectric-unit-tests
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:testDebugUnitTest
-        - name: android-lint
-          script: |
-            cd v2
-            ./gradlew --no-daemon :app:lintDebug
         - name: build-debug-apk
           # Builds, verifies (applicationId / versionName / versionCode /
           # debuggable=true / valid debug signature) and produces the
@@ -172,11 +167,11 @@ $:
         - name: core-jvm-tests
           script: |
             cd v2
-            ./gradlew --no-daemon :core:test
+            bash "${CNB_BUILD_WORKSPACE:-/workspace}/scripts/ci-heartbeat.sh" "core JVM tests" -- ./gradlew --no-daemon :core:test
         - name: app-robolectric-unit-tests
           script: |
             cd v2
-            ./gradlew --no-daemon :app:testDebugUnitTest
+            bash "${CNB_BUILD_WORKSPACE:-/workspace}/scripts/ci-heartbeat.sh" "app Robolectric tests" -- ./gradlew --no-daemon :app:testDebugUnitTest
         - name: android-lint
           script: |
             cd v2

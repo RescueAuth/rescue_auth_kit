@@ -86,6 +86,9 @@ RescueAuth 测试（含 Firebase Test Lab）。需要完整回归时，由 owner
 **"Run full RescueAuth test suite"**（core JVM、Robolectric、lint、
 `assembleDebug`、`assembleDebugAndroidTest`，无密钥）；需要云上设备验证时，
 在 `main` 上点击 **"Run Firebase device tests"**（仅此按钮可使用 FTL 凭据）。
+**"Build debug RescueAuth"** 是快速真机 smoke APK 工厂：只执行
+`assembleDebug`、校验产出的 APK 并上传，**不**运行 core/Robolectric 测试或
+lint，因此**不能**作为“完整回归已通过”的依据。
 
 ## 我为什么写这个
 

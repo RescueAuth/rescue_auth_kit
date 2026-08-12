@@ -93,8 +93,11 @@ need a full regression, trigger it manually via the **"Run full RescueAuth
 test suite"** web trigger (core JVM tests, app Robolectric, lint,
 `assembleDebug`, `assembleDebugAndroidTest`; no secrets). For on-device cloud
 verification, use the **"Run Firebase device tests"** web trigger on `main`
-only. Real-device smoke builds stay under **"Build debug RescueAuth"**; formal
-releases stay under the `rescueauth-vX.Y.Z` **tag** pipeline.
+only. **"Build debug RescueAuth"** is a FAST real-device smoke APK factory: it
+only runs `assembleDebug`, validates the produced APK, and uploads it — it does
+**not** run core/Robolectric tests or lint, so it must **not** be treated as
+evidence that the full regression has passed. Formal releases stay under the
+`rescueauth-vX.Y.Z` **tag** pipeline.
 
 ## Why I built this
 
