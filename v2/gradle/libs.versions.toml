@@ -21,6 +21,11 @@ activityCompose = "1.9.3"
 securityCrypto = "1.1.0-alpha06"
 datastore = "1.1.1"
 composeBom = "2024.09.03"
+# material-icons-core/-extended are NOT managed by the Compose BOM since
+# BOM 2024.09.00 (these artifacts stopped versioning with the rest of Compose).
+# They must therefore be pinned explicitly; otherwise `Icons.*` symbols such as
+# `Icons.AutoMirrored.Filled.ChevronRight` fail to resolve at compile time.
+materialIcons = "1.7.8"
 navigationCompose = "2.8.2"
 camerax = "1.4.1"
 mlkitBarcode = "17.3.0"
@@ -57,8 +62,8 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
-androidx-compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
-androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core", version.ref = "materialIcons" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIcons" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
