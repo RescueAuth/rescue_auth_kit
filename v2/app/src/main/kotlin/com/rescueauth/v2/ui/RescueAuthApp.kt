@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui
 
 import com.rescueauth.v2.BuildConfig
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -74,6 +75,14 @@ fun RescueAuthApp(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        // The shell Scaffold must NOT re-apply the system-bar insets to the
+        // NavHost: on targetSdk 35 (enforced edge-to-edge) each screen already
+        // owns a Scaffold + TopAppBar that correctly insets for the status bar
+        // / display cutout. Re-applying the status-bar height here on top of
+        // that would push every page down by an extra status-bar tall empty
+        // band above the header (the "excessive top gap" / double padding bug).
+        // Bottom insets are still handled by the NavigationBar itself.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { UndoSnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
