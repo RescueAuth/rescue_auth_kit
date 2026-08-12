@@ -7,6 +7,7 @@ import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.security.FakeStartupAuthPrompt
 import com.rescueauth.v2.security.FakeVaultKeyCrypto
 import com.rescueauth.v2.security.StartupAuthResult
+import com.rescueauth.v2.security.VaultKeyCrypto
 import com.rescueauth.v2.security.VaultKeyManager
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.session.SessionManager
@@ -23,12 +24,15 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Regression tests for the authentication-first startup flow (Issue #50).
+ * Regression tests for the authentication-first startup flow (Issue #50 UX
+ * rework).
  *
  * The Vault Keystore operation (create/unwrap) must NEVER run before a
  * successful system authentication; `UserNotAuthenticatedException` must map
- * to a typed AUTH_REQUIRED outcome (not a crash), user cancel must not open
- * the Vault, and a device with no secure lock must show a blocking state.
+ * to a typed AUTH_REQUIRED outcome (not a crash); first-run shows a one-time
+ * security intro before prompting; existing-vault launches request
+ * authentication automatically; a user cancel finishes the Activity without
+ * opening the Vault; and a device with no secure lock shows a blocking state.
  *
  * A fake [SessionManager] (in-memory Room + fake crypto) and a fake
  * [FakeStartupAuthPrompt] are injected so these tests never touch AndroidKeyStore
@@ -72,10 +76,10 @@ class MainActivityStartupAuthTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
-    // ---- A. First-run: no auth → request authentication, no crash ----
+    // ---- A. First-run: show intro, then (after Enable) request auth ----
 
     @Test
-    fun `first run requests authentication before any keystore operation`() {
+    fun `first run shows intro and does not prompt until continue`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -84,7 +88,7 @@ class MainActivityStartupAuthTest {
 
         // Track whether crypto was touched before auth — it must NOT be.
         var wrapCalled = false
-        val recordingCrypto = object : com.rescueauth.v2.security.VaultKeyCrypto {
+        val recordingCrypto = object : VaultKeyCrypto {
             override fun wrap(vaultKey: ByteArray, persist: (String) -> Unit) {
                 wrapCalled = true
                 crypto.wrap(vaultKey, persist)
@@ -109,14 +113,21 @@ class MainActivityStartupAuthTest {
             )
         }
 
-        controller.setup() // onCreate → onStart → onResume (triggers requestAuthentication)
+        controller.setup() // onCreate → onStart → onResume (decides startup mode)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        // The system auth prompt must have been requested.
-        assertTrue("auth prompt must be launched on first-run startup", prompt.promptLaunched)
+        // First-run shows the intro first — the system prompt must NOT be
+        // launched before the user taps Enable.
+        assertFalse("prompt must not launch before Enable on first run", prompt.promptLaunched)
+        assertFalse("crypto must NOT run before auth success", wrapCalled)
+
+        // User taps Enable → authentication is requested.
+        activity.onIntroContinue()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue("auth prompt must be launched after Enable", prompt.promptLaunched)
+        assertFalse("crypto must NOT run before auth success", wrapCalled)
 
         // Deliver auth success → then (and only then) crypto runs.
-        assertFalse("crypto must NOT run before auth success", wrapCalled)
         prompt.deliver(StartupAuthResult.Success)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         assertTrue("crypto must run after auth success", wrapCalled)
@@ -124,10 +135,10 @@ class MainActivityStartupAuthTest {
         teardown(controller)
     }
 
-    // ---- B. First-run: auth success → createVault succeeds (opens) ----
+    // ---- B. First-run: intro → Enable → auth success → createVault ----
 
     @Test
-    fun `first run auth success opens the vault`() {
+    fun `first run intro then auth success opens the vault`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -138,7 +149,11 @@ class MainActivityStartupAuthTest {
         controller.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
+        assertFalse("vault must not be open before Enable", activity.sessionManager.sessionState.isUnlocked())
+        activity.onIntroContinue()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         assertFalse("vault must not be open before auth", activity.sessionManager.sessionState.isUnlocked())
+
         prompt.deliver(StartupAuthResult.Success)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
@@ -146,10 +161,10 @@ class MainActivityStartupAuthTest {
         teardown(controller)
     }
 
-    // ---- E. User cancel → do not open vault, no crash ----
+    // ---- Cancel → Activity finishes, vault NOT opened ----
 
     @Test
-    fun `first run user cancel does not open the vault and does not crash`() {
+    fun `first run user cancel finishes activity and does not open the vault`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -159,18 +174,64 @@ class MainActivityStartupAuthTest {
 
         controller.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        activity.onIntroContinue()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         prompt.deliver(StartupAuthResult.Cancelled)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
         assertFalse("vault must NOT be open after cancel", activity.sessionManager.sessionState.isUnlocked())
         assertNull("vault DB must not be created after cancel", activity.sessionManager.databaseOrNull())
+        assertTrue("activity must be finishing after cancel", activity.isFinishing)
         teardown(controller)
     }
 
-    // ---- C + D. Existing vault: locked session → auth → unwrap/open ----
+    // ---- A2. Intro acknowledgment is persisted independent of Vault creation ----
 
     @Test
-    fun `existing vault locked session requests auth and opens after success`() {
+    fun `after enable then cancel, next launch skips intro and requests auth directly`() {
+        val crypto = FakeVaultKeyCrypto()
+
+        // First launch: first-run shows the intro, user taps Enable, then
+        // cancels system authentication → Activity finishes, Vault NOT created.
+        val controller1 = Robolectric.buildActivity(MainActivity::class.java)
+        val activity1 = controller1.get()
+        activity1.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = false) }
+        val prompt1 = FakeStartupAuthPrompt(availableAuthenticators = 1, nextResult = StartupAuthResult.Cancelled)
+        activity1.startupAuthPromptFactory = { prompt1 }
+
+        controller1.setup()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        // Intro is shown (Vault still not created).
+        assertFalse("intro must gate first launch before Enable", prompt1.promptLaunched)
+        activity1.onIntroContinue()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        prompt1.deliver(StartupAuthResult.Cancelled)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue("first launch must finish after cancel", activity1.isFinishing)
+        assertNull("vault must not be created after cancel", activity1.sessionManager.databaseOrNull())
+        teardown(controller1)
+
+        // Second launch: Vault is STILL not created (still first-run), but the
+        // intro has been acknowledged and persisted → request authentication
+        // directly, do NOT show the intro again.
+        val controller2 = Robolectric.buildActivity(MainActivity::class.java)
+        val activity2 = controller2.get()
+        activity2.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = false) }
+        val prompt2 = FakeStartupAuthPrompt(availableAuthenticators = 1, nextResult = StartupAuthResult.Success)
+        activity2.startupAuthPromptFactory = { prompt2 }
+
+        controller2.setup()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        assertTrue("second launch must request auth directly, no intro", prompt2.promptLaunched)
+        assertFalse("vault must still not be open before auth", activity2.sessionManager.sessionState.isUnlocked())
+        teardown(controller2)
+    }
+
+    // ---- C + D. Existing vault: locked session → automatic auth → open ----
+
+    @Test
+    fun `existing vault locked session automatically requests auth and opens after success`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -181,8 +242,9 @@ class MainActivityStartupAuthTest {
         controller.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        // Existing vault → must request authentication, not auto-unlock.
-        assertTrue("existing vault must request auth", prompt.promptLaunched)
+        // Existing vault → must request authentication AUTOMATICALLY (no
+        // button tap, no intro).
+        assertTrue("existing vault must auto-request auth", prompt.promptLaunched)
         assertFalse("vault must not be open before auth", activity.sessionManager.sessionState.isUnlocked())
 
         prompt.deliver(StartupAuthResult.Success)
@@ -205,6 +267,11 @@ class MainActivityStartupAuthTest {
         activity.startupAuthPromptFactory = { prompt }
 
         controller.setup()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // First-run shows the intro first; after Enable, the prompt resolves
+        // to Unavailable → blocking state; no crypto ran.
+        activity.onIntroContinue()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
         // The prompt resolves to Unavailable → blocking state; no crypto ran.

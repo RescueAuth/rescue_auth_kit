@@ -14,7 +14,12 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * Behaviour tests for the startup lock / no-secure-device screens (Issue #50).
+ * Behaviour tests for the startup auth UX (Issue #50 UX rework).
+ *
+ * The normal flow has NO interactive lock screen: first-run shows a one-time
+ * security intro, existing-vault launches request authentication automatically,
+ * and the neutral auth host never exposes sensitive content. The no-secure
+ * device case keeps a blocking screen with a "Go to system settings" action.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -24,30 +29,35 @@ class StartupLockScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun lockScreenShowsUnlockAndExitAndInvokesCallbacks() {
-        var unlocked = false
-        var exited = false
+    fun introScreenShowsEnableAndInvokesCallback() {
+        var enabled = false
         composeRule.setContent {
             RescueAuthTheme {
-                StartupLockScreen(
-                    onUnlock = { unlocked = true },
-                    onExit = { exited = true },
+                StartupIntroScreen(
+                    onContinue = { enabled = true },
                 )
             }
         }
-        composeRule.onNodeWithTag(StartupLockTestTags.SCREEN).assertIsDisplayed()
-        composeRule.onNodeWithText("Unlock").assertIsDisplayed()
-        composeRule.onNodeWithText("Exit").assertIsDisplayed()
+        composeRule.onNodeWithTag(StartupLockTestTags.INTRO_SCREEN).assertIsDisplayed()
+        composeRule.onNodeWithText("Use phone to unlock").assertIsDisplayed()
+        composeRule.onNodeWithText("Enable").assertIsDisplayed()
 
-        composeRule.onNodeWithTag(StartupLockTestTags.UNLOCK_BUTTON).performClick()
-        assertTrue("Unlock callback must fire", unlocked)
-
-        composeRule.onNodeWithTag(StartupLockTestTags.EXIT_BUTTON).performClick()
-        assertTrue("Exit callback must fire", exited)
+        composeRule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performClick()
+        assertTrue("Enable callback must fire", enabled)
     }
 
     @Test
-    fun noSecureDeviceScreenShowsBlockingStateAndExit() {
+    fun authHostIsNonInteractiveNeutralHost() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                StartupAuthHost()
+            }
+        }
+        composeRule.onNodeWithTag(StartupLockTestTags.AUTH_HOST).assertIsDisplayed()
+    }
+
+    @Test
+    fun noSecureDeviceScreenShowsBlockingStateWithSettingsAndExit() {
         var exited = false
         composeRule.setContent {
             RescueAuthTheme {
@@ -56,6 +66,7 @@ class StartupLockScreenTest {
         }
         composeRule.onNodeWithTag(StartupLockTestTags.SCREEN).assertIsDisplayed()
         composeRule.onNodeWithText("Secure device lock required").assertIsDisplayed()
+        composeRule.onNodeWithTag(StartupLockTestTags.SETTINGS_BUTTON).assertIsDisplayed()
         composeRule.onNodeWithTag(StartupLockTestTags.EXIT_BUTTON).performClick()
         assertTrue("Exit callback must fire", exited)
     }
