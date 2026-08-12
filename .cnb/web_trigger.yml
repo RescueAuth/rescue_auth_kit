@@ -14,18 +14,30 @@ branch:
 
   # REGRESSION: owner-triggered FULL test suite ("Run full RescueAuth test
   # suite"). Since this is an owner-only manual operation, it is intentionally
-  # made available on ALL normal Git branches (not tied to any
-  # feature/fix/auto naming convention), so the owner can run the full
-  # regression directly from whichever branch is under test. The matcher `.*`
-  # is the simplest reliable all-branches matcher supported by the CNB web
-  # trigger schema (a bare prefix regex like `^main` would wrongly match
-  # `mainfoo` / `featureABC`, so it is avoided here). Restricted to the owner
-  # role (write permission is also required by the platform).
+  # made available on ALL branches (not tied to any feature/fix/auto naming
+  # convention), so the owner can run the full regression directly from
+  # whichever branch is under test. The matcher `.*` is the simplest reliable
+  # all-branches matcher supported by the CNB web trigger schema. Restricted to
+  # the owner role. This pipeline NEVER uses secrets and does NOT run Firebase
+  # Test Lab; on-device FTL is a separate manual button.
   - reg: ".*"
     buttons:
       - name: Run full RescueAuth test suite
-        description: Run the full regression test suite (core JVM, app Robolectric, lint, assembleDebug, assembleDebugAndroidTest) on the selected branch. No production secrets are used. Firebase Test Lab on-device verification is not submitted from this manual trigger (its credentials are restricted to main+push).
+        description: Run the full regression test suite (core JVM, app Robolectric, lint, assembleDebug, assembleDebugAndroidTest) on the selected branch. No secrets are used. Firebase Test Lab on-device verification is NOT part of this button; use the separate main-only "Run Firebase device tests" button.
         event: web_trigger_full_test
+        permissions:
+          roles: [owner]
+
+  # FIREBASE DEVICE TESTS: owner-triggered Firebase Test Lab on-device testing.
+  # Intentionally restricted to `^main$` ONLY: the FTL secret repo grants the
+  # web_trigger event access only on the `main` branch (event=web_trigger,
+  # branch=main). This is the ONLY button that may consume Firebase Test Lab
+  # credentials. Restricted to the owner role.
+  - reg: "^main$"
+    buttons:
+      - name: Run Firebase device tests
+        description: Build/validate the debug and androidTest APKs and submit a single Firebase Test Lab virtual-device matrix on main. Uses Firebase Test Lab credentials (main only). Never touches Android production signing.
+        event: web_trigger_firebase_test
         permissions:
           roles: [owner]
 

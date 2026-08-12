@@ -7,8 +7,8 @@
 #
 # Security contract (see docs/FIREBASE_TEST_LAB.md):
 #   * Credentials (GCP_SERVICE_ACCOUNT_JSON_BASE64 / FIREBASE_PROJECT_ID) are
-#     only ever imported by the `main`+`push` pipeline in .cnb.yml. Never on
-#     PR branches or NPC events.
+#     only ever imported by the `web_trigger_firebase_test` (manual, main-only)
+#     pipeline in .cnb.yml. Never on PR branches, NPC events, or main push.
 #   * Credentials are never written to gradle.properties, permanent user-home
 #     files or the repository checkout.
 #   * Sensitive values are never echoed; logs stay redacted.
