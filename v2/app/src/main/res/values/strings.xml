@@ -67,6 +67,8 @@
     <!-- Provider & Account management (Phase 4 — hierarchy management) -->
     <string name="provider_add_provider">Add Provider</string>
     <string name="provider_actions">Provider actions</string>
+    <string name="provider_accounts_count">%1$d account(s)</string>
+    <string name="provider_accounts_with_pinned">%1$d account(s) · %2$d pinned</string>
     <string name="provider_rename">Rename Provider</string>
     <string name="provider_delete">Delete Provider</string>
     <string name="provider_add_account">Add Account</string>

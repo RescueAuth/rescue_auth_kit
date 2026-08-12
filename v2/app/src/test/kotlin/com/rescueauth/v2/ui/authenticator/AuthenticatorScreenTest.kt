@@ -2,7 +2,9 @@ package com.rescueauth.v2.ui.authenticator
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
@@ -15,12 +17,13 @@ import org.robolectric.annotation.Config
 
 /**
  * UI behaviour tests for the production Authenticator screen state model:
- * empty state, real list state and countdown values are rendered from
- * [AuthenticatorUiState] without touching Room or the repository.
+ * empty state and the level-1 (Provider list) / level-2 (Account list)
+ * logical-path navigation.
  *
- * The new nested layout renders TOTP codes directly inside each Account card
- * (Provider → Account → TOTP code), so tests provide data through the
- * `providers` structure.
+ * The home screen presents the Provider list (level 1); tapping a Provider
+ * drills into its Account list (level 2), where TOTP codes are shown inline
+ * inside each Account card. Tests provide data through the `providers`
+ * structure and drive navigation by clicking the Provider row.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -42,7 +45,7 @@ class AuthenticatorScreenTest {
     }
 
     @Test
-    fun realListShowsIssuerAccountCodeAndCountdown() {
+    fun homeShowsProvidersOnlyNotCodes() {
         composeRule.setContent {
             RescueAuthTheme {
                 com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
@@ -80,14 +83,60 @@ class AuthenticatorScreenTest {
                 )
             }
         }
+        // Level 1: only the Provider name is shown, not the TOTP code.
         composeRule.onNodeWithText("GitHub").assertIsDisplayed()
+        composeRule.onNodeWithText("alice@example.com").assertDoesNotExist()
+        composeRule.onNodeWithText("996554").assertDoesNotExist()
+    }
+
+    @Test
+    fun clickingProviderShowsAccountAndCode() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
+                    uiState = AuthenticatorUiState(
+                        loading = false,
+                        providers = listOf(
+                            ProviderUi(
+                                id = "provider:GitHub",
+                                serviceName = "GitHub",
+                                accounts = listOf(
+                                    AccountUi(
+                                        id = "a1",
+                                        providerName = "GitHub",
+                                        accountName = "alice@example.com",
+                                        totpCredentials = listOf(
+                                            TotpCredentialUi(
+                                                id = "t1",
+                                                stableId = "t1",
+                                                issuer = "GitHub",
+                                                accountName = "alice@example.com",
+                                                algorithm = "SHA1",
+                                                digits = 6,
+                                                periodSeconds = 30,
+                                                currentCode = "996554",
+                                                remainingSeconds = 24,
+                                                progressFraction = 0.8f,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    onAddClick = {},
+                )
+            }
+        }
+        // Drill into the provider's account list.
+        composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         composeRule.onNodeWithText("alice@example.com").assertIsDisplayed()
         composeRule.onNodeWithText("996554").assertIsDisplayed()
         composeRule.onNodeWithText("24").assertIsDisplayed()
     }
 
     @Test
-    fun multipleTotpUnderSameAccountAreAllShown() {
+    fun multipleTotpUnderSameAccountAreAllShownAfterDrillDown() {
         composeRule.setContent {
             RescueAuthTheme {
                 com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
@@ -137,13 +186,14 @@ class AuthenticatorScreenTest {
                 )
             }
         }
+        composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         // Both TOTP codes should be visible — no silent dropping.
         composeRule.onNodeWithText("111111").assertIsDisplayed()
         composeRule.onNodeWithText("22222222").assertIsDisplayed()
     }
 
     @Test
-    fun multipleProvidersAreGroupedCorrectly() {
+    fun multipleProvidersAreListedOnHome() {
         composeRule.setContent {
             RescueAuthTheme {
                 com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
@@ -206,9 +256,16 @@ class AuthenticatorScreenTest {
                 )
             }
         }
+        // Home lists both providers as entry points (codes are not shown yet).
         composeRule.onNodeWithText("GitHub").assertIsDisplayed()
         composeRule.onNodeWithText("Google").assertExists()
+        composeRule.onNodeWithText("111111").assertDoesNotExist()
+        composeRule.onNodeWithText("222222").assertDoesNotExist()
+
+        // Drilling into GitHub shows its account + code.
+        composeRule.onNodeWithTag("provider_row_GitHub").performClick()
+        composeRule.onNodeWithText("alice@example.com").assertIsDisplayed()
         composeRule.onNodeWithText("111111").assertIsDisplayed()
-        composeRule.onNodeWithText("222222").assertExists()
+        composeRule.onNodeWithText("222222").assertDoesNotExist()
     }
 }

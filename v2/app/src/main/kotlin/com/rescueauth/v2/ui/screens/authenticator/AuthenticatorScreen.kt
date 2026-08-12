@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ChevronRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -35,9 +37,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -58,6 +62,7 @@ import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -94,19 +99,45 @@ fun AuthenticatorScreen(
     onMergeAccount: ((AccountUi) -> Unit)? = null,
     onDeleteAccount: ((AccountUi) -> Unit)? = null,
 ) {
+    // Logical-path navigation: the home screen first presents the Provider
+    // list (level 1). Tapping a Provider drills into that Provider's Account
+    // list (level 2), and tapping an Account opens its detail (level 3 — see
+    // RecoveryCodesScreen). No longer is every Provider/Account flattened onto
+    // a single screen.
+    var selectedProviderName by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedProvider = selectedProviderName?.let { name ->
+        uiState.providers.find { it.serviceName == name }
+    }
+    val atProviderLevel = selectedProviderName != null
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
+                    // Breadcrumb mirrors the current logical path:
+                    // level 1 → "Authenticator"; level 2 → "Authenticator > Provider".
                     BreadcrumbTopBar(
-                        items = listOf(
-                            BreadcrumbItem(
-                                label = stringResource(R.string.authenticator_title),
-                                isCurrent = true,
-                            ),
-                        ),
-                        onNavigate = {},
+                        items = if (atProviderLevel) {
+                            listOf(
+                                BreadcrumbItem(
+                                    label = stringResource(R.string.authenticator_title),
+                                    destination = RescueAuthRoutes.AUTHENTICATOR,
+                                ),
+                                BreadcrumbItem(
+                                    label = selectedProvider?.serviceName ?: "",
+                                    isCurrent = true,
+                                ),
+                            )
+                        } else {
+                            listOf(
+                                BreadcrumbItem(
+                                    label = stringResource(R.string.authenticator_title),
+                                    isCurrent = true,
+                                ),
+                            )
+                        },
+                        onNavigate = { selectedProviderName = null },
                         ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
                         moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
                     )
@@ -120,7 +151,7 @@ fun AuthenticatorScreen(
                             )
                         }
                     }
-                    if (onAddProviderClick != null) {
+                    if (!atProviderLevel && onAddProviderClick != null) {
                         IconButton(onClick = onAddProviderClick) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
@@ -158,45 +189,124 @@ fun AuthenticatorScreen(
                     modifier = Modifier.padding(padding),
                 )
             }
+            // Level 2: an Account list scoped to the selected Provider. The
+            // provider's accounts are shown with their TOTP codes inline so the
+            // user still sees codes at a glance along the logical path.
+            selectedProvider != null -> {
+                ProviderAccountsList(
+                    provider = selectedProvider,
+                    onCopyClick = onCopyClick,
+                    onDeleteClick = onDeleteClick,
+                    onOpenAccount = onOpenAccount,
+                    onTogglePin = onTogglePin,
+                    onRename = onRenameAccount,
+                    onMove = onMoveAccount,
+                    onMerge = onMergeAccount,
+                    onDelete = onDeleteAccount,
+                    onAddAccount = onAddAccount?.let { { it(selectedProvider.serviceName) } },
+                    modifier = Modifier.padding(padding),
+                )
+            }
+            // Level 1: the Provider list is the entry point of the logical path.
             else -> {
-                LazyColumn(
+                ProviderList(
+                    providers = uiState.providers,
+                    onProviderClick = { selectedProviderName = it },
+                    onRenameProvider = onRenameProvider,
+                    onAddAccount = onAddAccount,
+                    onDeleteProvider = onDeleteProvider,
+                    modifier = Modifier.padding(padding),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Level 1 — the Provider list. Each row is the entry point of the logical
+ * path (Provider → Account → TOTP). Tapping a row drills into its accounts.
+ */
+@Composable
+private fun ProviderList(
+    providers: List<ProviderUi>,
+    onProviderClick: (String) -> Unit,
+    onRenameProvider: ((String) -> Unit)? = null,
+    onAddAccount: ((String) -> Unit)? = null,
+    onDeleteProvider: ((String) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        items(
+            items = providers,
+            key = { it.id },
+        ) { provider ->
+            ProviderListItem(
+                provider = provider,
+                onClick = { onProviderClick(provider.serviceName) },
+                onRename = onRenameProvider,
+                onAddAccount = onAddAccount,
+                onDelete = onDeleteProvider,
+            )
+        }
+    }
+}
+
+/**
+ * Level 2 — the Account list of one Provider. Each Account card shows its
+ * TOTP codes inline (the core "see your code" value is preserved) and opens
+ * the account detail on tap.
+ */
+@Composable
+private fun ProviderAccountsList(
+    provider: ProviderUi,
+    onCopyClick: ((TotpCardUi) -> Unit)? = null,
+    onDeleteClick: ((TotpCardUi) -> Unit)? = null,
+    onOpenAccount: ((String) -> Unit)? = null,
+    onTogglePin: ((AccountUi) -> Unit)? = null,
+    onRename: ((AccountUi) -> Unit)? = null,
+    onMove: ((AccountUi) -> Unit)? = null,
+    onMerge: ((AccountUi) -> Unit)? = null,
+    onDelete: ((AccountUi) -> Unit)? = null,
+    onAddAccount: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        // provider.accounts is never empty (a Provider is built by grouping
+        // accounts under a serviceName), so we render the accounts directly.
+        items(
+            items = provider.accounts,
+            key = { it.id },
+        ) { account ->
+            AccountWithTotpCard(
+                account = account,
+                onCopyClick = onCopyClick,
+                onDeleteClick = onDeleteClick,
+                onOpenAccount = onOpenAccount?.let { { it(account.id) } },
+                onTogglePin = onTogglePin,
+                onRename = onRename,
+                onMove = onMove,
+                onMerge = onMerge,
+                onDelete = onDelete,
+            )
+        }
+        if (onAddAccount != null) {
+            item(key = "add_account") {
+                Text(
+                    text = stringResource(R.string.provider_add_account),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentPadding = PaddingValues(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    // Provider → Account → TOTP nested display.
-                    // Each Provider is a visual grouping header. Each Account
-                    // is a card that directly shows its TOTP codes (current
-                    // code, countdown, copy) so the user sees codes at a
-                    // glance without navigating to a detail screen.
-                    uiState.providers.forEachIndexed { pIndex, provider ->
-                        item(key = "provider_${provider.id}") {
-                            ProviderGroupHeader(
-                                provider = provider,
-                                onRename = onRenameProvider,
-                                onAddAccount = onAddAccount,
-                                onDelete = onDeleteProvider,
-                            )
-                        }
-                        provider.accounts.forEach { account ->
-                            item(key = "account_${account.id}") {
-                                AccountWithTotpCard(
-                                    account = account,
-                                    onCopyClick = onCopyClick,
-                                    onDeleteClick = onDeleteClick,
-                                    onOpenAccount = onOpenAccount?.let { { it(account.id) } },
-                                    onTogglePin = onTogglePin,
-                                    onRename = onRenameAccount,
-                                    onMove = onMoveAccount,
-                                    onMerge = onMergeAccount,
-                                    onDelete = onDeleteAccount,
-                                )
-                            }
-                        }
-                    }
-                }
+                        .clickable(onClick = onAddAccount)
+                        .padding(Spacing.md),
+                )
             }
         }
     }
@@ -412,76 +522,111 @@ private fun RecoverySummaryLabel(account: AccountUi) {
 }
 
 /**
- * Provider group header row with a management menu (Rename / Add Account /
- * Delete). Displays only the Provider name and its account count — never
- * secret values.
+ * Level 1 — Provider list item (the entry point of the logical path).
+ *
+ * Renders one Provider as a tappable card that drills into its Account list
+ * (level 2). Displays only safe metadata — the Provider name, its account
+ * count and a pinned-account count — never secret values. A management menu
+ * (Rename / Add Account / Delete) is available from the trailing "…".
  */
 @Composable
-private fun ProviderGroupHeader(
+private fun ProviderListItem(
     provider: ProviderUi,
-    onRename: ((String) -> Unit)?,
-    onAddAccount: ((String) -> Unit)?,
-    onDelete: ((String) -> Unit)?,
+    onClick: () -> Unit,
+    onRename: ((String) -> Unit)? = null,
+    onAddAccount: ((String) -> Unit)? = null,
+    onDelete: ((String) -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+            .testTag("provider_row_${provider.serviceName}")
+            .semantics { role = Role.Button },
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = provider.serviceName,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = provider.accounts.size.toString() + " account(s)",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (onRename != null || onAddAccount != null || onDelete != null) {
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreVert,
-                        contentDescription = stringResource(R.string.provider_actions),
-                    )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = provider.serviceName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                val pinnedCount = provider.accounts.count { it.isPinned }
+                Text(
+                    text = if (pinnedCount > 0) {
+                        stringResource(
+                            R.string.provider_accounts_with_pinned,
+                            provider.accounts.size,
+                            pinnedCount,
+                        )
+                    } else {
+                        stringResource(
+                            R.string.provider_accounts_count,
+                            provider.accounts.size,
+                        )
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Chevron signals this row opens a deeper level.
+            if (onRename != null || onAddAccount != null || onDelete != null) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.provider_actions),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        if (onRename != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.provider_rename)) },
+                                onClick = {
+                                    menuOpen = false
+                                    onRename(provider.serviceName)
+                                },
+                            )
+                        }
+                        if (onAddAccount != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.provider_add_account)) },
+                                onClick = {
+                                    menuOpen = false
+                                    onAddAccount(provider.serviceName)
+                                },
+                            )
+                        }
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.provider_delete)) },
+                                onClick = {
+                                    menuOpen = false
+                                    onDelete(provider.serviceName)
+                                },
+                            )
+                        }
+                    }
                 }
-                DropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                ) {
-                    if (onRename != null) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.provider_rename)) },
-                            onClick = {
-                                menuOpen = false
-                                onRename(provider.serviceName)
-                            },
-                        )
-                    }
-                    if (onAddAccount != null) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.provider_add_account)) },
-                            onClick = {
-                                menuOpen = false
-                                onAddAccount(provider.serviceName)
-                            },
-                        )
-                    }
-                    if (onDelete != null) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.provider_delete)) },
-                            onClick = {
-                                menuOpen = false
-                                onDelete(provider.serviceName)
-                            },
-                        )
-                    }
-                }
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
