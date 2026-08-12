@@ -67,6 +67,8 @@
     <!-- Provider & Account management (Phase 4 — hierarchy management) -->
     <string name="provider_add_provider">添加服务</string>
     <string name="provider_actions">服务操作</string>
+    <string name="provider_accounts_count">%1$d 个账户</string>
+    <string name="provider_accounts_with_pinned">%1$d 个账户 · %2$d 已置顶</string>
     <string name="provider_rename">重命名服务</string>
     <string name="provider_delete">删除服务</string>
     <string name="provider_add_account">添加账户</string>
