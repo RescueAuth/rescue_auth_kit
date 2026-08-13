@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -110,9 +109,6 @@ fun StartupAuthHost(modifier: Modifier = Modifier) {
             contentDescription = null,
             modifier = Modifier.size(56.dp),
             tint = MaterialTheme.colorScheme.primary,
-        )
-        CircularProgressIndicator(
-            modifier = Modifier.padding(top = 24.dp),
         )
     }
 }
