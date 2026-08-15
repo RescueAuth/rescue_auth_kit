@@ -109,7 +109,7 @@ PR 分支（如 `auto/xxx`）不属于 `main`，且“Run Firebase device tests�
 > 只执行 `--test=<TEST_APK>`（`app-debug-androidTest.apk`）中的用例。
 > JVM unit test 与 Robolectric unit test 在本地 stage（`:app:testDebugUnitTest`）
 > 中运行，**不会**被 Test Lab 执行。这些是 Robolectric unit test（位于
-> `v2/app/src/test/`，`@RunWith(RobolectricTestRunner)`），不是
+> `app/src/test/`，`@RunWith(RobolectricTestRunner)`），不是
 > androidTest/instrumentation test。
 > （注：`SecureScreenFlagTest` 已随 Issue #57 移除——不再全局阻止截图。）
 
@@ -135,8 +135,8 @@ PR 分支（如 `auto/xxx`）不属于 `main`，且“Run Firebase device tests�
 `APP_APK` / `TEST_APK` 使用**确定的 Gradle 输出路径**:
 
 ```text
-v2/app/build/outputs/apk/debug/app-debug.apk
-v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+app/build/outputs/apk/debug/app-debug.apk
+app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 ```
 
 绝不使用 `find | head -1` 这类不受约束的查找。
@@ -381,8 +381,8 @@ bash scripts/test/test-check-test-lab-gate.sh
 `scripts/test/test-run-firebase-test-lab.sh` 使用 fake `gcloud` 对
 失败路径、退出码分类、门控逻辑做了离线验证(88 项全部通过);
 `scripts/test/test-check-test-lab-gate.sh` 是变更门控的专项回归套件
-(32 项全部通过),覆盖 `v2/app/**`、`v2/core/**`、`v2/gradle/**`、
+(29 项全部通过),覆盖 `app/**`、`core/**`、`gradle/**`、
 version catalog、CI/runner 自变更等所有必触发路径,以及 `docs/**`、
 `README*` 等纯文档跳过分支,并用 PR #13 的真实路径
-(`v2/app/src/androidTest/.../RescueAuthDatabaseInstrumentedTest.kt`)
+(`app/src/androidTest/.../RescueAuthDatabaseInstrumentedTest.kt`)
 作为回归样例。fake 仅存在于测试目录,绝不进入生产执行路径。

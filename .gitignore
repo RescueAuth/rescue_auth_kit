@@ -1,60 +1,39 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# ---------------------------------------------------------------------------
+# RescueAuth (native Android) — root .gitignore
+# ---------------------------------------------------------------------------
 
-# IntelliJ related
+# Gradle / Android build outputs
+.gradle/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IntelliJ / IDE
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
 .vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+# OS / editor
+.DS_Store
+*.swp
+*.log
 
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Android signing secrets
+# ---------------------------------------------------------------------------
+# RescueAuth production Android signing secrets (Release Provisioning Step 1).
+# The production private key must live entirely OUTSIDE the repo. Only the
+# `.example` template is committed. Developer Vault synthetic keystore
+# fixtures are in-memory byte arrays in test sources and are unaffected.
+# ---------------------------------------------------------------------------
+/keystore.properties
 *.jks
 *.keystore
 *.p12
 *.pfx
-**/key.properties
-signing/*.local.json
-signing/*.local.properties
-
-# Legacy fixture generator output (canonical copy lives in v2/legacy-fixtures)
-tools/legacy_fixtures/legacy-fixtures/
 
 # Firebase Test Lab CI: transient gate file generated at runtime on the CI
 # workspace (never committed)

@@ -138,7 +138,7 @@ $:
           image: cnbcool/attachments:latest
           settings:
             attachments:
-              - "./v2/app/build/outputs/debug/RescueAuth-*.apk"
+              - "./app/build/outputs/debug/RescueAuth-*.apk"
 
   # ------------------------------------------------------------------------
   # REGRESSION: owner-triggered FULL test suite.
@@ -166,24 +166,19 @@ $:
       stages:
         - name: core-jvm-tests
           script: |
-            cd v2
             bash "${CNB_BUILD_WORKSPACE:-/workspace}/scripts/ci-heartbeat.sh" "core JVM tests" -- ./gradlew --no-daemon :core:test
         - name: app-robolectric-unit-tests
           script: |
-            cd v2
             bash "${CNB_BUILD_WORKSPACE:-/workspace}/scripts/ci-heartbeat.sh" "app Robolectric tests" -- ./gradlew --no-daemon :app:testDebugUnitTest
         - name: android-lint
           script: |
-            cd v2
             ./gradlew --no-daemon :app:lintDebug
         - name: build-debug-apk
           script: |
-            cd v2
             ./gradlew --no-daemon :app:assembleDebug
             test -s app/build/outputs/apk/debug/app-debug.apk
         - name: build-androidtest-apk
           script: |
-            cd v2
             ./gradlew --no-daemon :app:assembleDebugAndroidTest
             test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
         - name: validate-artifacts
@@ -194,8 +189,8 @@ $:
           script: |
             set -eu
             cd "${CNB_BUILD_WORKSPACE:-/workspace}"
-            app_apk="v2/app/build/outputs/apk/debug/app-debug.apk"
-            test_apk="v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            app_apk="app/build/outputs/apk/debug/app-debug.apk"
+            test_apk="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
             test -s "${app_apk}"
             test -s "${test_apk}"
             echo "DEBUG_APK_PRESENT=${app_apk}"
@@ -236,17 +231,15 @@ $:
         FTL_TEST_TIMEOUT: 5m
         # Deterministic Gradle output paths (no unconstrained find|head -1).
         # CNB_BUILD_WORKSPACE is /workspace for script tasks.
-        APP_APK: /workspace/v2/app/build/outputs/apk/debug/app-debug.apk
-        TEST_APK: /workspace/v2/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+        APP_APK: /workspace/app/build/outputs/apk/debug/app-debug.apk
+        TEST_APK: /workspace/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
       stages:
         - name: build-debug-apk
           script: |
-            cd v2
             ./gradlew --no-daemon :app:assembleDebug
             test -s app/build/outputs/apk/debug/app-debug.apk
         - name: build-androidtest-apk
           script: |
-            cd v2
             ./gradlew --no-daemon :app:assembleDebugAndroidTest
             test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
         - name: validate-apks
@@ -297,15 +290,12 @@ $:
             echo "RELEASE_VERSION=${version}"
         - name: core-jvm-tests
           script: |
-            cd v2
             ./gradlew --no-daemon :core:test
         - name: app-robolectric-unit-tests
           script: |
-            cd v2
             ./gradlew --no-daemon :app:testDebugUnitTest
         - name: android-lint
           script: |
-            cd v2
             ./gradlew --no-daemon :app:lintDebug
         - name: production-sign-and-verify
           # Stage-scoped least privilege: no earlier test/build stage can read
@@ -338,5 +328,5 @@ $:
           settings:
             commit: $CNB_COMMIT
             attachments:
-              - "./v2/app/build/outputs/production/RescueAuth-*.apk"
+              - "./app/build/outputs/production/RescueAuth-*.apk"
 

@@ -423,32 +423,31 @@ echo "== 19. gate: documentation-only diff -> SKIP =="
 )
 
 echo
-echo "== 20. gate: v2 app/main build-related diff -> RUN =="
+echo "== 20. gate: app/main build-related diff -> RUN =="
 (
     cd "$TEST_WORKSPACE/repo_doc"
     git checkout -qb appchange
-    mkdir -p v2/app/src/main && echo k > v2/app/src/main/K.kt
+    mkdir -p app/src/main && echo k > app/src/main/K.kt
     git add -A && git commit -qm "feat: app change"
     export CNB_BUILD_WORKSPACE="$PWD"
     before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"
     export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
     out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=run" "gate runs for v2 app/main change"
+    assert_contains "$out" "TEST_LAB_GATE=run" "gate runs for app/main change"
     assert_contains "$out" "TEST LAB GATE: run" "run reason logged"
 )
 
-# Root-level (non-v2) app/ must NOT trigger: the root android/app is the
-# Flutter host app, not the v2/ Gradle project Test Lab runs against.
+# docs/ must NOT trigger Test Lab.
 (
     cd "$TEST_WORKSPACE/repo_doc"
-    git checkout -qb rootappchange
-    mkdir -p android/app/src/main && echo k > android/app/src/main/Root.kt
-    git add -A && git commit -qm "feat: root flutter host app change"
+    git checkout -qb rootdocschange
+    mkdir -p docs && echo k > docs/NOTES.md
+    git add -A && git commit -qm "feat: docs change"
     export CNB_BUILD_WORKSPACE="$PWD"
     before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"
     export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
     out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=skip" "gate skips root android/app change (not v2)"
+    assert_contains "$out" "TEST_LAB_GATE=skip" "gate skips docs change"
 )
 
 echo
@@ -478,9 +477,9 @@ echo "== 23. gate: full range with multiple commits -> RUN =="
 (
     cd "$TEST_WORKSPACE/repo_doc"
     git checkout -qb multi
-    echo a > v2/gradle.properties && git add -A && git commit -qm "c1 gradle"
-    echo b >> v2/gradle.properties && git add -A && git commit -qm "c2 gradle"
-    echo c >> v2/gradle.properties && git add -A && git commit -qm "c3 gradle"
+    echo a > gradle.properties && git add -A && git commit -qm "c1 gradle"
+    echo b >> gradle.properties && git add -A && git commit -qm "c2 gradle"
+    echo c >> gradle.properties && git add -A && git commit -qm "c3 gradle"
     export CNB_BUILD_WORKSPACE="$PWD"
     before="$(git rev-parse HEAD~3)" commit="$(git rev-parse HEAD)"
     export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
@@ -489,12 +488,12 @@ echo "== 23. gate: full range with multiple commits -> RUN =="
 )
 
 # PR #13 regression: the REAL path that was wrongly skipped. A change under
-# v2/app/src/androidTest/ MUST run Test Lab (it is instrumentation code).
+# app/src/androidTest/ MUST run Test Lab (it is instrumentation code).
 (
     cd "$TEST_WORKSPACE/repo_doc"
     git checkout -qb pr13
-    mkdir -p v2/app/src/androidTest/kotlin/com/rescueauth/v2/database
-    echo x > v2/app/src/androidTest/kotlin/com/rescueauth/v2/database/RescueAuthDatabaseInstrumentedTest.kt
+    mkdir -p app/src/androidTest/kotlin/com/rescueauth/v2/database
+    echo x > app/src/androidTest/kotlin/com/rescueauth/v2/database/RescueAuthDatabaseInstrumentedTest.kt
     git add -A && git commit -qm "fix: make androidTest @Test methods JVM void"
     export CNB_BUILD_WORKSPACE="$PWD"
     before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"

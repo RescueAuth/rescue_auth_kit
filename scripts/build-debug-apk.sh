@@ -14,7 +14,7 @@
 # it NEVER imports the production Secret Repo, NEVER reads production signing
 # passwords or keystores, and NEVER runs production signing validation.
 #
-# The original Gradle output (v2/app/build/outputs/apk/debug/app-debug.apk) is
+# The original Gradle output (app/build/outputs/apk/debug/app-debug.apk) is
 # left untouched; a byte-identical copy is made under the descriptive name.
 #
 # Requires an Android SDK + JDK 17 (same as normal v2 dev builds).
@@ -48,7 +48,7 @@ resolve_android_tool() {
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-v2_root="$repo_root/v2"
+v2_root="$repo_root"
 
 # The short commit id used only for the artifact name (not for versioning).
 short_commit="${CNB_COMMIT_SHORT:-}"

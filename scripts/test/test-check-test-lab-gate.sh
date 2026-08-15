@@ -6,11 +6,12 @@
 # Dedicated regression suite for scripts/check-test-lab-gate.sh.
 #
 # Proves (on a throwaway git repo shaped like this repository):
-#   * every v2/ Gradle-project path + CI/runner self-change triggers RUN
+#   * every Gradle-project path (app/**, core/**, gradle/**, build files) +
+#     CI/runner self-change triggers RUN
 #   * every pure-documentation path skips
 #   * the REAL PR #13 changed path triggers RUN (it was wrongly skipped before
-#     the strict v2/ scoping hotfix)
-#   * root-level android/**, docs/** etc never match the anchored patterns
+#     the strict scoping hotfix)
+#   * docs/**, tools/**, README* etc never match the anchored patterns
 #
 # Usage: bash scripts/test/test-check-test-lab-gate.sh
 
@@ -62,65 +63,64 @@ expect_gate() { # file gate label
 # static checks -------------------------------------------------------------
 if bash -n "$GATE_SCRIPT"; then ok "gate bash -n"; else bad "gate bash -n"; fi
 
-# seed a scratch repo shaped like rescue_auth_kit (v2/ + root docs/android) ---
+# seed a scratch repo shaped like rescue_auth_kit (Gradle project at root +
+# docs/tools/README at root) ---
 (
     cd "$TEST_WORKSPACE"
     git init -q -b main repo
     cd repo
     git config user.email t@t && git config user.name t
-    mkdir -p docs v2/docs android/app v2/app/src/main \
-             v2/app/src/test v2/app/src/androidTest v2/core v2/gradle/wrapper
+    mkdir -p docs tools app/src/main \
+             app/src/test app/src/androidTest core gradle/wrapper
     echo x > README.md
     echo x > docs/FIREBASE_TEST_LAB.md
-    echo x > v2/docs/NOTES.md
-    echo x > v2/app/src/main/Main.kt
-    echo x > v2/app/src/test/UnitTest.kt
-    echo x > v2/app/src/androidTest/InstrumentedTest.kt
-    echo x > v2/core/Core.kt
-    echo x > v2/gradle.properties
-    echo x > v2/build.gradle.kts
-    echo x > v2/settings.gradle.kts
-    echo x > v2/gradle/wrapper/gradle-wrapper.properties
-    echo x > v2/gradle/libs.versions.toml
-    echo x > android/app/build.gradle.kts
+    echo x > tools/NOTES.md
+    echo x > app/src/main/Main.kt
+    echo x > app/src/test/UnitTest.kt
+    echo x > app/src/androidTest/InstrumentedTest.kt
+    echo x > core/Core.kt
+    echo x > gradle.properties
+    echo x > build.gradle.kts
+    echo x > settings.gradle.kts
+    echo x > gradle/wrapper/gradle-wrapper.properties
+    echo x > gradle/libs.versions.toml
+    echo x > gradlew
+    echo x > gradlew.bat
     git add -A
     git commit -qm seed
 )
 
 echo
-echo "== must RUN (v2/ Gradle project + CI/runner self-changes) =="
-expect_gate "v2/app/src/main/kotlin/com/rescueauth/v2/database/Db.kt" run "v2/app/src/main/** -> run"
-expect_gate "v2/app/src/test/kotlin/com/rescueauth/v2/database/DbUnitTest.kt" run "v2/app/src/test/** -> run"
-expect_gate "v2/app/src/androidTest/kotlin/com/rescueauth/v2/database/RescueAuthDatabaseInstrumentedTest.kt" run "v2/app/src/androidTest/** -> run (PR #13 real path)"
-expect_gate "v2/app/src/main/res/values/strings.xml" run "v2/app/ deep resource -> run"
-expect_gate "v2/core/src/main/kotlin/com/rescueauth/v2/core/Core.kt" run "v2/core/** -> run"
-expect_gate "v2/gradle/wrapper/gradle-wrapper.properties" run "v2/gradle/** (wrapper) -> run"
-expect_gate "v2/gradle/libs.versions.toml" run "version catalog (v2/gradle/libs.versions.toml) -> run"
-expect_gate "v2/build.gradle" run "v2/build.gradle (Groovy DSL) -> run"
-expect_gate "v2/build.gradle.kts" run "v2/build.gradle.kts -> run"
-expect_gate "v2/settings.gradle" run "v2/settings.gradle -> run"
-expect_gate "v2/settings.gradle.kts" run "v2/settings.gradle.kts -> run"
-expect_gate "v2/gradle.properties" run "v2/gradle.properties -> run"
-expect_gate "v2/gradlew" run "v2/gradlew -> run"
-expect_gate "v2/gradlew.bat" run "v2/gradlew.bat -> run"
+echo "== must RUN (Gradle project + CI/runner self-changes) =="
+expect_gate "app/src/main/kotlin/com/rescueauth/v2/database/Db.kt" run "app/src/main/** -> run"
+expect_gate "app/src/test/kotlin/com/rescueauth/v2/database/DbUnitTest.kt" run "app/src/test/** -> run"
+expect_gate "app/src/androidTest/kotlin/com/rescueauth/v2/database/RescueAuthDatabaseInstrumentedTest.kt" run "app/src/androidTest/** -> run (PR #13 real path)"
+expect_gate "app/src/main/res/values/strings.xml" run "app/ deep resource -> run"
+expect_gate "core/src/main/kotlin/com/rescueauth/v2/core/Core.kt" run "core/** -> run"
+expect_gate "gradle/wrapper/gradle-wrapper.properties" run "gradle/** (wrapper) -> run"
+expect_gate "gradle/libs.versions.toml" run "version catalog (gradle/libs.versions.toml) -> run"
+expect_gate "build.gradle" run "build.gradle (Groovy DSL) -> run"
+expect_gate "build.gradle.kts" run "build.gradle.kts -> run"
+expect_gate "settings.gradle" run "settings.gradle -> run"
+expect_gate "settings.gradle.kts" run "settings.gradle.kts -> run"
+expect_gate "gradle.properties" run "gradle.properties -> run"
+expect_gate "gradlew" run "gradlew -> run"
+expect_gate "gradlew.bat" run "gradlew.bat -> run"
 expect_gate ".cnb.yml" run ".cnb.yml (CI self-change) -> run"
 expect_gate "scripts/run-firebase-test-lab.sh" run "Test Lab runner self-change -> run"
 expect_gate "scripts/check-test-lab-gate.sh" run "gate script self-change -> run"
 
 echo
-echo "== must SKIP (pure documentation / non-v2) =="
+echo "== must SKIP (pure documentation / non-Gradle) =="
 expect_gate "docs/FIREBASE_TEST_LAB.md" skip "docs/** -> skip"
 expect_gate "README.md" skip "README* -> skip"
 expect_gate "README.zh-CN.md" skip "README.zh-CN.md -> skip"
-expect_gate "v2/docs/PHASE1_REPORT.md" skip "v2/docs/** -> skip"
-expect_gate "v2/PRODUCT.md" skip "v2/*.md -> skip"
-expect_gate "CHANGELOG.md" skip "CHANGELOG.md -> skip"
-expect_gate "android/app/src/main/kotlin/com/xincy/rescue_auth_kit/MainActivity.kt" skip "root android/** (Flutter host) -> skip"
-expect_gate "android/build.gradle.kts" skip "root android/build.gradle.kts -> skip"
-expect_gate "gradle.properties" skip "root gradle.properties -> skip (not v2/)"
-expect_gate "libs.versions.toml" skip "root libs.versions.toml -> skip (not v2/gradle/)"
-expect_gate "app/src/main/Main.kt" skip "root app/ -> skip (not v2/app/)"
-expect_gate "core/Core.kt" skip "root core/ -> skip (not v2/core/)"
+expect_gate "docs/PHASE1_REPORT.md" skip "docs/** -> skip"
+expect_gate "PRODUCT.md" skip "*.md at root -> skip"
+expect_gate "AGENTS.md" skip "AGENTS.md -> skip"
+expect_gate "tools/interop-fixture/README.md" skip "tools/** -> skip"
+expect_gate "legacy-fixtures/manifest.json" skip "legacy-fixtures/** -> skip"
+expect_gate "release/android-signing-certificate.txt" skip "release/** -> skip"
 
 echo
 echo "== conservative fallbacks still RUN =="

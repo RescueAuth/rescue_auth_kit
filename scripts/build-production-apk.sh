@@ -56,7 +56,7 @@ done
 [[ "$RESCUEAUTH_KEY_ALIAS" == "$EXPECTED_ALIAS" ]] || die "Production key alias does not match the pinned release identity."
 
 readonly repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly v2_root="$repo_root/v2"
+readonly v2_root="$repo_root"
 
 # Load the release-tag parsing helpers (tag format validation + version
 # extraction). This enforces the long-term release contract: production is
