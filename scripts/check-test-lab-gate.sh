@@ -14,24 +14,24 @@
 #   * Multiple commits in one push are covered because we compare the FULL
 #     range, not just the last commit.
 #
-# Trigger paths that require Test Lab (STRICTLY scoped to the v2/ Gradle
-# project + the CI/Test Lab runner itself; paths are anchored so the root
-# Flutter app's android/app/, root docs/ and README* can never match):
-#   v2/app/**
-#   v2/core/**
-#   v2/gradle/**                     (wrapper + gradle/libs.versions.toml)
-#   v2/build.gradle                  (kept for future Groovy DSL)
-#   v2/build.gradle.kts
-#   v2/settings.gradle               (kept for future Groovy DSL)
-#   v2/settings.gradle.kts
-#   v2/gradle.properties
-#   v2/gradlew                       (wrapper launcher, build infra)
-#   v2/gradlew.bat
+# Trigger paths that require Test Lab (STRICTLY scoped to the Gradle
+# project + the CI/Test Lab runner itself; paths are anchored so docs/**,
+# README* and the legacy web/ tools can never match):
+#   app/**
+#   core/**
+#   gradle/**                     (wrapper + gradle/libs.versions.toml)
+#   build.gradle                  (kept for future Groovy DSL)
+#   build.gradle.kts
+#   settings.gradle               (kept for future Groovy DSL)
+#   settings.gradle.kts
+#   gradle.properties
+#   gradlew                       (wrapper launcher, build infra)
+#   gradlew.bat
 #   .cnb.yml
 #   scripts/run-firebase-test-lab.sh
 #   scripts/check-test-lab-gate.sh
 #
-# Anything else (docs/**, README*, v2/docs/**, v2/*.md, android/**, ...) is
+# Anything else (docs/**, README*, tools/**, legacy-fixtures/**, ...) is
 # treated as documentation-only and skipped.
 #
 # Output:
@@ -94,11 +94,11 @@ main() {
         return 0
     fi
 
-    # Strict v2/ scoping. Every alternative is anchored so only the v2/ Gradle
+    # Strict scoping. Every alternative is anchored so only the Gradle
     # project tree, the CI config and the Test Lab runner/gate scripts match.
-    # This is what guarantees e.g. v2/app/src/androidTest/** (PR #13) triggers
-    # while docs/**, README* and the root Flutter android/** stay skip.
-    if ! grep -qE '^(v2/app/|v2/core/|v2/gradle/|v2/build\.gradle$|v2/build\.gradle\.kts$|v2/settings\.gradle$|v2/settings\.gradle\.kts$|v2/gradle\.properties$|v2/gradlew$|v2/gradlew\.bat$|\.cnb\.yml$|scripts/run-firebase-test-lab\.sh$|scripts/check-test-lab-gate\.sh$)' <<<"$changed_files"; then
+    # This is what guarantees e.g. app/src/androidTest/** (PR #13) triggers
+    # while docs/**, README* and tools/** stay skip.
+    if ! grep -qE '^(app/|core/|gradle/|build\.gradle$|build\.gradle\.kts$|settings\.gradle$|settings\.gradle\.kts$|gradle\.properties$|gradlew$|gradlew\.bat$|\.cnb\.yml$|scripts/run-firebase-test-lab\.sh$|scripts/check-test-lab-gate\.sh$)' <<<"$changed_files"; then
         declare_gate "skip" "TEST LAB NOT EXECUTED: documentation-only change"
         echo "TEST LAB NOT EXECUTED: documentation-only change"
         return 0
