@@ -1,5 +1,8 @@
 package com.rescueauth.v2.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
@@ -34,4 +37,42 @@ object ElevationTokens {
     val sm = 2.dp
     val md = 4.dp
     val lg = 8.dp
+}
+
+/**
+ * Global card UI tokens — the single source of truth for the RescueAuth card
+ * language.
+ *
+ * **Card-first is a project-wide UI constraint** (see
+ * `docs/UI_CARD_CONVENTION.md`): every list row, grouped content block, account
+ * / TOTP / recovery entry and form section must be presented inside a card
+ * container rather than as a bare flat row. These tokens keep that language
+ * visually consistent across Authenticator / Developer / Settings and every
+ * nested destination opened from them.
+ *
+ * Components MUST reference these constants (or a reusable card composable in
+ * `ui/components/Card`), not hard-code their own colors / corners / padding,
+ * so a future global restyle is a one-place change.
+ */
+object CardTokens {
+    /** Surface container used as the standard card fill (M3 tonal surface). */
+    @Composable
+    fun containerColor(): Color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
+
+    /** Slightly elevated card fill used for tappable / emphasis cards. */
+    @Composable
+    fun elevatedContainerColor(): Color =
+        androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+
+    /** Standard card corner radius (rounded-rectangle card silhouette). */
+    val shape = RoundedCornerShape(CornerRadius.md)
+
+    /** Standard card inner content padding. */
+    val contentPadding = Spacing.md
+
+    /** Padding between sibling cards inside a list / column. */
+    val listSpacing = Spacing.sm
+
+    /** Padding applied around the whole carded list from its container edges. */
+    val listOuterPadding = Spacing.md
 }

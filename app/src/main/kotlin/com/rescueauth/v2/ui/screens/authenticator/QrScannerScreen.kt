@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -49,6 +50,8 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.theme.CardTokens
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -303,29 +306,34 @@ private fun PermissionDeniedContent(
         modifier = modifier.background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(24.dp),
+        RescueAuthCard(
+            containerColor = CardTokens.containerColor(),
+            contentPadding = 20.dp,
         ) {
-            if (needsSettings) {
-                Text(
-                    text = stringResource(R.string.scan_permission_denied_settings),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.scan_permission_denied),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-            if (needsSettings) {
-                Button(onClick = onDismiss) {
-                    Text(stringResource(R.string.common_cancel))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (needsSettings) {
+                    Text(
+                        text = stringResource(R.string.scan_permission_denied_settings),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.scan_permission_denied),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                 }
-            } else {
-                Button(onClick = onRequest ?: onDismiss) {
-                    Text(stringResource(R.string.scan_permission_request))
+                if (needsSettings) {
+                    Button(onClick = onDismiss) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                } else {
+                    Button(onClick = onRequest ?: onDismiss) {
+                        Text(stringResource(R.string.scan_permission_request))
+                    }
                 }
             }
         }

@@ -183,6 +183,16 @@
    Biometric / Device Credential；不得隐含在普通 unlock 中。
 7. **删除 Undo**：普通删除走 SnackBar Undo；**不要**为了 Undo 恢复
    automatic checkpoint backup。
+8. **卡片式 UI（Card-First）**：全项目 UI 必须采用卡片式容器（见
+   `docs/UI_CARD_CONVENTION.md`）。列表行/条目、分组内容块、表单分区必须用
+   `RescueAuthCard` / `RescueAuthRowCard` 或统一 token `CardTokens`（颜色/圆角/内边距
+   单一来源），禁止硬编码 `surfaceContainer*` / `RoundedCornerShape` / 卡片间距。
+   `ModalBottomSheet` / `AlertDialog` / 全屏相机取景框本身除外，但其内部字段/列表仍须卡片化。
+9. **认证器 ViewModel 提升到 App Shell**：`AuthenticatorViewModel` 由
+   `RescueAuthApp`（shell）持有并注入 `AuthenticatorRoute`，切换底部 Tab / 进入详情页时
+   ViewModel 与 Room collection 不被销毁，避免每次重新进入认证器都重新加载 + 重算 TOTP
+   （Issue #70 加载慢）；`AuthenticatorRoute` 保留本地回退创建（`viewModel` 参数为 null 时）
+   以兼容测试/独立 preview。
 
 ## 提交要求
 

@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryFormState
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
@@ -58,38 +60,47 @@ fun RecoveryCodeEditorSheet(
                 style = MaterialTheme.typography.titleLarge,
             )
 
-            OutlinedTextField(
-                value = form.title,
-                onValueChange = onTitleChange,
-                label = { Text(stringResource(R.string.recovery_codes_set_title_label)) },
-                placeholder = { Text("Backup codes") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
+            // Title + codes fields are grouped inside one card (project-wide
+            // card UI constraint).
+            RescueAuthCard(
+                containerColor = CardTokens.containerColor(),
+                contentPadding = Spacing.md,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    OutlinedTextField(
+                        value = form.title,
+                        onValueChange = onTitleChange,
+                        label = { Text(stringResource(R.string.recovery_codes_set_title_label)) },
+                        placeholder = { Text("Backup codes") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
 
-            OutlinedTextField(
-                value = form.valuesText,
-                onValueChange = onValuesChange,
-                label = { Text(stringResource(R.string.recovery_codes_values_label)) },
-                placeholder = { Text("ABCD-EFGH-1234\nIJKL-MNOP-5678") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = false,
-                minLines = 6,
-            )
+                    OutlinedTextField(
+                        value = form.valuesText,
+                        onValueChange = onValuesChange,
+                        label = { Text(stringResource(R.string.recovery_codes_values_label)) },
+                        placeholder = { Text("ABCD-EFGH-1234\nIJKL-MNOP-5678") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = false,
+                        minLines = 6,
+                    )
 
-            Text(
-                text = stringResource(R.string.recovery_codes_values_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                    Text(
+                        text = stringResource(R.string.recovery_codes_values_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
 
-            val parsed = form.parsedValues().size
-            if (parsed > 0) {
-                Text(
-                    text = stringResource(R.string.recovery_codes_preview, parsed),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                    val parsed = form.parsedValues().size
+                    if (parsed > 0) {
+                        Text(
+                            text = stringResource(R.string.recovery_codes_preview, parsed),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
 
             val errorText = form.error?.let { errorCode ->

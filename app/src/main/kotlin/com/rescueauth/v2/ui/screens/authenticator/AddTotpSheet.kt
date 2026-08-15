@@ -30,6 +30,8 @@ import com.rescueauth.v2.R
 import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.ui.authenticator.AddMode
 import com.rescueauth.v2.ui.authenticator.AddTotpFormState
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
@@ -96,67 +98,76 @@ fun AddTotpSheet(
                 }
             }
 
-            if (form.mode == AddMode.SCAN) {
-                Text(
-                    text = stringResource(R.string.add_totp_scan_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Button(
-                    onClick = onStartScan,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.add_totp_scan_action))
-                }
-            } else if (form.mode == AddMode.PASTE) {
-                OutlinedTextField(
-                    value = form.uri,
-                    onValueChange = onUriChange,
-                    label = { Text(stringResource(R.string.add_totp_uri_label)) },
-                    placeholder = { Text("otpauth://totp/…") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = false,
-                    minLines = 2,
-                )
-            } else {
-                OutlinedTextField(
-                    value = form.provider,
-                    onValueChange = onProviderChange,
-                    label = { Text(stringResource(R.string.add_totp_provider_label)) },
-                    placeholder = { Text("GitHub") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = form.accountName,
-                    onValueChange = onAccountNameChange,
-                    label = { Text(stringResource(R.string.add_totp_account_label)) },
-                    placeholder = { Text("alice@example.com") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = form.secret,
-                    onValueChange = onSecretChange,
-                    label = { Text(stringResource(R.string.add_totp_secret_label)) },
-                    placeholder = { Text("JBSWY3DPEHPK3PXP") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    AlgorithmSelector(
-                        selected = form.algorithm,
-                        onSelect = onAlgorithmChange,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-                    ) {
-                        DigitSelector(selected = form.digits, onSelect = onDigitsChange)
-                        PeriodSelector(selected = form.periodSeconds, onSelect = onPeriodChange)
+            // The mode-specific form fields are grouped inside a single card so
+            // the Add flow follows the project-wide card UI constraint.
+            RescueAuthCard(
+                containerColor = CardTokens.containerColor(),
+                contentPadding = Spacing.md,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    if (form.mode == AddMode.SCAN) {
+                        Text(
+                            text = stringResource(R.string.add_totp_scan_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Button(
+                            onClick = onStartScan,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.add_totp_scan_action))
+                        }
+                    } else if (form.mode == AddMode.PASTE) {
+                        OutlinedTextField(
+                            value = form.uri,
+                            onValueChange = onUriChange,
+                            label = { Text(stringResource(R.string.add_totp_uri_label)) },
+                            placeholder = { Text("otpauth://totp/…") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false,
+                            minLines = 2,
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = form.provider,
+                            onValueChange = onProviderChange,
+                            label = { Text(stringResource(R.string.add_totp_provider_label)) },
+                            placeholder = { Text("GitHub") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = form.accountName,
+                            onValueChange = onAccountNameChange,
+                            label = { Text(stringResource(R.string.add_totp_account_label)) },
+                            placeholder = { Text("alice@example.com") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = form.secret,
+                            onValueChange = onSecretChange,
+                            label = { Text(stringResource(R.string.add_totp_secret_label)) },
+                            placeholder = { Text("JBSWY3DPEHPK3PXP") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            AlgorithmSelector(
+                                selected = form.algorithm,
+                                onSelect = onAlgorithmChange,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                            ) {
+                                DigitSelector(selected = form.digits, onSelect = onDigitsChange)
+                                PeriodSelector(selected = form.periodSeconds, onSelect = onPeriodChange)
+                            }
+                        }
                     }
                 }
             }
