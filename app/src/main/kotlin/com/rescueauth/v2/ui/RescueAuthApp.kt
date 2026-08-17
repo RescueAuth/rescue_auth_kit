@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -24,7 +25,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import com.rescueauth.v2.ui.authenticator.AuthenticatorRoute
+import com.rescueauth.v2.ui.authenticator.AuthenticatorViewModel
 import com.rescueauth.v2.ui.authenticator.RecoveryCodesRoute
+import com.rescueauth.v2.repository.VaultAccess
+import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.developer.DeveloperDetailRoute
 import com.rescueauth.v2.ui.developer.DeveloperFormRoute
 import com.rescueauth.v2.ui.developer.DeveloperFormType
@@ -72,6 +76,30 @@ fun RescueAuthApp(
     val snackbarHostState = remember { SnackbarHostState() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+
+    // The Authenticator ViewModel is held at the app-shell level (not inside
+    // the per-tab route) so switching bottom tabs — which disposes the route's
+    // composition and would otherwise destroy a `remember { }` ViewModel — does
+    // NOT tear down the Room collection job nor force a full reload + TOTP
+    // recompute on every return to the Authenticator tab. The shell survives
+    // tab switches and nested-navigation pushes, so the loaded card state is
+    // retained and the screen renders immediately instead of showing a loading
+    // spinner each time the user re-enters (Issue #70 "每次进入认证器都要加载一段时间").
+    val authenticatorScope = rememberCoroutineScope()
+    val sessionStateFlow: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
+        val sm = VaultAccess.sessionManager
+        if (sm != null) sm.sessionStateFlow else SecureSessionStateMachine().state
+    }
+    val authenticatorViewModel = remember {
+        AuthenticatorViewModel(
+            repositoryProvider = { VaultAccess.authenticatorRepository() },
+            recoveryRepositoryProvider = { VaultAccess.recoveryRepository() },
+            managementRepositoryProvider = { VaultAccess.providerAccountRepository() },
+            sessionState = sessionStateFlow,
+            clock = AuthenticatorViewModel.Clock { System.currentTimeMillis() / 1000L },
+            scope = authenticatorScope,
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -122,6 +150,7 @@ fun RescueAuthApp(
         ) {
             composable(RescueAuthRoutes.AUTHENTICATOR) {
                 AuthenticatorRoute(
+                    viewModel = authenticatorViewModel,
                     onOpenAccount = { accountId ->
                         navController.navigate("authenticator/account/$accountId")
                     },

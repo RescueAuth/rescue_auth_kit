@@ -13,7 +13,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -33,8 +32,8 @@ import com.rescueauth.v2.ui.components.RecoveryCodeSetCard
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.RecoveryCodeUi
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
-import com.rescueauth.v2.ui.theme.Spacing
 
 /**
  * Account detail screen — Recovery Codes (Phase 4 P3).
@@ -130,8 +129,8 @@ fun RecoveryCodesScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding),
-                    contentPadding = PaddingValues(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    contentPadding = PaddingValues(CardTokens.listOuterPadding),
+                    verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
                 ) {
                     items(
                         count = uiState.sets.size,

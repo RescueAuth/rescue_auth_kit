@@ -55,6 +55,11 @@ fun AuthenticatorRoute(
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     onOpenAccount: ((String) -> Unit)? = null,
     onOpenSearch: (() -> Unit)? = null,
+    // Injected by the app shell (RescueAuthApp) so the ViewModel + Room
+    // collection survive bottom-tab switches and render instantly on re-entry
+    // (Issue #70 "每次进入认证器都要加载一段时间"). When null (tests / standalone
+    // previews) the route falls back to creating its own instance.
+    viewModel: AuthenticatorViewModel? = null,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -80,7 +85,7 @@ fun AuthenticatorRoute(
             SecureSessionStateMachine().state
         }
     }
-    val viewModel = remember {
+    val viewModel = viewModel ?: remember {
         AuthenticatorViewModel(
             repositoryProvider = { VaultAccess.authenticatorRepository() },
             recoveryRepositoryProvider = { VaultAccess.recoveryRepository() },

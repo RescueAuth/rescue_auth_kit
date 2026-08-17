@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -59,14 +60,15 @@ fun ProviderAccountListItem(
             .then(clickable),
         onClick = onClick ?: {},
         enabled = onClick != null,
+        shape = CardTokens.shape,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = CardTokens.elevatedContainerColor(),
         ),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.md),
+                .padding(CardTokens.contentPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {

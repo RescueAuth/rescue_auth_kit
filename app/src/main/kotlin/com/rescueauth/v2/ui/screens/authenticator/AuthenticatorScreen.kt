@@ -58,6 +58,8 @@ import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.components.CountdownIndicator
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
@@ -237,8 +239,8 @@ private fun ProviderList(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        contentPadding = PaddingValues(CardTokens.listOuterPadding),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         items(
             items = providers,
@@ -276,8 +278,8 @@ private fun ProviderAccountsList(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        contentPadding = PaddingValues(CardTokens.listOuterPadding),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         // provider.accounts is never empty (a Provider is built by grouping
         // accounts under a serviceName), so we render the accounts directly.
@@ -337,14 +339,15 @@ private fun AccountWithTotpCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = CardTokens.shape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            containerColor = CardTokens.containerColor(),
         ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.md),
+                .padding(CardTokens.contentPadding),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             // Account header row: provider name + pin + actions menu
@@ -538,96 +541,85 @@ private fun ProviderListItem(
     onDelete: ((String) -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Card(
+    RescueAuthRowCard(
+        onClick = onClick,
+        containerColor = CardTokens.containerColor(),
         modifier = Modifier
-            .fillMaxWidth()
             .testTag("provider_row_${provider.serviceName}")
             .semantics { role = Role.Button },
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.md, vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = provider.serviceName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                val pinnedCount = provider.accounts.count { it.isPinned }
-                Text(
-                    text = if (pinnedCount > 0) {
-                        stringResource(
-                            R.string.provider_accounts_with_pinned,
-                            provider.accounts.size,
-                            pinnedCount,
-                        )
-                    } else {
-                        stringResource(
-                            R.string.provider_accounts_count,
-                            provider.accounts.size,
-                        )
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Chevron signals this row opens a deeper level.
-            if (onRename != null || onAddAccount != null || onDelete != null) {
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = stringResource(R.string.provider_actions),
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = provider.serviceName,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            val pinnedCount = provider.accounts.count { it.isPinned }
+            Text(
+                text = if (pinnedCount > 0) {
+                    stringResource(
+                        R.string.provider_accounts_with_pinned,
+                        provider.accounts.size,
+                        pinnedCount,
+                    )
+                } else {
+                    stringResource(
+                        R.string.provider_accounts_count,
+                        provider.accounts.size,
+                    )
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        // Chevron signals this row opens a deeper level.
+        if (onRename != null || onAddAccount != null || onDelete != null) {
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.provider_actions),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    if (onRename != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.provider_rename)) },
+                            onClick = {
+                                menuOpen = false
+                                onRename(provider.serviceName)
+                            },
                         )
                     }
-                    DropdownMenu(
-                        expanded = menuOpen,
-                        onDismissRequest = { menuOpen = false },
-                    ) {
-                        if (onRename != null) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.provider_rename)) },
-                                onClick = {
-                                    menuOpen = false
-                                    onRename(provider.serviceName)
-                                },
-                            )
-                        }
-                        if (onAddAccount != null) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.provider_add_account)) },
-                                onClick = {
-                                    menuOpen = false
-                                    onAddAccount(provider.serviceName)
-                                },
-                            )
-                        }
-                        if (onDelete != null) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.provider_delete)) },
-                                onClick = {
-                                    menuOpen = false
-                                    onDelete(provider.serviceName)
-                                },
-                            )
-                        }
+                    if (onAddAccount != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.provider_add_account)) },
+                            onClick = {
+                                menuOpen = false
+                                onAddAccount(provider.serviceName)
+                            },
+                        )
+                    }
+                    if (onDelete != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.provider_delete)) },
+                            onClick = {
+                                menuOpen = false
+                                onDelete(provider.serviceName)
+                            },
+                        )
                     }
                 }
-            } else {
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
+        } else {
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.RecoveryCodeUi
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -74,11 +75,12 @@ fun RecoveryCodeSetCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = CardTokens.shape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = CardTokens.containerColor(),
         ),
     ) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
+        Column(modifier = Modifier.padding(CardTokens.contentPadding)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
