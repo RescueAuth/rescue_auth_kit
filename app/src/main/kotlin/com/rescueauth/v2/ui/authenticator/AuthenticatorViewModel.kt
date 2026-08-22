@@ -13,6 +13,7 @@ import com.rescueauth.v2.scanner.ScannerResultRouter
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.totp.TotpCore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * UI state of the Authenticator home screen.
@@ -188,9 +190,6 @@ class AuthenticatorViewModel(
     private var collectionJob: Job? = null
     private var currentRepo: AuthenticatorRepository? = null
 
-    /** Latest credentials keyed by credentialId — needed to restore on Undo. */
-    private val credentialsById = mutableMapOf<String, TotpCredential>()
-
     init {
         scope.launch {
             sessionState.collect { state ->
@@ -221,9 +220,16 @@ class AuthenticatorViewModel(
             ?: kotlinx.coroutines.flow.flowOf(emptyList())
         combine(repo.observeAccounts(), repo.observeTotpCredentials(), recoveryFlow, tickSeconds) {
             accounts, creds, sets, now ->
-            credentialsById.clear()
-            creds.forEach { credentialsById[it.id] = it }
-            buildCards(accounts, creds, sets, now)
+            // buildCards performs the TOTP HMAC computation + the full nested
+            // Provider/Account/Recovery UI-model build for every credential.
+            // It is deliberately hoisted onto Dispatchers.Default so a large
+            // vault never blocks the main thread while computing codes or
+            // building the list — this is what made the Authenticator screen
+            // feel slow to render on first entry (Issue #70). Only the final
+            // immutable UI state crosses back to the collecting (main) thread.
+            withContext(Dispatchers.Default) {
+                buildCards(accounts, creds, sets, now)
+            }
         }.collectLatest { state -> _uiState.value = state }
     }
 
