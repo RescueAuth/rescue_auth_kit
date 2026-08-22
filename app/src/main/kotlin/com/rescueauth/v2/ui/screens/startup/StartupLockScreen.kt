@@ -57,17 +57,15 @@ fun StartupIntroScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
+        // Brand visual (Issue #64): logo + localized brand name at the top, so
+        // the first-run page keeps the launch brand recognisable and visually
+        // continuous with the splash / auth host that precedes/follows it.
+        StartupBranding(logoSize = 72.dp)
         Text(
             text = stringResource(R.string.startup_intro_title),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp),
+            modifier = Modifier.padding(top = 24.dp),
         )
         Text(
             text = stringResource(R.string.startup_intro_body),
@@ -104,12 +102,11 @@ fun StartupAuthHost(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
+        // Brand visual (Issue #64): the auth host is the layer most visible
+        // while the system prompt is showing, so it must carry the brand name
+        // too — this is what the user actually sees between the system splash
+        // and the vault opening. Pure visual; authentication flow unchanged.
+        StartupBranding(logoSize = 72.dp)
     }
 }
 
