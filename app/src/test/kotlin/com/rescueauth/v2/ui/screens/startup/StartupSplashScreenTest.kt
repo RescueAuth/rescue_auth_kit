@@ -33,6 +33,8 @@ class StartupSplashScreenTest {
             }
         }
         composeRule.onNodeWithTag(StartupSplashTestTags.SCREEN).assertIsDisplayed()
+        // Brand visual (logo + brand name) must be shown.
+        composeRule.onNodeWithTag(StartupSplashTestTags.BRANDING).assertIsDisplayed()
         // Localized brand name must be shown (default locale = English here).
         composeRule.onNodeWithText("RescueAuth").assertIsDisplayed()
         // It must NOT be the lock screen — no Unlock / Exit actions.

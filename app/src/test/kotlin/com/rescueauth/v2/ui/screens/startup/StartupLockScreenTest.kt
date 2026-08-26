@@ -39,6 +39,10 @@ class StartupLockScreenTest {
             }
         }
         composeRule.onNodeWithTag(StartupLockTestTags.INTRO_SCREEN).assertIsDisplayed()
+        // Brand visual (Issue #64) must be present so the first-run page keeps
+        // the launch brand recognisable (default locale = English here).
+        composeRule.onNodeWithTag(StartupSplashTestTags.BRANDING).assertIsDisplayed()
+        composeRule.onNodeWithText("RescueAuth").assertIsDisplayed()
         composeRule.onNodeWithText("Use phone to unlock").assertIsDisplayed()
         composeRule.onNodeWithText("Enable").assertIsDisplayed()
 
@@ -54,6 +58,11 @@ class StartupLockScreenTest {
             }
         }
         composeRule.onNodeWithTag(StartupLockTestTags.AUTH_HOST).assertIsDisplayed()
+        // Brand visual (Issue #64) must be present — the auth host is the layer
+        // most visible between the system splash and the vault opening, so the
+        // brand name must not disappear there.
+        composeRule.onNodeWithTag(StartupSplashTestTags.BRANDING).assertIsDisplayed()
+        composeRule.onNodeWithText("RescueAuth").assertIsDisplayed()
     }
 
     @Test
