@@ -9,6 +9,9 @@
 > Delete Undo / Signing Key Undo / Account Merge Undo / 全局 Undo history /
 > persistent Undo queue / checkpoint backup / package schema v2 / Room schema v4。
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN` 等状态只代表报告生成时的
+> 状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 ---
 
 ## 1. 现有 Undo architecture 审计

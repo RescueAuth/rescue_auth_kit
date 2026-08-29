@@ -6,6 +6,9 @@
 > （Client Contract Final / Release Infrastructure Pending）。
 > 本轮明确不做 release publishing pipeline / production signing。
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN` 等状态只代表报告生成时的
+> 状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 ## 1. current Settings / About audit
 
 - `SettingsScreen.kt`：Settings 页原本在 "About" section 下只有一行

@@ -116,7 +116,7 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 | Legacy Import（`.rakvault`） | **KEEP（compat only）** | 与 Native Package Import 强制隔离（见 §9） |
 | Delete Undo | **NEW** | 普通删除 SnackBar Undo；高破坏性操作保留 confirmation（见 §11） |
 | Clipboard auto-clear | **DEFER** | Later security polish，不阻塞 daily use（见 §12） |
-| Localization（en + zh-CN） | **KEEP** | daily-use release 前恢复双语（见 §13） |
+| Localization（en + zh-CN） | **KEEP（已完成）** | 完整双语已恢复（见 §13） |
 | Update Check | **KEEP（简化）** | version/about + 检查发布 + 外部打开；无自更新安装（见 §14） |
 | Automatic backup / WorkManager backup / cloud | **REMOVE** | 已随 Phase 3 reset 删除，且不再恢复 |
 | 全局 BackupKey / 恢复套件 | **REMOVE** | 由 per-export PIN 取代；文档已同步 |
@@ -185,6 +185,9 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 
 ## 5. Phase Roadmap（Phase 3 之后全部重新规划）
 
+> 当前结论（同步于 2026-08-27）：Phase 0–5 CLOSED；Phase 6 的 L1/L2 CLOSED、L3 DEFER；
+> DAILY-USE READY 与 V2.0 FEATURE COMPLETE 均已达到，但尚未正式发布。
+
 ### 5.0 已关闭阶段（保持不动）
 
 - **Phase 0 CLOSED** — 冻结 v1.2.0 + legacy fixtures + 映射文档
@@ -205,36 +208,30 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 不再使用“Phase 5 — main UI”这类模糊阶段。以下 Phase/Slice 每个都可
 独立 review、独立 merge、有真实用户价值。
 
-### 5.2 Phase 3（进行中）— Package + Merge Foundation
+### 5.2 Phase 3（已关闭）— Package + Merge Foundation
 
-> **注意**：Phase 3A 分支 `auto/phase3a-merge-foundation-a299`（PR #18）
-> 基于 main `a3b00b7` 创建。**本 Roadmap PR 不触碰该分支**；Phase 3A
-> Agent 回来验收请核对 §8 的 **Phase 3A Review Checklist**。
+> 3A–3D 均已合并并投入当前实现。历史分支、PR review checklist 与当时的
+> “无 UI”描述仅用于审计，具体实现证据见 `docs/PHASE3_REPORT.md`。
 
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
-| **3A — Package + Merge Foundation** | ✅ 已实现（PR #18）逻辑 package 模型（VaultSnapshot / VaultPackagePayload）+ stableId + semantic fingerprint + canonicalization + 纯 merge planner + schema v1→v2 + 自动备份抽象清理 | 无用户 UI；为 3B/3C/3D 提供纯 JVM 契约与测试基线 | Phase 2 | L |
-| **3B — Encrypted Package Codec** | ✅ 已实现（Phase 3B PR，见 `docs/PHASE3_REPORT.md` §9 / ADR-0007）per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD 加密 envelope；wrong PIN/corrupted 安全失败；header-is-untrusted / KDF accepted range / 大小上限；golden fixture | 纯 JVM 可验证的加密导出/导入字节契约（无 UI） | 3A | M |
-| **3C — Transactional Import / Merge** | ✅ 已实现（Phase 3C PR，见 `docs/PHASE3_REPORT.md` §11 / ADR-0008）MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类落库（schema v2→v3）；parent/child identity mapping；CONFLICT / Recovery divergence 保守阻止 | 命令行/测试层可验证的“导入即合并”，仍无 UI | 3A + 3B | M |
-| **3D — Android Export / Import + Package Preview** | ✅ 已实现（Phase 3D PR，见 `docs/PHASE3_REPORT.md` §12）SAF 选择/写入（CreateDocument/OpenDocument）、per-export PIN 对话框、import preview（Authenticator/Developer 计数）、Import all（merge-first transactional apply） | 用户可手动导出/导入 Package；预览 + merge 报告 | 3B + 3C | L |
+| **3A — Package + Merge Foundation** | ✅ 已实现并合并（PR #18）逻辑 package 模型（VaultSnapshot / VaultPackagePayload）+ stableId + semantic fingerprint + canonicalization + 纯 merge planner + schema v1→v2 + 自动备份抽象清理 | 纯 JVM 契约与测试基线 | Phase 2 | L |
+| **3B — Encrypted Package Codec** | ✅ 已实现并合并（见 `docs/PHASE3_REPORT.md` §9 / ADR-0007）per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD 加密 envelope；wrong PIN/corrupted 安全失败；header-is-untrusted / KDF accepted range / 大小上限；golden fixture | 纯 JVM 可验证的加密导出/导入字节契约 | 3A | M |
+| **3C — Transactional Import / Merge** | ✅ 已实现并合并（见 `docs/PHASE3_REPORT.md` §11 / ADR-0008）MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类落库（schema v2→v3）；parent/child identity mapping；CONFLICT / Recovery divergence 保守阻止 | 事务化导入即合并 | 3A + 3B | M |
+| **3D — Android Export / Import + Package Preview** | ✅ 已实现（已合并；见 `docs/PHASE3_REPORT.md` §12）SAF 选择/写入（CreateDocument/OpenDocument）、per-export PIN 对话框、import preview（Authenticator/Developer 计数）、Import all（merge-first transactional apply） | 用户可手动导出/导入 Package；预览 + merge 报告 | 3B + 3C | L |
 
-**3D 验收注意**：import preview 必须能区分 Authenticator（N accounts /
+**3D 验收结果**：import preview 已区分 Authenticator（N accounts /
 N TOTP / N recovery sets）与 Developer（N signing keys / N API / N SSH /
-N env / N generic），支持 **Import all**（Phase 3D 已实现）。Selective
-Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5），Phase
-3D **不提前实现** selective UI（Issue #1 §3 / §31）。
+N env / N generic），并支持 **Import all**。Selective Import 已由 Phase 4
+P5 完成，继续复用同一 Merge Engine。
 
-### 5.3 Phase 4 — Daily-use vertical slices（核心自用路径）
+### 5.3 Phase 4（已关闭）— Daily-use vertical slices（核心自用路径）
 
 > 目标：尽早让 TOTP 真正可用；每个 slice 独立 PR。
 
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
-| **P1 — TOTP usable loop（垂直切片）** | Compose 首页：Vault 列表 + TOTP 显示/倒计时/复制；添加（QR + otpauth paste + manual entry）；删除 + Undo；持久化 | 用户可完成“解锁 → 看码 → 复制 → 添加 → 删除”完整日常循环 | Phase 2 会话层 + TOTP core | L |
-
-> **P1 状态（2026-08-07，Issue #20）**：已实现 otpauth paste + manual
-> entry、真实 production storage、倒计时/复制/删除+Undo（见
-> `docs/PHASE4_P1_REPORT.md`）。
+| **P1 — TOTP usable loop（垂直切片）** | ✅ 已实现（见 `docs/PHASE4_P1_REPORT.md`）Compose 首页：Vault 列表 + TOTP 显示/倒计时/复制；添加（QR + otpauth paste + manual entry）；删除 + Undo；持久化 | 用户可完成“解锁 → 看码 → 复制 → 添加 → 删除”完整日常循环 | Phase 2 会话层 + TOTP core | L |
 | **P2 — otpauth-migration import** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P2_REPORT.md`）QR 扫描（CameraX + ML Kit）+ `otpauth-migration://` 批量导入（独立纯 Kotlin adapter + 多 QR batch session + repository batch import） | 可从 Google Authenticator 扫码批量迁入 | P1 | S |
 | **P3 — Recovery Codes slice** | ✅ 已实现（Issue #1，见 `docs/PHASE4_P3_REPORT.md`）Account detail 恢复码页：batch add（多行粘贴 + preview）/ expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused（remaining count 实时更新）/ edit（最小 diff 保留 stableId + USED state）/ delete + Undo（恢复 exact stableIds/states） | 恢复码可完整管理（一等 Vault credential），P3 数据自然进入 Full Vault Export/Import round-trip | P1 | M |
 | **P4 — Developer Vault slice（第一批）** | ✅ 已实现（Issue #20，见 `docs/PHASE4_P4_REPORT.md`）Sensitive Action Fresh Re-auth Foundation + Developer Vault 第一批（API Credential / SSH Key / Generic Secret 全 CRUD、reveal-hide、copy、re-auth 接入 Full Vault Export） | 三种最常见的 Developer Entry（API Credential / SSH Key / Generic Secret）可日常使用 | 3D + re-auth（§5.6） | M |
@@ -253,7 +250,7 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 > parent Account 关系，保留 set/code 全部 stableId 与 USED/UNUSED/usedAt/
 > sortOrder；title 不是 identity，不做 dedupe；单 transaction，失败整体回滚。
 
-### 5.4 Phase 5 — Migration（legacy import 收口）
+### 5.4 Phase 5（已关闭）— Migration（legacy import 收口）
 
 > **Phase 5A（2026-08-09，Issue #1）**：Legacy v1 Core Adapter 已实现
 > （IMPLEMENTED，已 merge #29）——`LegacyVaultSnapshotMapper` 把解密后的
@@ -266,8 +263,8 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 > actual producer interop。
 > 详见 `docs/PHASE5A_REPORT.md`。
 >
-> **Phase 5B（2026-08-09，Issue #1）**：Legacy v1 Android Import UI 已实现
-> （IMPLEMENTED / PR OPEN）——`LegacyImportService` / `LegacyImportViewModel` /
+> **Phase 5B（2026-08-09，Issue #1）**：Legacy v1 Android Import UI 已实现并合并
+> （PR #31）——`LegacyImportService` / `LegacyImportViewModel` /
 > `LegacyImportRoute` / `LegacyImportScreen`；SAF OpenDocument + 64 MiB bounded
 > read（decrypt 前拒绝超限）；Master Password（无 `>=10` 硬编码 gate，与
 > Native PIN 独立）；safe preview（无 secret）；MergePlanner / final re-plan /
@@ -285,14 +282,14 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 
 > Legacy Import 与 Native Package Import 的**强制隔离边界**见 §9。
 
-### 5.5 Phase 6 — Product polish（不阻塞 DAILY-USE READY）
+### 5.5 Phase 6（L1/L2 已关闭，L3 DEFER）— Product polish
 
 | Slice | Goal | User-visible result | Deps | Scope |
 | --- | --- | --- | --- | --- |
-| **L1 — Localization（en + zh-CN）** | 建立 i18n 结构；daily-use release 前恢复全部核心页面文案 | 双语 UI | 任意阶段可并行开始 | M |
-| **L2 — About / Update Check** | version/about、检查发布、外部打开 release | 用户可看到版本与更新入口（不自动安装） | — | S |
+| **L1 — Localization（en + zh-CN）** | ✅ 已实现（完整双语 key 与 format 对齐） | 双语 UI | 任意阶段可并行开始 | M |
+| **L2 — About / Update Check** | ✅ 已实现（见 `docs/PHASE6_L2_REPORT.md`）version/about、签名校验的手动更新检查、外部打开 release | 用户可看到版本与更新入口（不自动安装） | — | S |
 
-> **L2 状态（Issue #20 Phase 6 L2）**：**IMPLEMENTED / PR OPEN**。About 页
+> **L2 当前状态**：已实现并合并。About 页
 > （runtime versionName/versionCode、product description、Check for Updates、
 > update 状态机、severity、minSupported 更强警告、Open Release Page）已接入
 > Settings → About；固定 CNB 清单 + Ed25519 验签（BouncyCastle）已实现，
@@ -301,7 +298,7 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
 > app fail open；INTERNET 权限显式声明；UI 状态机 + error taxonomy 冻结。
 > 发布基础设施（`rescueauth-updates` 仓库、生产 update 公钥 provisioning）
 > 未完成 —— 见 `docs/UPDATE_PROTOCOL.md` §Release Infrastructure Pending。
-| **L3 — Clipboard / security polish** | clipboard auto-clear（DEFER 项）安全实现（不清除用户后续复制的其他内容）；动画/无障碍 polish | 后期安全打磨 | — | S |
+| **L3 — Clipboard / security polish** | DEFER：clipboard auto-clear、动画/无障碍 polish | 后期安全打磨 | — | S |
 
 > Update Check 具体实现可复用旧版 UpdateChecker 语义 + 新
 > UPDATE_PROTOCOL.md（CNB 固定清单 + Ed25519 验签）。**不做** self
@@ -325,14 +322,14 @@ Import 作为同阶段/下一小步（仍走同一 Merge Engine，见 §5.3 P5�
   target。成功 re-auth 只授权恰好一个 `SensitiveActionRequest`
   （`action` + `stableId` + `fieldKey`），并立即消费；reveal 授权绝不复用于
   copy；prompt 期间 selection / navigation / 第二个同类型请求都不会把成功
-  结果作用于其它 entry / field（ADR-0010）。
+  结果作用于其它 entry / field（ADR-0011）。
 - **Roadmap 归属**：
   - 基础设施（认证会话复用、`resolveAvailableAuthenticators` 复用 Phase 2）
     → 放在 **Phase 4 P4**（首批 Developer slice）接入；
   - 完整覆盖全部敏感操作 → **P4–P6** 随各自 slice 落实；
   - 作为独立 slice 记录在 **Phase 4 跟踪**（见 AGENTS.md 阶段清单），
     不得隐含在普通 unlock 中。
-- **安全约束**：re-auth 窗口应与 Phase 2 认证有效期设置一致；失败不得
+- **安全约束**：re-auth 采用一次性授权，不设置 freshness window；失败不得
   降级为无认证操作。
 
 ---
@@ -485,29 +482,31 @@ Developer:
 **DAILY-USE READY** 是 v2 的正式里程碑。达到该里程碑 = 新 APK 可从空
 Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 
-必须包含：
+必须包含（当前全部已实现）：
 
-- [ ] biometric unlock（+ device credential fallback）
-- [ ] TOTP add（QR / otpauth paste / manual entry）
-- [ ] TOTP view / countdown
-- [ ] copy
-- [ ] delete + Undo
-- [ ] persistence（重启不丢数据）
-- [ ] manual Export Package
-- [ ] Native Package Import
-- [ ] merge / dedupe
+- [x] biometric unlock（+ device credential fallback）
+- [x] TOTP add（QR / otpauth paste / manual entry）
+- [x] TOTP view / countdown
+- [x] copy
+- [x] delete + Undo
+- [x] persistence（重启不丢数据）
+- [x] manual Export Package
+- [x] Native Package Import
+- [x] merge / dedupe
 - [x] basic Recovery Codes（add / view / copy-all / used-unused / delete）
-- [ ] basic Developer Vault（至少 Android Signing Key + API Credential）
-- [ ] sensitive-action re-auth（Export 与 reveal 类操作）
+- [x] basic Developer Vault（至少 Android Signing Key + API Credential）
+- [x] sensitive-action re-auth（Export 与 reveal 类操作）
 
 **不阻塞 DAILY-USE READY**：
 
 - update check
 - clipboard auto-clear
 - polish animation
-- 完整 i18n（但核心页面至少 en 可用；zh-CN 在 daily-use release 前恢复，
-  见 §13）
-- SSH / Env / Generic 三类的完整 UI（basic Developer Vault 已覆盖最常用两类）
+- 完整 i18n（已完成，见 §5.5 / §13）
+- SSH / Env / Generic 三类的完整 UI（已完成；属于 V2.0 FEATURE COMPLETE）
+
+> **DAILY-USE READY = YES**。以上清单描述里程碑门槛，不是未完成任务；设备级
+> 生物识别和 Keystore 行为仍需按发布门禁继续做真机验证。
 
 ### 10.1 V2.0 FEATURE COMPLETE 里程碑定义
 
@@ -588,8 +587,8 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 
 - 旧版有 English + Simplified Chinese；**完整保留双语能力**。
 - v2 不得因 Native rewrite 丢失 i18n。
-- 早期开发阶段先完成结构（L1），但 **daily-use release 前应恢复
-  en + zh-CN 所有核心页面文案**。
+- **当前状态：L1 已完成**，en + zh-CN key 与 format 已对齐；后续新增 UI
+  必须同步维护两种语言。
 
 ---
 
@@ -650,11 +649,10 @@ Phase 6 L1/L2/L3（polish）——不阻塞 daily-use
 
 ---
 
-## 17. Current Phase 3A Review Requirements（验收清单）
+## 17. Phase 3A Review Requirements（历史验收清单）
 
-> 供 Phase 3A Agent 回来后对 PR #18 进行自检。以下 10 项必须逐条给出
-> 结论（PASS / FAIL / 需补充），作为 Phase 3A 能否关闭的依据。
-> 本轮 Roadmap 只做验收定义，不替代 Phase 3A 的实现/修复。
+> Phase 3A 已关闭。以下 10 项保留为历史验收基线和后续回归约束，不代表
+> 当前仍有待处理的 PR 或未完成验收。
 
 1. **Package 是否覆盖完整 Authenticator + Developer Vault**
    —— `LogicalVaultSnapshot / VaultPackagePayload` 不得只覆盖 TOTP +

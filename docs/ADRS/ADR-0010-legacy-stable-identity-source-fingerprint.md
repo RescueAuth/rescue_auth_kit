@@ -25,7 +25,7 @@ Phase 5A 把 legacy `.rakvault` 解码为 shared `VaultSnapshot`，供现有
 
 ## 1. durable-id audit（frozen v1.2.0，逐类型）
 
-以 tag `v1.2.0` 的 `lib/core/vault/vault_models.dart`、`vault_session.dart`、
+以 tag `legacy-v1.2.0` 的 `lib/core/vault/vault_models.dart`、`vault_session.dart`、
 `vault_migrator.dart`、`vault_repository.dart` 为 source of truth。
 
 | 对象 | 是否存在 legacy durable id | durable id 来源 | 证据 |

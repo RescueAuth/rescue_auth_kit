@@ -8,7 +8,7 @@
 > （Native package）、`docs/ADRS/ADR-0002`（crypto）、`docs/ADRS/ADR-0004`
 > （stable identity）。
 
-## 1. Frozen v1 protocol audit（只读，以 tag `v1.2.0` 为 source of truth）
+## 1. Frozen v1 protocol audit（只读，以 tag `legacy-v1.2.0` 为 source of truth）
 
 | 项 | 值 | 依据 |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ keystore 二进制以原始 base64 进入 `keystoreBase64`，`PackageValidator`
 
 ### 10.1 durable-id audit（frozen v1.2.0）
 
-以 tag `v1.2.0` 的 `vault_session.dart` / `vault_models.dart` /
+以 tag `legacy-v1.2.0` 的 `vault_session.dart` / `vault_models.dart` /
 `vault_migrator.dart` 为 source of truth：**除单个 Recovery Code 外，所有
 legacy 对象都携带 durable persisted identity（UUID v4，创建时生成、随 vault
 JSON 持久化）**。
@@ -223,7 +223,7 @@ base64url envelope）**独立实现**生成；非 Dart 工具、非 Kotlin test-
 ### 15.2 新增 frozen v1 producer fixture（Blocker 3 修复）
 
 `tools/legacy_fixtures_frozen/` 使用 **frozen v1.2.0 实际实现**（`vault_crypto.dart`
-+ `vault_models.dart` 从 tag `v1.2.0` **逐字节复制**），通过
++ `vault_models.dart` 从 tag `legacy-v1.2.0` **逐字节复制**），通过
 `VaultCrypto.encryptToFile` / `VaultFile.encode` / `VaultData.toJson` 实际生产
 `.rakvault` —— 这是 v1 应用写文件的同一生产代码路径，**不是** Python / Kotlin
 / 独立 Dart 复刻。

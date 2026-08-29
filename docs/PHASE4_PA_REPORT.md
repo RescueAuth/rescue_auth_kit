@@ -6,6 +6,9 @@
 > Provider/Account 的 create/rename/move/merge/delete 全部走共享
 > `VaultRepository` 单 mutex + 单 Room transaction。
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN` 等状态只代表报告生成时的
+> 状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 ## 1. current Provider/Account persistence audit
 
 编码前审计结论（`AuthAccountEntity` / `TotpCredentialEntity` /

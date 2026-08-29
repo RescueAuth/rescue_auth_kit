@@ -1,10 +1,14 @@
 # PHASE3_REPORT.md — Phase 3 Architecture Reset & 3A/3B/3C/3D 实现报告
 
-> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B + Phase 3C + Phase 3D 的实现报告，也是后续
-> 3D 验收 / Phase 4 的唯一事实依据。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
+> 本文档是 Phase 3 架构重置 + Phase 3A + Phase 3B + Phase 3C + Phase 3D 的历史实现报告，
+> 记录当时的 3D 验收证据并供后续回归参考。当前状态以根目录契约文档为准。Phase 3A 已实现并合入评审 PR（PR #18）；Phase 3B
 > Encrypted Package Codec 已实现（PR #22）；Phase 3C Transactional Import /
 > Merge Apply 已实现（独立 PR）；Phase 3D Android Export / Import + Package
 > Preview 已实现（独立 PR，见 §12）。
+
+> **文档性质**：这是 Phase 3 完成时的历史实现报告。报告正文中的阶段状态、
+> “本轮不做”和 PR 语境用于审计；当前阶段状态以 `../ROADMAP.md`、
+> `../AGENTS.md` 和 [`README.md`](../README.md) 为准。
 
 ## 1. Phase 3 architecture reset
 

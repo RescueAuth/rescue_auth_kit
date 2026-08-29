@@ -143,6 +143,7 @@ Requires JDK 17 + Android SDK 35.
 - **Maintenance contract**: [`AGENTS.md`](AGENTS.md)
 - **Product scope**: [`PRODUCT.md`](PRODUCT.md)
 - **Roadmap & phases**: [`ROADMAP.md`](ROADMAP.md)
+- **Documentation index & currency rules**: [`docs/README.md`](docs/README.md)
 - **Design / phase reports & ADRs**: [`docs/`](docs/)
   (PHASE reports, ADRs, PACKAGE_FORMAT, THREAT_MODEL, UPDATE_PROTOCOL,
   LEGACY_IMPORT, RELEASE_PROVISIONING, FIREBASE_TEST_LAB)

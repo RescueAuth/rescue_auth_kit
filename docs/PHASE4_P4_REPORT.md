@@ -5,6 +5,9 @@
 - 依赖：Phase 2（Session / Keystore / auto-lock / FLAG_SECURE）、Phase 3B/3C/3D（Codec / Merge / Export-Import）
 - 关联：ROADMAP §5.3 P4、§5.6（Sensitive Action Re-authentication）、ADR-0006
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN` 等状态只代表报告生成时的
+> 状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 ## 1. Phase 2 security boundary audit
 
 本轮开始前先审计了现有 Phase 2 安全边界，**没有重写 Phase 2**（Issue #20 §1）：

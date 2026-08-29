@@ -1,6 +1,7 @@
 # PRODUCT.md — RescueAuth v2
 
-> 状态：**正式**（2026-08-07，Issue #17 产品决策落定）。
+> 状态：**正式**（2026-08-07，Issue #17 产品决策落定；2026-08-27 与当前
+> 实现状态同步）。
 > 本文定义 v2 的**产品范围**；路线图见 `ROADMAP.md`；阶段进度见
 > `AGENTS.md`。三处不一致视为文档违约。
 
@@ -24,8 +25,8 @@ C. Portable Vault Package —— backup / migration / selective transfer / vault
 
 1. 打开应用后尽快找到并复制验证码。
 2. 用户始终能明确知道数据何时通过手动 Export Package 导出一份。
-3. 手机仍在时，可无密码迁移到新设备（manual Export Package + merge
-   import）。
+3. 手机仍在时，无需全局 Master Password 即可迁移到新设备；每份 manual
+   Export Package 仍必须设置独立 Export PIN，再通过 merge import 导入。
 4. 手机丢失时，用新设备导入最新 Export Package 恢复数据（需要该份包
    的 Export PIN）。
 5. 可一次性导入旧 RescueAuthKit（`.rakvault`）数据库。
@@ -50,7 +51,10 @@ C. Portable Vault Package —— backup / migration / selective transfer / vault
 > Phase 3 明确不做：automatic backup、scheduled backup、background
 > backup、WorkManager backup、cloud sync、自动上传、自动 checkpoint 文件。
 
-## v1 必须包含
+## 首个原生正式版本必须包含
+
+> 这里指新 Android 应用独立 release sequence 的 `versionName=1.0.0`；“v2”
+> 是 generation/rewrite 名称，不代表 `versionName=2.0.0`。
 
 TOTP 增删改查 + otpauth URI + 二维码扫描 + otpauth-migration 批量导入；
 Provider/Account/Credential 层级与创建/rename/move/merge/delete；恢复码
@@ -62,10 +66,10 @@ Global Search + Pin；Delete Undo；Sensitive Action Re-authentication；
 生物识别/设备凭据解锁；后台遮罩；中英双语；固定清单式
 更新检查 + 外部打开发布页。
 
-> 注意：v1 不包含 automatic/scheduled/background backup、保留策略、
+> 注意：首个原生正式版本不包含 automatic/scheduled/background backup、保留策略、
 > 备份健康状态、恢复套件、云同步、ssh-agent、DevOps 自动化。
 
-## v1 明确不做
+## 首个原生正式版本明确不做
 
 - Web / Windows / macOS / Linux / iOS 客户端（Android only）。
 - 用户账号、服务器同步、多人协作、云同步。
@@ -107,7 +111,8 @@ CRUD/UI，不是补 migration capability。
 
 - TOTP/恢复码/恢复密钥/导入数据/Developer Entry → 本地加密数据库
   （SQLCipher）。
-- 非敏感偏好 → DataStore（当前未启用）。
+- 非敏感 UI 偏好 → Preferences DataStore（当前用于主题色）；敏感数据、搜索
+  query、PIN、明文 payload 与 Undo snapshot 不得写入 DataStore。
 - 跨设备迁移只通过 **manual Export Package**：每份包由独立 per-export
   PIN 派生 key 保护；PIN 不保存到 Vault、不改变 VaultKey。
 - **不存在** BackupKey / 全局 backup password / 永久 master password。

@@ -6,6 +6,9 @@
 > 数据类型”变成真正可日常使用的完整 Android 功能。真实 production
 > storage（Room + SQLCipher）贯穿全部路径。
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN` 等状态只代表报告生成时的
+> 状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 ## 1. 用户闭环（已验证路径）
 
 ```

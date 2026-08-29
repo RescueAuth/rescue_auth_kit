@@ -4,6 +4,11 @@
 - 日期：2026-08-06
 - 关联：执行规划 §7、§12 阶段 0
 
+> **历史范围说明**：本 ADR 记录阶段 0 的 Legacy 基线。第 3 条中的
+> `checkpoint` 与“导入后新格式备份”属于当时的自动备份草案，已被 Phase 3
+> reset、ADR-0003、ADR-0005 和 `PACKAGE_FORMAT.md` 取代；当前 Legacy 导入
+> 只执行预览与 transactional merge，不创建 checkpoint 或自动备份文件。
+
 ## 背景
 
 旧 Flutter 应用（RescueAuthKit）v1.2.0 的 `.rakvault` 使用
@@ -13,7 +18,7 @@ schema 版本 1/2/3。v2 是全新 Android 原生应用，必须能一次性导�
 ## 决策
 
 1. 旧格式**只读导入**：新代码不输出 `.rakvault`，不依赖旧 payload 结构。
-2. 冻结基线：旧项目打不可变 tag `v1.2.0`；fixture 的 SHA-256 固定并纳入文档。
+2. 冻结基线：旧项目打不可变 tag `legacy-v1.2.0`；fixture 的 SHA-256 固定并纳入文档。
 3. 导入流程：选文件 → header 校验 → 一次旧密码 → 后台 Argon2id+解密 →
    解析旧 schema → 统一 `LegacyImportBundle` → 预览 → checkpoint → 单事务写入 →
    导入后新格式备份 → 记录 `ImportRecord` → 清理密钥材料。

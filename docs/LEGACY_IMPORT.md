@@ -1,6 +1,6 @@
 # LEGACY_IMPORT.md — 旧 `.rakvault` 导入契约
 
-> 本文档描述 RescueAuth v2 对旧 Flutter 应用（RescueAuthKit v1.2.0，冻结 tag `v1.2.0`）
+> 本文档描述 RescueAuth v2 对旧 Flutter 应用（RescueAuthKit v1.2.0，冻结 tag `legacy-v1.2.0`）
 > 生成的 `.rakvault` 文件的只读导入规则、字段映射与兼容性 fixture。
 > 属于不可逆执行契约的一部分，任何修改必须先更新本文件与相关测试。
 

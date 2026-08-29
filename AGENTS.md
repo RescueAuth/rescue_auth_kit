@@ -7,7 +7,9 @@
 ## 项目状态
 
 - v2 是**全新 Android 原生应用**（Kotlin + Jetpack Compose + Room/SQLCipher），
-  与旧 Flutter 项目并行存在。旧项目保留在仓库根目录，冻结于 tag `legacy-v1.2.0`。
+  当前仓库根目录只保留原生应用主体。旧 Flutter 源码冻结在
+  `legacy-v1.0.0`–`legacy-v1.2.0` tags；当前树保留 legacy fixtures 与只读
+  import compatibility layer。
 - **产品定位（2026-08-07，Issue #17 定稿）**：v2 = Android-only、local-first、
   encrypted personal security vault，包含三大正式能力：
   **Authenticator（Provider/Account/TOTP/Recovery Codes）**、
@@ -16,112 +18,15 @@
 - v2 代码即仓库根目录（Kotlin + Room/SQLCipher 原生 Android 应用，已从 `v2/` 提升为仓库主体）；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
 - **App 身份 / 版本（Release Provisioning，见 `docs/RELEASE_PROVISIONING.md`）**：新 App `applicationId = com.rescueauth.v2`（≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side 安装）、`namespace = com.rescueauth.v2`、`versionName = "1.0.0"`、`versionCode = 10000`。**“v2” 是 generation/rewrite 名称，不等于 `versionName`**（V2.0 FEATURE COMPLETE ≠ versionName 2.0.0）。新 App 独立 release sequence，从 `1.0.0` 开始。Production signing 基础设施已建立（`keystore.properties` / env vars；无 debug fallback；无 config 时 release 为 unsigned；`validateReleaseSigning` 显式校验）。**Production Android signing identity = PROVISIONED（2026-08-11）**；公开证书元数据固定于 `release/android-signing-certificate.txt`，private material 仅存于外部保管位置与 CNB Secret Repository。第一份 local production-signed `1.0.0` candidate 已通过 signer/package/version/debuggable/16K alignment 验证。**Build & Release Workflow 已建立（issue #48）**：CNB production release 现在为 **tag-only**，仅由 `rescueauth-vX.Y.Z` release tag 的 `tag_push` 触发（格式与 tag↔versionName 严格校验，FAIL CLOSED）；`main` / feature / fix 分支不可生产发布。日常真机 smoke 用 Debug Pipeline（`web_trigger_debug_apk`，`Build debug RescueAuth`，owner 手动触发，不读取任何 production secret）。secret 仅注入 production signing stage；Debug 流水线不导入 Secret Repo。
-- 当前阶段：**Phase 0/1/2 CLOSED**；**Phase 3 STARTED，3A/3B/3C CLOSED，3D IMPLEMENTED / PR OPEN**；**Phase 4 P1/P2/P3/P4/P5 CLOSED，P6（Developer Vault Completion）CLOSED（已 merge #34），P7（Search + Pin）CLOSED（已 merge #35），P8（Delete Undo 完善）CLOSED（已 merge #37），PA（Provider & Account Full Management，Issue #32）CLOSED（已 merge #33）**；**Phase 5A（Legacy v1 Core Adapter）CLOSED（已 merge #29，含 merge 前 CR 修复：durable-id-first stableId / Legacy 防御上限 / frozen v1 producer fixture），Phase 5B（Legacy v1 Android Import UI）CLOSED（已 merge #31），M2（Developer 数据处理）已并入 Phase 5B（Legacy v1 Developer Vault 五类全部正常迁移并持久化，不降级、不默认跳过）**（见 `docs/PHASE5A_REPORT.md` / `docs/PHASE5B_REPORT.md` / `docs/PHASE4_P6_REPORT.md` / `docs/PHASE4_P7_REPORT.md` / `docs/PHASE4_P8_REPORT.md` / `docs/PHASE4_PA_REPORT.md`）
-  （Package + Merge Foundation，PR #18；Encrypted Package Codec，PR #22；
-  Transactional Import / Merge Apply，见 `docs/PHASE3_REPORT.md` §11 /
-  `docs/ADRS/ADR-0008`；Android Export / Import + Package Preview，见
-  `docs/PHASE3_REPORT.md` §12 / PR body）。
-  Phase 3A 已与 PR #19 最新
-  PRODUCT / ROADMAP 对齐（Developer Vault 五类进入 portable logical
-  schema + merge foundation；binary keystore base64；selective snapshot
-  scope；Recovery used/unused divergence 显式输出）。
-  **3B Encrypted Package Codec 已实现**（`core/.../export/codec/`，见
-  `docs/PHASE3_REPORT.md` §9 / ADR-0007：per-export PIN → Argon2id → KEK →
-  wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range /
-  DoS 保护；golden fixture）。merge 前 CR 已修正 3 个 codec contract blocker：
-  **cryptoVersion=1 的 `kdfOutputLength` 固定 32**（Argon2id 输出直接作为
-  XChaCha20 KEK，旧 16..64 range 删除）、**logical ↔ package 容量一致**
-  （`PackageCapacity` 单一来源 + validator 预算 + encode 显式 `PackageTooLarge`）、
-  **RUNTIME DECODE RESOURCE POLICY 与 FORMAT HARD LIMIT 分离**（超预算在
-  Argon2 前拒绝，默认 19 MiB/2 iter 永远兼容）。
-  **Phase 4 P1 已实现**（TOTP Daily-Use Loop，见
-  `docs/PHASE4_P1_REPORT.md`；真实 production storage）。
-  **Phase 4 P2 已实现**（QR Scan + otpauth-migration Import，见
-  `docs/PHASE4_P2_REPORT.md`：CameraX + ML Kit 扫码、独立纯 Kotlin migration
-  adapter、多 QR batch session、repository batch import；IMPORT ONLY）。
-  **Phase 4 P3 已实现**（Recovery Codes Daily-Use Slice，见
-  `docs/PHASE4_P3_REPORT.md`：Account detail 恢复码页（正式 hierarchy）、batch
-  add 多行粘贴 + preview、展开/收起、reveal-hide、单条 copy、Copy All /
-  Copy Remaining、mark used/unused（remaining count 实时更新）、edit 最小
-  diff 保留 stableId + USED state、delete + Undo 恢复 exact stableIds/states；
-  Room schema 零改动，P3 数据自然进入 Full Vault Export/Import round-trip）。
-  **Phase 4 P4 已实现**（Sensitive Action Fresh Re-auth + Developer Vault
-  第一批，见 `docs/PHASE4_P4_REPORT.md`：`SensitiveAction`/`SensitiveActionRequest`/
-  `SensitiveActionTarget`/`SensitiveActionGate`/`SensitiveActionResult` 单一
-  orchestration path，fresh Biometric/Device Credential one-shot 语义（无
-  freshness window / 无全局 authenticated），授权绑定原始 request
-  （action + stableId + fieldKey），reveal 与 copy 完全分离、各自独立
-  re-auth；Full Vault Export 在 PIN 之前接入 re-auth gate
-  （cancel/failed/unavailable 不收集 PIN、不创建 SAF 文档、不构造
-  snapshot）；Developer Vault 第一批
-  API Credential / SSH Key / Generic Secret 全 CRUD（metadata list 不暴露
-  secret、reveal/copy 走 re-auth、edit 保留 stableId、delete destructive
-  confirmation）；Room schema 零改动，P4 数据自然进入 Full Vault
-  Export/Import round-trip）。
-  **Phase 4 P5 已实现**（Selective Export / Import，见 `docs/PHASE4_P5_REPORT.md`：
-  共享纯 Kotlin 选择引擎 `VaultSnapshotSelector` / `SelectedItemSet`（stableId
-  语义 + hierarchy/dependency closure，无 UI/Room 依赖，Export 与 Import 共用）；
-  Export 四 scope —— Entire Vault / Authenticator / Developer / Selected Items，
-  全部走同一 fresh re-auth（`SensitiveAction.EXPORT_PACKAGE`，scope+selection
-  digest 绑定 + one-shot）+ 同一 per-export PIN Product Policy；Selective Import
-  是 decoded-snapshot 内存过滤（不产生第二套 package/merge engine），
-  Everything / Authenticator / Developer / Selected Items，仅对选中的 filtered
-  snapshot 运行 MergePlanner；unselected conflict 不阻塞、selected
-  conflict/divergence 按现有规则 BLOCK、final apply 重新 plan；Developer 五类
-  完整保留（含 Android Signing Key / Env Var Set）；package envelope/crypto/
-  MergePlanner 语义零改动；Room schema 零改动）。
-  **Phase 4 PA 已实现**（Provider & Account Full Management，Issue #32，见
-  `docs/PHASE4_PA_REPORT.md`：正式 Provider（create/rename/delete）与 Account
-  （create/rename/move/merge/delete）management，全部走共享 `VaultRepository`
-  单 mutex + 单 Room transaction；Provider = `serviceName` 分组（无独立
-  entity / 无 package stableId），rename 只更新 hierarchy 字段、全部 stableId 保留；
-  empty Provider 非当前正式能力（Create Provider 同时创建首个 Account）；
-  Provider/Account delete 单事务级联 + 安全 counts confirmation；Account merge
-  Destination 存活、source TOTP 迁移/消解（复用官方 TOTP semantic fingerprint）、
-  Recovery Sets 全迁移保留 set/code stableIds + USED/usedAt、同 title 不 dedupe、
-  跨 Provider merge 支持；P5 selection / Native package round-trip / Legacy
-  data 兼容性测试覆盖；Room schema 零改动、package format 零改动）。
-  **Phase 4 P6 已实现**（Developer Vault Completion，见 `docs/PHASE4_P6_REPORT.md`：
-  Android Signing Key / Environment Variable Set 全 CRUD（create/list/detail/
-  edit/delete）走既有 DeveloperRepository 单表 + DeveloperMappers，Room schema
-  零升级；keystore SAF import 以 opaque exact-bytes 保存（大小上限从共享
-  logical/package per-asset contract `MAX_KEYSTORE_BASE64_LENGTH` 推导为 raw
-  bytes，不定义第三套规则；不信任扩展名/MIME，不执行 keytool/jarsigner）；
-  keystore export 走 fresh re-auth + SAF CreateDocument，bytes 只在 auth 成功后
-  构造，cancel 不创建输出文档；Copy key.properties 内存构造 + fresh re-auth +
-  不持久化；store/key password 与每个 Env value 的 reveal/copy 均为独立
-  fresh re-auth，target 绑定 stableId+fieldKey；Env Var 动态行 add/remove/edit，
-  name 非空 + exact case-sensitive 去重 + value 不 normalize/不重写大小写；
-  session lock / 离开页面 / 进程重建均清除 reveal 状态（in-memory only）；
-  Legacy-imported 五类 entry 可通过 P6 repository/UI path 正常打开与操作；
-  Full/Developer/Selected package round-trip 均 byte-for-byte 精确；
-  P6 不触碰 Authenticator/Provider/Account product semantics）。
-  **Phase 3C 已实现**（Transactional Import / Merge Apply，独立 PR：
-  MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类
-  首次真实落库（schema v2→v3 单表 `developer_entry` + typed payload）；
-  parent/child identity mapping（ResolvedProvider/ResolvedAccount）；
-  CONFLICT / Recovery state divergence 保守阻止 apply；`applyMergePlan` /
-  `applySnapshot` 共享事务边界供 Native + future Legacy adapter 复用）。
-  **Phase 3D 已实现**（Android Export / Import + Package Preview，独立 PR：
-  SAF CreateDocument/OpenDocument、per-export PIN 对话框（输入+确认，
-  隐藏/reveal）、bounded untrusted-file reader（`BoundedPackageReader`，
-  纯 JVM 可测，16 MiB 上限）、PackageIdentifier（native magic 检查，
-  Legacy 隔离）、safe import preview（无 secret 的 summary 模型）、
-  confirm 走 Phase 3C `applyMergePlan`（re-plan/preflight/apply 最终 authority）；
-  `.rakpkg` 扩展名 + MIME contract 同步 PACKAGE_FORMAT；Sensitive-action
-  fresh re-auth 保持为 Phase 4 P4 依赖，本轮不伪造）。
-  **Export PIN Product Policy 已锁定**（merge 前收尾）：Export = 纯数字
-  6–128 位 + 确认一致，集中在 `PinPolicy`（Product Policy constant，非
-  package-format requirement）；Import 只拒绝空 PIN（任意 codec 合法 PIN
-  均可解密，历史/第三方包不被 Export UI 策略拒绝）；**流程为 PIN + confirm
-  → CreateDocument → encode/write**，PIN cancel 不会创建文件，写失败
-  best-effort 清理不 crash；PIN/decoded payload 不进 SavedStateHandle /
-  Bundle / rememberSaveable / DataStore / Room，cancel / apply / lock 后
-  best-effort zeroize。
-  数据库 instrumented 验证已在 Firebase Test Lab 真实执行 6/6 PASS；
-  生物识别/Keystore 认证有效期/截图保护等仍为**未真机验证**的验证缺口
-  （non-blocking backlog，见 PHASE2_REPORT §C）。
-- 阶段与 slice 定义见 `ROADMAP.md §5`；**不要再新增平行的阶段表**。
+- 当前阶段（同步于 2026-08-27）：**Phase 0/1/2/3/4/5 CLOSED**；Phase 6 的 L1/L2 CLOSED，L3
+  Clipboard / security polish 明确 DEFER。**DAILY-USE READY = YES**，
+  **V2.0 FEATURE COMPLETE = YES**，**V2.0 RELEASED = NO**。
+- 当前 release blockers：production Update Ed25519 provisioning、
+  `rescueauth-updates` 基础设施、signed release real-device smoke 与最终 FTL /
+  device regression。数据库 instrumented 验证历史结果为 Firebase Test Lab
+  6/6 PASS；生物识别、Keystore 认证有效期与锁屏行为仍有真机验证缺口。
+- 阶段与 slice 定义见 `ROADMAP.md §5`，详细实现证据见对应 `docs/PHASE*_REPORT.md`
+  与 ADR；文档导航及时效规则见 `docs/README.md`。**不要再新增平行的阶段表**。
 
 ## 必跑命令（提交前）
 
@@ -133,7 +38,7 @@
 ./gradlew :app:assembleDebugAndroidTest
 # 本地有真机/模拟器时：
 ./gradlew :app:connectedDebugAndroidTest
-# Firebase Test Lab（仅 main push，见 docs/FIREBASE_TEST_LAB.md）
+# Firebase Test Lab（仅 main 手动触发，见 docs/FIREBASE_TEST_LAB.md）
 ```
 
 > 环境要求：JDK 17 + Android SDK（compileSdk 35 / build-tools 35）。
@@ -154,7 +59,7 @@
    依赖升级。此类升级必须人工评审。
 4. **发布**：稳定发布必须通过 CI；不允许本地未验证 APK 覆盖线上文件。
    必须先上传并验证 APK，再更新 `latest.json`。
-5. **旧数据**：不得删除旧项目、旧 fixture、旧备份。
+5. **旧数据**：不得删除 legacy tags、旧 fixture、旧备份或只读兼容能力。
 
 ## 架构边界（强制）
 
@@ -215,12 +120,12 @@
   - [x] SQLCipher native 加载（PR #15）：`SQLCipherNativeLoader` 在数据库唯一入口加载
   - [x] **instrumented 真机验证（数据库 6 用例）**：6/6 PASS（Firebase Test Lab）
   - [ ] 生物识别 / Keystore 认证有效期 / 锁屏行为等**仍待真机验证**（non-blocking）（不再全局截图保护，允许截图 —— Issue #57）
-- [ ] 阶段 3：Package + Merge（**STARTED**）
+- [x] 阶段 3：Package + Merge（**CLOSED**）
   - [x] **3A Package + Merge Foundation**（architecture reset + 逻辑 package 模型 + stableId + semantic fingerprint + 纯 merge planner + schema v1→v2 + 自动备份抽象清理，PR #18）
-  - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；Phase 3B PR OPEN；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）
+  - [x] **3B Encrypted Package Codec**（per-export PIN → Argon2id → KEK → wrap PackageKey → AEAD envelope；header-is-untrusted / KDF accepted range / DoS 保护；wrong PIN/corrupted 安全失败；golden fixture；merge 前 CR 已修：kdfOutputLength==32、capacity 一致、runtime policy 与 format limit 分离）
   - [x] **3C Transactional Import / Merge Apply**（MergePlan → 单 Room 事务 apply + rollback + 幂等；Developer Vault 五类落库（schema v2→v3）；parent/child identity mapping；CONFLICT / Recovery state divergence 保守阻止；`applyMergePlan` / `applySnapshot` 共享事务边界；见 ADR-0008 / PHASE3_REPORT §11）
   - [x] **3D Android Export / Import + Package Preview**（SAF CreateDocument/OpenDocument、per-export PIN 对话框、bounded untrusted-file reader、import preview（Authenticator/Developer 计数 + safe summary）、confirm 走 3C transactional apply；`.rakpkg` 扩展名/MIME contract；见 PHASE3_REPORT §12）
-- [ ] 阶段 4：Daily-use vertical slices
+- [x] 阶段 4：Daily-use vertical slices（**CLOSED**）
   - [x] **P1 TOTP usable loop**（otpauth paste / manual / countdown / copy / delete+Undo，真实 production storage，PR 见 docs/PHASE4_P1_REPORT.md；QR 后续补）
   - [x] **P2 otpauth-migration import**（IMPORT ONLY，External Import Adapter，见 docs/PHASE4_P2_REPORT.md）
   - [x] **P3 Recovery Codes slice**（Account detail 恢复码页：batch add / expand-collapse / reveal-hide / 单条 copy / Copy All + Copy Remaining / mark used-unused / edit（最小 diff 保留 stableId + USED state）/ delete + Undo；见 docs/PHASE4_P3_REPORT.md）
@@ -229,17 +134,18 @@
   - [x] **P6 Developer Vault 第二批（Developer Vault Completion）**（Android Signing Key / Environment Variable Set 全 CRUD + keystore SAF import/export + Copy key.properties + Env Var 动态行 + 每字段独立 fresh re-auth；见 `docs/PHASE4_P6_REPORT.md`）
   - [x] **P7 Search + Pin**（Global Search safe metadata only + Account Pin/Unpin；见 `docs/PHASE4_P7_REPORT.md`）
   - [x] **P8 Delete Undo 完善**（普通删除 TOTP/recovery set/account/普通 Developer Entry 统一 SnackBar Undo；高破坏性操作保留确认；Recovery Code Set Move 正式能力；空 Account 全 scope 导出导入保留；Undo snapshot 仅 in-memory、session lock 清除；见 `docs/PHASE4_P8_REPORT.md`）
+  - [x] **PA Provider & Account Full Management**（Provider create/rename/delete；Account create/rename/move/merge/delete；见 `docs/PHASE4_PA_REPORT.md`）
   - [x] **DAILY-USE READY 里程碑**（定义见 ROADMAP.md §10；中间里程碑：可迁移并开始日常自用）
   - [x] **V2.0 FEATURE COMPLETE 里程碑**（定义见 ROADMAP.md §10.1；正式产品范围全部完成，不等于 DAILY-USE READY）
     - **V2.0 FEATURE COMPLETE = YES**（最终 release-readiness 审计确认，见 ROADMAP.md §10.1）；**V2.0 RELEASED = NO**（Android production signing identity 已 provision；仍待 Update Ed25519 provisioning / rescueauth-updates 基础设施 / signed release real-device smoke / FTL，见 `docs/RELEASE_PROVISIONING.md`）
-- [ ] 阶段 5：Migration（legacy import 收口）
+- [x] 阶段 5：Migration（legacy import 收口，**CLOSED**）
   - [x] **5A Legacy v1 Core Adapter**（`LegacyVaultSnapshotMapper`：解密后 `LegacyImportBundle` → shared `VaultSnapshot`；**durable-id-first** 确定性 stableId（`legacy:<kind>:<sha256(legacy\0kind\0durablePath)>`，基于 legacy durable UUID，不依赖 source fingerprint）+ source fingerprint（原始加密字节 sha256，base64url，仅作 source identity）；五类 Developer 逐字段映射（keystore exact byte round-trip）；复用 `PackageValidator.validateSnapshot`（纯 logical）/ `MergePlanner` / `applySnapshot`；Legacy 防御上限与 Native 16 MiB 解耦（输入 64 MiB）；独立 Python-provenance fixture + frozen v1 producer fixture；跨备份幂等 + 隔离 + logical/capacity 边界测试；见 docs/PHASE5A_REPORT.md；已 merge #29）
-  - [x] **5B Legacy v1 Android Import UI**（`LegacyImportService` / `LegacyImportViewModel` / `LegacyImportRoute` / `LegacyImportScreen`；SAF OpenDocument + 64 MiB bounded read（decrypt 前拒绝）；Master Password（无 `>=10` 硬编码 gate，与 Native PIN 独立）；safe preview（无 secret）；MergePlanner / final re-plan / transactional apply 复用 shared engine；跨备份幂等 UI→DB 贯通；ImportRecord `sourceType="LEGACY_RAKVAULT"` + source fingerprint；session/plaintext lifecycle；`VaultRepository` 移除 `LegacyImportBundle` spike 依赖；见 docs/PHASE5B_REPORT.md；PR OPEN）
+  - [x] **5B Legacy v1 Android Import UI**（`LegacyImportService` / `LegacyImportViewModel` / `LegacyImportRoute` / `LegacyImportScreen`；SAF OpenDocument + 64 MiB bounded read（decrypt 前拒绝）；Master Password（无 `>=10` 硬编码 gate，与 Native PIN 独立）；safe preview（无 secret）；MergePlanner / final re-plan / transactional apply 复用 shared engine；跨备份幂等 UI→DB 贯通；ImportRecord `sourceType="LEGACY_RAKVAULT"` + source fingerprint；session/plaintext lifecycle；`VaultRepository` 移除 `LegacyImportBundle` spike 依赖；见 docs/PHASE5B_REPORT.md；已 merge #31）
   - [x] **M2 Developer 数据处理（legacy）**（已并入 Phase 5B §12：Legacy v1
     Developer Vault 五类全部正常迁移并持久化，不降级为只读 secure note、不默认
     跳过；P6 只补 Signing Key / Env Var Set 的 Android CRUD/UI，不是补
     migration capability）
-- [ ] 阶段 6：Product polish
+- [ ] 阶段 6：Product polish（L1/L2 CLOSED；L3 DEFER）
   - [x] L1 Localization（en + zh-CN；完整双语为 V2.0 FEATURE COMPLETE 门槛，最终审计已确认 en/zh 全量 key + format 对齐）
   - [x] **L2 About / Update Check（V2.0 FEATURE COMPLETE 门槛）**（Issue #20 Phase 6 L2，已 merge #36：About 页 + Settings→About 导航 + 固定 CNB 清单 + Ed25519 验签（BouncyCastle，签名覆盖 exact raw bytes，`.sig` Base64 原始 64-byte）+ schema v1 strict validation + severity/minSupported 收敛 + manual only + update data fail closed / app fail open + INTERNET 显式声明 + UI 状态机/error taxonomy 冻结 + core/app/UI tests；发布基础设施 `rescueauth-updates` 仓库 + 生产 update 公钥 provisioning 未完成，见 docs/UPDATE_PROTOCOL.md §Release Infrastructure Pending 与 docs/PHASE6_L2_REPORT.md）
   - [ ] L3 Clipboard / security polish（含 DEFER 项 clipboard auto-clear；不阻塞 DAILY-USE READY 与 V2.0 FEATURE COMPLETE）

@@ -3,6 +3,9 @@
 **Status**: P6 IMPLEMENTED / PR OPEN
 **P1–P5 CLOSED · P6 IMPLEMENTED · P7/P8 NOT STARTED · Phase 5A/5B CLOSED**
 
+> **文档性质**：历史实现报告。上面的阶段快照只代表报告生成时的状态；当前
+> 状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 P6 completes the Developer Vault **Android daily-use closure**: the final two
 Developer Entry types (Android Signing Key, Environment Variable Set) gain
 full production CRUD/UI, and all five types are now first-class, usable on the

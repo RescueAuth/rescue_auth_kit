@@ -135,6 +135,7 @@ lint，因此**不能**作为"完整回归已通过"的依据。
 - **维护契约**：[`AGENTS.md`](AGENTS.md)
 - **产品范围**：[`PRODUCT.md`](PRODUCT.md)
 - **路线图与阶段**：[`ROADMAP.md`](ROADMAP.md)
+- **文档索引与时效规则**：[`docs/README.md`](docs/README.md)
 - **设计 / 阶段报告与 ADR**：[`docs/`](docs/)
   （PHASE 报告、ADR、PACKAGE_FORMAT、THREAT_MODEL、UPDATE_PROTOCOL、
   LEGACY_IMPORT、RELEASE_PROVISIONING、FIREBASE_TEST_LAB）

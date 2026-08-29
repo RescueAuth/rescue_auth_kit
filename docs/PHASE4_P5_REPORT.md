@@ -6,6 +6,10 @@
 > `VaultSnapshot` → `PortablePackageCodec` → `MergePlanner` → transactional apply。
 > 不创建第二套 package format，不创建第二套 merge engine。
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN`、`NOT STARTED` 等状态只
+> 代表报告生成时的状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和
+> [`README.md`](../README.md) 为准。
+
 ## 1. existing SnapshotScope audit
 
 P5 编码前审计结论（`VaultSnapshot` / `SnapshotScope` / `VaultPackagePayload` /

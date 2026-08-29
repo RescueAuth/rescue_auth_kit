@@ -6,6 +6,9 @@
 > 不做 P8；不做 Favorites/Tags/Folder/Rating；不做通用搜索平台。
 > 与并行 **Phase 6 L2（About/Update Check）** 互不等待。
 
+> **文档性质**：历史实现报告。正文中的 `PR OPEN` 等状态只代表报告生成时的
+> 状态；当前状态以 `../ROADMAP.md`、`../AGENTS.md` 和 [`README.md`](../README.md) 为准。
+
 ## 1. existing Search/Pin foundation audit
 
 编码前审计最新 main 结论：
