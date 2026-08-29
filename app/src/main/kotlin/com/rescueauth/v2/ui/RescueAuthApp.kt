@@ -1,12 +1,15 @@
 package com.rescueauth.v2.ui
 
 import com.rescueauth.v2.BuildConfig
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -17,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -102,7 +106,9 @@ fun RescueAuthApp(
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         // The shell Scaffold must NOT re-apply the system-bar insets to the
         // NavHost: on targetSdk 35 (enforced edge-to-edge) each screen already
         // owns a Scaffold + TopAppBar that correctly insets for the status bar
@@ -113,7 +119,11 @@ fun RescueAuthApp(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { UndoSnackbarHost(snackbarHostState) },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 0.dp,
+            ) {
                 TopLevelDestinations.all.forEach { destination ->
                     val selected = currentDestination?.hierarchy
                         ?.any { it.route == destination.route } == true
@@ -137,6 +147,13 @@ fun RescueAuthApp(
                         label = {
                             Text(text = stringResource(destination.labelRes))
                         },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
                         modifier = Modifier.testTag(destination.testTag),
                     )
                 }
@@ -146,7 +163,10 @@ fun RescueAuthApp(
         NavHost(
             navController = navController,
             startDestination = RescueAuthRoutes.AUTHENTICATOR,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(padding),
         ) {
             composable(RescueAuthRoutes.AUTHENTICATOR) {
                 AuthenticatorRoute(

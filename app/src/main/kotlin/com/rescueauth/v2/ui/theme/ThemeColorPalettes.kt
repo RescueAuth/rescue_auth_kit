@@ -7,19 +7,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
- * Hand-tuned Material 3 color schemes for every [ThemeColor] preset, in light
- * and dark variants.
- *
- * Each scheme is a complete, coordinated M3 palette — primary/onPrimary/
- * primaryContainer/onPrimaryContainer plus secondary, tertiary, surface,
- * surfaceVariant, outline and the shared semantic error roles. Shared neutral
- * surfaces (background / surface / outline) are kept identical across presets
- * so switching accent color never destabilizes the overall surface contrast.
- *
- * **Security boundary:** the [error] / [errorContainer] roles are the same
- * Material semantic values for every preset (and every theme), so a user's
- * theme-color choice can never turn a destructive / security action green or
- * otherwise mask its danger.
+ * The app uses one visual family: cool neutral surfaces with blue-violet
+ * accents. The six persisted theme IDs are kept for compatibility, but each
+ * preset is now a blue-violet variation instead of an unrelated hue.
  */
 @Immutable
 internal class ThemeColorPreset(
@@ -27,352 +17,206 @@ internal class ThemeColorPreset(
     val dark: ColorScheme,
 )
 
-/** Shared neutral surfaces (Material 3 "neutral" tonal roles). */
+/** Shared neutral surfaces. Accent color is intentionally isolated to roles. */
 private object Neutrals {
-    val backgroundLight = Color(0xFFFDFBFF)
-    val onBackgroundLight = Color(0xFF1D1B20)
-    val surfaceLight = Color(0xFFFDFBFF)
-    val onSurfaceLight = Color(0xFF1D1B20)
-    val surfaceVariantLight = Color(0xFFE7E0EC)
-    val onSurfaceVariantLight = Color(0xFF49454F)
-    val outlineLight = Color(0xFF79747E)
+    val backgroundLight = Color(0xFFF6F7FB)
+    val onBackgroundLight = Color(0xFF1A1B22)
+    val surfaceLight = Color(0xFFFBFCFF)
+    val onSurfaceLight = Color(0xFF1A1B22)
+    val surfaceVariantLight = Color(0xFFE5E6F0)
+    val onSurfaceVariantLight = Color(0xFF5B5C68)
+    val outlineLight = Color(0xFF777985)
 
-    val backgroundDark = Color(0xFF141218)
-    val onBackgroundDark = Color(0xFFE6E0E9)
-    val surfaceDark = Color(0xFF141218)
-    val onSurfaceDark = Color(0xFFE6E0E9)
-    val surfaceVariantDark = Color(0xFF49454F)
-    val onSurfaceVariantDark = Color(0xFFCAC4D0)
-    val outlineDark = Color(0xFF938F99)
+    val backgroundDark = Color(0xFF111218)
+    val onBackgroundDark = Color(0xFFE5E1EE)
+    val surfaceDark = Color(0xFF171820)
+    val onSurfaceDark = Color(0xFFE5E1EE)
+    val surfaceVariantDark = Color(0xFF454652)
+    val onSurfaceVariantDark = Color(0xFFC7C5D1)
+    val outlineDark = Color(0xFF90909D)
+}
+
+private object SemanticColors {
+    val errorLight = Color(0xFFBA1A1A)
+    val onErrorLight = Color(0xFFFFFFFF)
+    val errorContainerLight = Color(0xFFFFDAD6)
+    val onErrorContainerLight = Color(0xFF410002)
+
+    val errorDark = Color(0xFFFFB4AB)
+    val onErrorDark = Color(0xFF690005)
+    val errorContainerDark = Color(0xFF93000A)
+    val onErrorContainerDark = Color(0xFFFFDAD6)
+}
+
+/** Builds one coherent blue-violet light/dark pair. */
+private fun blueVioletPreset(
+    lightPrimary: Color,
+    lightPrimaryContainer: Color,
+    lightOnPrimaryContainer: Color,
+    darkPrimary: Color,
+    darkPrimaryContainer: Color,
+    darkOnPrimaryContainer: Color,
+    lightSecondary: Color,
+    lightSecondaryContainer: Color,
+    lightOnSecondaryContainer: Color,
+    darkSecondary: Color,
+    darkSecondaryContainer: Color,
+    darkOnSecondaryContainer: Color,
+): ThemeColorPreset {
+    val lightTertiary = Color(0xFF48657D)
+    val lightTertiaryContainer = Color(0xFFD5E6F7)
+    val lightOnTertiaryContainer = Color(0xFF081D2D)
+    val darkTertiary = Color(0xFFB7D0E6)
+    val darkTertiaryContainer = Color(0xFF304B60)
+    val darkOnTertiaryContainer = Color(0xFFD5E6F7)
+
+    return ThemeColorPreset(
+        light = lightColorScheme(
+            primary = lightPrimary,
+            onPrimary = Color.White,
+            primaryContainer = lightPrimaryContainer,
+            onPrimaryContainer = lightOnPrimaryContainer,
+            secondary = lightSecondary,
+            onSecondary = Color.White,
+            secondaryContainer = lightSecondaryContainer,
+            onSecondaryContainer = lightOnSecondaryContainer,
+            tertiary = lightTertiary,
+            onTertiary = Color.White,
+            tertiaryContainer = lightTertiaryContainer,
+            onTertiaryContainer = lightOnTertiaryContainer,
+            background = Neutrals.backgroundLight,
+            onBackground = Neutrals.onBackgroundLight,
+            surface = Neutrals.surfaceLight,
+            onSurface = Neutrals.onSurfaceLight,
+            surfaceVariant = Neutrals.surfaceVariantLight,
+            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
+            outline = Neutrals.outlineLight,
+            error = SemanticColors.errorLight,
+            onError = SemanticColors.onErrorLight,
+            errorContainer = SemanticColors.errorContainerLight,
+            onErrorContainer = SemanticColors.onErrorContainerLight,
+        ),
+        dark = darkColorScheme(
+            primary = darkPrimary,
+            onPrimary = Color(0xFF2F2168),
+            primaryContainer = darkPrimaryContainer,
+            onPrimaryContainer = darkOnPrimaryContainer,
+            secondary = darkSecondary,
+            onSecondary = Color(0xFF302A42),
+            secondaryContainer = darkSecondaryContainer,
+            onSecondaryContainer = darkOnSecondaryContainer,
+            tertiary = darkTertiary,
+            onTertiary = Color(0xFF1C3446),
+            tertiaryContainer = darkTertiaryContainer,
+            onTertiaryContainer = darkOnTertiaryContainer,
+            background = Neutrals.backgroundDark,
+            onBackground = Neutrals.onBackgroundDark,
+            surface = Neutrals.surfaceDark,
+            onSurface = Neutrals.onSurfaceDark,
+            surfaceVariant = Neutrals.surfaceVariantDark,
+            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
+            outline = Neutrals.outlineDark,
+            error = SemanticColors.errorDark,
+            onError = SemanticColors.onErrorDark,
+            errorContainer = SemanticColors.errorContainerDark,
+            onErrorContainer = SemanticColors.onErrorContainerDark,
+        ),
+    )
 }
 
 internal object ThemeColorPalettes {
-
-    /** 拾遗橙 / Shiyi Orange — warm, trustworthy brand accent. */
-    val SHIYI_ORANGE = ThemeColorPreset(
-        light = lightColorScheme(
-            primary = Color(0xFF8B5000),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFFFDCC2),
-            onPrimaryContainer = Color(0xFF2C1600),
-            secondary = Color(0xFF745846),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFFFDCC2),
-            onSecondaryContainer = Color(0xFF2A1608),
-            tertiary = Color(0xFF5D6134),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFE2E6AC),
-            onTertiaryContainer = Color(0xFF1A1D00),
-            background = Neutrals.backgroundLight,
-            onBackground = Neutrals.onBackgroundLight,
-            surface = Neutrals.surfaceLight,
-            onSurface = Neutrals.onSurfaceLight,
-            surfaceVariant = Neutrals.surfaceVariantLight,
-            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
-            outline = Neutrals.outlineLight,
-            error = ThemeColorSchemes.ERROR_LIGHT,
-            onError = ThemeColorSchemes.ON_ERROR_LIGHT,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_LIGHT,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_LIGHT,
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFFFFB77B),
-            onPrimary = Color(0xFF4A2800),
-            primaryContainer = Color(0xFF6C3D00),
-            onPrimaryContainer = Color(0xFFFFDCC2),
-            secondary = Color(0xFFE2BFA9),
-            onSecondary = Color(0xFF422B1D),
-            secondaryContainer = Color(0xFF5A4132),
-            onSecondaryContainer = Color(0xFFFFDCC2),
-            tertiary = Color(0xFFC6CA92),
-            onTertiary = Color(0xFF2F3211),
-            tertiaryContainer = Color(0xFF464A25),
-            onTertiaryContainer = Color(0xFFE2E6AC),
-            background = Neutrals.backgroundDark,
-            onBackground = Neutrals.onBackgroundDark,
-            surface = Neutrals.surfaceDark,
-            onSurface = Neutrals.onSurfaceDark,
-            surfaceVariant = Neutrals.surfaceVariantDark,
-            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
-            outline = Neutrals.outlineDark,
-            error = ThemeColorSchemes.ERROR_DARK,
-            onError = ThemeColorSchemes.ON_ERROR_DARK,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_DARK,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_DARK,
-        ),
+    // Historical names map to blue-violet tonal variants so stored preferences
+    // remain valid while the brand family stays consistent.
+    val SHIYI_ORANGE = blueVioletPreset(
+        lightPrimary = Color(0xFF5B4DB1),
+        lightPrimaryContainer = Color(0xFFE8E1FF),
+        lightOnPrimaryContainer = Color(0xFF1D124E),
+        darkPrimary = Color(0xFFC9BEFF),
+        darkPrimaryContainer = Color(0xFF46368D),
+        darkOnPrimaryContainer = Color(0xFFE8E1FF),
+        lightSecondary = Color(0xFF625A7D),
+        lightSecondaryContainer = Color(0xFFE9E2F6),
+        lightOnSecondaryContainer = Color(0xFF201A31),
+        darkSecondary = Color(0xFFCEC4E8),
+        darkSecondaryContainer = Color(0xFF4B4160),
+        darkOnSecondaryContainer = Color(0xFFE9E2F6),
     )
 
-    /** 青蓝 / Cyan Blue — calm, tech-forward. */
-    val CYAN_BLUE = ThemeColorPreset(
-        light = lightColorScheme(
-            primary = Color(0xFF00639A),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFCDE5FF),
-            onPrimaryContainer = Color(0xFF001E32),
-            secondary = Color(0xFF50606F),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFD3E5F6),
-            onSecondaryContainer = Color(0xFF0C1D2A),
-            tertiary = Color(0xFF665A79),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFECDDFF),
-            onTertiaryContainer = Color(0xFF211832),
-            background = Neutrals.backgroundLight,
-            onBackground = Neutrals.onBackgroundLight,
-            surface = Neutrals.surfaceLight,
-            onSurface = Neutrals.onSurfaceLight,
-            surfaceVariant = Neutrals.surfaceVariantLight,
-            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
-            outline = Neutrals.outlineLight,
-            error = ThemeColorSchemes.ERROR_LIGHT,
-            onError = ThemeColorSchemes.ON_ERROR_LIGHT,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_LIGHT,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_LIGHT,
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFF83CFFF),
-            onPrimary = Color(0xFF00344F),
-            primaryContainer = Color(0xFF004B71),
-            onPrimaryContainer = Color(0xFFCDE5FF),
-            secondary = Color(0xFFB7C9DA),
-            onSecondary = Color(0xFF213240),
-            secondaryContainer = Color(0xFF374957),
-            onSecondaryContainer = Color(0xFFD3E5F6),
-            tertiary = Color(0xFFD0C0E5),
-            onTertiary = Color(0xFF372D48),
-            tertiaryContainer = Color(0xFF4E4360),
-            onTertiaryContainer = Color(0xFFECDDFF),
-            background = Neutrals.backgroundDark,
-            onBackground = Neutrals.onBackgroundDark,
-            surface = Neutrals.surfaceDark,
-            onSurface = Neutrals.onSurfaceDark,
-            surfaceVariant = Neutrals.surfaceVariantDark,
-            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
-            outline = Neutrals.outlineDark,
-            error = ThemeColorSchemes.ERROR_DARK,
-            onError = ThemeColorSchemes.ON_ERROR_DARK,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_DARK,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_DARK,
-        ),
+    val CYAN_BLUE = blueVioletPreset(
+        lightPrimary = Color(0xFF4F56B5),
+        lightPrimaryContainer = Color(0xFFE0E4FF),
+        lightOnPrimaryContainer = Color(0xFF11164B),
+        darkPrimary = Color(0xFFC1C6FF),
+        darkPrimaryContainer = Color(0xFF383F92),
+        darkOnPrimaryContainer = Color(0xFFE0E4FF),
+        lightSecondary = Color(0xFF5D607D),
+        lightSecondaryContainer = Color(0xFFE5E5F8),
+        lightOnSecondaryContainer = Color(0xFF191A31),
+        darkSecondary = Color(0xFFC6C6E6),
+        darkSecondaryContainer = Color(0xFF454661),
+        darkOnSecondaryContainer = Color(0xFFE5E5F8),
     )
 
-    /** 翠绿 / Jade Green — fresh, trustworthy security green. */
-    val JADE_GREEN = ThemeColorPreset(
-        light = lightColorScheme(
-            primary = Color(0xFF006C4C),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFF9CF2CC),
-            onPrimaryContainer = Color(0xFF002113),
-            secondary = Color(0xFF4D6357),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFCFE9D9),
-            onSecondaryContainer = Color(0xFF0A1F16),
-            tertiary = Color(0xFF3E6470),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFC1E9F7),
-            onTertiaryContainer = Color(0xFF001F27),
-            background = Neutrals.backgroundLight,
-            onBackground = Neutrals.onBackgroundLight,
-            surface = Neutrals.surfaceLight,
-            onSurface = Neutrals.onSurfaceLight,
-            surfaceVariant = Neutrals.surfaceVariantLight,
-            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
-            outline = Neutrals.outlineLight,
-            error = ThemeColorSchemes.ERROR_LIGHT,
-            onError = ThemeColorSchemes.ON_ERROR_LIGHT,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_LIGHT,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_LIGHT,
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFF7DD9B0),
-            onPrimary = Color(0xFF003828),
-            primaryContainer = Color(0xFF00523B),
-            onPrimaryContainer = Color(0xFF9CF2CC),
-            secondary = Color(0xFFB3CCBE),
-            onSecondary = Color(0xFF1F352A),
-            secondaryContainer = Color(0xFF354B40),
-            onSecondaryContainer = Color(0xFFCFE9D9),
-            tertiary = Color(0xFFA5CCDA),
-            onTertiary = Color(0xFF073641),
-            tertiaryContainer = Color(0xFF264C57),
-            onTertiaryContainer = Color(0xFFC1E9F7),
-            background = Neutrals.backgroundDark,
-            onBackground = Neutrals.onBackgroundDark,
-            surface = Neutrals.surfaceDark,
-            onSurface = Neutrals.onSurfaceDark,
-            surfaceVariant = Neutrals.surfaceVariantDark,
-            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
-            outline = Neutrals.outlineDark,
-            error = ThemeColorSchemes.ERROR_DARK,
-            onError = ThemeColorSchemes.ON_ERROR_DARK,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_DARK,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_DARK,
-        ),
+    val JADE_GREEN = blueVioletPreset(
+        lightPrimary = Color(0xFF5050A7),
+        lightPrimaryContainer = Color(0xFFE4E2FF),
+        lightOnPrimaryContainer = Color(0xFF171447),
+        darkPrimary = Color(0xFFC5C1FF),
+        darkPrimaryContainer = Color(0xFF39378B),
+        darkOnPrimaryContainer = Color(0xFFE4E2FF),
+        lightSecondary = Color(0xFF60607E),
+        lightSecondaryContainer = Color(0xFFE8E6FA),
+        lightOnSecondaryContainer = Color(0xFF1C1B32),
+        darkSecondary = Color(0xFFC9C7E9),
+        darkSecondaryContainer = Color(0xFF484761),
+        darkOnSecondaryContainer = Color(0xFFE8E6FA),
     )
 
-    /** 靛蓝 / Indigo — focused, professional. */
-    val INDIGO = ThemeColorPreset(
-        light = lightColorScheme(
-            primary = Color(0xFF455CA9),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFDCE1FF),
-            onPrimaryContainer = Color(0xFF00174A),
-            secondary = Color(0xFF5B5D72),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFE0E1F9),
-            onSecondaryContainer = Color(0xFF171B2C),
-            tertiary = Color(0xFF77536D),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFFFD7F2),
-            onTertiaryContainer = Color(0xFF2E1228),
-            background = Neutrals.backgroundLight,
-            onBackground = Neutrals.onBackgroundLight,
-            surface = Neutrals.surfaceLight,
-            onSurface = Neutrals.onSurfaceLight,
-            surfaceVariant = Neutrals.surfaceVariantLight,
-            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
-            outline = Neutrals.outlineLight,
-            error = ThemeColorSchemes.ERROR_LIGHT,
-            onError = ThemeColorSchemes.ON_ERROR_LIGHT,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_LIGHT,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_LIGHT,
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFFB7C4FF),
-            onPrimary = Color(0xFF002A69),
-            primaryContainer = Color(0xFF2C4390),
-            onPrimaryContainer = Color(0xFFDCE1FF),
-            secondary = Color(0xFFC4C5DD),
-            onSecondary = Color(0xFF2D3042),
-            secondaryContainer = Color(0xFF434659),
-            onSecondaryContainer = Color(0xFFE0E1F9),
-            tertiary = Color(0xFFE2BAD3),
-            onTertiary = Color(0xFF46273D),
-            tertiaryContainer = Color(0xFF5F3D55),
-            onTertiaryContainer = Color(0xFFFFD7F2),
-            background = Neutrals.backgroundDark,
-            onBackground = Neutrals.onBackgroundDark,
-            surface = Neutrals.surfaceDark,
-            onSurface = Neutrals.onSurfaceDark,
-            surfaceVariant = Neutrals.surfaceVariantDark,
-            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
-            outline = Neutrals.outlineDark,
-            error = ThemeColorSchemes.ERROR_DARK,
-            onError = ThemeColorSchemes.ON_ERROR_DARK,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_DARK,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_DARK,
-        ),
+    val INDIGO = blueVioletPreset(
+        lightPrimary = Color(0xFF455CA9),
+        lightPrimaryContainer = Color(0xFFDCE1FF),
+        lightOnPrimaryContainer = Color(0xFF00174A),
+        darkPrimary = Color(0xFFB7C4FF),
+        darkPrimaryContainer = Color(0xFF2C4390),
+        darkOnPrimaryContainer = Color(0xFFDCE1FF),
+        lightSecondary = Color(0xFF5B5D72),
+        lightSecondaryContainer = Color(0xFFE0E1F9),
+        lightOnSecondaryContainer = Color(0xFF171B2C),
+        darkSecondary = Color(0xFFC4C5DD),
+        darkSecondaryContainer = Color(0xFF434659),
+        darkOnSecondaryContainer = Color(0xFFE0E1F9),
     )
 
-    /** 紫罗兰 / Violet — elegant Material 3 canonical seed. */
-    val VIOLET = ThemeColorPreset(
-        light = lightColorScheme(
-            primary = Color(0xFF6750A4),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFEADDFF),
-            onPrimaryContainer = Color(0xFF21005D),
-            secondary = Color(0xFF625B71),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFE8DEF8),
-            onSecondaryContainer = Color(0xFF1E192B),
-            tertiary = Color(0xFF7D5260),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFFFD8E4),
-            onTertiaryContainer = Color(0xFF31111D),
-            background = Neutrals.backgroundLight,
-            onBackground = Neutrals.onBackgroundLight,
-            surface = Neutrals.surfaceLight,
-            onSurface = Neutrals.onSurfaceLight,
-            surfaceVariant = Neutrals.surfaceVariantLight,
-            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
-            outline = Neutrals.outlineLight,
-            error = ThemeColorSchemes.ERROR_LIGHT,
-            onError = ThemeColorSchemes.ON_ERROR_LIGHT,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_LIGHT,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_LIGHT,
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFFCFBCFF),
-            onPrimary = Color(0xFF381E72),
-            primaryContainer = Color(0xFF4F378B),
-            onPrimaryContainer = Color(0xFFEADDFF),
-            secondary = Color(0xFFCCC2DC),
-            onSecondary = Color(0xFF332D41),
-            secondaryContainer = Color(0xFF4A4458),
-            onSecondaryContainer = Color(0xFFE8DEF8),
-            tertiary = Color(0xFFEFB8C8),
-            onTertiary = Color(0xFF492532),
-            tertiaryContainer = Color(0xFF633B48),
-            onTertiaryContainer = Color(0xFFFFD8E4),
-            background = Neutrals.backgroundDark,
-            onBackground = Neutrals.onBackgroundDark,
-            surface = Neutrals.surfaceDark,
-            onSurface = Neutrals.onSurfaceDark,
-            surfaceVariant = Neutrals.surfaceVariantDark,
-            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
-            outline = Neutrals.outlineDark,
-            error = ThemeColorSchemes.ERROR_DARK,
-            onError = ThemeColorSchemes.ON_ERROR_DARK,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_DARK,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_DARK,
-        ),
+    val VIOLET = blueVioletPreset(
+        lightPrimary = Color(0xFF6750A4),
+        lightPrimaryContainer = Color(0xFFEADDFF),
+        lightOnPrimaryContainer = Color(0xFF21005D),
+        darkPrimary = Color(0xFFCFBCFF),
+        darkPrimaryContainer = Color(0xFF4F378B),
+        darkOnPrimaryContainer = Color(0xFFEADDFF),
+        lightSecondary = Color(0xFF625B71),
+        lightSecondaryContainer = Color(0xFFE8DEF8),
+        lightOnSecondaryContainer = Color(0xFF1E192B),
+        darkSecondary = Color(0xFFCCC2DC),
+        darkSecondaryContainer = Color(0xFF4A4458),
+        darkOnSecondaryContainer = Color(0xFFE8DEF8),
     )
 
-    /** 玫红 / Rose — warm, distinct, not pure red (kept distinct from error). */
-    val ROSE = ThemeColorPreset(
-        light = lightColorScheme(
-            primary = Color(0xFFB0265A),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFFFD9E1),
-            onPrimaryContainer = Color(0xFF3F001B),
-            secondary = Color(0xFF74565F),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFFFD9E1),
-            onSecondaryContainer = Color(0xFF2B141C),
-            tertiary = Color(0xFF7C5635),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFFFDCC2),
-            onTertiaryContainer = Color(0xFF2A1600),
-            background = Neutrals.backgroundLight,
-            onBackground = Neutrals.onBackgroundLight,
-            surface = Neutrals.surfaceLight,
-            onSurface = Neutrals.onSurfaceLight,
-            surfaceVariant = Neutrals.surfaceVariantLight,
-            onSurfaceVariant = Neutrals.onSurfaceVariantLight,
-            outline = Neutrals.outlineLight,
-            error = ThemeColorSchemes.ERROR_LIGHT,
-            onError = ThemeColorSchemes.ON_ERROR_LIGHT,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_LIGHT,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_LIGHT,
-        ),
-        dark = darkColorScheme(
-            primary = Color(0xFFFFB1C8),
-            onPrimary = Color(0xFF5D1132),
-            primaryContainer = Color(0xFF8C1D4B),
-            onPrimaryContainer = Color(0xFFFFD9E1),
-            secondary = Color(0xFFE4BDC6),
-            onSecondary = Color(0xFF432931),
-            secondaryContainer = Color(0xFF5C3F47),
-            onSecondaryContainer = Color(0xFFFFD9E1),
-            tertiary = Color(0xFFE5BF9A),
-            onTertiary = Color(0xFF422D12),
-            tertiaryContainer = Color(0xFF5B4326),
-            onTertiaryContainer = Color(0xFFFFDCC2),
-            background = Neutrals.backgroundDark,
-            onBackground = Neutrals.onBackgroundDark,
-            surface = Neutrals.surfaceDark,
-            onSurface = Neutrals.onSurfaceDark,
-            surfaceVariant = Neutrals.surfaceVariantDark,
-            onSurfaceVariant = Neutrals.onSurfaceVariantDark,
-            outline = Neutrals.outlineDark,
-            error = ThemeColorSchemes.ERROR_DARK,
-            onError = ThemeColorSchemes.ON_ERROR_DARK,
-            errorContainer = ThemeColorSchemes.ERROR_CONTAINER_DARK,
-            onErrorContainer = ThemeColorSchemes.ON_ERROR_CONTAINER_DARK,
-        ),
+    val ROSE = blueVioletPreset(
+        lightPrimary = Color(0xFF6550A8),
+        lightPrimaryContainer = Color(0xFFE8E2FF),
+        lightOnPrimaryContainer = Color(0xFF20144C),
+        darkPrimary = Color(0xFFC9BEFF),
+        darkPrimaryContainer = Color(0xFF49368E),
+        darkOnPrimaryContainer = Color(0xFFE8E2FF),
+        lightSecondary = Color(0xFF625A7C),
+        lightSecondaryContainer = Color(0xFFE9E3F7),
+        lightOnSecondaryContainer = Color(0xFF201A31),
+        darkSecondary = Color(0xFFCEC4E7),
+        darkSecondaryContainer = Color(0xFF4B4160),
+        darkOnSecondaryContainer = Color(0xFFE9E3F7),
     )
 
-    /** Returns the light/dark schemes for a [ThemeColor]. */
     fun schemesFor(color: ThemeColor): ThemeColorPreset = when (color) {
         ThemeColor.SHIYI_ORANGE -> SHIYI_ORANGE
         ThemeColor.CYAN_BLUE -> CYAN_BLUE

@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
  *
  * The preference is collected as Compose state as early as possible in the
  * composition, so the correct [ThemeColor] is applied on the very first frame —
- * avoiding a "flash" of the default orange before switching to a saved color.
+ * avoiding a flash of the default blue-violet before switching to a saved color.
  * It is read via DataStore (async, off the main thread) and does not depend on
  * the Vault being unlocked, so the locked screen and unlock UI always render
  * with the correct theme.

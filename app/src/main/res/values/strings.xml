@@ -22,6 +22,7 @@
     <string name="startup_key_invalidated_body">Your vault key was invalidated by a biometric change. Re-enroll your biometrics, then restart RescueAuth.</string>
     <string name="startup_error_title">Unable to open the vault</string>
     <string name="startup_error_body">RescueAuth could not open your vault. Please try again, or restart the app.</string>
+    <string name="startup_opening">Opening your vault…</string>
 
     <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
     <string name="reauth_title">Authenticate to continue</string>
@@ -34,6 +35,21 @@
 
     <!-- Authenticator -->
     <string name="authenticator_title">Authenticator</string>
+    <string name="authenticator_home_subtitle">Your secure one-time password vault</string>
+    <string name="authenticator_provider_subtitle">Accounts and codes</string>
+    <string name="authenticator_overview_title">Vault overview</string>
+    <string name="authenticator_overview_body">Everything you need for a secure sign-in, in one place.</string>
+    <string name="authenticator_overview_counts">%1$d providers · %2$d accounts · %3$d codes</string>
+    <string name="authenticator_providers_heading">Providers</string>
+    <string name="authenticator_providers_subtitle">Choose a service to view its accounts</string>
+    <string name="authenticator_accounts_heading">Accounts</string>
+    <string name="authenticator_accounts_subtitle">Tap a code to copy it securely</string>
+    <string name="authenticator_metric_providers">Providers</string>
+    <string name="authenticator_metric_accounts">Accounts</string>
+    <string name="authenticator_metric_codes">Codes</string>
+    <string name="authenticator_code_metadata">%1$s · %2$d digits</string>
+    <string name="authenticator_loading">Opening your vault…</string>
+    <string name="authenticator_add_first">Add your first account</string>
     <string name="authenticator_empty_title">No accounts yet</string>
     <string name="authenticator_empty_body">Add a service and account to start generating one-time passwords.</string>
     <string name="authenticator_section_totp">TOTP</string>
@@ -53,10 +69,13 @@
 
     <!-- Phase 4 P7 — Global Search -->
     <string name="search_title">Search vault</string>
+    <string name="search_subtitle">Find a provider, account or safe metadata</string>
     <string name="search_hint">Search vault</string>
     <string name="search_clear">Clear search</string>
     <string name="search_empty_query">Type to search your vault</string>
     <string name="search_no_results">No results</string>
+    <string name="search_safe_hint">Only non-sensitive labels are searched.</string>
+    <string name="search_no_results_hint">Try a different provider or account name.</string>
     <string name="search_type_provider">Providers</string>
     <string name="search_type_account">Accounts</string>
     <string name="search_type_totp">Authenticator</string>
@@ -88,6 +107,10 @@
     <string name="account_merge">Merge</string>
     <string name="account_merge_title">Merge Accounts</string>
     <string name="account_merge_confirm">Merge</string>
+    <string name="account_merge_source_summary">Source: %1$s / %2$s</string>
+    <string name="account_merge_source_counts">%1$d TOTP · %2$d recovery set(s)</string>
+    <string name="account_merge_destination_summary">Destination: %1$s / %2$s</string>
+    <string name="account_merge_explanation">The source account will be deleted. Non-duplicate credentials and recovery sets move to the destination; duplicate TOTP credentials keep the destination copy.</string>
     <string name="account_delete">Delete Account</string>
     <string name="account_delete_title">Delete Account %1$s?</string>
     <string name="account_delete_message">This will permanently delete %1$d TOTP credential(s) and %2$d recovery set(s). This cannot be undone.</string>
@@ -104,10 +127,14 @@
 
     <!-- Add TOTP sheet -->
     <string name="add_totp_title">Add TOTP</string>
+    <string name="add_totp_sheet_subtitle">Choose how to add a one-time password</string>
+    <string name="add_totp_manual_subtitle">Enter the account details and secret</string>
+    <string name="add_totp_paste_subtitle">Paste an otpauth URI from your provider</string>
     <string name="add_totp_mode_scan">Scan QR</string>
     <string name="add_totp_mode_paste">Paste URI</string>
     <string name="add_totp_mode_manual">Manual</string>
     <string name="add_totp_uri_label">otpauth:// URI</string>
+    <string name="add_totp_uri_hint">otpauth://totp/…</string>
     <string name="add_totp_provider_label">Provider / issuer</string>
     <string name="add_totp_account_label">Account name</string>
     <string name="add_totp_secret_label">Secret (Base32)</string>
@@ -146,6 +173,7 @@
 
     <!-- Recovery codes -->
     <string name="recovery_codes_title">Recovery codes</string>
+    <string name="recovery_codes_detail_subtitle">%1$d remaining out of %2$d codes</string>
     <string name="recovery_codes_unused_count">%1$d unused</string>
     <string name="recovery_codes_used">Used</string>
     <string name="recovery_codes_unused">Unused</string>
@@ -165,9 +193,12 @@
     <string name="recovery_codes_marked_unused">Marked as unused</string>
     <string name="recovery_codes_add_title">Add Recovery Codes</string>
     <string name="recovery_codes_edit_title">Edit Recovery Codes</string>
+    <string name="recovery_codes_editor_subtitle">Keep backup codes organized and easy to audit</string>
     <string name="recovery_codes_set_title_label">Title</string>
     <string name="recovery_codes_values_label">Recovery codes</string>
     <string name="recovery_codes_values_hint">One code per line. You can paste multiple codes at once.</string>
+    <string name="recovery_codes_title_hint">Backup codes</string>
+    <string name="recovery_codes_values_placeholder">ABCD-EFGH-1234\nIJKL-MNOP-5678</string>
     <string name="recovery_codes_preview">%1$d code(s) parsed</string>
     <string name="recovery_codes_duplicate_error">Duplicate code: %1$s</string>
     <string name="recovery_codes_empty_error">Enter at least one recovery code.</string>
@@ -179,6 +210,7 @@
     <string name="recovery_codes_restored_message">Recovery codes restored</string>
     <string name="recovery_codes_empty_state">No recovery codes yet. Add a set to store your backup codes here.</string>
     <string name="recovery_codes_account_summary">Recovery codes · %1$d remaining</string>
+    <string name="authenticator_open_account_hint">Open account to manage recovery codes</string>
     <string name="recovery_codes_delete">Delete</string>
 
     <!-- Phase 4 P8 — Recovery Code Set Move -->
@@ -211,6 +243,15 @@
     <!-- Developer Vault -->
     <string name="developer_title">Developer</string>
     <string name="developer_subtitle">Developer Vault</string>
+    <string name="developer_loading">Opening your developer vault…</string>
+    <string name="developer_overview_title">Private workspace</string>
+    <string name="developer_overview_count">%1$d secure entries</string>
+    <string name="developer_group_count">%1$d saved</string>
+    <string name="developer_add_first">Add your first entry</string>
+    <string name="developer_metadata_section">Details</string>
+    <string name="developer_fields_section">Entry fields</string>
+    <string name="developer_sensitive_section">Protected fields</string>
+    <string name="developer_sensitive_hint">Authenticate each time you reveal or copy a value.</string>
     <string name="developer_empty_title">No developer entries</string>
     <string name="developer_empty_body">Store signing keys, API credentials, SSH keys, environment variables and other secrets securely on this device.</string>
     <string name="developer_type_signing_key">Android Signing Key</string>
@@ -224,6 +265,7 @@
     <string name="developer_reveal_hint">Show or hide the sensitive value</string>
     <string name="developer_add">Add</string>
     <string name="developer_add_title">Add entry</string>
+    <string name="developer_add_sheet_subtitle">Choose a secure entry type</string>
     <string name="developer_edit">Edit</string>
     <string name="developer_edit_title">Edit entry</string>
     <string name="developer_delete">Delete</string>
@@ -297,15 +339,18 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Preferences, transfer and app information</string>
+    <string name="settings_security_title">Protected on this device</string>
+    <string name="settings_security_body">Your vault stays encrypted and local. Sensitive actions require fresh authentication.</string>
     <string name="settings_appearance_section">Appearance</string>
     <string name="settings_theme_color">Theme color</string>
     <string name="settings_theme_color_selected">Selected</string>
-    <string name="theme_color_shiyi_orange">Shiyi Orange</string>
-    <string name="theme_color_cyan_blue">Cyan Blue</string>
-    <string name="theme_color_jade_green">Jade Green</string>
+    <string name="theme_color_shiyi_orange">Blue Violet</string>
+    <string name="theme_color_cyan_blue">Cobalt Blue</string>
+    <string name="theme_color_jade_green">Periwinkle</string>
     <string name="theme_color_indigo">Indigo</string>
     <string name="theme_color_violet">Violet</string>
-    <string name="theme_color_rose">Rose</string>
+    <string name="theme_color_rose">Plum Violet</string>
     <string name="settings_security_section">Security</string>
     <string name="settings_about_section">About</string>
     <string name="settings_backup_transfer_section">Backup / Transfer</string>
@@ -322,6 +367,8 @@
 
     <!-- Phase 6 L2: About / Update Check -->
     <string name="about_title">About</string>
+    <string name="about_subtitle">RescueAuth for Android</string>
+    <string name="about_updates_section">Updates</string>
     <string name="about_product_description">A local-first, encrypted personal security vault for TOTP, recovery codes, developer credentials and portable encrypted backups.</string>
     <string name="settings_version_label">Version</string>
     <string name="about_version_format">%1$s (build %2$d)</string>
@@ -479,8 +526,4 @@
     <string name="a11y_back">Back</string>
     <string name="a11y_sensitive_value">Sensitive value</string>
 
-    <!-- Breadcrumb navigation (Issue #62) -->
-    <string name="breadcrumb_ellipsis">Show more ancestors</string>
-    <string name="breadcrumb_more_ancestors">More ancestors</string>
-    <string name="breadcrumb_current_page">%1$s, current page</string>
 </resources>

@@ -60,12 +60,12 @@ class ThemeColorPreferenceTest {
         composeRule.onNodeWithTag(ThemeColorPreferenceTestTags.DIALOG).assertIsDisplayed()
         ThemeColor.entries.forEach { color ->
             val name = when (color) {
-                ThemeColor.SHIYI_ORANGE -> "Shiyi Orange"
-                ThemeColor.CYAN_BLUE -> "Cyan Blue"
-                ThemeColor.JADE_GREEN -> "Jade Green"
+                ThemeColor.SHIYI_ORANGE -> "Blue Violet"
+                ThemeColor.CYAN_BLUE -> "Cobalt Blue"
+                ThemeColor.JADE_GREEN -> "Periwinkle"
                 ThemeColor.INDIGO -> "Indigo"
                 ThemeColor.VIOLET -> "Violet"
-                ThemeColor.ROSE -> "Rose"
+                ThemeColor.ROSE -> "Plum Violet"
             }
             val inDialog = hasAnyAncestor(hasTestTag(ThemeColorPreferenceTestTags.DIALOG))
             composeRule.onNode(hasText(name) and inDialog)
@@ -88,6 +88,6 @@ class ThemeColorPreferenceTest {
         setContent()
         // The row shows the current (default) preset name.
         composeRule.onNodeWithTag(ThemeColorPreferenceTestTags.ROW).performScrollTo()
-        composeRule.onNodeWithText("Shiyi Orange").assertIsDisplayed()
+        composeRule.onNodeWithText("Blue Violet").assertIsDisplayed()
     }
 }

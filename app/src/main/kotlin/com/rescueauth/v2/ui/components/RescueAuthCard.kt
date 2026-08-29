@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.ui.theme.CardTokens
 
 /**
@@ -42,6 +44,8 @@ fun RescueAuthCard(
             modifier = modifier.fillMaxWidth(),
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp),
+            border = BorderStroke(1.dp, CardTokens.outlineColor()),
         ) {
             Column(modifier = Modifier.padding(contentPadding)) {
                 content()
@@ -52,6 +56,8 @@ fun RescueAuthCard(
             modifier = modifier.fillMaxWidth(),
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            border = BorderStroke(1.dp, CardTokens.outlineColor()),
         ) {
             Column(modifier = Modifier.padding(contentPadding)) {
                 content()
@@ -84,6 +90,8 @@ fun RescueAuthRowCard(
             modifier = cardModifier,
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp),
+            border = BorderStroke(1.dp, CardTokens.outlineColor()),
         ) {
             Row(
                 modifier = Modifier.padding(
@@ -100,6 +108,8 @@ fun RescueAuthRowCard(
             modifier = cardModifier,
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            border = BorderStroke(1.dp, CardTokens.outlineColor()),
         ) {
             Row(
                 modifier = Modifier.padding(

@@ -44,8 +44,12 @@ fun CountdownIndicator(
     val ringDp = ringSize.dp
     val isPreview = LocalInspectionMode.current
     val clamped = progressFraction.coerceIn(0f, 1f)
-    val ringColor = MaterialTheme.colorScheme.primary
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val ringColor = when {
+        clamped <= 0.18f -> MaterialTheme.colorScheme.error
+        clamped <= 0.4f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val trackColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurface
     val labelStyle = MaterialTheme.typography.labelMedium
 
@@ -83,7 +87,7 @@ fun CountdownIndicator(
         }
         Text(
             text = remainingSeconds.toString(),
-            style = labelStyle,
+            style = labelStyle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
             color = labelColor,
         )
     }

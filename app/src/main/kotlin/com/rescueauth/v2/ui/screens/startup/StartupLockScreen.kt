@@ -5,6 +5,7 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,6 +25,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.theme.Spacing
 
 object StartupLockTestTags {
     const val SCREEN = "startup_lock_screen"
@@ -33,101 +38,107 @@ object StartupLockTestTags {
     const val SETTINGS_BUTTON = "startup_settings_button"
 }
 
-/**
- * One-time notice shown only on the very first install, explaining that the
- * user is enabling "unlock with phone" (Issue #50 UX rework).
- *
- * This is deliberately **not** a security onboarding page — it is a trivial
- * first-time "enable use your phone to unlock" screen. It does not explain
- * implementation details (vault, Keystore, master password, encryption, auth
- * token). Tapping **Enable** launches the existing system authentication
- * prompt (fingerprint / lock screen); on success the Vault is created and the
- * app opens. It is never shown again once acknowledged. Existing-vault
- * launches skip it entirely.
- */
 @Composable
 fun StartupIntroScreen(
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Surface(
         modifier = modifier
             .fillMaxSize()
             .testTag(StartupLockTestTags.INTRO_SCREEN),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        color = MaterialTheme.colorScheme.background,
     ) {
-        // Brand visual (Issue #64): logo + localized brand name at the top, so
-        // the first-run page keeps the launch brand recognisable and visually
-        // continuous with the splash / auth host that precedes/follows it.
-        StartupBranding(logoSize = 72.dp)
-        Text(
-            text = stringResource(R.string.startup_intro_title),
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 24.dp),
-        )
-        Text(
-            text = stringResource(R.string.startup_intro_body),
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
-        )
-        Button(
-            onClick = onContinue,
+        Column(
             modifier = Modifier
-                .padding(top = 24.dp)
-                .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
+                .fillMaxSize()
+                .padding(Spacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Text(text = stringResource(R.string.startup_intro_continue))
+            StartupBranding(logoSize = 72.dp)
+            RescueAuthCard(
+                modifier = Modifier.padding(top = Spacing.xl),
+                containerColor = MaterialTheme.colorScheme.surface,
+            ) {
+                Text(
+                    text = stringResource(R.string.startup_intro_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.startup_intro_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.xs),
+                )
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.lg)
+                        .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
+                ) {
+                    Text(text = stringResource(R.string.startup_intro_continue))
+                }
+            }
         }
     }
 }
 
-/**
- * Minimal neutral host shown while the system authentication prompt is being
- * requested / showing (Issue #50 §6).
- *
- * It is NOT interactive and never exposes sensitive content (TOTP, recovery
- * codes, secrets, developer data, main app content). It simply shows a neutral
- * loading / splash that acts as the backdrop for the system BiometricPrompt.
- * The user is not required to perform any additional action here.
- */
 @Composable
 fun StartupAuthHost(modifier: Modifier = Modifier) {
-    Column(
+    Surface(
         modifier = modifier
             .fillMaxSize()
             .testTag(StartupLockTestTags.AUTH_HOST),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        color = MaterialTheme.colorScheme.background,
     ) {
-        // Brand visual (Issue #64): the auth host is the layer most visible
-        // while the system prompt is showing, so it must carry the brand name
-        // too — this is what the user actually sees between the system splash
-        // and the vault opening. Pure visual; authentication flow unchanged.
-        StartupBranding(logoSize = 72.dp)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            StartupBranding(logoSize = 72.dp)
+        }
     }
 }
 
-/**
- * Blocking state shown when the device has **no** usable secure lock
- * (no PIN / pattern / password and no strong biometric enrolled).
- *
- * The Vault cannot be protected by Android Keystore user authentication, so
- * the app refuses to open it rather than silently lowering security. The user
- * can only go configure a secure device lock (via system settings), or exit.
- * After configuring a lock and returning, the app re-detects and can continue.
- */
+/** Neutral host shown while the authenticated Vault is opened in the background. */
 @Composable
-fun NoSecureDeviceScreen(
-    onExit: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun StartupOpeningHost(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            StartupBranding(logoSize = 72.dp)
+            Text(
+                text = stringResource(R.string.startup_opening),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Spacing.lg),
+            )
+        }
+    }
+}
+
+@Composable
+fun NoSecureDeviceScreen(onExit: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     StartupBlockedScreen(
         title = stringResource(R.string.startup_no_secure_title),
         body = stringResource(R.string.startup_no_secure_body),
+        onExit = onExit,
+        modifier = modifier,
         actions = {
             Button(
                 onClick = {
@@ -137,28 +148,24 @@ fun NoSecureDeviceScreen(
                     )
                 },
                 modifier = Modifier
-                    .padding(top = 24.dp)
+                    .fillMaxWidth()
                     .testTag(StartupLockTestTags.SETTINGS_BUTTON),
             ) {
-                Text(text = stringResource(R.string.startup_no_secure_action))
+                Text(stringResource(R.string.startup_no_secure_action))
             }
             OutlinedButton(
                 onClick = onExit,
                 modifier = Modifier
-                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .padding(top = Spacing.xs)
                     .testTag(StartupLockTestTags.EXIT_BUTTON),
             ) {
-                Text(text = stringResource(R.string.startup_exit))
+                Text(stringResource(R.string.startup_exit))
             }
         },
-        modifier = modifier,
     )
 }
 
-/**
- * Generic unrecoverable-startup blocking screen (e.g. Keystore key
- * invalidated, DB corrupt). Shows a distinct error with only an Exit action.
- */
 @Composable
 fun StartupBlockedScreen(
     title: String,
@@ -167,41 +174,56 @@ fun StartupBlockedScreen(
     modifier: Modifier = Modifier,
     actions: (@Composable () -> Unit)? = null,
 ) {
-    Column(
+    Surface(
         modifier = modifier
             .fillMaxSize()
             .testTag(StartupLockTestTags.SCREEN),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        color = MaterialTheme.colorScheme.background,
     ) {
-        Icon(
-            imageVector = Icons.Filled.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.error,
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 16.dp),
-        )
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
-        )
-        if (actions != null) {
-            actions()
-        } else {
-            OutlinedButton(
-                onClick = onExit,
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(Spacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            RescueAuthIconBadge(
+                icon = Icons.Filled.Lock,
+                size = 64.dp,
+                iconSize = 30.dp,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = Spacing.md),
+            )
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            Column(
                 modifier = Modifier
-                    .padding(top = 24.dp)
-                    .testTag(StartupLockTestTags.EXIT_BUTTON),
+                    .fillMaxWidth()
+                    .padding(top = Spacing.lg),
             ) {
-                Text(text = stringResource(R.string.startup_exit))
+                if (actions != null) {
+                    actions()
+                } else {
+                    OutlinedButton(
+                        onClick = onExit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(StartupLockTestTags.EXIT_BUTTON),
+                    ) {
+                        Text(stringResource(R.string.startup_exit))
+                    }
+                }
             }
         }
     }

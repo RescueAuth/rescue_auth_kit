@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
  */
 @Immutable
 enum class ThemeColor(val storageId: String) {
-    /** 拾遗橙 / Shiyi Orange — the default brand accent. */
+    /** Blue-violet default brand accent; the historical ID remains stable. */
     SHIYI_ORANGE("shiyi_orange"),
     CYAN_BLUE("cyan_blue"),
     JADE_GREEN("jade_green"),

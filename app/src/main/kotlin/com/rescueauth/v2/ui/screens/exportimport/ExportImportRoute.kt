@@ -110,6 +110,7 @@ fun ExportImportRoute(
                 },
                 modifier = modifier,
                 onNavigate = onNavigate,
+                onBack = onBack,
             )
         }
         ExportImportMode.IMPORT -> {
@@ -128,6 +129,7 @@ fun ExportImportRoute(
                 },
                 modifier = modifier,
                 onNavigate = onNavigate,
+                onBack = onBack,
             )
         }
     }

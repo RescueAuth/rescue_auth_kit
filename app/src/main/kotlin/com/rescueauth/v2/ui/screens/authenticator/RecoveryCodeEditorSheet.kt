@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -19,9 +21,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryFormState
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -52,13 +57,21 @@ fun RecoveryCodeEditorSheet(
                 .padding(bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Text(
-                text = stringResource(
-                    if (form.isEditing) R.string.recovery_codes_edit_title
-                    else R.string.recovery_codes_add_title,
-                ),
-                style = MaterialTheme.typography.titleLarge,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                RescueAuthIconBadge(icon = Icons.Filled.Key, size = 40.dp, iconSize = 20.dp)
+                RescueAuthSectionHeader(
+                    title = stringResource(
+                        if (form.isEditing) R.string.recovery_codes_edit_title
+                        else R.string.recovery_codes_add_title,
+                    ),
+                    subtitle = stringResource(R.string.recovery_codes_editor_subtitle),
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
             // Title + codes fields are grouped inside one card (project-wide
             // card UI constraint).
@@ -71,7 +84,7 @@ fun RecoveryCodeEditorSheet(
                         value = form.title,
                         onValueChange = onTitleChange,
                         label = { Text(stringResource(R.string.recovery_codes_set_title_label)) },
-                        placeholder = { Text("Backup codes") },
+                        placeholder = { Text(stringResource(R.string.recovery_codes_title_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
@@ -80,7 +93,7 @@ fun RecoveryCodeEditorSheet(
                         value = form.valuesText,
                         onValueChange = onValuesChange,
                         label = { Text(stringResource(R.string.recovery_codes_values_label)) },
-                        placeholder = { Text("ABCD-EFGH-1234\nIJKL-MNOP-5678") },
+                        placeholder = { Text(stringResource(R.string.recovery_codes_values_placeholder)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = false,
                         minLines = 6,

@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -22,27 +26,21 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.ui.authenticator.AddMode
 import com.rescueauth.v2.ui.authenticator.AddTotpFormState
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
-/**
- * "Add TOTP" bottom sheet (Phase 4 P1, extended in P2).
- *
- * Three entry modes: Scan QR, Paste `otpauth://` URI and Manual TOTP Entry.
- * [AddMode.SCAN] surfaces a "Scan QR" affordance; the actual camera screen is
- * hosted by the caller (the Route) so the sheet stays presentation-only and
- * unit-testable. Validation errors are surfaced through [formState.error];
- * submitting disables the confirm button.
- */
+/** Modern, compact Add TOTP flow. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddTotpSheet(
@@ -69,77 +67,99 @@ fun AddTotpSheet(
                 .padding(bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Text(
-                text = stringResource(R.string.add_totp_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                RescueAuthIconBadge(icon = Icons.Filled.Add, size = 40.dp, iconSize = 20.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.add_totp_title),
+                        style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = stringResource(R.string.add_totp_sheet_subtitle),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = form.mode == AddMode.SCAN,
-                    onClick = { onModeChange(AddMode.SCAN) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                ) {
-                    Text(stringResource(R.string.add_totp_mode_scan))
-                }
-                SegmentedButton(
-                    selected = form.mode == AddMode.PASTE,
-                    onClick = { onModeChange(AddMode.PASTE) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                ) {
-                    Text(stringResource(R.string.add_totp_mode_paste))
-                }
-                SegmentedButton(
-                    selected = form.mode == AddMode.MANUAL,
-                    onClick = { onModeChange(AddMode.MANUAL) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                ) {
-                    Text(stringResource(R.string.add_totp_mode_manual))
+                listOf(
+                    AddMode.SCAN to R.string.add_totp_mode_scan,
+                    AddMode.PASTE to R.string.add_totp_mode_paste,
+                    AddMode.MANUAL to R.string.add_totp_mode_manual,
+                ).forEachIndexed { index, (mode, labelRes) ->
+                    SegmentedButton(
+                        selected = form.mode == mode,
+                        onClick = { onModeChange(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                    ) {
+                        Text(stringResource(labelRes))
+                    }
                 }
             }
 
-            // The mode-specific form fields are grouped inside a single card so
-            // the Add flow follows the project-wide card UI constraint.
+            // Keep the primary scan action in the first visible portion of the
+            // sheet; the explanatory copy can scroll below it on small phones.
+            if (form.mode == AddMode.SCAN) {
+                Button(
+                    onClick = onStartScan,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                    Spacer(modifier = Modifier.width(Spacing.xxs))
+                    Text(stringResource(R.string.add_totp_scan_action))
+                }
+            }
+
             RescueAuthCard(
-                containerColor = CardTokens.containerColor(),
+                containerColor = CardTokens.elevatedContainerColor(),
                 contentPadding = Spacing.md,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    if (form.mode == AddMode.SCAN) {
+                when (form.mode) {
+                    AddMode.SCAN -> {
                         Text(
                             text = stringResource(R.string.add_totp_scan_hint),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         )
-                        Button(
-                            onClick = onStartScan,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.add_totp_scan_action))
-                        }
-                    } else if (form.mode == AddMode.PASTE) {
+                    }
+                    AddMode.PASTE -> {
+                        RescueAuthSectionHeader(
+                            title = stringResource(R.string.add_totp_uri_label),
+                            subtitle = stringResource(R.string.add_totp_paste_subtitle),
+                        )
                         OutlinedTextField(
                             value = form.uri,
                             onValueChange = onUriChange,
                             label = { Text(stringResource(R.string.add_totp_uri_label)) },
-                            placeholder = { Text("otpauth://totp/…") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = false,
+                            placeholder = { Text(stringResource(R.string.add_totp_uri_hint)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = Spacing.sm),
                             minLines = 2,
                         )
-                    } else {
+                    }
+                    AddMode.MANUAL -> {
+                        RescueAuthSectionHeader(
+                            title = stringResource(R.string.add_totp_mode_manual),
+                            subtitle = stringResource(R.string.add_totp_manual_subtitle),
+                        )
                         OutlinedTextField(
                             value = form.provider,
                             onValueChange = onProviderChange,
                             label = { Text(stringResource(R.string.add_totp_provider_label)) },
-                            placeholder = { Text("GitHub") },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = Spacing.sm),
                             singleLine = true,
                         )
                         OutlinedTextField(
                             value = form.accountName,
                             onValueChange = onAccountNameChange,
                             label = { Text(stringResource(R.string.add_totp_account_label)) },
-                            placeholder = { Text("alice@example.com") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
@@ -147,49 +167,39 @@ fun AddTotpSheet(
                             value = form.secret,
                             onValueChange = onSecretChange,
                             label = { Text(stringResource(R.string.add_totp_secret_label)) },
-                            placeholder = { Text("JBSWY3DPEHPK3PXP") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                         )
+                        AlgorithmSelector(form.algorithm, onAlgorithmChange)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         ) {
-                            AlgorithmSelector(
-                                selected = form.algorithm,
-                                onSelect = onAlgorithmChange,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-                            ) {
-                                DigitSelector(selected = form.digits, onSelect = onDigitsChange)
-                                PeriodSelector(selected = form.periodSeconds, onSelect = onPeriodChange)
-                            }
+                            DigitSelector(form.digits, onDigitsChange, Modifier.weight(1f))
+                            PeriodSelector(form.periodSeconds, onPeriodChange, Modifier.weight(1f))
                         }
                     }
                 }
             }
-
-            if (form.error != null) {
+            form.error?.let { error ->
                 Text(
-                    text = form.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    text = error,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.error,
                 )
             }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = onDismiss) {
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.common_cancel))
                 }
-                Button(onClick = onSubmit, enabled = !form.submitting) {
+                Button(
+                    onClick = onSubmit,
+                    enabled = !form.submitting,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Text(stringResource(R.string.add_totp_confirm))
                 }
             }
@@ -197,24 +207,14 @@ fun AddTotpSheet(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AlgorithmSelector(
-    selected: String,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun AlgorithmSelector(selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        Text(
-            text = stringResource(R.string.add_totp_algorithm_label),
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        Text(stringResource(R.string.add_totp_algorithm_label), style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
             listOf("SHA1", "SHA256", "SHA512").forEach { algo ->
-                FilterChip(
-                    selected = selected == algo,
-                    onClick = { onSelect(algo) },
-                    label = { Text(algo) },
-                )
+                FilterChip(selected = selected == algo, onClick = { onSelect(algo) }, label = { Text(algo) })
             }
         }
     }
@@ -222,23 +222,12 @@ private fun AlgorithmSelector(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DigitSelector(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun DigitSelector(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        Text(
-            text = stringResource(R.string.add_totp_digits_label),
-            style = MaterialTheme.typography.labelMedium,
-        )
+        Text(stringResource(R.string.add_totp_digits_label), style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-            (TotpParameters.MIN_DIGITS..TotpParameters.MAX_DIGITS).forEach { d ->
-                FilterChip(
-                    selected = selected == d,
-                    onClick = { onSelect(d) },
-                    label = { Text("$d") },
-                )
+            (TotpParameters.MIN_DIGITS..TotpParameters.MAX_DIGITS).forEach { digit ->
+                FilterChip(selected = selected == digit, onClick = { onSelect(digit) }, label = { Text(digit.toString()) })
             }
         }
     }
@@ -246,24 +235,12 @@ private fun DigitSelector(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PeriodSelector(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun PeriodSelector(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        Text(
-            text = stringResource(R.string.add_totp_period_label),
-            style = MaterialTheme.typography.labelMedium,
-        )
+        Text(stringResource(R.string.add_totp_period_label), style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-            // Preset steps covering the full frozen contract range (1..120).
-            listOf(1, 30, 60, 120).forEach { p ->
-                FilterChip(
-                    selected = selected == p,
-                    onClick = { onSelect(p) },
-                    label = { Text("${p}s") },
-                )
+            listOf(1, 30, 60, 120).forEach { period ->
+                FilterChip(selected = selected == period, onClick = { onSelect(period) }, label = { Text("${period}s") })
             }
         }
     }

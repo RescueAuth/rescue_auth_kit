@@ -40,7 +40,11 @@ class SessionManager(
         { VaultKeyManager.production(it) },
 ) {
     private val vaultKeyManager: VaultKeyManager by lazy { vaultKeyManagerFactory(context) }
+    /** Serializes open/close transitions when startup opening runs off-main. */
+    private val lifecycleLock = Any()
+    @Volatile
     private var database: RescueAuthDatabase? = null
+    @Volatile
     private var vaultKey: ByteArray? = null
     private var lockTimerJob: Job? = null
     private var inBackground = false
@@ -67,7 +71,7 @@ class SessionManager(
      * caller must zero) inside [VaultUnlockOutcome.Success]; on any Keystore /
      * crypto failure returns a typed [VaultUnlockOutcome] instead of crashing.
      */
-    fun createVaultAndOpen(): VaultUnlockOutcome {
+    fun createVaultAndOpen(): VaultUnlockOutcome = synchronized(lifecycleLock) {
         if (!stateMachine.beginAuthentication()) {
             return if (stateMachine.isUnlocked()) VaultUnlockOutcome.Success(null) else VaultUnlockOutcome.AuthFailed
         }
@@ -79,6 +83,8 @@ class SessionManager(
             database = db
             stateMachine.onAuthenticationSuccess()
             VaultUnlockOutcome.Success(key)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: VaultKeyManager.AuthRequiredException) {
             stateMachine.onAuthenticationFailure()
             VaultUnlockOutcome.AuthRequired
@@ -100,7 +106,7 @@ class SessionManager(
      *
      * @return a typed [VaultUnlockOutcome]; on success the session is UNLOCKED.
      */
-    fun unlock(): VaultUnlockOutcome {
+    fun unlock(): VaultUnlockOutcome = synchronized(lifecycleLock) {
         if (!stateMachine.beginAuthentication()) {
             return if (stateMachine.isUnlocked()) VaultUnlockOutcome.Success(null) else VaultUnlockOutcome.AuthFailed
         }
@@ -112,6 +118,8 @@ class SessionManager(
             database = db
             stateMachine.onAuthenticationSuccess()
             VaultUnlockOutcome.Success(null)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: VaultKeyManager.AuthRequiredException) {
             stateMachine.onAuthenticationFailure()
             VaultUnlockOutcome.AuthRequired
@@ -131,7 +139,7 @@ class SessionManager(
      * Unlocks directly with an already-derived key (used by first-run setup
      * and tests that already hold the key). Caller must zero [key] after.
      */
-    fun unlockWithFreshKey(key: ByteArray): Boolean {
+    fun unlockWithFreshKey(key: ByteArray): Boolean = synchronized(lifecycleLock) {
         if (!stateMachine.beginAuthentication()) return false
         return try {
             val db = databaseFactory(context, key)
@@ -140,6 +148,8 @@ class SessionManager(
             database = db
             stateMachine.onAuthenticationSuccess()
             true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             stateMachine.onAuthenticationFailure()
             false
@@ -147,7 +157,7 @@ class SessionManager(
     }
 
     /** Locks immediately: closes DB, zeroes the key. */
-    fun lock() {
+    fun lock() = synchronized(lifecycleLock) {
         lockTimerJob?.cancel()
         lockTimerJob = null
         database?.let { RescueAuthDatabase.closeDatabase(it) }

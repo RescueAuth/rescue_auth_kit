@@ -7,15 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -38,6 +35,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.CornerRadius
 import com.rescueauth.v2.ui.theme.Spacing
 import com.rescueauth.v2.ui.theme.ThemeColor
@@ -48,15 +47,6 @@ object ThemeColorPreferenceTestTags {
     const val DIALOG = "theme_color_dialog"
 }
 
-/**
- * The Appearance → Theme Color preference.
- *
- * Shows a Settings row with the current preset's color swatch and name. Tapping
- * it opens a [AlertDialog] listing every [ThemeColor] preset with a small color
- * swatch, its localized display name, and a check mark on the currently
- * selected one. Selecting a preset persists it and refreshes the theme live
- * (no Save button — the Settings UI uses immediate, non-Save semantics).
- */
 @Composable
 fun ThemeColorPreference(
     selected: ThemeColor,
@@ -64,26 +54,24 @@ fun ThemeColorPreference(
     modifier: Modifier = Modifier,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clickable { showDialog = true }
-            .padding(vertical = Spacing.sm)
+            .padding(vertical = Spacing.xxs)
             .testTag(ThemeColorPreferenceTestTags.ROW),
     ) {
         Text(
             text = stringResource(R.string.settings_theme_color),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Spacer(modifier = Modifier.width(Spacing.xxs))
         Row(
+            modifier = Modifier.padding(top = Spacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-            modifier = Modifier.padding(top = Spacing.xxs),
         ) {
-            ThemeColorSwatch(color = selected.swatchColor(), size = 20.dp)
+            ThemeColorSwatch(color = selected.swatchColor(), size = 18.dp)
             Text(
                 text = stringResource(selected.displayNameRes()),
                 style = MaterialTheme.typography.bodySmall,
@@ -91,7 +79,6 @@ fun ThemeColorPreference(
             )
         }
     }
-
     if (showDialog) {
         ThemeColorPickerDialog(
             selected = selected,
@@ -110,30 +97,40 @@ private fun ThemeColorPickerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(ThemeColorPreferenceTestTags.DIALOG),
-        title = { Text(stringResource(R.string.settings_theme_color)) },
+        title = {
+            Text(
+                text = stringResource(R.string.settings_theme_color),
+                style = MaterialTheme.typography.titleLarge,
+            )
+        },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 modifier = Modifier
-                    .heightIn(max = 360.dp)
+                    .heightIn(max = 380.dp)
                     .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 ThemeColor.entries.forEach { color ->
                     val isSelected = color == selected
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(CornerRadius.sm))
-                            .clickable { onSelect(color) }
-                            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                    RescueAuthRowCard(
+                        onClick = { onSelect(color) },
+                        containerColor = if (isSelected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            CardTokens.elevatedContainerColor()
+                        },
+                        horizontalPadding = Spacing.sm,
+                        verticalPadding = Spacing.sm,
                     ) {
                         ThemeColorSwatch(color = color.swatchColor(), size = 24.dp)
                         Text(
                             text = stringResource(color.displayNameRes()),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
                             modifier = Modifier.weight(1f),
                         )
                         if (isSelected) {
@@ -155,12 +152,8 @@ private fun ThemeColorPickerDialog(
     )
 }
 
-/** Small circular color preview swatch. */
 @Composable
-private fun ThemeColorSwatch(
-    color: Color,
-    size: Dp,
-) {
+private fun ThemeColorSwatch(color: Color, size: Dp) {
     Box(
         modifier = Modifier
             .size(size)

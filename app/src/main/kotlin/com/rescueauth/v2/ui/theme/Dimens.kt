@@ -22,6 +22,16 @@ object Spacing {
     val xxl = 48.dp
 }
 
+/** Screen-level layout tokens. Keep page rhythm consistent across routes. */
+object ScreenTokens {
+    val horizontalPadding = 20.dp
+    val verticalPadding = 16.dp
+    val compactVerticalPadding = 10.dp
+    val sectionGap = 24.dp
+    val headerGap = 6.dp
+    val controlMinHeight = 52.dp
+}
+
 /** Corner radius scale (design tokens). */
 object CornerRadius {
     val xs = 8.dp
@@ -64,8 +74,15 @@ object CardTokens {
     fun elevatedContainerColor(): Color =
         androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
 
+    /** Subtle outline keeps cards readable on the cool neutral background. */
+    @Composable
+    fun outlineColor(): Color =
+        androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+
     /** Standard card corner radius (rounded-rectangle card silhouette). */
-    val shape = RoundedCornerShape(CornerRadius.md)
+    // A restrained radius keeps the vault feeling like a focused utility rather
+    // than a stack of inflated, floating panels.
+    val shape = RoundedCornerShape(CornerRadius.xs)
 
     /** Standard card inner content padding. */
     val contentPadding = Spacing.md

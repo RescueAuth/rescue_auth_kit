@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- MainActivity is an AppCompatActivity and therefore requires an
          AppCompat theme; a plain platform Material theme makes
          AppCompatDelegate throw IllegalStateException in setContentView. -->
-    <style name="Theme.RescueAuth" parent="Theme.AppCompat.Light.NoActionBar" />
+    <style name="Theme.RescueAuth" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
 </resources>

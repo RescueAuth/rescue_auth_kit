@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
@@ -17,8 +16,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -44,17 +41,7 @@ import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
-/**
- * Recovery-code set card (Phase 4 P3) — the Account-detail card.
- *
- * Collapsed: title + "N remaining · M total" summary (no secret values).
- * Expanded: one row per code, each with hidden/reveal ([SensitiveValueRow]
- * contract), per-code copy, Mark used/unused, and a `••••` mask for USED
- * codes. Copy All / Copy Remaining / Edit / Delete live in the overflow menu.
- *
- * No plaintext secret is rendered unless the user explicitly reveals a code
- * (the reveal state is owned by the caller and cleared on session lock).
- */
+/** Recovery-code set card with a compact summary and explicit actions. */
 @Composable
 fun RecoveryCodeSetCard(
     set: RecoveryCodeSetUi,
@@ -70,47 +57,63 @@ fun RecoveryCodeSetCard(
     onDelete: (() -> Unit)? = null,
     onMove: (() -> Unit)? = null,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    var menuOpen by rememberSaveable { mutableStateOf(false) }
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = CardTokens.shape,
-        colors = CardDefaults.cardColors(
-            containerColor = CardTokens.containerColor(),
-        ),
+    // Scope transient controls to the set identity. After a delete/reorder a
+    // different set must never inherit the previous row's expanded/menu state.
+    var expanded by rememberSaveable(set.id) { mutableStateOf(false) }
+    var menuOpen by rememberSaveable(set.id) { mutableStateOf(false) }
+    RescueAuthCard(
+        modifier = modifier,
+        containerColor = CardTokens.containerColor(),
     ) {
-        Column(modifier = Modifier.padding(CardTokens.contentPadding)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = set.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.recovery_codes_remaining_count,
-                            set.remainingCount,
-                            set.totalCount,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (onCopyAll != null || onCopyRemaining != null || onEdit != null || onDelete != null || onMove != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            RescueAuthIconBadge(
+                icon = if (set.remainingCount > 0) Icons.Filled.CheckCircle else Icons.Filled.VisibilityOff,
+                size = 40.dp,
+                iconSize = 20.dp,
+                containerColor = if (set.remainingCount > 0) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                contentColor = if (set.remainingCount > 0) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = set.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.recovery_codes_remaining_count,
+                        set.remainingCount,
+                        set.totalCount,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (onCopyAll != null || onCopyRemaining != null || onEdit != null || onDelete != null || onMove != null) {
+                androidx.compose.foundation.layout.Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
                             contentDescription = stringResource(R.string.account_actions_label),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
                         if (onCopyAll != null) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.recovery_codes_copy_all)) },
@@ -143,27 +146,28 @@ fun RecoveryCodeSetCard(
                         }
                     }
                 }
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
-
-            if (expanded) {
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                set.codes.forEach { code ->
-                    RecoveryCodeRow(
-                        code = code,
-                        revealed = code.id in revealedIds,
-                        onRevealToggle = onRevealToggle?.let { cb -> { id -> cb(id) } },
-                        onCopy = onCopyCode?.let { cb -> { id -> cb(id) } },
-                        onMarkUsed = onMarkUsed?.let { cb -> { id -> cb(id) } },
-                        onMarkUnused = onMarkUnused?.let { cb -> { id -> cb(id) } },
-                    )
-                }
+            IconButton(onClick = { expanded = !expanded }) {
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (expanded) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            RescueAuthDivider()
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            set.codes.forEach { code ->
+                RecoveryCodeRow(
+                    code = code,
+                    revealed = code.id in revealedIds,
+                    onRevealToggle = onRevealToggle,
+                    onCopy = onCopyCode,
+                    onMarkUsed = onMarkUsed,
+                    onMarkUnused = onMarkUnused,
+                )
             }
         }
     }
@@ -181,7 +185,7 @@ private fun RecoveryCodeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
+            .padding(vertical = Spacing.xxs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -203,12 +207,10 @@ private fun RecoveryCodeRow(
                 },
             )
             Text(
-                text = stringResource(
-                    if (code.isUsed) R.string.recovery_codes_used else R.string.recovery_codes_unused,
-                ),
+                text = stringResource(if (code.isUsed) R.string.recovery_codes_used else R.string.recovery_codes_unused),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (code.isUsed) {
-                    MaterialTheme.colorScheme.tertiary
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
                     MaterialTheme.colorScheme.primary
                 },
@@ -218,10 +220,7 @@ private fun RecoveryCodeRow(
             IconButton(onClick = { onRevealToggle(code.id) }) {
                 Icon(
                     imageVector = if (revealed) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = stringResource(
-                        if (revealed) R.string.recovery_codes_hide else R.string.recovery_codes_reveal,
-                    ),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = stringResource(if (revealed) R.string.recovery_codes_hide else R.string.recovery_codes_reveal),
                 )
             }
         }
@@ -230,8 +229,6 @@ private fun RecoveryCodeRow(
                 Icon(
                     imageVector = Icons.Filled.ContentCopy,
                     contentDescription = stringResource(R.string.recovery_codes_copy),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
                 )
             }
         }
@@ -240,8 +237,6 @@ private fun RecoveryCodeRow(
                 Icon(
                     imageVector = Icons.Filled.CheckCircle,
                     contentDescription = stringResource(R.string.recovery_codes_mark_used),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
                 )
             }
         }
@@ -250,8 +245,6 @@ private fun RecoveryCodeRow(
                 Icon(
                     imageVector = Icons.Filled.Undo,
                     contentDescription = stringResource(R.string.recovery_codes_mark_unused),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
                 )
             }
         }
@@ -260,57 +253,20 @@ private fun RecoveryCodeRow(
 
 @Preview(showBackground = true)
 @Composable
-private fun RecoveryCodeSetCardCollapsedPreview() {
+private fun RecoveryCodeSetCardPreview() {
     RescueAuthTheme {
-        Column(
-            modifier = Modifier.padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            RecoveryCodeSetCard(
-                set = RecoveryCodeSetUi(
-                    id = "r1",
-                    title = "Recovery codes",
-                    usedCount = 1,
-                    totalCount = 3,
-                    codes = listOf(
-                        RecoveryCodeUi("rc1", "ABCD-EFGH-1", isUsed = true),
-                        RecoveryCodeUi("rc2", "IJKL-MNOP-2", isUsed = false),
-                        RecoveryCodeUi("rc3", "QRST-UVWX-3", isUsed = false),
-                    ),
+        RecoveryCodeSetCard(
+            set = RecoveryCodeSetUi(
+                id = "r1",
+                title = "Recovery codes",
+                usedCount = 1,
+                totalCount = 3,
+                codes = listOf(
+                    RecoveryCodeUi("rc1", "ABCD-EFGH-1", true),
+                    RecoveryCodeUi("rc2", "IJKL-MNOP-2", false),
                 ),
-                onCopyAll = {},
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun RecoveryCodeSetCardExpandedPreview() {
-    RescueAuthTheme {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-            RecoveryCodeSetCard(
-                set = RecoveryCodeSetUi(
-                    id = "r1",
-                    title = "Recovery codes",
-                    usedCount = 1,
-                    totalCount = 3,
-                    codes = listOf(
-                        RecoveryCodeUi("rc1", "ABCD-EFGH-1", isUsed = true),
-                        RecoveryCodeUi("rc2", "IJKL-MNOP-2", isUsed = false),
-                        RecoveryCodeUi("rc3", "QRST-UVWX-3", isUsed = false),
-                    ),
-                ),
-                revealedIds = setOf("rc2"),
-                onRevealToggle = {},
-                onCopyCode = {},
-                onCopyAll = {},
-                onCopyRemaining = {},
-                onMarkUsed = {},
-                onMarkUnused = {},
-                onEdit = {},
-                onDelete = {},
-            )
-        }
+            ),
+            onCopyAll = {},
+        )
     }
 }

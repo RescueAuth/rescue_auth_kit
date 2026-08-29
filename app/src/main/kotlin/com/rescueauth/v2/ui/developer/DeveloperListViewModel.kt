@@ -80,16 +80,10 @@ class DeveloperListViewModel(
         stableId = stableId,
         type = type.toUi(),
         title = title,
-        subtitle = subtitle(),
+        // The presentation layer localizes the type label. Keeping this field
+        // null avoids leaking a hard-coded English category into zh-CN UI.
+        subtitle = null,
     )
-
-    private fun DeveloperEntry.subtitle(): String? = when (type) {
-        com.rescueauth.v2.domain.DeveloperEntryType.API_CREDENTIAL -> "API"
-        com.rescueauth.v2.domain.DeveloperEntryType.SSH_KEY -> "SSH"
-        com.rescueauth.v2.domain.DeveloperEntryType.GENERIC_SECRET -> "Secret"
-        com.rescueauth.v2.domain.DeveloperEntryType.ANDROID_SIGNING_KEY -> "Signing"
-        com.rescueauth.v2.domain.DeveloperEntryType.ENVIRONMENT_VARIABLE_SET -> "Env"
-    }
 
     private fun com.rescueauth.v2.domain.DeveloperEntryType.toUi(): DeveloperEntryType =
         when (this) {

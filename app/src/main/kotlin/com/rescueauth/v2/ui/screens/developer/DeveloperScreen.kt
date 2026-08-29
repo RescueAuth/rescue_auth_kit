@@ -2,12 +2,15 @@ package com.rescueauth.v2.ui.screens.developer
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -16,37 +19,30 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
-import com.rescueauth.v2.ui.components.BreadcrumbItem
-import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.components.DeveloperEntryCard
 import com.rescueauth.v2.ui.components.EmptyState
+import com.rescueauth.v2.ui.components.ErrorState
 import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthPageHeader
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.developer.DeveloperListUiState
 import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
 import com.rescueauth.v2.ui.model.DeveloperPreviewData
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
-/**
- * Developer Vault top-level screen (Phase 4 P4) — a first-class product module.
- *
- * Renders the real production Developer list (metadata only, never secrets):
- * type grouping/filter, entry title + non-secret metadata, and an Add action
- * that offers the three P4 types (API Credential / SSH Key / Generic Secret).
- * Android Signing Key / Env Var Set are NOT shown as clickable fake features —
- * they are P6 (Issue #20 §19, §31).
- */
+/** Modern Developer Vault list. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperScreen(
@@ -58,26 +54,16 @@ fun DeveloperScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
-                    BreadcrumbTopBar(
-                        items = listOf(
-                            BreadcrumbItem(
-                                label = stringResource(R.string.developer_title),
-                                isCurrent = true,
-                            ),
-                        ),
-                        onNavigate = {},
-                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
-                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
-                    )
-                },
+            RescueAuthPageHeader(
+                title = stringResource(R.string.developer_title),
+                subtitle = stringResource(R.string.developer_subtitle),
             )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-        floatingActionButton = {
-            if (onAddClick != null) {
+        floatingActionButton = if (onAddClick != null) {
+            {
                 FloatingActionButton(onClick = onAddClick) {
                     Icon(
                         imageVector = Icons.Filled.Add,
@@ -85,68 +71,123 @@ fun DeveloperScreen(
                     )
                 }
             }
+        } else {
+            {}
         },
     ) { padding ->
         when {
-            uiState.loading -> {
-                LoadingState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                )
-            }
-            uiState.isEmpty -> {
-                EmptyState(
-                    title = stringResource(R.string.developer_empty_title),
-                    body = stringResource(R.string.developer_empty_body),
-                    modifier = Modifier.padding(padding),
-                )
-            }
-            else -> {
-                val supported = uiState.entries.filter {
-                    it.type == DeveloperEntryType.API_CREDENTIAL ||
-                        it.type == DeveloperEntryType.SSH_KEY ||
-                        it.type == DeveloperEntryType.GENERIC_SECRET ||
-                        it.type == DeveloperEntryType.ANDROID_SIGNING_KEY ||
-                        it.type == DeveloperEntryType.ENVIRONMENT_VARIABLE_SET
-                }
-                DeveloperEntryList(
-                    entries = supported,
-                    onEntryClick = onEntryClick,
-                    modifier = Modifier.padding(padding),
-                )
-            }
+            uiState.loading -> LoadingState(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                label = stringResource(R.string.developer_loading),
+            )
+            uiState.error != null -> ErrorState(
+                title = stringResource(R.string.common_error_title),
+                message = uiState.error,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            )
+            uiState.isEmpty -> EmptyState(
+                title = stringResource(R.string.developer_empty_title),
+                body = stringResource(R.string.developer_empty_body),
+                actionLabel = onAddClick?.let { stringResource(R.string.developer_add_first) },
+                onAction = onAddClick,
+                icon = Icons.Filled.Build,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            )
+            else -> DeveloperContent(
+                entries = uiState.entries,
+                onEntryClick = onEntryClick,
+                modifier = Modifier.padding(padding),
+            )
         }
     }
 }
 
 @Composable
-private fun DeveloperEntryList(
+private fun DeveloperContent(
     entries: List<DeveloperEntryUi>,
     onEntryClick: ((DeveloperEntryUi) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    val groups = entries.groupBy { it.type }
+    val orderedTypes = listOf(
+        DeveloperEntryType.API_CREDENTIAL,
+        DeveloperEntryType.SSH_KEY,
+        DeveloperEntryType.ANDROID_SIGNING_KEY,
+        DeveloperEntryType.ENVIRONMENT_VARIABLE_SET,
+        DeveloperEntryType.GENERIC_SECRET,
+    )
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Spacing.md),
+        contentPadding = PaddingValues(
+            start = ScreenTokens.horizontalPadding,
+            end = ScreenTokens.horizontalPadding,
+            top = Spacing.md,
+            bottom = Spacing.xxl,
+        ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Group by type (simple grouping/filter per Issue #20 §19).
-        val groups = entries.groupBy { it.type }
-        groups.forEach { (type, typeEntries) ->
-            item(key = "header-$type") {
-                Text(
-                    text = typeLabel(type),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = Spacing.xs),
-                )
+        item(key = "developer-summary") {
+            RescueAuthCard(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentPadding = Spacing.lg,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    RescueAuthIconBadge(
+                        icon = Icons.Filled.Build,
+                        size = 48.dp,
+                        iconSize = 25.dp,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.developer_overview_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.developer_overview_count,
+                                entries.size,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
             }
-            items(typeEntries, key = { it.stableId }) { entry ->
-                DeveloperEntryCard(
-                    entry = entry,
-                    onClick = onEntryClick?.let { { it(entry) } },
-                )
+        }
+        orderedTypes.forEach { type ->
+            val typeEntries = groups[type].orEmpty()
+            if (typeEntries.isNotEmpty()) {
+                item(key = "header-$type") {
+                    RescueAuthSectionHeader(
+                        title = typeLabel(type),
+                        subtitle = stringResource(
+                            R.string.developer_group_count,
+                            typeEntries.size,
+                        ),
+                        modifier = Modifier.padding(top = Spacing.md),
+                    )
+                }
+                items(typeEntries, key = { it.stableId }) { entry ->
+                    DeveloperEntryCard(
+                        entry = entry,
+                        onClick = onEntryClick?.let { callback -> { callback(entry) } },
+                    )
+                }
             }
         }
     }
@@ -163,7 +204,7 @@ private fun typeLabel(type: DeveloperEntryType): String = when (type) {
 
 @Preview(showBackground = true)
 @Composable
-private fun DeveloperScreenWithDataPreview() {
+private fun DeveloperScreenPreview() {
     RescueAuthTheme {
         DeveloperScreen(
             uiState = DeveloperListUiState(
@@ -171,17 +212,10 @@ private fun DeveloperScreenWithDataPreview() {
                 entries = listOf(
                     DeveloperPreviewData.apiCredential,
                     DeveloperPreviewData.sshKey,
-                    DeveloperPreviewData.generic,
+                    DeveloperPreviewData.envVarSet,
                 ),
             ),
+            onAddClick = {},
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun DeveloperScreenEmptyPreview() {
-    RescueAuthTheme {
-        DeveloperScreen(uiState = DeveloperListUiState(loading = false))
     }
 }

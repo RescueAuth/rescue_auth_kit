@@ -2,7 +2,9 @@ package com.rescueauth.v2.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
  * RescueAuth v2 Material 3 theme.
@@ -30,6 +32,12 @@ fun RescueAuthTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = RescueAuthTypography,
+        shapes = Shapes(
+            small = RoundedCornerShape(CornerRadius.xs),
+            medium = RoundedCornerShape(CornerRadius.xs),
+            large = RoundedCornerShape(CornerRadius.sm),
+            extraLarge = RoundedCornerShape(CornerRadius.sm),
+        ),
         content = content,
     )
 }

@@ -6,35 +6,38 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.migration.MigrationEntryStatus
 import com.rescueauth.v2.migration.MigrationTotpCandidate
 import com.rescueauth.v2.ui.authenticator.MigrationImportUiState
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
-/**
- * Migration import preview / result sheet (Phase 4 P2).
- *
- * Shown **after** scanning leaves the camera preview — a normal Compose
- * confirmation state. Lists every collected candidate (issuer / account /
- * algorithm / digits — **never** the secret), reports importable /
- * unsupported / invalid counts, and confirms the batch import. Once imported,
- * the same sheet shows the result counts (imported / duplicates / unsupported /
- * invalid).
- */
+/** Safe migration preview sheet: metadata only, with clear counts and action. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MigrationImportSheet(
@@ -51,82 +54,80 @@ fun MigrationImportSheet(
                 .padding(bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Text(
-                text = stringResource(R.string.migration_preview_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                RescueAuthIconBadge(icon = Icons.Filled.QrCodeScanner, size = 40.dp, iconSize = 21.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.migration_preview_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    state.batchProgress?.let { progress ->
+                        Text(
+                            text = stringResource(R.string.migration_preview_batch_progress, progress.first, progress.second),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
 
             val result = state.result
             if (result != null) {
-                // Post-import result state.
-                Text(
-                    text = stringResource(R.string.migration_imported_message, result.imported, result.duplicates),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                if (result.unsupported > 0) {
+                RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
                     Text(
-                        text = stringResource(R.string.migration_unsupported, result.unsupported),
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = stringResource(R.string.migration_imported_message, result.imported, result.duplicates),
+                        style = MaterialTheme.typography.bodyLarge,
                     )
-                }
-                if (result.invalid > 0) {
-                    Text(
-                        text = stringResource(R.string.migration_invalid, result.invalid),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Button(onClick = onDismiss) {
-                        Text(stringResource(R.string.common_cancel))
+                    if (result.unsupported > 0) {
+                        Text(stringResource(R.string.migration_unsupported, result.unsupported), style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (result.invalid > 0) {
+                        Text(stringResource(R.string.migration_invalid, result.invalid), style = MaterialTheme.typography.bodySmall)
                     }
                 }
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.common_close))
+                }
             } else {
-                // Pre-import preview state.
                 val importable = state.candidates.count { it.status == MigrationEntryStatus.IMPORTABLE }
                 val unsupported = state.candidates.count { it.status == MigrationEntryStatus.UNSUPPORTED }
                 val invalid = state.candidates.count { it.status == MigrationEntryStatus.INVALID }
-
-                Text(
-                    text = stringResource(R.string.migration_importable, importable),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                if (unsupported > 0) {
-                    Text(
-                        text = stringResource(R.string.migration_unsupported, unsupported),
-                        style = MaterialTheme.typography.bodyMedium,
+                val issueSummary = listOfNotNull(
+                    unsupported.takeIf { it > 0 }?.let { stringResource(R.string.migration_unsupported, it) },
+                    invalid.takeIf { it > 0 }?.let { stringResource(R.string.migration_invalid, it) },
+                ).joinToString(" · ")
+                RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                    RescueAuthSectionHeader(
+                        title = stringResource(R.string.migration_importable, importable),
+                        subtitle = issueSummary.ifBlank { null },
                     )
                 }
-                if (invalid > 0) {
-                    Text(
-                        text = stringResource(R.string.migration_invalid, invalid),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
                     verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     items(state.candidates) { candidate ->
                         MigrationCandidateRow(candidate)
                     }
                 }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    TextButton(onClick = onDismiss, enabled = !state.importing) {
+                    TextButton(onClick = onDismiss, enabled = !state.importing, modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.common_cancel))
                     }
                     Button(
                         onClick = onConfirm,
                         enabled = !state.importing && importable > 0,
+                        modifier = Modifier.weight(1f),
                     ) {
                         Text(stringResource(R.string.migration_confirm_import, importable))
                     }
@@ -138,41 +139,34 @@ fun MigrationImportSheet(
 
 @Composable
 private fun MigrationCandidateRow(candidate: MigrationTotpCandidate) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-            val issuer = candidate.issuer?.takeIf { it.isNotBlank() }
-                ?: stringResource(R.string.migration_unknown_issuer)
-            val account = candidate.name?.takeIf { it.isNotBlank() } ?: issuer
-            Text(
-                text = "$issuer · $account",
-                style = MaterialTheme.typography.bodyLarge,
+    RescueAuthCard(
+        containerColor = CardTokens.elevatedContainerColor(),
+        contentPadding = Spacing.sm,
+    ) {
+        val issuer = candidate.issuer?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.migration_unknown_issuer)
+        val account = candidate.name?.takeIf { it.isNotBlank() } ?: issuer
+        Text(
+            text = "$issuer · $account",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        when (candidate.status) {
+            MigrationEntryStatus.IMPORTABLE -> Text(
+                text = stringResource(R.string.migration_algorithm_digits, candidate.algorithm ?: "", candidate.digits ?: 0),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            when (candidate.status) {
-                MigrationEntryStatus.IMPORTABLE -> {
-                    Text(
-                        text = stringResource(
-                            R.string.migration_algorithm_digits,
-                            candidate.algorithm ?: "",
-                            candidate.digits ?: 0,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                MigrationEntryStatus.UNSUPPORTED -> {
-                    Text(
-                        text = stringResource(R.string.migration_unsupported, 1),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                MigrationEntryStatus.INVALID -> {
-                    Text(
-                        text = stringResource(R.string.migration_invalid, 1),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
+            MigrationEntryStatus.UNSUPPORTED -> StatusText(stringResource(R.string.migration_unsupported, 1))
+            MigrationEntryStatus.INVALID -> StatusText(stringResource(R.string.migration_invalid, 1))
         }
+    }
+}
+
+@Composable
+private fun StatusText(text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
 }

@@ -38,6 +38,8 @@ fun EmptyState(
     body: String,
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Filled.Info,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -46,11 +48,12 @@ fun EmptyState(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(56.dp),
+        RescueAuthIconBadge(
+            icon = icon,
+            size = 64.dp,
+            iconSize = 30.dp,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         )
         Spacer(modifier = Modifier.height(Spacing.md))
         Text(
@@ -66,6 +69,12 @@ fun EmptyState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (actionLabel != null && onAction != null) {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            Button(onClick = onAction) {
+                Text(actionLabel)
+            }
+        }
     }
 }
 
@@ -82,7 +91,12 @@ fun LoadingState(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CircularProgressIndicator(modifier = Modifier.testTag("loading_indicator"))
+        // Determinate visual keeps host-side paused-loop tests and startup
+        // rendering finite while still communicating that the vault is opening.
+        CircularProgressIndicator(
+            progress = { 0.64f },
+            modifier = Modifier.testTag("loading_indicator"),
+        )
         if (label != null) {
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
@@ -115,11 +129,12 @@ fun ErrorState(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = Icons.Filled.Warning,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(56.dp),
+        RescueAuthIconBadge(
+            icon = Icons.Filled.Warning,
+            size = 64.dp,
+            iconSize = 30.dp,
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
         )
         Spacer(modifier = Modifier.height(Spacing.md))
         Text(
@@ -177,4 +192,3 @@ private fun ErrorStatePreview() {
         )
     }
 }
-

@@ -7,33 +7,38 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryUiState
-import com.rescueauth.v2.ui.components.BreadcrumbItem
-import com.rescueauth.v2.ui.components.BreadcrumbTopBar
+import com.rescueauth.v2.ui.components.RescueAuthBackButton
 import com.rescueauth.v2.ui.components.EmptyState
+import com.rescueauth.v2.ui.components.ErrorState
 import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RecoveryCodeSetCard
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthPageHeader
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.RecoveryCodeUi
-import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
-import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.ScreenTokens
+import com.rescueauth.v2.ui.theme.Spacing
 
 /**
  * Account detail screen — Recovery Codes (Phase 4 P3).
@@ -65,36 +70,12 @@ fun RecoveryCodesScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
-                    BreadcrumbTopBar(
-                        items = listOf(
-                            BreadcrumbItem(
-                                label = stringResource(R.string.authenticator_title),
-                                destination = RescueAuthRoutes.AUTHENTICATOR,
-                            ),
-                            BreadcrumbItem(label = uiState.providerName),
-                            BreadcrumbItem(
-                                label = uiState.accountName,
-                                isCurrent = true,
-                            ),
-                        ),
-                        onNavigate = onNavigate ?: {},
-                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
-                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
-                    )
-                },
-                navigationIcon = {
-                    if (onBack != null) {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.a11y_back),
-                            )
-                        }
-                    }
-                },
+            RescueAuthPageHeader(
+                title = uiState.accountName.ifBlank { stringResource(R.string.recovery_codes_title) },
+                subtitle = uiState.providerName.ifBlank { stringResource(R.string.authenticator_title) },
+                navigationIcon = onBack?.let { callback -> { RescueAuthBackButton(callback) } },
             )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
@@ -114,6 +95,15 @@ fun RecoveryCodesScreen(
                 LoadingState(
                     modifier = Modifier
                         .fillMaxSize()
+                    .padding(padding),
+                )
+            }
+            uiState.error != null -> {
+                ErrorState(
+                    title = stringResource(R.string.common_error_title),
+                    message = uiState.error,
+                    modifier = Modifier
+                        .fillMaxSize()
                         .padding(padding),
                 )
             }
@@ -121,6 +111,8 @@ fun RecoveryCodesScreen(
                 EmptyState(
                     title = stringResource(R.string.recovery_codes_title),
                     body = stringResource(R.string.recovery_codes_empty_state),
+                    actionLabel = onAddClick?.let { stringResource(R.string.recovery_codes_add_title) },
+                    onAction = onAddClick,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -129,9 +121,31 @@ fun RecoveryCodesScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding),
-                    contentPadding = PaddingValues(CardTokens.listOuterPadding),
-                    verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+                    contentPadding = PaddingValues(
+                        start = ScreenTokens.horizontalPadding,
+                        end = ScreenTokens.horizontalPadding,
+                        top = Spacing.md,
+                        bottom = Spacing.xxl,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
+                    item(key = "account-summary") {
+                        RescueAuthCard(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentPadding = Spacing.md,
+                        ) {
+                            RescueAuthIconBadge(icon = Icons.Filled.Key, size = 40.dp, iconSize = 20.dp)
+                            RescueAuthSectionHeader(
+                                title = stringResource(R.string.recovery_codes_title),
+                                subtitle = stringResource(
+                                    R.string.recovery_codes_detail_subtitle,
+                                    uiState.sets.sumOf { it.remainingCount },
+                                    uiState.sets.sumOf { it.totalCount },
+                                ),
+                                modifier = Modifier.padding(top = Spacing.xs),
+                            )
+                        }
+                    }
                     items(
                         count = uiState.sets.size,
                         key = { index -> uiState.sets[index].id },

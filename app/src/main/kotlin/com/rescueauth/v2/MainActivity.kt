@@ -24,6 +24,7 @@ import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
 import com.rescueauth.v2.ui.screens.startup.StartupAuthHost
 import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
 import com.rescueauth.v2.ui.screens.startup.StartupIntroScreen
+import com.rescueauth.v2.ui.screens.startup.StartupOpeningHost
 import com.rescueauth.v2.ui.screens.startup.StartupSplashScreen
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ThemeColor
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Root activity — the Compose host for the RescueAuth v2 app shell.
@@ -122,6 +124,8 @@ class MainActivity : AppCompatActivity() {
         INTRO,
         /** System authentication is being requested / showing — neutral host. */
         AUTHENTICATING,
+        /** Authentication succeeded; SQLCipher/Room is opening off the UI thread. */
+        OPENING,
         /** Device has no usable secure lock — show the blocking screen. */
         NO_SECURE_DEVICE,
         /** Unrecoverable state (key invalidated / DB corrupt / repeated race) — show + exit. */
@@ -177,6 +181,9 @@ class MainActivity : AppCompatActivity() {
      * [scheduleAuthentication] so stale waits never double-launch the prompt.
      */
     private var authSchedulerJob: Job? = null
+
+    /** Background Vault open operation; prevents duplicate unlock work. */
+    private var vaultOpenJob: Job? = null
 
     /**
      * True while the activity is pausing because it went to background (NOT a
@@ -248,6 +255,7 @@ class MainActivity : AppCompatActivity() {
                             onContinue = { onIntroContinue() },
                         )
                         StartupUiState.AUTHENTICATING -> StartupAuthHost()
+                        StartupUiState.OPENING -> StartupOpeningHost()
                         StartupUiState.NO_SECURE_DEVICE -> NoSecureDeviceScreen(
                             onExit = { finish() },
                         )
@@ -298,6 +306,10 @@ class MainActivity : AppCompatActivity() {
             // BiometricPrompt cancelled by onPause while the session was
             // already unlocked (Issue #70).
             _uiState.value = StartupUiState.UNLOCKED
+        } else if (vaultOpenJob?.isActive == true) {
+            // Keep the neutral opening host visible while the background open
+            // operation completes; do not launch a second auth prompt.
+            _uiState.value = StartupUiState.OPENING
         } else {
             // Session locked — schedule re-authentication for when the
             // lifecycle truly reaches RESUMED.
@@ -312,6 +324,14 @@ class MainActivity : AppCompatActivity() {
         // reports RESUMED — the raw onResume callback can fire before the
         // lifecycle state updates, which previously lost the auth request
         // (Issue #70 second-launch deadlock).
+        // A background Vault-open may have completed while the Activity was
+        // paused. Restore the shell here as well as in onStart because a short
+        // pause/resume does not necessarily emit a new ON_START event.
+        if (vaultOpenJob?.isActive != true && stateMachine.isUnlocked() && !isFinishing) {
+            isPausingForBackground = false
+            _uiState.value = StartupUiState.UNLOCKED
+            removeMask()
+        }
     }
 
     override fun onPause() {
@@ -339,6 +359,7 @@ class MainActivity : AppCompatActivity() {
             sensitiveActionGate.onLifecycleDestroy()
         }
         SensitiveActionAccess.clear()
+        vaultOpenJob?.cancel()
         super.onDestroy()
         sessionManager.lock()
         VaultAccess.clear()
@@ -374,6 +395,10 @@ class MainActivity : AppCompatActivity() {
      * lifecycle race, not a timing problem.
      */
     private fun scheduleAuthentication() {
+        if (vaultOpenJob?.isActive == true) {
+            _uiState.value = StartupUiState.OPENING
+            return
+        }
         authPromptPending = true
         if (isFinishing || isDestroyed) return
         authSchedulerJob?.cancel()
@@ -518,14 +543,55 @@ class MainActivity : AppCompatActivity() {
             startupMode == StartupMode.FIRST_RUN -> sessionManager::createVaultAndOpen
             else -> sessionManager::unlock
         }
-        val outcome = operation()
+        // Opening SQLCipher/Room can involve native loading, file I/O and
+        // migration work. Keep the main thread free to render the opening host
+        // and respond to lifecycle events while that work runs on IO.
+        if (vaultOpenJob?.isActive == true) return
+        _uiState.value = StartupUiState.OPENING
+        if (sessionManagerFactory != null) {
+            // The injected SessionManager is a deterministic host-test seam
+            // (in-memory Room). Keep that path synchronous so existing startup
+            // flow tests can assert the state immediately; production always
+            // uses the background branch below.
+            handleVaultUnlockOutcome(operation())
+        } else {
+            vaultOpenJob = scope.launch(Dispatchers.IO) {
+                val outcome = operation()
+                withContext(Dispatchers.Main.immediate) {
+                    // The open attempt has finished before its result is
+                    // handled. Clear the guard first so AuthRequired/AuthFailed
+                    // can schedule a genuine retry instead of seeing this job
+                    // as still active and remaining on the opening host.
+                    vaultOpenJob = null
+                    handleVaultUnlockOutcome(outcome)
+                }
+            }
+        }
+    }
+
+    /** Applies a completed background Vault-open outcome on the main thread. */
+    private fun handleVaultUnlockOutcome(outcome: VaultUnlockOutcome) {
         when (outcome) {
             is VaultUnlockOutcome.Success -> {
                 // First-run: the returned fresh key must be zeroed after the DB
                 // is opened (SessionManager holds its own copy).
                 outcome.freshFirstRunKey?.fill(0)
-                _uiState.value = StartupUiState.UNLOCKED
-                removeMask()
+                // The open can finish after onPause/onStop. Never reveal the
+                // shell or remove the background mask in that window: the
+                // next foreground lifecycle callback will restore the shell
+                // if the session is still unlocked, or request auth again if
+                // the auto-lock timer already closed it.
+                if (!isPausingForBackground &&
+                    !isFinishing &&
+                    !isDestroyed &&
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                ) {
+                    _uiState.value = StartupUiState.UNLOCKED
+                    removeMask()
+                } else {
+                    _uiState.value = StartupUiState.OPENING
+                    showMask()
+                }
             }
             VaultUnlockOutcome.AuthRequired -> {
                 // Rare race: auth token expired between prompt success and the

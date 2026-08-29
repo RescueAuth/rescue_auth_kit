@@ -2,25 +2,26 @@ package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,7 +33,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,38 +48,33 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.AuthenticatorUiState
 import com.rescueauth.v2.ui.authenticator.TotpCardUi
-import com.rescueauth.v2.ui.components.BreadcrumbItem
-import com.rescueauth.v2.ui.components.BreadcrumbTopBar
 import com.rescueauth.v2.ui.components.CountdownIndicator
 import com.rescueauth.v2.ui.components.EmptyState
+import com.rescueauth.v2.ui.components.ErrorState
 import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthChevron
+import com.rescueauth.v2.ui.components.RescueAuthDivider
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
+import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
-import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
-import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
-import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
-/**
- * Authenticator top-level screen — production data path (Phase 4 P1/P3).
- *
- * Renders a Provider → Account → TOTP nested list so the user sees current
- * TOTP codes directly on the home screen without navigating to a detail page.
- * Each account card shows its TOTP codes (current code, countdown, copy
- * action) and a recovery summary line (counts only, never secret values).
- * An EmptyState is shown for an empty vault and a FAB opens the Add TOTP flow.
- *
- * Composable never touches Room entities; it only consumes UI models and
- * callbacks.
- */
+/** Modern, task-focused Authenticator home. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthenticatorScreen(
@@ -101,48 +96,61 @@ fun AuthenticatorScreen(
     onMergeAccount: ((AccountUi) -> Unit)? = null,
     onDeleteAccount: ((AccountUi) -> Unit)? = null,
 ) {
-    // Logical-path navigation: the home screen first presents the Provider
-    // list (level 1). Tapping a Provider drills into that Provider's Account
-    // list (level 2), and tapping an Account opens its detail (level 3 — see
-    // RecoveryCodesScreen). No longer is every Provider/Account flattened onto
-    // a single screen.
     var selectedProviderName by rememberSaveable { mutableStateOf<String?>(null) }
-    val selectedProvider = selectedProviderName?.let { name ->
-        uiState.providers.find { it.serviceName == name }
+    // The production mapper supplies grouped providers. Keep the public screen
+    // tolerant of older previews/tests that provide only the flat account list.
+    val displayProviders = remember(uiState.providers, uiState.accounts) {
+        if (uiState.providers.isNotEmpty()) {
+            uiState.providers
+        } else {
+            uiState.accounts
+                .groupBy { it.providerName }
+                .map { (serviceName, accounts) ->
+                    ProviderUi(
+                        id = "provider:$serviceName",
+                        serviceName = serviceName,
+                        accounts = accounts,
+                    )
+                }
+                .sortedBy { it.serviceName }
+        }
     }
-    val atProviderLevel = selectedProviderName != null
+    val selectedProvider = selectedProviderName?.let { name ->
+        displayProviders.firstOrNull { it.serviceName == name }
+    }
+    val atProviderLevel = selectedProvider != null
+    val providerCount = displayProviders.size
+    val accountCount = displayProviders.sumOf { it.accounts.size }
+    val credentialCount = displayProviders.sumOf { provider ->
+        provider.accounts.sumOf { it.totpCredentials.size }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
-                    // Breadcrumb mirrors the current logical path:
-                    // level 1 → "Authenticator"; level 2 → "Authenticator > Provider".
-                    BreadcrumbTopBar(
-                        items = if (atProviderLevel) {
-                            listOf(
-                                BreadcrumbItem(
-                                    label = stringResource(R.string.authenticator_title),
-                                    destination = RescueAuthRoutes.AUTHENTICATOR,
-                                ),
-                                BreadcrumbItem(
-                                    label = selectedProvider?.serviceName ?: "",
-                                    isCurrent = true,
-                                ),
+            RescueAuthPageHeader(
+                title = if (atProviderLevel) {
+                    selectedProvider?.serviceName.orEmpty()
+                } else {
+                    stringResource(R.string.authenticator_title)
+                },
+                subtitle = if (atProviderLevel) {
+                    stringResource(R.string.authenticator_provider_subtitle)
+                } else {
+                    stringResource(R.string.authenticator_home_subtitle)
+                },
+                navigationIcon = if (atProviderLevel) {
+                    {
+                        IconButton(onClick = { selectedProviderName = null }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.a11y_back),
                             )
-                        } else {
-                            listOf(
-                                BreadcrumbItem(
-                                    label = stringResource(R.string.authenticator_title),
-                                    isCurrent = true,
-                                ),
-                            )
-                        },
-                        onNavigate = { selectedProviderName = null },
-                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
-                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
-                    )
+                        }
+                    }
+                } else {
+                    null
                 },
                 actions = {
                     if (onOpenSearch != null) {
@@ -165,8 +173,8 @@ fun AuthenticatorScreen(
             )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-        floatingActionButton = {
-            if (onAddClick != null) {
+        floatingActionButton = if (onAddClick != null && !atProviderLevel) {
+            {
                 FloatingActionButton(onClick = onAddClick) {
                     Icon(
                         imageVector = Icons.Filled.Add,
@@ -174,78 +182,133 @@ fun AuthenticatorScreen(
                     )
                 }
             }
+        } else {
+            {}
         },
     ) { padding ->
         when {
-            uiState.loading -> {
-                LoadingState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                )
-            }
-            uiState.isEmpty -> {
-                EmptyState(
-                    title = stringResource(R.string.authenticator_empty_title),
-                    body = stringResource(R.string.authenticator_empty_body),
-                    modifier = Modifier.padding(padding),
-                )
-            }
-            // Level 2: an Account list scoped to the selected Provider. The
-            // provider's accounts are shown with their TOTP codes inline so the
-            // user still sees codes at a glance along the logical path.
-            selectedProvider != null -> {
-                ProviderAccountsList(
-                    provider = selectedProvider,
-                    onCopyClick = onCopyClick,
-                    onDeleteClick = onDeleteClick,
-                    onOpenAccount = onOpenAccount,
-                    onTogglePin = onTogglePin,
-                    onRename = onRenameAccount,
-                    onMove = onMoveAccount,
-                    onMerge = onMergeAccount,
-                    onDelete = onDeleteAccount,
-                    onAddAccount = onAddAccount?.let { { it(selectedProvider.serviceName) } },
-                    modifier = Modifier.padding(padding),
-                )
-            }
-            // Level 1: the Provider list is the entry point of the logical path.
-            else -> {
-                ProviderList(
-                    providers = uiState.providers,
-                    onProviderClick = { selectedProviderName = it },
-                    onRenameProvider = onRenameProvider,
-                    onAddAccount = onAddAccount,
-                    onDeleteProvider = onDeleteProvider,
-                    modifier = Modifier.padding(padding),
-                )
-            }
+            uiState.loading -> LoadingState(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                label = stringResource(R.string.authenticator_loading),
+            )
+            uiState.isEmpty -> EmptyState(
+                title = stringResource(R.string.authenticator_empty_title),
+                body = stringResource(R.string.authenticator_empty_body),
+                actionLabel = onAddClick?.let { stringResource(R.string.authenticator_add_first) },
+                onAction = onAddClick,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                icon = Icons.Filled.Shield,
+            )
+            uiState.error != null -> ErrorState(
+                title = stringResource(R.string.common_error_title),
+                message = uiState.error,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            )
+            atProviderLevel -> ProviderAccountsContent(
+                provider = selectedProvider!!,
+                onCopyClick = onCopyClick,
+                onDeleteClick = onDeleteClick,
+                onOpenAccount = onOpenAccount,
+                onTogglePin = onTogglePin,
+                onRename = onRenameAccount,
+                onMove = onMoveAccount,
+                onMerge = onMergeAccount,
+                onDelete = onDeleteAccount,
+                onAddAccount = onAddAccount?.let { callback ->
+                    { callback(selectedProvider.serviceName) }
+                },
+                modifier = Modifier.padding(padding),
+            )
+            else -> ProviderHomeContent(
+                providers = displayProviders,
+                providerCount = providerCount,
+                accountCount = accountCount,
+                credentialCount = credentialCount,
+                onProviderClick = { selectedProviderName = it },
+                onRenameProvider = onRenameProvider,
+                onAddAccount = onAddAccount,
+                onDeleteProvider = onDeleteProvider,
+                modifier = Modifier.padding(padding),
+            )
         }
     }
 }
 
-/**
- * Level 1 — the Provider list. Each row is the entry point of the logical
- * path (Provider → Account → TOTP). Tapping a row drills into its accounts.
- */
 @Composable
-private fun ProviderList(
+private fun ProviderHomeContent(
     providers: List<ProviderUi>,
+    providerCount: Int,
+    accountCount: Int,
+    credentialCount: Int,
     onProviderClick: (String) -> Unit,
-    onRenameProvider: ((String) -> Unit)? = null,
-    onAddAccount: ((String) -> Unit)? = null,
-    onDeleteProvider: ((String) -> Unit)? = null,
+    onRenameProvider: ((String) -> Unit)?,
+    onAddAccount: ((String) -> Unit)?,
+    onDeleteProvider: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(CardTokens.listOuterPadding),
-        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+        contentPadding = PaddingValues(
+            start = ScreenTokens.horizontalPadding,
+            end = ScreenTokens.horizontalPadding,
+            top = Spacing.md,
+            bottom = Spacing.xxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        items(
-            items = providers,
-            key = { it.id },
-        ) { provider ->
+        item(key = "overview") {
+            RescueAuthCard(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentPadding = Spacing.md,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    RescueAuthIconBadge(
+                        icon = Icons.Filled.Shield,
+                        size = 42.dp,
+                        iconSize = 23.dp,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.authenticator_overview_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Text(
+                            text = stringResource(
+                                R.string.authenticator_overview_counts,
+                                providerCount,
+                                accountCount,
+                                credentialCount,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
+            }
+        }
+        item(key = "providers-heading") {
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.authenticator_providers_heading),
+                subtitle = stringResource(R.string.authenticator_providers_subtitle),
+                modifier = Modifier.padding(top = Spacing.md),
+            )
+        }
+        items(providers, key = { it.id }) { provider ->
             ProviderListItem(
                 provider = provider,
                 onClick = { onProviderClick(provider.serviceName) },
@@ -257,41 +320,41 @@ private fun ProviderList(
     }
 }
 
-/**
- * Level 2 — the Account list of one Provider. Each Account card shows its
- * TOTP codes inline (the core "see your code" value is preserved) and opens
- * the account detail on tap.
- */
 @Composable
-private fun ProviderAccountsList(
+private fun ProviderAccountsContent(
     provider: ProviderUi,
-    onCopyClick: ((TotpCardUi) -> Unit)? = null,
-    onDeleteClick: ((TotpCardUi) -> Unit)? = null,
-    onOpenAccount: ((String) -> Unit)? = null,
-    onTogglePin: ((AccountUi) -> Unit)? = null,
-    onRename: ((AccountUi) -> Unit)? = null,
-    onMove: ((AccountUi) -> Unit)? = null,
-    onMerge: ((AccountUi) -> Unit)? = null,
-    onDelete: ((AccountUi) -> Unit)? = null,
-    onAddAccount: (() -> Unit)? = null,
+    onCopyClick: ((TotpCardUi) -> Unit)?,
+    onDeleteClick: ((TotpCardUi) -> Unit)?,
+    onOpenAccount: ((String) -> Unit)?,
+    onTogglePin: ((AccountUi) -> Unit)?,
+    onRename: ((AccountUi) -> Unit)?,
+    onMove: ((AccountUi) -> Unit)?,
+    onMerge: ((AccountUi) -> Unit)?,
+    onDelete: ((AccountUi) -> Unit)?,
+    onAddAccount: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(CardTokens.listOuterPadding),
-        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+        contentPadding = PaddingValues(
+            horizontal = ScreenTokens.horizontalPadding,
+            vertical = Spacing.md,
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // provider.accounts is never empty (a Provider is built by grouping
-        // accounts under a serviceName), so we render the accounts directly.
-        items(
-            items = provider.accounts,
-            key = { it.id },
-        ) { account ->
+        item(key = "accounts-heading") {
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.authenticator_accounts_heading),
+                subtitle = stringResource(R.string.authenticator_accounts_subtitle),
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
+        items(provider.accounts, key = { it.id }) { account ->
             AccountWithTotpCard(
                 account = account,
                 onCopyClick = onCopyClick,
                 onDeleteClick = onDeleteClick,
-                onOpenAccount = onOpenAccount?.let { { it(account.id) } },
+                onOpenAccount = onOpenAccount?.let { callback -> { callback(account.id) } },
                 onTogglePin = onTogglePin,
                 onRename = onRename,
                 onMove = onMove,
@@ -300,165 +363,153 @@ private fun ProviderAccountsList(
             )
         }
         if (onAddAccount != null) {
-            item(key = "add_account") {
-                Text(
-                    text = stringResource(R.string.provider_add_account),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .clickable(onClick = onAddAccount)
-                        .padding(Spacing.md),
-                )
+            item(key = "add-account") {
+                RescueAuthRowCard(
+                    onClick = onAddAccount,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.provider_add_account),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    RescueAuthChevron()
+                }
             }
         }
     }
 }
 
-/**
- * Account card that directly shows its TOTP codes inline.
- *
- * Each TOTP code is rendered as a row with:
- * - Account name (if different from provider)
- * - Current code (large monospace, clickable to copy)
- * - Countdown indicator (remaining seconds + progress ring)
- * - Copy and Delete icon buttons
- *
- * Multiple TOTPs under the same account are all shown — no silent dropping.
- */
 @Composable
 private fun AccountWithTotpCard(
     account: AccountUi,
-    onCopyClick: ((TotpCardUi) -> Unit)? = null,
-    onDeleteClick: ((TotpCardUi) -> Unit)? = null,
-    onOpenAccount: (() -> Unit)? = null,
-    onTogglePin: ((AccountUi) -> Unit)? = null,
-    onRename: ((AccountUi) -> Unit)? = null,
-    onMove: ((AccountUi) -> Unit)? = null,
-    onMerge: ((AccountUi) -> Unit)? = null,
-    onDelete: ((AccountUi) -> Unit)? = null,
+    onCopyClick: ((TotpCardUi) -> Unit)?,
+    onDeleteClick: ((TotpCardUi) -> Unit)?,
+    onOpenAccount: (() -> Unit)?,
+    onTogglePin: ((AccountUi) -> Unit)?,
+    onRename: ((AccountUi) -> Unit)?,
+    onMove: ((AccountUi) -> Unit)?,
+    onMerge: ((AccountUi) -> Unit)?,
+    onDelete: ((AccountUi) -> Unit)?,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = CardTokens.shape,
-        colors = CardDefaults.cardColors(
-            containerColor = CardTokens.containerColor(),
-        ),
+    RescueAuthCard(
+        containerColor = CardTokens.containerColor(),
+        onClick = onOpenAccount,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(CardTokens.contentPadding),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            // Account header row: provider name + pin + actions menu
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = account.accountName,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        if (account.isPinned) {
-                            androidx.compose.foundation.layout.Spacer(
-                                modifier = Modifier.padding(start = Spacing.xs),
-                            )
-                            Icon(
-                                imageVector = Icons.Filled.PushPin,
-                                contentDescription = stringResource(R.string.account_pinned_label),
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 4.dp),
-                            )
-                        }
-                    }
-                    // Recovery summary (counts only, never secret values)
-                    if (account.recoverySets.isNotEmpty()) {
-                        Text(
-                            text = stringResource(
-                                R.string.recovery_codes_account_summary,
-                                account.remainingRecoveryCount,
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                AccountActionsMenu(
-                    account = account,
-                    onTogglePin = onTogglePin,
-                    onRename = onRename,
-                    onMove = onMove,
-                    onMerge = onMerge,
-                    onDelete = onDelete,
-                )
-            }
-
-            // TOTP codes — all of them, no silent dropping
-            account.totpCredentials.forEach { totp ->
-                TotpInlineRow(
-                    totp = totp,
-                    onCopyClick = onCopyClick?.let { cb ->
-                        { cb(totp.toTotpCardUi(account)) }
-                    },
-                    onDeleteClick = onDeleteClick?.let { cb ->
-                        { cb(totp.toTotpCardUi(account)) }
-                    },
-                )
-            }
-
-            // If account has no TOTP codes but has recovery sets, show a
-            // hint to open the detail for recovery codes.
-            if (account.totpCredentials.isEmpty() && account.recoverySets.isNotEmpty() && onOpenAccount != null) {
+            RescueAuthInitialBadge(account.accountName)
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.recovery_codes_account_summary, account.remainingRecoveryCount),
+                    text = account.accountName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = account.providerName,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable(onClick = onOpenAccount),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (account.isPinned) {
+                Icon(
+                    imageVector = Icons.Filled.PushPin,
+                    contentDescription = stringResource(R.string.account_pinned_label),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            AccountActionsMenu(
+                account = account,
+                onTogglePin = onTogglePin,
+                onRename = onRename,
+                onMove = onMove,
+                onMerge = onMerge,
+                onDelete = onDelete,
+            )
+        }
+
+        if (account.recoverySets.isNotEmpty() && account.totpCredentials.isEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            com.rescueauth.v2.ui.components.RescueAuthStatusLine(
+                text = stringResource(
+                    R.string.recovery_codes_account_summary,
+                    account.remainingRecoveryCount,
+                ),
+            )
+        }
+
+        account.totpCredentials.forEachIndexed { index, totp ->
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            if (index > 0) RescueAuthDivider()
+            TotpInlineRow(
+                totp = totp,
+                onCopyClick = onCopyClick?.let { callback ->
+                    { callback(totp.toTotpCardUi(account)) }
+                },
+                onDeleteClick = onDeleteClick?.let { callback ->
+                    { callback(totp.toTotpCardUi(account)) }
+                },
+            )
+        }
+
+        if (account.totpCredentials.isEmpty() && account.recoverySets.isNotEmpty() && onOpenAccount != null) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = stringResource(R.string.authenticator_open_account_hint),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
 
-/**
- * One TOTP code row shown inline within an account card.
- *
- * Shows the current code (large, monospace, clickable to copy), a live
- * [CountdownIndicator], and Copy/Delete actions. The code text is clickable
- * to copy as well.
- */
 @Composable
 private fun TotpInlineRow(
     totp: TotpCredentialUi,
-    onCopyClick: (() -> Unit)? = null,
-    onDeleteClick: (() -> Unit)? = null,
+    onCopyClick: (() -> Unit)?,
+    onDeleteClick: (() -> Unit)?,
 ) {
     val code = totp.currentCode ?: "••••••"
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .then(if (onCopyClick != null) Modifier.clickable(onClick = onCopyClick) else Modifier),
+        ) {
             Text(
                 text = code,
-                style = MaterialTheme.typography.headlineMedium.copy(
+                style = MaterialTheme.typography.displaySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = MaterialTheme.typography.headlineMedium.letterSpacing,
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = if (onCopyClick != null) {
-                    Modifier.clickable(onClick = onCopyClick)
-                } else {
-                    Modifier
-                },
+            )
+            Text(
+                text = stringResource(
+                    R.string.authenticator_code_metadata,
+                    totp.algorithm,
+                    totp.digits,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         CountdownIndicator(
@@ -468,22 +519,16 @@ private fun TotpInlineRow(
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (onCopyClick != null) {
-                IconButton(
-                    onClick = onCopyClick,
-                    modifier = Modifier.semantics { role = Role.Button },
-                ) {
+                IconButton(onClick = onCopyClick) {
                     Icon(
                         imageVector = Icons.Filled.ContentCopy,
                         contentDescription = stringResource(R.string.totp_copy_code),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
             if (onDeleteClick != null) {
-                IconButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier.semantics { role = Role.Button },
-                ) {
+                IconButton(onClick = onDeleteClick) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = stringResource(R.string.totp_delete),
@@ -495,7 +540,6 @@ private fun TotpInlineRow(
     }
 }
 
-/** Converts a [TotpCredentialUi] back to [TotpCardUi] for callback compat. */
 private fun TotpCredentialUi.toTotpCardUi(account: AccountUi): TotpCardUi = TotpCardUi(
     credentialId = id,
     stableId = stableId,
@@ -511,48 +555,30 @@ private fun TotpCredentialUi.toTotpCardUi(account: AccountUi): TotpCardUi = Totp
 )
 
 @Composable
-private fun RecoverySummaryLabel(account: AccountUi) {
-    if (account.recoverySets.isNotEmpty()) {
-        Text(
-            text = stringResource(
-                R.string.recovery_codes_account_summary,
-                account.remainingRecoveryCount,
-            ),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/**
- * Level 1 — Provider list item (the entry point of the logical path).
- *
- * Renders one Provider as a tappable card that drills into its Account list
- * (level 2). Displays only safe metadata — the Provider name, its account
- * count and a pinned-account count — never secret values. A management menu
- * (Rename / Add Account / Delete) is available from the trailing "…".
- */
-@Composable
 private fun ProviderListItem(
     provider: ProviderUi,
     onClick: () -> Unit,
-    onRename: ((String) -> Unit)? = null,
-    onAddAccount: ((String) -> Unit)? = null,
-    onDelete: ((String) -> Unit)? = null,
+    onRename: ((String) -> Unit)?,
+    onAddAccount: ((String) -> Unit)?,
+    onDelete: ((String) -> Unit)?,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     RescueAuthRowCard(
         onClick = onClick,
-        containerColor = CardTokens.containerColor(),
+        containerColor = CardTokens.elevatedContainerColor(),
         modifier = Modifier
             .testTag("provider_row_${provider.serviceName}")
             .semantics { role = Role.Button },
     ) {
+        RescueAuthInitialBadge(provider.serviceName)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = provider.serviceName,
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             val pinnedCount = provider.accounts.count { it.isPinned }
             Text(
@@ -563,18 +589,14 @@ private fun ProviderListItem(
                         pinnedCount,
                     )
                 } else {
-                    stringResource(
-                        R.string.provider_accounts_count,
-                        provider.accounts.size,
-                    )
+                    stringResource(R.string.provider_accounts_count, provider.accounts.size)
                 },
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        // Chevron signals this row opens a deeper level.
         if (onRename != null || onAddAccount != null || onDelete != null) {
-            Box {
+            androidx.compose.foundation.layout.Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(
                         imageVector = Icons.Filled.MoreVert,
@@ -588,46 +610,29 @@ private fun ProviderListItem(
                     if (onRename != null) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.provider_rename)) },
-                            onClick = {
-                                menuOpen = false
-                                onRename(provider.serviceName)
-                            },
+                            onClick = { menuOpen = false; onRename(provider.serviceName) },
                         )
                     }
                     if (onAddAccount != null) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.provider_add_account)) },
-                            onClick = {
-                                menuOpen = false
-                                onAddAccount(provider.serviceName)
-                            },
+                            onClick = { menuOpen = false; onAddAccount(provider.serviceName) },
                         )
                     }
                     if (onDelete != null) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.provider_delete)) },
-                            onClick = {
-                                menuOpen = false
-                                onDelete(provider.serviceName)
-                            },
+                            onClick = { menuOpen = false; onDelete(provider.serviceName) },
                         )
                     }
                 }
             }
         } else {
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            RescueAuthChevron()
         }
     }
 }
 
-/**
- * Account row overflow menu (Rename / Move / Merge / Delete). No secrets are
- * ever shown here — only safe management actions.
- */
 @Composable
 private fun AccountActionsMenu(
     account: AccountUi,
@@ -638,7 +643,10 @@ private fun AccountActionsMenu(
     onDelete: ((AccountUi) -> Unit)?,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box {
+    if (onTogglePin == null && onRename == null && onMove == null && onMerge == null && onDelete == null) {
+        return
+    }
+    androidx.compose.foundation.layout.Box {
         IconButton(onClick = { menuOpen = true }) {
             Icon(
                 imageVector = Icons.Filled.MoreVert,
@@ -653,9 +661,7 @@ private fun AccountActionsMenu(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            stringResource(
-                                if (account.isPinned) R.string.account_unpin else R.string.account_pin,
-                            ),
+                            stringResource(if (account.isPinned) R.string.account_unpin else R.string.account_pin),
                         )
                     },
                     onClick = { menuOpen = false; onTogglePin(account) },
@@ -691,51 +697,11 @@ private fun AccountActionsMenu(
 
 @Preview(showBackground = true)
 @Composable
-private fun AuthenticatorScreenEmptyPreview() {
-    RescueAuthTheme {
-        AuthenticatorScreen(
-            uiState = AuthenticatorUiState(loading = false, totpCards = emptyList()),
-            onAddClick = {},
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AuthenticatorScreenWithDataPreview() {
+private fun AuthenticatorScreenPreview() {
     RescueAuthTheme {
         AuthenticatorScreen(
             uiState = AuthenticatorUiState(
                 loading = false,
-                accounts = listOf(
-                    AccountUi(
-                        id = "a1",
-                        providerName = "GitHub",
-                        accountName = "alice@example.com",
-                        totpCredentials = listOf(
-                            TotpCredentialUi(
-                                id = "t1",
-                                stableId = "t1",
-                                issuer = "GitHub",
-                                accountName = "alice@example.com",
-                                algorithm = "SHA1",
-                                digits = 6,
-                                periodSeconds = 30,
-                                currentCode = "123 456",
-                                remainingSeconds = 24,
-                                progressFraction = 0.8f,
-                            ),
-                        ),
-                        recoverySets = listOf(
-                            RecoveryCodeSetUi(
-                                id = "s1",
-                                title = "Backup codes",
-                                usedCount = 1,
-                                totalCount = 3,
-                            ),
-                        ),
-                    ),
-                ),
                 providers = listOf(
                     ProviderUi(
                         id = "provider:GitHub",
@@ -745,50 +711,25 @@ private fun AuthenticatorScreenWithDataPreview() {
                                 id = "a1",
                                 providerName = "GitHub",
                                 accountName = "alice@example.com",
+                                isPinned = true,
                                 totpCredentials = listOf(
                                     TotpCredentialUi(
                                         id = "t1",
                                         stableId = "t1",
                                         issuer = "GitHub",
                                         accountName = "alice@example.com",
-                                        algorithm = "SHA1",
-                                        digits = 6,
-                                        periodSeconds = 30,
                                         currentCode = "123 456",
                                         remainingSeconds = 24,
                                         progressFraction = 0.8f,
-                                    ),
-                                ),
-                                recoverySets = listOf(
-                                    RecoveryCodeSetUi(
-                                        id = "s1",
-                                        title = "Backup codes",
-                                        usedCount = 1,
-                                        totalCount = 3,
                                     ),
                                 ),
                             ),
                         ),
                     ),
                 ),
-                totpCards = listOf(
-                    TotpCardUi(
-                        credentialId = "t1",
-                        stableId = "t1",
-                        accountId = "a1",
-                        issuer = "GitHub",
-                        accountName = "alice@example.com",
-                        algorithm = "SHA1",
-                        digits = 6,
-                        periodSeconds = 30,
-                        currentCode = "123 456",
-                        remainingSeconds = 24,
-                        progressFraction = 0.8f,
-                    ),
-                ),
             ),
             onAddClick = {},
-            onOpenAccount = {},
+            onOpenSearch = {},
         )
     }
 }

@@ -22,6 +22,7 @@
     <string name="startup_key_invalidated_body">您的保险库密钥因生物识别变更而失效。请重新录入生物识别后重启 RescueAuth。</string>
     <string name="startup_error_title">无法打开保险库</string>
     <string name="startup_error_body">RescueAuth 无法打开您的保险库。请重试，或重启应用。</string>
+    <string name="startup_opening">正在打开保险库…</string>
 
     <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
     <string name="reauth_title">验证以继续</string>
@@ -34,6 +35,21 @@
 
     <!-- Authenticator -->
     <string name="authenticator_title">认证器</string>
+    <string name="authenticator_home_subtitle">安全的一次性密码保险库</string>
+    <string name="authenticator_provider_subtitle">账户与验证码</string>
+    <string name="authenticator_overview_title">保险库概览</string>
+    <string name="authenticator_overview_body">登录所需的一切信息，都集中在一个安全位置。</string>
+    <string name="authenticator_overview_counts">%1$d 个服务 · %2$d 个账户 · %3$d 个验证码</string>
+    <string name="authenticator_providers_heading">服务</string>
+    <string name="authenticator_providers_subtitle">选择服务查看其账户</string>
+    <string name="authenticator_accounts_heading">账户</string>
+    <string name="authenticator_accounts_subtitle">点击验证码即可复制</string>
+    <string name="authenticator_metric_providers">服务</string>
+    <string name="authenticator_metric_accounts">账户</string>
+    <string name="authenticator_metric_codes">验证码</string>
+    <string name="authenticator_code_metadata">%1$s · %2$d 位</string>
+    <string name="authenticator_loading">正在打开保险库…</string>
+    <string name="authenticator_add_first">添加第一个账户</string>
     <string name="authenticator_empty_title">还没有账户</string>
     <string name="authenticator_empty_body">添加服务和账户后即可开始生成一次性密码。</string>
     <string name="authenticator_section_totp">TOTP</string>
@@ -53,10 +69,13 @@
 
     <!-- Phase 4 P7 — Global Search -->
     <string name="search_title">搜索保险库</string>
+    <string name="search_subtitle">查找服务、账户或安全元数据</string>
     <string name="search_hint">搜索保险库</string>
     <string name="search_clear">清除搜索</string>
     <string name="search_empty_query">输入以搜索您的保险库</string>
     <string name="search_no_results">无结果</string>
+    <string name="search_safe_hint">只搜索非敏感标签。</string>
+    <string name="search_no_results_hint">试试其他服务名或账户名。</string>
     <string name="search_type_provider">服务</string>
     <string name="search_type_account">账户</string>
     <string name="search_type_totp">身份验证器</string>
@@ -88,6 +107,10 @@
     <string name="account_merge">合并</string>
     <string name="account_merge_title">合并账户</string>
     <string name="account_merge_confirm">合并</string>
+    <string name="account_merge_source_summary">来源：%1$s / %2$s</string>
+    <string name="account_merge_source_counts">%1$d 个 TOTP · %2$d 个恢复码集</string>
+    <string name="account_merge_destination_summary">目标：%1$s / %2$s</string>
+    <string name="account_merge_explanation">来源账户将被删除。非重复凭据和恢复码集会移动到目标账户；重复的 TOTP 凭据保留目标账户中的版本。</string>
     <string name="account_delete">删除账户</string>
     <string name="account_delete_title">删除账户 %1$s？</string>
     <string name="account_delete_message">将永久删除 %1$d 个 TOTP 凭据和 %2$d 个恢复码集。此操作无法撤销。</string>
@@ -104,10 +127,14 @@
 
     <!-- Add TOTP sheet -->
     <string name="add_totp_title">添加 TOTP</string>
+    <string name="add_totp_sheet_subtitle">选择添加一次性密码的方式</string>
+    <string name="add_totp_manual_subtitle">输入账户信息和密钥</string>
+    <string name="add_totp_paste_subtitle">粘贴服务提供商生成的 otpauth URI</string>
     <string name="add_totp_mode_scan">扫码</string>
     <string name="add_totp_mode_paste">粘贴 URI</string>
     <string name="add_totp_mode_manual">手动</string>
     <string name="add_totp_uri_label">otpauth:// URI</string>
+    <string name="add_totp_uri_hint">otpauth://totp/…</string>
     <string name="add_totp_provider_label">服务商 / 签发者</string>
     <string name="add_totp_account_label">账户名</string>
     <string name="add_totp_secret_label">密钥（Base32）</string>
@@ -146,6 +173,7 @@
 
     <!-- Recovery codes -->
     <string name="recovery_codes_title">恢复码</string>
+    <string name="recovery_codes_detail_subtitle">%1$d / %2$d 个恢复码可用</string>
     <string name="recovery_codes_unused_count">剩余 %1$d 个</string>
     <string name="recovery_codes_used">已使用</string>
     <string name="recovery_codes_unused">未使用</string>
@@ -165,9 +193,12 @@
     <string name="recovery_codes_marked_unused">已标记为未使用</string>
     <string name="recovery_codes_add_title">添加恢复码</string>
     <string name="recovery_codes_edit_title">编辑恢复码</string>
+    <string name="recovery_codes_editor_subtitle">集中管理并检查备用恢复码</string>
     <string name="recovery_codes_set_title_label">标题</string>
     <string name="recovery_codes_values_label">恢复码</string>
     <string name="recovery_codes_values_hint">每行一个恢复码，可一次粘贴多个。</string>
+    <string name="recovery_codes_title_hint">备用恢复码</string>
+    <string name="recovery_codes_values_placeholder">ABCD-EFGH-1234\nIJKL-MNOP-5678</string>
     <string name="recovery_codes_preview">已解析 %1$d 个恢复码</string>
     <string name="recovery_codes_duplicate_error">重复的恢复码：%1$s</string>
     <string name="recovery_codes_empty_error">请至少输入一个恢复码。</string>
@@ -179,6 +210,7 @@
     <string name="recovery_codes_restored_message">恢复码已恢复</string>
     <string name="recovery_codes_empty_state">还没有恢复码。添加一组即可在此保存您的备用码。</string>
     <string name="recovery_codes_account_summary">恢复码 · 剩余 %1$d</string>
+    <string name="authenticator_open_account_hint">进入账户管理恢复码</string>
     <string name="recovery_codes_delete">删除</string>
 
     <!-- Phase 4 P8 — Recovery Code Set Move -->
@@ -209,6 +241,15 @@
     <!-- Developer Vault -->
     <string name="developer_title">开发者</string>
     <string name="developer_subtitle">开发者保险库</string>
+    <string name="developer_loading">正在打开开发者保险库…</string>
+    <string name="developer_overview_title">私密工作区</string>
+    <string name="developer_overview_count">%1$d 个安全条目</string>
+    <string name="developer_group_count">%1$d 个已保存</string>
+    <string name="developer_add_first">添加第一个条目</string>
+    <string name="developer_metadata_section">详细信息</string>
+    <string name="developer_fields_section">条目字段</string>
+    <string name="developer_sensitive_section">受保护字段</string>
+    <string name="developer_sensitive_hint">每次显示或复制值都需要重新验证。</string>
     <string name="developer_empty_title">暂无开发者条目</string>
     <string name="developer_empty_body">可安全存储签名密钥、API 凭据、SSH 密钥、环境变量及其他机密，全部保存在本机。</string>
     <string name="developer_type_signing_key">Android 签名密钥</string>
@@ -222,6 +263,7 @@
     <string name="developer_reveal_hint">显示或隐藏敏感值</string>
     <string name="developer_add">添加</string>
     <string name="developer_add_title">添加条目</string>
+    <string name="developer_add_sheet_subtitle">选择要保存的安全条目类型</string>
     <string name="developer_edit">编辑</string>
     <string name="developer_edit_title">编辑条目</string>
     <string name="developer_delete">删除</string>
@@ -295,15 +337,18 @@
 
     <!-- Settings -->
     <string name="settings_title">设置</string>
+    <string name="settings_subtitle">偏好、迁移与应用信息</string>
+    <string name="settings_security_title">受此设备保护</string>
+    <string name="settings_security_body">保险库保持本地加密，高敏感操作需要重新验证。</string>
     <string name="settings_appearance_section">外观</string>
     <string name="settings_theme_color">主题色</string>
     <string name="settings_theme_color_selected">已选择</string>
-    <string name="theme_color_shiyi_orange">拾遗橙</string>
-    <string name="theme_color_cyan_blue">青蓝</string>
-    <string name="theme_color_jade_green">翠绿</string>
+    <string name="theme_color_shiyi_orange">蓝紫</string>
+    <string name="theme_color_cyan_blue">钴蓝</string>
+    <string name="theme_color_jade_green">长春花蓝</string>
     <string name="theme_color_indigo">靛蓝</string>
     <string name="theme_color_violet">紫罗兰</string>
-    <string name="theme_color_rose">玫红</string>
+    <string name="theme_color_rose">梅紫</string>
     <string name="settings_security_section">安全</string>
     <string name="settings_about_section">关于</string>
     <string name="settings_backup_transfer_section">备份 / 迁移</string>
@@ -320,6 +365,8 @@
 
     <!-- Phase 6 L2: About / Update Check -->
     <string name="about_title">关于</string>
+    <string name="about_subtitle">适用于 Android 的 RescueAuth</string>
+    <string name="about_updates_section">更新</string>
     <string name="about_product_description">一款本地优先、加密的个人安全保险库，用于 TOTP、恢复码、开发者凭据与可移植加密备份。</string>
     <string name="settings_version_label">版本</string>
     <string name="about_version_format">%1$s（构建 %2$d）</string>
@@ -477,8 +524,4 @@
     <string name="a11y_back">返回</string>
     <string name="a11y_sensitive_value">敏感值</string>
 
-    <!-- Breadcrumb navigation (Issue #62) -->
-    <string name="breadcrumb_ellipsis">显示更多上级页面</string>
-    <string name="breadcrumb_more_ancestors">更多上级页面</string>
-    <string name="breadcrumb_current_page">%1$s，当前页面</string>
 </resources>

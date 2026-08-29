@@ -10,17 +10,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,13 +34,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.legacyimport.LegacyImportPreview
 import com.rescueauth.v2.legacyimport.LegacyImportViewModel
-import com.rescueauth.v2.ui.components.BreadcrumbItem
-import com.rescueauth.v2.ui.components.BreadcrumbTopBar
-import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
+import com.rescueauth.v2.ui.components.RescueAuthBackButton
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthDivider
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthPageHeader
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.theme.Spacing
+import com.rescueauth.v2.ui.theme.ScreenTokens
+import com.rescueauth.v2.ui.theme.CardTokens
 
 object LegacyImportTestTags {
     const val SCREEN = "screen_legacy_import"
@@ -87,28 +96,12 @@ fun LegacyImportScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize().testTag(LegacyImportTestTags.SCREEN),
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                title = {
-                    BreadcrumbTopBar(
-                        items = listOf(
-                            BreadcrumbItem(
-                                label = stringResource(R.string.settings_title),
-                                destination = RescueAuthRoutes.SETTINGS,
-                            ),
-                            BreadcrumbItem(
-                                label = stringResource(R.string.settings_backup_transfer_section),
-                            ),
-                            BreadcrumbItem(
-                                label = stringResource(R.string.legacy_import_title),
-                                isCurrent = true,
-                            ),
-                        ),
-                        onNavigate = onNavigate,
-                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
-                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
-                    )
-                },
+            RescueAuthPageHeader(
+                title = stringResource(R.string.legacy_import_title),
+                subtitle = stringResource(R.string.settings_backup_transfer_section),
+                navigationIcon = { RescueAuthBackButton(onBack) },
             )
         },
     ) { padding ->
@@ -117,7 +110,7 @@ fun LegacyImportScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .padding(horizontal = Spacing.lg),
+                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             when (state) {
@@ -130,10 +123,12 @@ fun LegacyImportScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Text(
-                            text = stringResource(R.string.legacy_import_intro),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                            RescueAuthSectionHeader(
+                                title = stringResource(R.string.legacy_import_title),
+                                subtitle = stringResource(R.string.legacy_import_intro),
+                            )
+                        }
                         Text(
                             text = stringResource(R.string.legacy_import_notice),
                             style = MaterialTheme.typography.bodySmall,
@@ -156,18 +151,17 @@ fun LegacyImportScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Text(
-                            text = stringResource(R.string.legacy_import_file_selected),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = state.fileName ?: stringResource(R.string.common_unknown),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = stringResource(R.string.common_working),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        RescueAuthCard {
+                            RescueAuthSectionHeader(
+                                title = stringResource(R.string.legacy_import_file_selected),
+                                subtitle = state.fileName ?: stringResource(R.string.common_unknown),
+                            )
+                            Text(
+                                text = stringResource(R.string.common_working),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
                 is LegacyImportViewModel.State.AwaitingPassword -> {
@@ -184,7 +178,7 @@ fun LegacyImportScreen(
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        Text(stringResource(R.string.common_working))
+                        RescueAuthSectionHeader(title = stringResource(R.string.common_working))
                     }
                 }
                 is LegacyImportViewModel.State.Preview -> {
@@ -200,7 +194,7 @@ fun LegacyImportScreen(
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        Text(stringResource(R.string.common_working))
+                        RescueAuthSectionHeader(title = stringResource(R.string.common_working))
                     }
                 }
                 is LegacyImportViewModel.State.Success -> {
@@ -210,39 +204,35 @@ fun LegacyImportScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        if (state.blocked) {
-                            Text(
-                                text = stringResource(R.string.import_result_blocked_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                            Text(
-                                text = stringResource(
-                                    R.string.import_result_blocked_body,
-                                    state.conflicts,
-                                    state.stateDivergences,
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        } else {
-                            Text(
-                                text = stringResource(R.string.import_result_title),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            if (state.imported == 0 && state.duplicates > 0) {
-                                Text(
-                                    text = stringResource(R.string.import_result_nothing_new),
-                                    style = MaterialTheme.typography.bodyMedium,
+                        RescueAuthCard(
+                            containerColor = if (state.blocked) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer
+                            },
+                        ) {
+                            if (state.blocked) {
+                                RescueAuthSectionHeader(
+                                    title = stringResource(R.string.import_result_blocked_title),
+                                    subtitle = stringResource(
+                                        R.string.import_result_blocked_body,
+                                        state.conflicts,
+                                        state.stateDivergences,
+                                    ),
                                 )
                             } else {
-                                Text(
-                                    text = stringResource(
-                                        R.string.import_result_summary,
-                                        state.imported,
-                                        state.duplicates,
-                                        state.developerImported,
-                                    ),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                RescueAuthSectionHeader(
+                                    title = stringResource(R.string.import_result_title),
+                                    subtitle = if (state.imported == 0 && state.duplicates > 0) {
+                                        stringResource(R.string.import_result_nothing_new)
+                                    } else {
+                                        stringResource(
+                                            R.string.import_result_summary,
+                                            state.imported,
+                                            state.duplicates,
+                                            state.developerImported,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -261,15 +251,12 @@ fun LegacyImportScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        Text(
-                            text = stringResource(R.string.legacy_import_error_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                        Text(
-                            text = state.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                            RescueAuthSectionHeader(
+                                title = stringResource(R.string.legacy_import_error_title),
+                                subtitle = state.message,
+                            )
+                        }
                     }
                     when (state.action) {
                         LegacyImportViewModel.ErrorAction.RETRY_PASSWORD -> {
@@ -319,35 +306,32 @@ private fun ColumnScope.LegacyPasswordEntry(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Text(
-            text = stringResource(R.string.legacy_password_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            text = stringResource(R.string.legacy_password_policy),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text(stringResource(R.string.legacy_password_label)) },
-            visualTransformation = transformation,
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-            ),
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(LegacyImportTestTags.PASSWORD_FIELD),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            OutlinedButton(onClick = { revealed = !revealed }) {
-                Text(
-                    stringResource(
-                        if (revealed) R.string.pin_hide else R.string.pin_show,
-                    ),
-                )
+        RescueAuthCard(containerColor = CardTokens.containerColor()) {
+            RescueAuthIconBadge(
+                icon = Icons.Filled.Lock,
+                size = 40.dp,
+                iconSize = 20.dp,
+            )
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.legacy_password_title),
+                subtitle = stringResource(R.string.legacy_password_policy),
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text(stringResource(R.string.legacy_password_label)) },
+                visualTransformation = transformation,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                ),
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.md)
+                    .testTag(LegacyImportTestTags.PASSWORD_FIELD),
+            )
+            TextButton(onClick = { revealed = !revealed }) {
+                Text(stringResource(if (revealed) R.string.pin_hide else R.string.pin_show))
             }
         }
     }
@@ -403,16 +387,18 @@ private fun ColumnScope.LegacyPreviewContent(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Text(
-            text = stringResource(R.string.legacy_preview_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
+        RescueAuthCard(containerColor = CardTokens.containerColor()) {
+            RescueAuthIconBadge(
+                icon = Icons.Filled.History,
+                size = 40.dp,
+                iconSize = 20.dp,
+            )
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.legacy_preview_title),
+                subtitle = stringResource(R.string.preview_content_title),
+            )
 
         // Source metadata (non-secret)
-        Text(
-            text = stringResource(R.string.preview_content_title),
-            style = MaterialTheme.typography.titleSmall,
-        )
         PreviewRow(stringResource(R.string.legacy_preview_schema), preview.schemaVersion.toString())
         PreviewRow(stringResource(R.string.preview_accounts), preview.accounts.toString())
         PreviewRow(stringResource(R.string.preview_totp), preview.totpCredentials.toString())
@@ -425,7 +411,7 @@ private fun ColumnScope.LegacyPreviewContent(
         PreviewRow(stringResource(R.string.preview_dev_env), preview.developerSummary.envVarSets.toString())
         PreviewRow(stringResource(R.string.preview_dev_generic), preview.developerSummary.genericSecrets.toString())
 
-        HorizontalDivider()
+        RescueAuthDivider()
 
         // Merge summary
         Text(
@@ -461,6 +447,7 @@ private fun ColumnScope.LegacyPreviewContent(
         }
         // Bottom spacer so the last row never rubs against the action bar.
         Spacer(modifier = Modifier.height(Spacing.sm))
+        }
     }
 
     // Fixed bottom action row — always visible, never scrolled out of view.
@@ -498,7 +485,13 @@ private fun PreviewRow(label: String, value: String) {
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
         )
-        Text(text = value, style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.width(Spacing.sm))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        )
     }
 }

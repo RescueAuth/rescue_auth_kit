@@ -51,7 +51,10 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthMetaPill
 import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.theme.Spacing
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -266,8 +269,8 @@ private fun CameraOverlay(
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             FilledTonalIconButton(onClick = onToggleTorch) {
                 Icon(
@@ -282,15 +285,13 @@ private fun CameraOverlay(
                 )
             }
         }
-        Text(
+        RescueAuthMetaPill(
             text = stringResource(R.string.scan_qr_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(24.dp)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
-                .padding(12.dp),
+                .padding(Spacing.lg),
         )
     }
 }
@@ -312,9 +313,14 @@ private fun PermissionDeniedContent(
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                RescueAuthIconBadge(
+                    icon = Icons.Filled.FlashlightOff,
+                    size = 44.dp,
+                    iconSize = 22.dp,
+                )
                 if (needsSettings) {
                     Text(
                         text = stringResource(R.string.scan_permission_denied_settings),

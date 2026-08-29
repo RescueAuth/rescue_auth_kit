@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * UI state of the Authenticator home screen.
@@ -171,7 +172,9 @@ class AuthenticatorViewModel(
         fun currentTimeSeconds(): Long
     }
 
-    private val _uiState = MutableStateFlow(AuthenticatorUiState())
+    // Start in an explicit loading state so a freshly opened vault never
+    // flashes the empty-state copy before the first Room snapshot arrives.
+    private val _uiState = MutableStateFlow(AuthenticatorUiState(loading = true))
     val uiState: StateFlow<AuthenticatorUiState> = _uiState.asStateFlow()
 
     private val _formState = MutableStateFlow(AddTotpFormState())
@@ -190,10 +193,23 @@ class AuthenticatorViewModel(
     private var collectionJob: Job? = null
     private var currentRepo: AuthenticatorRepository? = null
 
+    /** In-memory TOTP result cache; invalidated when the session locks. */
+    private data class CachedTotp(
+        val secret: String,
+        val algorithm: String,
+        val digits: Int,
+        val periodSeconds: Int,
+        val counter: Long,
+        val code: String,
+    )
+
+    private val totpCodeCache = ConcurrentHashMap<String, CachedTotp>()
+
     init {
         scope.launch {
             sessionState.collect { state ->
                 if (state == SecureSessionStateMachine.State.UNLOCKED) {
+                    _uiState.update { it.copy(loading = true, error = null) }
                     val repo = repositoryProvider()
                     if (repo != null && repo !== currentRepo) {
                         collectionJob?.cancel()
@@ -209,6 +225,7 @@ class AuthenticatorViewModel(
                     // Undo token is NOT restored after unlock.
                     pendingUndo = null
                     pendingAccountUndo = null
+                    totpCodeCache.clear()
                     _uiState.value = AuthenticatorUiState(loading = false)
                 }
             }
@@ -244,8 +261,30 @@ class AuthenticatorViewModel(
             val account = accountById[c.accountId]
             val issuer = account?.serviceName ?: "Unknown"
             val accountName = account?.accountName ?: ""
+            val counter = Math.floorDiv(now, c.periodSeconds.toLong())
+            val cached = totpCodeCache[c.id]
             val code = try {
-                TotpCore.generate(c.secretBase32, c.algorithm, c.digits, c.periodSeconds, now)
+                if (cached != null &&
+                    cached.secret == c.secretBase32 &&
+                    cached.algorithm == c.algorithm &&
+                    cached.digits == c.digits &&
+                    cached.periodSeconds == c.periodSeconds &&
+                    cached.counter == counter
+                ) {
+                    cached.code
+                } else {
+                    TotpCore.generate(c.secretBase32, c.algorithm, c.digits, c.periodSeconds, now)
+                        .also { generated ->
+                            totpCodeCache[c.id] = CachedTotp(
+                                secret = c.secretBase32,
+                                algorithm = c.algorithm,
+                                digits = c.digits,
+                                periodSeconds = c.periodSeconds,
+                                counter = counter,
+                                code = generated,
+                            )
+                        }
+                }
             } catch (e: Exception) {
                 "••••••"
             }
@@ -278,13 +317,17 @@ class AuthenticatorViewModel(
         // that hold recovery sets surface a one-line "Recovery codes · N
         // remaining" summary so the home screen never expands secret values.
         val setsByAccount = recoverySets.groupBy { it.accountId }
+        // Build the account index once per snapshot. The previous implementation
+        // filtered the full credential list inside every account mapping, which
+        // made each countdown tick O(accounts * credentials) for larger vaults.
+        val cardsByAccount = cards.groupBy { it.accountId }
         val accountUis = accounts.map { account ->
             com.rescueauth.v2.ui.model.AccountUi(
                 id = account.id,
                 providerName = account.serviceName,
                 accountName = account.accountName,
                 isPinned = account.favorite,
-                totpCredentials = cards.filter { it.accountId == account.id }
+                totpCredentials = cardsByAccount[account.id].orEmpty()
                     .map { card ->
                         com.rescueauth.v2.ui.model.TotpCredentialUi(
                             id = card.credentialId,

@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileUpload
@@ -32,10 +32,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,12 +48,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.repository.DeveloperRepository
-import com.rescueauth.v2.ui.components.BreadcrumbItem
-import com.rescueauth.v2.ui.components.BreadcrumbTopBar
+import com.rescueauth.v2.ui.components.RescueAuthBackButton
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthPageHeader
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.developer.DeveloperFormState
 import com.rescueauth.v2.ui.developer.DeveloperFormType
-import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
@@ -126,36 +129,13 @@ fun DeveloperFormScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = {
-                    BreadcrumbTopBar(
-                        items = listOf(
-                            BreadcrumbItem(
-                                label = stringResource(R.string.developer_title),
-                                destination = RescueAuthRoutes.DEVELOPER,
-                            ),
-                            BreadcrumbItem(label = formTypeLabel(form.type)),
-                            BreadcrumbItem(
-                                label = stringResource(
-                                    if (form.isEditing) R.string.developer_edit_title
-                                    else R.string.developer_add_title,
-                                ),
-                                isCurrent = true,
-                            ),
-                        ),
-                        onNavigate = onNavigate,
-                        ellipsisContentDescription = stringResource(R.string.breadcrumb_ellipsis),
-                        moreMenuContentDescription = stringResource(R.string.breadcrumb_more_ancestors),
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.a11y_back),
-                        )
-                    }
-                },
+            RescueAuthPageHeader(
+                title = stringResource(
+                    if (form.isEditing) R.string.developer_edit_title
+                    else R.string.developer_add_title,
+                ),
+                subtitle = formTypeLabel(form.type),
+                navigationIcon = { RescueAuthBackButton(onBack) },
             )
         },
     ) { padding ->
@@ -164,24 +144,44 @@ fun DeveloperFormScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.lg),
+                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            OutlinedTextField(
-                value = form.title,
-                onValueChange = onTitleChange,
-                label = { Text(stringResource(R.string.developer_field_title)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = form.notes,
-                onValueChange = onNotesChange,
-                label = { Text(stringResource(R.string.developer_field_notes)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            RescueAuthCard(
+                containerColor = CardTokens.elevatedContainerColor(),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    RescueAuthSectionHeader(
+                        title = stringResource(
+                            if (form.isEditing) R.string.developer_edit_title else R.string.developer_add_title,
+                        ),
+                        subtitle = formTypeLabel(form.type),
+                    )
+                    OutlinedTextField(
+                        value = form.title,
+                        onValueChange = onTitleChange,
+                        label = { Text(stringResource(R.string.developer_field_title)) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.md),
+                    )
+                    OutlinedTextField(
+                        value = form.notes,
+                        onValueChange = onNotesChange,
+                        label = { Text(stringResource(R.string.developer_field_notes)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
 
-            when (form.type) {
+            RescueAuthCard(containerColor = CardTokens.containerColor()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    RescueAuthSectionHeader(
+                        title = stringResource(R.string.developer_fields_section),
+                        subtitle = formTypeLabel(form.type),
+                    )
+                    when (form.type) {
                 DeveloperFormType.API_CREDENTIAL -> {
                     OutlinedTextField(
                         value = form.serviceName,
@@ -269,7 +269,7 @@ fun DeveloperFormScreen(
                             imageVector = Icons.Filled.Add,
                             contentDescription = null,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(stringResource(R.string.developer_add_field))
                     }
                 }
@@ -403,27 +403,35 @@ fun DeveloperFormScreen(
                             imageVector = Icons.Filled.Add,
                             contentDescription = null,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(stringResource(R.string.developer_add_variable))
+                    }
                     }
                 }
             }
 
-            if (form.error != null) {
-                Text(
-                    text = formErrorText(form.error),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
             }
 
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Button(
-                onClick = onSubmit,
-                enabled = !form.submitting,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.developer_save))
+            // End of the type-specific fields card.
+
+            if (form.error != null) {
+                RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                    Text(
+                        text = formErrorText(form.error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+
+            RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
+                Button(
+                    onClick = onSubmit,
+                    enabled = !form.submitting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.developer_save))
+                }
             }
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
@@ -519,7 +527,9 @@ private fun SecretField(
     label: String,
     multiLine: Boolean = false,
 ) {
-    var visible by rememberSaveable { mutableStateOf(false) }
+    // Key visibility by the field identity so a removed/reordered dynamic row
+    // can never inherit the previous row's reveal state.
+    var visible by remember(label) { mutableStateOf(false) }
     val transformation = if (visible) VisualTransformation.None else PasswordVisualTransformation()
     OutlinedTextField(
         value = value,

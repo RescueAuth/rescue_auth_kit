@@ -1,4 +1,10 @@
-# UI_FOUNDATION_REPORT.md — Compose App Shell & Design System
+# UI_FOUNDATION_REPORT.md — Compose App Shell & Design System (Historical Baseline)
+
+> **Historical report.** This document records the original Compose foundation
+> slice. The current production UI supersedes its presentation layer; see
+> [`UI_REDESIGN_REPORT.md`](UI_REDESIGN_REPORT.md). Component names and the
+> “no real CRUD” statements below describe the foundation checkpoint, not the
+> current app.
 
 > 状态：**Implemented（Issue #20）**。
 > 本文记录 v2 Compose UI Foundation 的架构、导航、组件清单、设计 token、
