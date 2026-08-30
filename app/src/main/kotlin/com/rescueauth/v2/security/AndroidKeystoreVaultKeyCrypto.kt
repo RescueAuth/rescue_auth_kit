@@ -16,8 +16,12 @@ import javax.crypto.spec.GCMParameterSpec
  *
  * The wrap key is a NON-EXPORTABLE AES-256-GCM key; `setUserAuthenticationRequired`
  * ties unwrap to a successful BiometricPrompt (or the configured validity
- * window). Keystore invalidation surfaces as [VaultKeyManager.KeyInvalidatedException]
- * so the caller routes to the recovery flow instead of deleting the database.
+ * window). Biometric enrollment changes deliberately do NOT invalidate the
+ * key ([ADR-0014]: with the platform default they would permanently destroy
+ * the vault on a routine fingerprint change). Keystore invalidation still
+ * surfaces as [VaultKeyManager.KeyInvalidatedException] (e.g. secure lock
+ * screen removed) so the caller routes to the recovery flow instead of
+ * deleting the database.
  */
 class AndroidKeystoreVaultKeyCrypto(
     private val context: Context,
@@ -104,6 +108,18 @@ class AndroidKeystoreVaultKeyCrypto(
             .setKeySize(256)
         if (userAuthenticationRequired) {
             builder.setUserAuthenticationRequired(true)
+            // Opt OUT of biometric-enrollment invalidation (approved review
+            // 2026-08-30, see docs/ADRS/ADR-0014). With the platform default
+            // (true), merely adding or removing a fingerprint permanently
+            // invalidates this wrap key — and since the VaultKey is wrapped by
+            // it and the SQLCipher database is keyed by the VaultKey, a routine
+            // biometric change would destroy the entire vault with no recovery
+            // path. Authentication is still required to unwrap (the 30s
+            // validity window below); only enrollment changes no longer brick
+            // the key. Removing the secure lock screen entirely still
+            // invalidates auth-bound keys (platform hard constraint) — the
+            // recovery flow remains the backstop for that case.
+            builder.setInvalidatedByBiometricEnrollment(false)
             if (authenticationValiditySeconds > 0) {
                 builder.setUserAuthenticationValidityDurationSeconds(authenticationValiditySeconds)
             }
