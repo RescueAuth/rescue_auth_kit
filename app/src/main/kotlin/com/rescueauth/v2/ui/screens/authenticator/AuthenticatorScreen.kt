@@ -62,7 +62,6 @@ import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthDivider
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
@@ -263,50 +262,15 @@ private fun ProviderHomeContent(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        item(key = "overview") {
-            RescueAuthCard(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentPadding = Spacing.md,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    RescueAuthIconBadge(
-                        icon = Icons.Filled.Shield,
-                        size = 42.dp,
-                        iconSize = 23.dp,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.authenticator_overview_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
-                        Text(
-                            text = stringResource(
-                                R.string.authenticator_overview_counts,
-                                providerCount,
-                                accountCount,
-                                credentialCount,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
-            }
-        }
         item(key = "providers-heading") {
             RescueAuthSectionHeader(
                 title = stringResource(R.string.authenticator_providers_heading),
-                subtitle = stringResource(R.string.authenticator_providers_subtitle),
-                modifier = Modifier.padding(top = Spacing.md),
+                subtitle = stringResource(
+                    R.string.authenticator_providers_subtitle,
+                    providerCount,
+                    accountCount,
+                    credentialCount,
+                ),
             )
         }
         items(providers, key = { it.id }) { provider ->

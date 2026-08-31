@@ -38,11 +38,8 @@
     <string name="authenticator_title">Authenticator</string>
     <string name="authenticator_home_subtitle">Your secure one-time password vault</string>
     <string name="authenticator_provider_subtitle">Accounts and codes</string>
-    <string name="authenticator_overview_title">Vault overview</string>
-    <string name="authenticator_overview_body">Everything you need for a secure sign-in, in one place.</string>
-    <string name="authenticator_overview_counts">%1$d providers · %2$d accounts · %3$d codes</string>
     <string name="authenticator_providers_heading">Providers</string>
-    <string name="authenticator_providers_subtitle">Choose a service to view its accounts</string>
+    <string name="authenticator_providers_subtitle">%1$d providers · %2$d accounts · %3$d codes</string>
     <string name="authenticator_accounts_heading">Accounts</string>
     <string name="authenticator_accounts_subtitle">Tap a code to copy it securely</string>
     <string name="authenticator_metric_providers">Providers</string>
