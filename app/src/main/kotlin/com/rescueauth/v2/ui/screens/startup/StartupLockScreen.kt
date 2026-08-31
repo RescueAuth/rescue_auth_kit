@@ -3,11 +3,13 @@ package com.rescueauth.v2.ui.screens.startup
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
@@ -16,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,51 +54,57 @@ fun StartupIntroScreen(
             .testTag(StartupLockTestTags.INTRO_SCREEN),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
+        // Box so the "Import from v1" entry can sit in the top-right corner,
+        // independent of the vertically-centered intro card below.
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(Spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
         ) {
-            StartupBranding(logoSize = 72.dp)
-            RescueAuthCard(
-                modifier = Modifier.padding(top = Spacing.xl),
-                containerColor = MaterialTheme.colorScheme.surface,
-            ) {
-                Text(
-                    text = stringResource(R.string.startup_intro_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = stringResource(R.string.startup_intro_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+            if (onImportV1 != null) {
+                TextButton(
+                    onClick = onImportV1,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.xs),
-                )
-                Button(
-                    onClick = onContinue,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.lg)
-                        .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
                 ) {
-                    Text(text = stringResource(R.string.startup_intro_continue))
+                    Text(text = stringResource(R.string.startup_intro_import_v1))
                 }
-                if (onImportV1 != null) {
-                    OutlinedButton(
-                        onClick = onImportV1,
+            }
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                StartupBranding(logoSize = 72.dp)
+                RescueAuthCard(
+                    modifier = Modifier.padding(top = Spacing.xl),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    Text(
+                        text = stringResource(R.string.startup_intro_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = stringResource(R.string.startup_intro_body),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = Spacing.sm)
-                            .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
+                            .padding(top = Spacing.xs),
+                    )
+                    Button(
+                        onClick = onContinue,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.lg)
+                            .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
                     ) {
-                        Text(text = stringResource(R.string.startup_intro_import_v1))
+                        Text(text = stringResource(R.string.startup_intro_continue))
                     }
                 }
             }
