@@ -33,6 +33,7 @@ object StartupLockTestTags {
     const val SCREEN = "startup_lock_screen"
     const val INTRO_SCREEN = "startup_intro_screen"
     const val INTRO_CONTINUE_BUTTON = "startup_intro_continue_button"
+    const val INTRO_IMPORT_V1_BUTTON = "startup_intro_import_v1_button"
     const val AUTH_HOST = "startup_auth_host"
     const val EXIT_BUTTON = "startup_exit_button"
     const val SETTINGS_BUTTON = "startup_settings_button"
@@ -41,6 +42,7 @@ object StartupLockTestTags {
 @Composable
 fun StartupIntroScreen(
     onContinue: () -> Unit,
+    onImportV1: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -84,6 +86,17 @@ fun StartupIntroScreen(
                         .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
                 ) {
                     Text(text = stringResource(R.string.startup_intro_continue))
+                }
+                if (onImportV1 != null) {
+                    OutlinedButton(
+                        onClick = onImportV1,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.sm)
+                            .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
+                    ) {
+                        Text(text = stringResource(R.string.startup_intro_import_v1))
+                    }
                 }
             }
         }

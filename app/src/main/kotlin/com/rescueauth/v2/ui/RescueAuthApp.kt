@@ -14,6 +14,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,7 +48,6 @@ import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
 import com.rescueauth.v2.ui.screens.legacyimport.LegacyImportRoute
 import com.rescueauth.v2.ui.search.SearchRoute
-import com.rescueauth.v2.ui.theme.ThemeColor
 
 object RescueAuthTestTags {
     const val NAV_AUTHENTICATOR = "nav_authenticator"
@@ -73,11 +73,18 @@ object RescueAuthTestTags {
 fun RescueAuthApp(
     modifier: Modifier = Modifier,
     versionName: String? = null,
-    themeColor: ThemeColor = ThemeColor.DEFAULT,
-    onThemeColorSelected: ((ThemeColor) -> Unit)? = null,
+    startRoute: String? = null,
 ) {
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Optional deep-link on first app launch (e.g. a v1 migration entry tapped
+    // from the Intro screen lands here straight inside the legacy importer).
+    LaunchedEffect(startRoute) {
+        if (startRoute != null) {
+            navController.navigate(startRoute) { launchSingleTop = true }
+        }
+    }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
 
@@ -307,8 +314,6 @@ fun RescueAuthApp(
             composable(RescueAuthRoutes.SETTINGS) {
                 SettingsScreen(
                     versionName = versionName,
-                    themeColor = themeColor,
-                    onThemeColorSelected = onThemeColorSelected,
                     onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
                     onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
                     onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },

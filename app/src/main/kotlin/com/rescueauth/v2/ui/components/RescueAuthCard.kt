@@ -77,7 +77,7 @@ fun RescueAuthRowCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     containerColor: androidx.compose.ui.graphics.Color = CardTokens.elevatedContainerColor(),
-    shape: Shape = CardTokens.shape,
+    shape: Shape = CardTokens.rowShape,
     horizontalPadding: Dp = CardTokens.contentPadding,
     verticalPadding: Dp = CardTokens.contentPadding,
     horizontalArrangement: androidx.compose.foundation.layout.Arrangement.Horizontal = androidx.compose.foundation.layout.Arrangement.Start,

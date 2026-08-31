@@ -34,10 +34,14 @@ object ScreenTokens {
 
 /** Corner radius scale (design tokens). */
 object CornerRadius {
-    val xs = 8.dp
-    val sm = 12.dp
-    val md = 16.dp
-    val pill = 24.dp
+    /** Smallest radius — chips, badges, inline controls. */
+    val xs = 12.dp
+    /** Compact list rows / medium cards. */
+    val sm = 16.dp
+    /** Standard card container — generous, modern rounding. */
+    val md = 20.dp
+    /** Fully rounded pill (FAB, tags). */
+    val pill = 28.dp
 }
 
 /** Elevation scale (design tokens). */
@@ -79,16 +83,18 @@ object CardTokens {
     fun outlineColor(): Color =
         androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
 
-    /** Standard card corner radius (rounded-rectangle card silhouette). */
-    // A restrained radius keeps the vault feeling like a focused utility rather
-    // than a stack of inflated, floating panels.
-    val shape = RoundedCornerShape(CornerRadius.xs)
+    /** Standard card corner radius — generous, modern rounding (20dp). */
+    val shape = RoundedCornerShape(CornerRadius.md)
 
-    /** Standard card inner content padding. */
-    val contentPadding = Spacing.md
+    /** Slightly tighter radius for compact list rows (16dp) so rows still
+     *  read as part of the same card family without bulking up the list. */
+    val rowShape = RoundedCornerShape(CornerRadius.sm)
+
+    /** Standard card inner content padding — roomier for a calm, breathable feel. */
+    val contentPadding = 20.dp
 
     /** Padding between sibling cards inside a list / column. */
-    val listSpacing = Spacing.sm
+    val listSpacing = Spacing.md
 
     /** Padding applied around the whole carded list from its container edges. */
     val listOuterPadding = Spacing.md

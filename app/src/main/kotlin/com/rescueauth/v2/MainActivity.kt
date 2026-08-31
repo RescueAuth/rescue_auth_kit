@@ -6,7 +6,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import com.rescueauth.v2.repository.VaultAccess
@@ -20,6 +19,7 @@ import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.session.SessionManager
 import com.rescueauth.v2.session.VaultUnlockOutcome
 import com.rescueauth.v2.ui.RescueAuthApp
+import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
 import com.rescueauth.v2.ui.screens.startup.StartupAuthHost
 import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
@@ -93,12 +93,6 @@ import kotlinx.coroutines.withContext
  */
 class MainActivity : AppCompatActivity() {
 
-    /** Non-sensitive preference file name (first-run auth intro state). */
-    companion object {
-        private const val STARTUP_PREFS_NAME = "startup_auth_intro"
-        private const val KEY_FIRST_RUN_INTRO_CONFIRMED = "first_run_intro_confirmed"
-    }
-
     /** Test-only injection point for a fake [SessionManager]. */
     internal var sessionManagerFactory: ((MainActivity) -> SessionManager)? = null
 
@@ -113,6 +107,11 @@ class MainActivity : AppCompatActivity() {
 
     /** How this launch should open the Vault (first-run vs existing). */
     private var startupMode: StartupMode = StartupMode.UNLOCK
+
+    /** Set when the user chose to import from v1 Rescue Auth on the first-run
+     *  intro; consumed once on first UNLOCKED to deep-link into the legacy
+     *  importer instead of the default authenticator screen. */
+    private var pendingV1Import = false
 
     private enum class StartupMode { FIRST_RUN, UNLOCK }
 
@@ -144,28 +143,19 @@ class MainActivity : AppCompatActivity() {
     private var authPromptPending = false
 
     /**
-     * Simple, non-sensitive preference file for the first-run auth intro
-     * acknowledgment. It is intentionally NOT tied to Vault creation: once the
-     * user has seen the intro and tapped **Enable**, we never show it again,
-     * even if they cancelled system authentication before the Vault was created
-     * (Issue #50 — "user saw & enabled" is distinct from "Vault created").
+     * Adaptive first-run intro gate (Issue #50 follow-up). The intro is shown
+     * whenever the Vault is not yet enabled (first-run). This is a *session*
+     * flag — reset on every fresh launch — so the intro re-appears on each
+     * launch until the Vault is actually created, but does NOT re-appear within
+     * a single launch after the user has tapped **Enable** (or **Import v1**).
      */
-    private val startupPrefs by lazy {
-        getSharedPreferences(STARTUP_PREFS_NAME, MODE_PRIVATE)
-    }
+    private var introContinueRequested = false
 
     /** Guards against infinite auth-required prompt loops (Issue #50 UX §8). */
     private val authRaceCount = AtomicInteger(0)
     private val maxAuthRaceRetries = 2
 
     private var startupAuthPrompt: StartupAuthPrompt? = null
-
-    private fun isFirstRunIntroConfirmed(): Boolean =
-        startupPrefs.getBoolean(KEY_FIRST_RUN_INTRO_CONFIRMED, false)
-
-    private fun setFirstRunIntroConfirmed() {
-        startupPrefs.edit().putBoolean(KEY_FIRST_RUN_INTRO_CONFIRMED, true).apply()
-    }
 
     /**
      * Phase 4 P4: the production sensitive-action re-auth gate.
@@ -245,7 +235,6 @@ class MainActivity : AppCompatActivity() {
                     themePreferences ?: ThemePreferences(context)
                 }
                 val themeColor by prefs.themeColor.collectAsState(initial = ThemeColor.DEFAULT)
-                val scope = rememberCoroutineScope()
 
                 RescueAuthTheme(themeColor = themeColor) {
                     val ui by uiState.collectAsState()
@@ -253,6 +242,7 @@ class MainActivity : AppCompatActivity() {
                         StartupUiState.INIT -> StartupSplashScreen()
                         StartupUiState.INTRO -> StartupIntroScreen(
                             onContinue = { onIntroContinue() },
+                            onImportV1 = { onIntroImportV1() },
                         )
                         StartupUiState.AUTHENTICATING -> StartupAuthHost()
                         StartupUiState.OPENING -> StartupOpeningHost()
@@ -276,13 +266,20 @@ class MainActivity : AppCompatActivity() {
                                 onExit = { finish() },
                             )
                         }
-                        StartupUiState.UNLOCKED -> RescueAuthApp(
-                            versionName = BuildConfig.VERSION_NAME,
-                            themeColor = themeColor,
-                            onThemeColorSelected = { color ->
-                                scope.launch { prefs.setThemeColor(color) }
-                            },
-                        )
+                        StartupUiState.UNLOCKED -> {
+                            val startRoute = if (pendingV1Import) {
+                                RescueAuthRoutes.LEGACY_IMPORT
+                            } else {
+                                null
+                            }
+                            // Consume the one-shot deep-link flag so a later
+                            // relock/re-unlock does not re-enter the importer.
+                            pendingV1Import = false
+                            RescueAuthApp(
+                                versionName = BuildConfig.VERSION_NAME,
+                                startRoute = startRoute,
+                            )
+                        }
                     }
                 }
             }
@@ -371,14 +368,26 @@ class MainActivity : AppCompatActivity() {
      * tapping **Enable** on the first-run intro without driving the Compose UI.
      */
     internal fun onIntroContinue() {
-        // Persist the acknowledgment immediately — before authentication. Even
-        // if the user cancels system auth and the Vault is never created, we
-        // must not show this one-time intro again on the next launch.
-        setFirstRunIntroConfirmed()
+        // Mark the intro gate as passed for THIS launch — before authentication.
+        // The intro is adaptive (re-shown on each fresh launch until the Vault
+        // is created), so we only need to remember it within this session; we do
+        // not persist a "seen" flag anymore.
+        introContinueRequested = true
         _uiState.value = StartupUiState.AUTHENTICATING
         // Unified lifecycle-aware scheduler — the Activity is already in
         // stable RESUMED when the user taps Enable, so this launches promptly.
         scheduleAuthentication()
+    }
+
+    /**
+     * Test-visible (internal). The user chose **Import from v1 Rescue Auth** on
+     * the first-run intro. Flag the pending v1 import, then run the same
+     * enable-and-authenticate flow as [onIntroContinue]; once the Vault is
+     * created/unlocked the app shell deep-links into the legacy importer.
+     */
+    internal fun onIntroImportV1() {
+        pendingV1Import = true
+        onIntroContinue()
     }
 
     /**
@@ -453,11 +462,13 @@ class MainActivity : AppCompatActivity() {
             _uiState.value = StartupUiState.UNLOCKED
             return
         }
-        // First-run: gate on the one-time intro before prompting. The intro is
-        // shown only until the user has acknowledged it (persisted), which is
-        // independent of whether the Vault was successfully created.
-        if (startupMode == StartupMode.FIRST_RUN && !isFirstRunIntroConfirmed()) {
-            // Show the intro; do not launch the prompt until the user enables it.
+        // First-run (Vault not yet enabled): show the intro until the user taps
+        // **Enable** (or **Import v1**) on this launch. Once they pass the gate
+        // (introContinueRequested), proceed to authentication so the Vault can
+        // be created. If the user cancels auth and the Vault is never created,
+        // a fresh launch re-shows the intro (adaptive: "show the intro whenever
+        // the Vault is not enabled").
+        if (startupMode == StartupMode.FIRST_RUN && !introContinueRequested) {
             _uiState.value = StartupUiState.INTRO
             return
         }

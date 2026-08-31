@@ -34,9 +34,9 @@ fun RescueAuthTheme(
         typography = RescueAuthTypography,
         shapes = Shapes(
             small = RoundedCornerShape(CornerRadius.xs),
-            medium = RoundedCornerShape(CornerRadius.xs),
-            large = RoundedCornerShape(CornerRadius.sm),
-            extraLarge = RoundedCornerShape(CornerRadius.sm),
+            medium = RoundedCornerShape(CornerRadius.sm),
+            large = RoundedCornerShape(CornerRadius.md),
+            extraLarge = RoundedCornerShape(CornerRadius.md),
         ),
         content = content,
     )

@@ -19,7 +19,7 @@ internal class ThemeColorPreset(
 
 /** Shared neutral surfaces. Accent color is intentionally isolated to roles. */
 private object Neutrals {
-    val backgroundLight = Color(0xFFF6F7FB)
+    val backgroundLight = Color(0xFFF4F5FB)
     val onBackgroundLight = Color(0xFF1A1B22)
     val surfaceLight = Color(0xFFFBFCFF)
     val onSurfaceLight = Color(0xFF1A1B22)
@@ -27,13 +27,33 @@ private object Neutrals {
     val onSurfaceVariantLight = Color(0xFF5B5C68)
     val outlineLight = Color(0xFF777985)
 
-    val backgroundDark = Color(0xFF111218)
+    val backgroundDark = Color(0xFF0E0F15)
     val onBackgroundDark = Color(0xFFE5E1EE)
-    val surfaceDark = Color(0xFF171820)
+    val surfaceDark = Color(0xFF15161E)
     val onSurfaceDark = Color(0xFFE5E1EE)
     val surfaceVariantDark = Color(0xFF454652)
     val onSurfaceVariantDark = Color(0xFFC7C5D1)
     val outlineDark = Color(0xFF90909D)
+
+    /**
+     * Explicit tonal surface-container ramp (light + dark) so cards and sheets
+     * get a real, layered cool-blue surface instead of falling back to the M3
+     * auto-derived (muddy violet-grey) container colors. The ramp is shared by
+     * every blue-violet preset; only the accent (primary) differs per preset.
+     */
+    val surfaceContainerLowestLight = Color(0xFFEEF0F8)
+    val surfaceContainerLowLight = Color(0xFFE8EAF5)
+    val surfaceContainerLight = Color(0xFFE2E5F2)
+    val surfaceContainerHighLight = Color(0xFFDCE0EE)
+    val surfaceContainerHighestLight = Color(0xFFD6DAEC)
+    val outlineVariantLight = Color(0xFFC9CBD9)
+
+    val surfaceContainerLowestDark = Color(0xFF0A0B11)
+    val surfaceContainerLowDark = Color(0xFF1A1B25)
+    val surfaceContainerDark = Color(0xFF20212C)
+    val surfaceContainerHighDark = Color(0xFF2A2B38)
+    val surfaceContainerHighestDark = Color(0xFF353644)
+    val outlineVariantDark = Color(0xFF3E3F4D)
 }
 
 private object SemanticColors {
@@ -90,7 +110,13 @@ private fun blueVioletPreset(
             onSurface = Neutrals.onSurfaceLight,
             surfaceVariant = Neutrals.surfaceVariantLight,
             onSurfaceVariant = Neutrals.onSurfaceVariantLight,
+            surfaceContainerLowest = Neutrals.surfaceContainerLowestLight,
+            surfaceContainerLow = Neutrals.surfaceContainerLowLight,
+            surfaceContainer = Neutrals.surfaceContainerLight,
+            surfaceContainerHigh = Neutrals.surfaceContainerHighLight,
+            surfaceContainerHighest = Neutrals.surfaceContainerHighestLight,
             outline = Neutrals.outlineLight,
+            outlineVariant = Neutrals.outlineVariantLight,
             error = SemanticColors.errorLight,
             onError = SemanticColors.onErrorLight,
             errorContainer = SemanticColors.errorContainerLight,
@@ -115,7 +141,13 @@ private fun blueVioletPreset(
             onSurface = Neutrals.onSurfaceDark,
             surfaceVariant = Neutrals.surfaceVariantDark,
             onSurfaceVariant = Neutrals.onSurfaceVariantDark,
+            surfaceContainerLowest = Neutrals.surfaceContainerLowestDark,
+            surfaceContainerLow = Neutrals.surfaceContainerLowDark,
+            surfaceContainer = Neutrals.surfaceContainerDark,
+            surfaceContainerHigh = Neutrals.surfaceContainerHighDark,
+            surfaceContainerHighest = Neutrals.surfaceContainerHighestDark,
             outline = Neutrals.outlineDark,
+            outlineVariant = Neutrals.outlineVariantDark,
             error = SemanticColors.errorDark,
             onError = SemanticColors.onErrorDark,
             errorContainer = SemanticColors.errorContainerDark,

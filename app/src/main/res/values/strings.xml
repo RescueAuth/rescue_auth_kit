@@ -14,6 +14,7 @@
     <string name="startup_intro_title">Use phone to unlock</string>
     <string name="startup_intro_body">Verify with your fingerprint or lock screen password.</string>
     <string name="startup_intro_continue">Enable</string>
+    <string name="startup_intro_import_v1">Import from v1 Rescue Auth</string>
     <string name="startup_exit">Exit</string>
     <string name="startup_no_secure_title">Secure device lock required</string>
     <string name="startup_no_secure_body">RescueAuth requires a secure device lock (PIN, pattern, password, or strong biometric) to protect your vault. Configure one in system settings, then try again.</string>

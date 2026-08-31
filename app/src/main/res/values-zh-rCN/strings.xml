@@ -14,6 +14,7 @@
     <string name="startup_intro_title">使用手机解锁</string>
     <string name="startup_intro_body">通过指纹或锁屏密码验证即可。</string>
     <string name="startup_intro_continue">开启</string>
+    <string name="startup_intro_import_v1">从 v1 Rescue Auth 导入</string>
     <string name="startup_exit">退出</string>
     <string name="startup_no_secure_title">需要安全的设备锁屏</string>
     <string name="startup_no_secure_body">RescueAuth 需要安全的设备锁屏（PIN、图案、密码或强生物识别）来保护您的保险库。请在系统设置中配置后再试。</string>

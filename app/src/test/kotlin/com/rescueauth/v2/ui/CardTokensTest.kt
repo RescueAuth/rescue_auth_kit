@@ -43,9 +43,11 @@ class CardTokensTest {
 
     @Test
     fun geometryIsDerivedFromTheSharedScale() {
-        assertEquals(16.dp, CardTokens.contentPadding)
-        assertEquals(Spacing.md, CardTokens.contentPadding)
-        assertEquals(Spacing.sm, CardTokens.listSpacing)
+        // Card content padding is generous (20dp) to match the standard 20dp
+        // card corner radius for a calm, breathable card feel.
+        assertEquals(20.dp, CardTokens.contentPadding)
+        assertEquals(CornerRadius.md, CardTokens.contentPadding)
+        assertEquals(Spacing.md, CardTokens.listSpacing)
         assertEquals(Spacing.md, CardTokens.listOuterPadding)
     }
 
@@ -53,7 +55,7 @@ class CardTokensTest {
     fun shapeUsesTheStandardCardCornerRadius() {
         // Compared corner-by-corner because CornerBasedShape equality is not
         // part of the public contract.
-        val expected = CornerSize(CornerRadius.xs)
+        val expected = CornerSize(CornerRadius.md)
         assertEquals(expected, CardTokens.shape.topStart)
         assertEquals(expected, CardTokens.shape.topEnd)
         assertEquals(expected, CardTokens.shape.bottomStart)

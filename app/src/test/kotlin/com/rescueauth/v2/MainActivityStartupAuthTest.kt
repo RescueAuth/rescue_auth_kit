@@ -213,9 +213,9 @@ class MainActivityStartupAuthTest {
         assertNull("vault must not be created after cancel", activity1.sessionManager.databaseOrNull())
         teardown(controller1)
 
-        // Second launch: Vault is STILL not created (still first-run), but the
-        // intro has been acknowledged and persisted → request authentication
-        // directly, do NOT show the intro again.
+        // Second launch: Vault is STILL not created (still first-run), so the
+        // adaptive intro re-shows — it appears whenever the Vault is not enabled.
+        // The previously-cancelled launch does NOT auto-skip the intro.
         val controller2 = Robolectric.buildActivity(MainActivity::class.java)
         val activity2 = controller2.get()
         activity2.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = false) }
@@ -225,8 +225,15 @@ class MainActivityStartupAuthTest {
         controller2.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        assertTrue("second launch must request auth directly, no intro", prompt2.promptLaunched)
-        assertFalse("vault must still not be open before auth", activity2.sessionManager.sessionState.isUnlocked())
+        // Adaptive intro: because the Vault is still not enabled, the intro gate
+        // re-appears and authentication is NOT auto-requested.
+        assertFalse("second launch must re-show intro, not auto-prompt", prompt2.promptLaunched)
+        assertFalse("vault must still not be open before Enable", activity2.sessionManager.sessionState.isUnlocked())
+
+        // Tapping Enable on the re-shown intro proceeds to authentication.
+        activity2.onIntroContinue()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue("second launch must request auth after Enable", prompt2.promptLaunched)
         teardown(controller2)
     }
 

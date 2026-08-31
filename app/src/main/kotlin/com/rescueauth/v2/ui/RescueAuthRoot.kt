@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ThemeColor
@@ -35,15 +34,10 @@ fun RescueAuthRoot(
         themePreferences ?: ThemePreferences(context)
     }
     val themeColor by prefs.themeColor.collectAsState(initial = ThemeColor.DEFAULT)
-    val scope = rememberCoroutineScope()
 
     RescueAuthTheme(themeColor = themeColor) {
         RescueAuthApp(
             versionName = versionName,
-            themeColor = themeColor,
-            onThemeColorSelected = { color ->
-                scope.launch { prefs.setThemeColor(color) }
-            },
         )
     }
 }

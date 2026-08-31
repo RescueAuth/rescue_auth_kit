@@ -38,7 +38,6 @@ import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
-import com.rescueauth.v2.ui.theme.ThemeColor
 
 object SettingsTestTags {
     const val ABOUT_ROW = "settings_about_row"
@@ -50,8 +49,6 @@ object SettingsTestTags {
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     versionName: String? = null,
-    themeColor: ThemeColor = ThemeColor.DEFAULT,
-    onThemeColorSelected: ((ThemeColor) -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
     onImportClick: (() -> Unit)? = null,
     onLegacyImportClick: (() -> Unit)? = null,
@@ -113,27 +110,6 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
             )
-
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.settings_appearance_section),
-                modifier = Modifier.padding(
-                    start = ScreenTokens.horizontalPadding,
-                    end = ScreenTokens.horizontalPadding,
-                    top = Spacing.lg,
-                ),
-            )
-            RescueAuthRowCard(
-                modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-                containerColor = CardTokens.elevatedContainerColor(),
-            ) {
-                RescueAuthIconBadge(icon = Icons.Filled.Palette)
-                ThemeColorPreference(
-                    selected = themeColor,
-                    onSelect = { onThemeColorSelected?.invoke(it) },
-                    modifier = Modifier.weight(1f),
-                )
-                RescueAuthChevron()
-            }
 
             RescueAuthSectionHeader(
                 title = stringResource(R.string.settings_about_section),
