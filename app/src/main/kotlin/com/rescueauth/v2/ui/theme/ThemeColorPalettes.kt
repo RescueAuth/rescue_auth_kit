@@ -19,13 +19,13 @@ internal class ThemeColorPreset(
 
 /** Shared neutral surfaces. Accent color is intentionally isolated to roles. */
 private object Neutrals {
-    val backgroundLight = Color(0xFFF4F5FB)
+    val backgroundLight = Color(0xFFF3F5FB)
     val onBackgroundLight = Color(0xFF1A1B22)
-    val surfaceLight = Color(0xFFFBFCFF)
+    val surfaceLight = Color(0xFFFFFFFF)
     val onSurfaceLight = Color(0xFF1A1B22)
-    val surfaceVariantLight = Color(0xFFE5E6F0)
+    val surfaceVariantLight = Color(0xFFEFF1F9)
     val onSurfaceVariantLight = Color(0xFF5B5C68)
-    val outlineLight = Color(0xFF777985)
+    val outlineLight = Color(0xFF7C7E8D)
 
     val backgroundDark = Color(0xFF0E0F15)
     val onBackgroundDark = Color(0xFFE5E1EE)
@@ -41,12 +41,12 @@ private object Neutrals {
      * auto-derived (muddy violet-grey) container colors. The ramp is shared by
      * every blue-violet preset; only the accent (primary) differs per preset.
      */
-    val surfaceContainerLowestLight = Color(0xFFEEF0F8)
-    val surfaceContainerLowLight = Color(0xFFE8EAF5)
-    val surfaceContainerLight = Color(0xFFE2E5F2)
-    val surfaceContainerHighLight = Color(0xFFDCE0EE)
-    val surfaceContainerHighestLight = Color(0xFFD6DAEC)
-    val outlineVariantLight = Color(0xFFC9CBD9)
+    val surfaceContainerLowestLight = Color(0xFFFFFFFF)
+    val surfaceContainerLowLight = Color(0xFFFCFDFF)
+    val surfaceContainerLight = Color(0xFFF8F9FE)
+    val surfaceContainerHighLight = Color(0xFFF3F5FB)
+    val surfaceContainerHighestLight = Color(0xFFECEFF8)
+    val outlineVariantLight = Color(0xFFDBDEEF)
 
     val surfaceContainerLowestDark = Color(0xFF0A0B11)
     val surfaceContainerLowDark = Color(0xFF1A1B25)
