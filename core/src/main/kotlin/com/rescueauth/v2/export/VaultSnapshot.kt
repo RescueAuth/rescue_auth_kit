@@ -70,6 +70,29 @@ data class VaultSnapshot(
     val accounts: List<VaultAccount> = emptyList(),
     val developerEntries: List<VaultDeveloperEntry> = emptyList(),
     val scope: SnapshotScope = SnapshotScope.FULL_VAULT,
+    /**
+     * Provider icon overrides (UI polish 2026-09, additive optional field).
+     *
+     * Provider display metadata keyed by provider name — NOT part of any
+     * merge identity or semantic fingerprint. Old packages without this
+     * field decode to an empty list (kotlinx default); new packages are read
+     * by older builds only because `PayloadJson.ignoreUnknownKeys = true`
+     * (PACKAGE_FORMAT §Forward compatibility).
+     */
+    val providerIcons: List<VaultProviderIcon> = emptyList(),
+)
+
+/**
+ * One provider icon override carried by a package. [iconKey] is an opaque
+ * display token (`BrandIcons` key or the "letter" sentinel); it is never a
+ * secret and never affects merge identity. The merge fill policy is
+ * conservative: an existing local override wins, the package value only
+ * fills providers that have no local override.
+ */
+@Serializable
+data class VaultProviderIcon(
+    val providerName: String,
+    val iconKey: String,
 )
 
 /** Declares which sections of the vault a [VaultSnapshot] carries. */

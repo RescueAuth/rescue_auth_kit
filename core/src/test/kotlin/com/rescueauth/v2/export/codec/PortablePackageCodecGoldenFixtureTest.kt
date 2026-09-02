@@ -5,6 +5,7 @@ import com.rescueauth.v2.export.SnapshotBuilder
 import com.rescueauth.v2.export.SnapshotScope
 import com.rescueauth.v2.export.VaultKeyValue
 import com.rescueauth.v2.export.VaultPackagePayload
+import com.rescueauth.v2.export.VaultProviderIcon
 import com.rescueauth.v2.export.VaultSnapshot
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -50,7 +51,7 @@ class PortablePackageCodecGoldenFixtureTest {
         return { n -> ByteArray(n) { (counter++ and 0xff).toByte() } }
     }
 
-    private fun fixturePayload(): VaultPackagePayload {
+    private fun fixturePayload(providerIcons: List<VaultProviderIcon> = emptyList()): VaultPackagePayload {
         val keystore = ByteArray(32) { (it * 7 and 0xff).toByte() } // deterministic binary keystore
         val keystoreB64 = java.util.Base64.getEncoder().encodeToString(keystore)
         return VaultPackagePayload(
@@ -128,29 +129,44 @@ class PortablePackageCodecGoldenFixtureTest {
                         title = "Fixture Generic",
                     ),
                 ),
+                providerIcons = providerIcons,
             ),
         )
     }
 
-    private fun fixtureBytes(): ByteArray {
-        val payload = fixturePayload()
+    /** Current-format payload: carries one provider icon override (schema v4). */
+    private fun currentPayload(): VaultPackagePayload = fixturePayload(
+        providerIcons = listOf(VaultProviderIcon(providerName = "FixtureProvider", iconKey = "github")),
+    )
+
+    private fun fixtureBytes(providerIcons: List<VaultProviderIcon> = emptyList()): ByteArray {
+        val payload = fixturePayload(providerIcons)
         return PackageCrypto.withDeterministicRandom(counterSource()) {
             PortablePackageCodec.encode(payload, fixturePin)
+        }
+    }
+
+    internal fun currentFixtureBytes(): ByteArray {
+        return PackageCrypto.withDeterministicRandom(counterSource()) {
+            PortablePackageCodec.encode(currentPayload(), fixturePin)
         }
     }
 
     private fun fixtureFile(): File =
         File("src/test/resources/codec-fixtures/v2_package_fixture_v1.bin")
 
+    private fun currentFixtureFile(): File =
+        File("src/test/resources/codec-fixtures/v2_package_fixture_v2.bin")
+
     @Test
     fun `golden fixture file matches codec output`() {
-        val fixtureFile = fixtureFile()
+        val fixtureFile = currentFixtureFile()
         assertTrue(
             "missing golden fixture ${fixtureFile.absolutePath}",
             fixtureFile.isFile,
         )
         val committed = fixtureFile.readBytes()
-        val fresh = fixtureBytes()
+        val fresh = currentFixtureBytes()
         assertArrayEquals(
             "codec output drifted from the committed golden fixture — the v2 package format must not change without a fixture bump",
             committed,
@@ -160,6 +176,23 @@ class PortablePackageCodecGoldenFixtureTest {
 
     @Test
     fun `golden fixture decrypts to the expected logical payload`() {
+        val committed = fixtureFile().readBytes()
+        val decoded = PortablePackageCodec.decode(committed, fixturePin)
+        assertEquals(fixturePayload(), decoded)
+    }
+
+    @Test
+    fun `current golden fixture decrypts with provider icons`() {
+        val committed = currentFixtureFile().readBytes()
+        val decoded = PortablePackageCodec.decode(committed, fixturePin)
+        assertEquals(currentPayload(), decoded)
+    }
+
+    @Test
+    fun `legacy fixture without provider icons still decodes (forward compatibility)`() {
+        // The v1 fixture predates the additive `providerIcons` field. Decoding
+        // it with the current codec must keep working (empty list default) —
+        // this is the PACKAGE_FORMAT §Forward compatibility guarantee.
         val committed = fixtureFile().readBytes()
         val decoded = PortablePackageCodec.decode(committed, fixturePin)
         assertEquals(fixturePayload(), decoded)

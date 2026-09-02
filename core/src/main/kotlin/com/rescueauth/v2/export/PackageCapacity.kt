@@ -79,6 +79,7 @@ object PackageCapacity {
     const val PER_RECOVERY_CODE_OVERHEAD = 256L
     const val PER_DEVELOPER_ENTRY_OVERHEAD = 512L
     const val PER_KEY_VALUE_OVERHEAD = 128L
+    const val PER_PROVIDER_ICON_OVERHEAD = 128L
 
     /**
      * Provable upper bound of the JSON bytes produced by `PayloadJson.encode`
@@ -176,6 +177,13 @@ object PackageCapacity {
                     }
                 }
             }
+        }
+        // Provider icon overrides (2026-09 schema v4): display tokens only,
+        // but the upper bound must cover them like any other list section.
+        for (icon in snapshot.providerIcons) {
+            total += PER_PROVIDER_ICON_OVERHEAD
+            total += jsonStringBytes(icon.providerName)
+            total += jsonStringBytes(icon.iconKey)
         }
         return total
     }

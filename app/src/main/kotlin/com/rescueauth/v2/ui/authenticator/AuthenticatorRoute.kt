@@ -253,6 +253,9 @@ fun AuthenticatorRoute(
         onDeleteAccount = { account ->
             appScope.launch { viewModel.deleteAccount(account.id) }
         },
+        onSetProviderIcon = { provider, iconKey ->
+            appScope.launch { viewModel.setProviderIcon(provider, iconKey) }
+        },
         modifier = modifier,
     )
 

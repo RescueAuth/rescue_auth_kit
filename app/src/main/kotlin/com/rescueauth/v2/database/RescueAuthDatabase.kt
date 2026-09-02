@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 /**
- * v2 encrypted database (schema version 3).
+ * v2 encrypted database (schema version 4).
  *
  * Encryption: SQLCipher (Zetetic `sqlcipher-android`), opened with a
  * `SupportOpenHelperFactory` that receives the unwrapped [VaultKey] as the
@@ -34,8 +34,9 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         RecoveryCodeEntity::class,
         ImportRecordEntity::class,
         DeveloperEntryEntity::class,
+        ProviderMetaEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class RescueAuthDatabase : RoomDatabase() {
@@ -46,10 +47,11 @@ abstract class RescueAuthDatabase : RoomDatabase() {
     abstract fun recoveryCodeDao(): RecoveryCodeDao
     abstract fun importRecordDao(): ImportRecordDao
     abstract fun developerEntryDao(): DeveloperEntryDao
+    abstract fun providerMetaDao(): ProviderMetaDao
 
     companion object {
         const val DB_NAME = "rescueauth_v2.db"
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
 
         /**
          * Builds the encrypted database. [vaultKey] must be the unwrapped
@@ -74,7 +76,7 @@ abstract class RescueAuthDatabase : RoomDatabase() {
             }
             return Room.databaseBuilder(context, RescueAuthDatabase::class.java, DB_NAME)
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
         }
@@ -140,6 +142,26 @@ abstract class RescueAuthDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_developer_entry_stableId` ON `developer_entry` (`stableId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_developer_entry_entryType` ON `developer_entry` (`entryType`)")
+            }
+        }
+
+        /**
+         * v3 → v4 (UI polish 2026-09): adds the `provider_meta` table.
+         *
+         * Display-only metadata keyed by the virtual Provider name
+         * (serviceName). Non-destructive: no existing table or column is
+         * touched, no row is rewritten. Providers without a row fall back to
+         * the AUTO icon (brand auto-match / letter badge).
+         */
+        val MIGRATION_3_4: androidx.room.migration.Migration = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `provider_meta` (
+                        `providerName` TEXT NOT NULL,
+                        `iconKey` TEXT,
+                        PRIMARY KEY(`providerName`)
+                    )""".trimIndent(),
+                )
             }
         }
 

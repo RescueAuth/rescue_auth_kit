@@ -2,6 +2,7 @@ package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -55,10 +56,12 @@ import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.AuthenticatorUiState
 import com.rescueauth.v2.ui.authenticator.TotpCardUi
+import com.rescueauth.v2.ui.components.BrandIcons
 import com.rescueauth.v2.ui.components.CountdownIndicator
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.ErrorState
 import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.components.RescueAuthAutoBadge
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthDivider
@@ -95,8 +98,11 @@ fun AuthenticatorScreen(
     onMoveAccount: ((AccountUi) -> Unit)? = null,
     onMergeAccount: ((AccountUi) -> Unit)? = null,
     onDeleteAccount: ((AccountUi) -> Unit)? = null,
+    /** Persists a provider icon override (schema v4); null key = AUTO. */
+    onSetProviderIcon: ((String, String?) -> Unit)? = null,
 ) {
     var selectedProviderName by rememberSaveable { mutableStateOf<String?>(null) }
+    var iconPickerProvider by remember { mutableStateOf<ProviderUi?>(null) }
     // The production mapper supplies grouped providers. Keep the public screen
     // tolerant of older previews/tests that provide only the flat account list.
     val displayProviders = remember(uiState.providers, uiState.accounts) {
@@ -234,9 +240,25 @@ fun AuthenticatorScreen(
                 onRenameProvider = onRenameProvider,
                 onAddAccount = onAddAccount,
                 onDeleteProvider = onDeleteProvider,
+                onEditIcon = if (onSetProviderIcon != null) {
+                    { provider -> iconPickerProvider = provider }
+                } else {
+                    null
+                },
                 modifier = Modifier.padding(padding),
             )
         }
+    }
+
+    if (iconPickerProvider != null) {
+        ProviderIconPickerSheet(
+            provider = iconPickerProvider!!,
+            onSelect = { key ->
+                onSetProviderIcon?.invoke(iconPickerProvider!!.serviceName, key)
+                iconPickerProvider = null
+            },
+            onDismiss = { iconPickerProvider = null },
+        )
     }
 }
 
@@ -250,6 +272,7 @@ private fun ProviderHomeContent(
     onRenameProvider: ((String) -> Unit)?,
     onAddAccount: ((String) -> Unit)?,
     onDeleteProvider: ((String) -> Unit)?,
+    onEditIcon: ((ProviderUi) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -280,6 +303,7 @@ private fun ProviderHomeContent(
                 onRename = onRenameProvider,
                 onAddAccount = onAddAccount,
                 onDelete = onDeleteProvider,
+                onEditIcon = onEditIcon?.let { callback -> { callback(provider) } },
             )
         }
     }
@@ -373,7 +397,10 @@ private fun AccountWithTotpCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            RescueAuthInitialBadge(account.accountName)
+            RescueAuthAutoBadge(
+                label = account.accountName,
+                colorSeed = account.providerName,
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = account.accountName,
@@ -526,6 +553,7 @@ private fun ProviderListItem(
     onRename: ((String) -> Unit)?,
     onAddAccount: ((String) -> Unit)?,
     onDelete: ((String) -> Unit)?,
+    onEditIcon: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     RescueAuthRowCard(
@@ -535,30 +563,53 @@ private fun ProviderListItem(
             .testTag("provider_row_${provider.serviceName}")
             .semantics { role = Role.Button },
     ) {
-        RescueAuthInitialBadge(provider.serviceName)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = provider.serviceName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val pinnedCount = provider.accounts.count { it.isPinned }
-            Text(
-                text = if (pinnedCount > 0) {
-                    stringResource(
-                        R.string.provider_accounts_with_pinned,
-                        provider.accounts.size,
-                        pinnedCount,
-                    )
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            val brandRes = BrandIcons.effectiveDrawableRes(provider.iconKey, provider.serviceName)
+            Box {
+                // Icon-only semantics live on the wrapping row; tapping the
+                // badge edits the icon instead of entering the provider.
+                val badgeModifier = if (onEditIcon != null) {
+                    Modifier
+                        .testTag("provider_icon_${provider.serviceName}")
+                        .clickable(onClick = onEditIcon)
                 } else {
-                    stringResource(R.string.provider_accounts_count, provider.accounts.size)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                    Modifier
+                }
+                RescueAuthAutoBadge(
+                    label = provider.serviceName,
+                    colorSeed = provider.serviceName,
+                    iconRes = brandRes,
+                    modifier = badgeModifier,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = provider.serviceName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val pinnedCount = provider.accounts.count { it.isPinned }
+                Text(
+                    text = if (pinnedCount > 0) {
+                        stringResource(
+                            R.string.provider_accounts_with_pinned,
+                            provider.accounts.size,
+                            pinnedCount,
+                        )
+                    } else {
+                        stringResource(R.string.provider_accounts_count, provider.accounts.size)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (onRename != null || onAddAccount != null || onDelete != null) {
             androidx.compose.foundation.layout.Box {

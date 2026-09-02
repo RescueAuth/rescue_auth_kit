@@ -55,6 +55,9 @@ object PackageValidator {
      */
     const val MAX_SERIALIZED_PAYLOAD_BUDGET = PackageCapacity.MAX_SERIALIZED_PAYLOAD_SIZE
 
+    /** Defensive cap for provider icon display tokens (schema polish 2026-09). */
+    const val MAX_PROVIDER_ICON_KEY_LENGTH = 64
+
     class ValidationException(message: String) : Exception(message)
 
     /**
@@ -147,6 +150,26 @@ object PackageValidator {
                 throw ValidationException("duplicate developer entry stableId '${entry.stableId}'")
             }
             validateDeveloperEntry(entry)
+        }
+
+        // Provider icon overrides (additive optional section, schema polish
+        // 2026-09): display tokens only — never secrets, never merge identity.
+        val iconProviders = HashSet<String>()
+        for (icon in snapshot.providerIcons) {
+            if (icon.providerName.isBlank()) {
+                throw ValidationException("provider icon providerName must not be blank")
+            }
+            if (icon.iconKey.isBlank() || icon.iconKey.length > MAX_PROVIDER_ICON_KEY_LENGTH) {
+                throw ValidationException(
+                    "provider icon key for '${icon.providerName}' is blank or exceeds " +
+                        "$MAX_PROVIDER_ICON_KEY_LENGTH characters",
+                )
+            }
+            if (!iconProviders.add(icon.providerName)) {
+                throw ValidationException(
+                    "duplicate provider icon override for '${icon.providerName}'",
+                )
+            }
         }
     }
 

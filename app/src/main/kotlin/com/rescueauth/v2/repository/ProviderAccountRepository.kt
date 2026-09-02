@@ -2,6 +2,9 @@ package com.rescueauth.v2.repository
 
 import com.rescueauth.v2.database.AuthAccountDao
 import com.rescueauth.v2.database.AuthAccountEntity
+import com.rescueauth.v2.database.PROVIDER_ICON_LETTER
+import com.rescueauth.v2.database.ProviderMetaDao
+import com.rescueauth.v2.database.ProviderMetaEntity
 import com.rescueauth.v2.database.RecoveryCodeDao
 import com.rescueauth.v2.database.RecoveryCodeSetDao
 import com.rescueauth.v2.database.RescueAuthDatabase
@@ -33,7 +36,9 @@ import java.util.UUID
  *   empty Provider. An Account row always carries its `serviceName`, and
  *   creating a Provider therefore requires creating its first Account. This
  *   is the honest reflection of the current model; we do NOT redesign the
- *   schema to add an empty-Provider table (out of scope this round).
+ *   schema to add an empty-Provider identity table (out of scope this round).
+ *   (The schema-v4 `provider_meta` table is DISPLAY metadata keyed by name —
+ *   icon overrides — and carries no provider identity.)
  * - All mutations funnel through the shared [VaultRepository] serialized
  *   mutex + a single Room transaction, so cross-table mutations (Account
  *   move / merge / Provider delete) are atomic.
@@ -58,6 +63,7 @@ class ProviderAccountRepository(
     private val totpDao: TotpCredentialDao get() = db.totpCredentialDao()
     private val recoverySetDao: RecoveryCodeSetDao get() = db.recoveryCodeSetDao()
     private val recoveryCodeDao: RecoveryCodeDao get() = db.recoveryCodeDao()
+    private val providerMetaDao: ProviderMetaDao get() = db.providerMetaDao()
 
     // ------------------------------------------------------------------
     // Reads
@@ -66,6 +72,41 @@ class ProviderAccountRepository(
     /** All distinct provider (serviceName) names, alphabetically sorted. */
     suspend fun listProviders(): List<String> =
         accountDao.listAll().map { it.serviceName }.distinct().sorted()
+
+    // ------------------------------------------------------------------
+    // Provider icon metadata (schema v4)
+    // ------------------------------------------------------------------
+
+    /** Observes persisted provider icon overrides, keyed by provider name. */
+    fun observeProviderIcons(): Flow<Map<String, String?>> =
+        providerMetaDao.observeAll().map { list ->
+            list.associate { it.providerName to it.iconKey }
+        }
+
+    /**
+     * Persists a provider icon override. [iconKey] semantics:
+     * - `null` → AUTO (delete any override; brand auto-match by name);
+     * - [PROVIDER_ICON_LETTER] → force the letter badge;
+     * - any [com.rescueauth.v2.ui.components.BrandIcons] key → that glyph.
+     */
+    suspend fun setProviderIcon(serviceName: String, iconKey: String?) {
+        val provider = normalizeProviderName(serviceName)
+        if (provider.isEmpty()) throw ValidationException("Provider name is required")
+        vault.mutate {
+            if (accountDao.countByServiceName(provider) == 0) {
+                throw NotFoundException("Provider not found: $provider")
+            }
+            if (iconKey == null) {
+                providerMetaDao.delete(provider)
+            } else {
+                providerMetaDao.upsert(ProviderMetaEntity(providerName = provider, iconKey = iconKey))
+            }
+        }
+    }
+
+    /** Reads one provider's icon override directly (null row = AUTO). */
+    suspend fun getProviderIcon(serviceName: String): String? =
+        providerMetaDao.get(normalizeProviderName(serviceName))?.iconKey
 
     fun observeAccounts(): Flow<List<AuthAccount>> =
         accountDao.observeAll().map { list -> list.map { AuthMappers.toDomain(it) } }
@@ -185,6 +226,10 @@ class ProviderAccountRepository(
             }
             val now = java.time.Instant.now().toString()
             accountDao.updateServiceNameForAll(oldName, newName, now)
+            // Cascade the display metadata row (schema v4). The old name is
+            // guaranteed to exist as a provider, so its meta row (if any)
+            // belongs to this provider.
+            providerMetaDao.rename(oldName, newName)
             newName
         }
     }
@@ -222,6 +267,7 @@ class ProviderAccountRepository(
                 totpDao.listByAccount(a.id).forEach { totpDao.deleteById(it.id) }
                 accountDao.deleteById(a.id)
             }
+            providerMetaDao.delete(provider)
             ProviderDeleteResult(accounts.size, totpCount, recoverySetCount)
         }
     }

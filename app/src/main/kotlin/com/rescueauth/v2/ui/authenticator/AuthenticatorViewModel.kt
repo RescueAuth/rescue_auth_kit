@@ -191,7 +191,16 @@ class AuthenticatorViewModel(
     private val tickSeconds = MutableStateFlow(clock.currentTimeSeconds())
 
     private var collectionJob: Job? = null
+    private var iconsJob: Job? = null
     private var currentRepo: AuthenticatorRepository? = null
+
+    /**
+     * Persisted provider icon overrides (schema v4), keyed by provider name.
+     * Collected only while the session is UNLOCKED (the provider_meta table
+     * lives behind the same encrypted DB handle).
+     */
+    private val providerIcons =
+        kotlinx.coroutines.flow.MutableStateFlow<Map<String, String?>>(emptyMap())
 
     /** In-memory TOTP result cache; invalidated when the session locks. */
     private data class CachedTotp(
@@ -216,9 +225,17 @@ class AuthenticatorViewModel(
                         collectionJob = scope.launch { collectCards(repo) }
                         currentRepo = repo
                     }
+                    iconsJob?.cancel()
+                    iconsJob = scope.launch {
+                        managementRepositoryProvider()?.observeProviderIcons()?.collect { icons ->
+                            providerIcons.value = icons
+                        }
+                    }
                 } else {
                     collectionJob?.cancel()
                     collectionJob = null
+                    iconsJob?.cancel()
+                    iconsJob = null
                     currentRepo = null
                     // P8 §6: session lock clears every pending Undo payload
                     // (TOTP secret / recovery plaintext / account subtree). The
@@ -226,6 +243,7 @@ class AuthenticatorViewModel(
                     pendingUndo = null
                     pendingAccountUndo = null
                     totpCodeCache.clear()
+                    providerIcons.value = emptyMap()
                     _uiState.value = AuthenticatorUiState(loading = false)
                 }
             }
@@ -235,8 +253,13 @@ class AuthenticatorViewModel(
     private suspend fun collectCards(repo: AuthenticatorRepository) {
         val recoveryFlow = recoveryRepositoryProvider()?.observeAllSets()
             ?: kotlinx.coroutines.flow.flowOf(emptyList())
-        combine(repo.observeAccounts(), repo.observeTotpCredentials(), recoveryFlow, tickSeconds) {
-            accounts, creds, sets, now ->
+        combine(
+            repo.observeAccounts(),
+            repo.observeTotpCredentials(),
+            recoveryFlow,
+            tickSeconds,
+            providerIcons,
+        ) { accounts, creds, sets, now, icons ->
             // buildCards performs the TOTP HMAC computation + the full nested
             // Provider/Account/Recovery UI-model build for every credential.
             // It is deliberately hoisted onto Dispatchers.Default so a large
@@ -245,7 +268,7 @@ class AuthenticatorViewModel(
             // feel slow to render on first entry (Issue #70). Only the final
             // immutable UI state crosses back to the collecting (main) thread.
             withContext(Dispatchers.Default) {
-                buildCards(accounts, creds, sets, now)
+                buildCards(accounts, creds, sets, now, icons)
             }
         }.collectLatest { state -> _uiState.value = state }
     }
@@ -255,6 +278,7 @@ class AuthenticatorViewModel(
         creds: List<TotpCredential>,
         recoverySets: List<com.rescueauth.v2.domain.RecoveryCodeSet>,
         now: Long,
+        icons: Map<String, String?> = emptyMap(),
     ): AuthenticatorUiState {
         val accountById = accounts.associateBy { it.id }
         val cards = creds.map { c ->
@@ -364,6 +388,7 @@ class AuthenticatorViewModel(
                 com.rescueauth.v2.ui.model.ProviderUi(
                     id = "provider:" + name,
                     serviceName = name,
+                    iconKey = icons[name],
                     accounts = group.sortedWith(
                         compareByDescending<com.rescueauth.v2.ui.model.AccountUi> { it.isPinned }
                             .thenBy { it.accountName },
@@ -752,6 +777,22 @@ class AuthenticatorViewModel(
             true
         }.getOrElse {
             _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to rename provider")
+            false
+        }
+    }
+
+    /**
+     * Persists a provider icon override (schema v4). [iconKey] null = AUTO.
+     * The observeProviderIcons flow re-emits through the same Room handle, so
+     * the UI list refreshes without any manual reload.
+     */
+    suspend fun setProviderIcon(provider: String, iconKey: String?): Boolean {
+        val repo = managementRepositoryProvider() ?: return false
+        return runCatching {
+            repo.setProviderIcon(provider, iconKey)
+            true
+        }.getOrElse {
+            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to update icon")
             false
         }
     }

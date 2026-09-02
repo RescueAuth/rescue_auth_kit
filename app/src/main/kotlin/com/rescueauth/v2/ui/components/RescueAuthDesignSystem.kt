@@ -215,6 +215,78 @@ fun RescueAuthInitialBadge(
     }
 }
 
+/**
+ * Bright, hue-varied palette for auto badges (UI polish 2026-09).
+ *
+ * Each entry is a (container, content) pair: a light vivid background with a
+ * deep letter/glyph of the same hue family — replacing the muddy M3
+ * `secondaryContainer` grey-purple the user explicitly rejected.
+ * Tones are tuned for the light theme; dark-theme variants are deferred
+ * until the dark palette work happens.
+ */
+object RescueAuthBadgePalette {
+    private val pairs = listOf(
+        0xFFE6DBFF to 0xFF5A2ECF, // violet
+        0xFFD6E6FF to 0xFF1A56C4, // blue
+        0xFFD2F3FF to 0xFF036C8F, // cyan
+        0xFFCCF5EA to 0xFF007A5E, // teal
+        0xFFDCF5CC to 0xFF2F6B14, // green
+        0xFFFFE9C7 to 0xFF8F5A00, // amber
+        0xFFFFE0CC to 0xFF9A3D0C, // orange
+        0xFFFFDCEC to 0xFFA8155F, // pink
+    )
+
+    private val colors = pairs.map { Color(it.first) to Color(it.second) }
+
+    /** Stable per-name colour: same name always gets the same hue. */
+    fun forName(seed: String): Pair<Color, Color> {
+        val h = seed.hashCode()
+        val index = ((h % colors.size) + colors.size) % colors.size
+        return colors[index]
+    }
+}
+
+/**
+ * Circular identity badge with the auto colour palette and optional brand
+ * glyph. With [iconRes] == null the uppercase initial is drawn; otherwise the
+ * monochrome brand VectorDrawable is tinted with the palette content colour.
+ */
+@Composable
+fun RescueAuthAutoBadge(
+    label: String,
+    modifier: Modifier = Modifier,
+    colorSeed: String = label,
+    iconRes: Int? = null,
+    size: Dp = 44.dp,
+    iconSize: Dp = 22.dp,
+) {
+    val (container, content) = RescueAuthBadgePalette.forName(colorSeed)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(container),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (iconRes != null) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(iconRes),
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier.size(iconSize),
+            )
+        } else {
+            val initial = label.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = content,
+            )
+        }
+    }
+}
+
 @Composable
 fun RescueAuthMetaPill(
     text: String,

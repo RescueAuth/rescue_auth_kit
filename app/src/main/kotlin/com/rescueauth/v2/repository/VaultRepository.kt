@@ -3,11 +3,13 @@ package com.rescueauth.v2.repository
 import com.rescueauth.v2.database.AuthAccountDao
 import com.rescueauth.v2.database.DeveloperEntryDao
 import com.rescueauth.v2.database.ImportRecordDao
+import com.rescueauth.v2.database.ProviderMetaDao
 import com.rescueauth.v2.database.RecoveryCodeDao
 import com.rescueauth.v2.database.RecoveryCodeSetDao
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.database.TotpCredentialDao
 import com.rescueauth.v2.export.VaultAccount
+import com.rescueauth.v2.export.VaultProviderIcon
 import com.rescueauth.v2.export.VaultRecoveryCode
 import com.rescueauth.v2.export.VaultRecoveryCodeSet
 import com.rescueauth.v2.export.VaultSnapshot
@@ -46,6 +48,7 @@ class VaultRepository(
     private val recoveryCodeDao: RecoveryCodeDao get() = db.recoveryCodeDao()
     private val importDao: ImportRecordDao get() = db.importRecordDao()
     private val developerDao: DeveloperEntryDao get() = db.developerEntryDao()
+    private val providerMetaDao: ProviderMetaDao get() = db.providerMetaDao()
 
     // ------------------------------------------------------------------
     // Reads (no lock required — DB handle is closed on lock so calls fail)
@@ -105,10 +108,16 @@ class VaultRepository(
             )
         }
         val developerEntries = developerDao.listAll().map { DeveloperMappers.toLogical(it) }
+        val providerIcons = providerMetaDao.listAll()
+            .filter { !it.iconKey.isNullOrBlank() }
+            .map { meta ->
+                VaultProviderIcon(providerName = meta.providerName, iconKey = meta.iconKey!!)
+            }
         return VaultSnapshot(
             accounts = accounts,
             developerEntries = developerEntries,
             scope = com.rescueauth.v2.export.SnapshotScope.FULL_VAULT,
+            providerIcons = providerIcons,
         )
     }
 
@@ -193,6 +202,7 @@ class VaultRepository(
                     importDao = importDao,
                     seam = seam,
                 ).apply(payload.snapshot, plan, packageIdentity = payload.packageId)
+                applyProviderIcons(payload.snapshot)
                 ImportOutcome.Applied(result)
             }
         }
@@ -245,6 +255,7 @@ class VaultRepository(
                     importDao = importDao,
                     seam = seam,
                 ).apply(snapshot, plan, packageIdentity, sourceType)
+                applyProviderIcons(snapshot)
                 ImportOutcome.Applied(result)
             }
         }
@@ -253,6 +264,27 @@ class VaultRepository(
     // ------------------------------------------------------------------
     // Mutations (serialized)
     // ------------------------------------------------------------------
+
+    /**
+     * Applies the package's provider icon overrides (schema v4) after a
+     * successful merge apply. Fill-missing policy: only providers that exist
+     * locally (have ≥1 account) AND have no local override row are written;
+     * the user's own icon choice is never overwritten by an import. Runs
+     * inside the same transaction as the plan apply, so a rollback removes
+     * everything.
+     */
+    private suspend fun applyProviderIcons(snapshot: VaultSnapshot) {
+        for (icon in snapshot.providerIcons) {
+            val name = icon.providerName.trim()
+            val key = icon.iconKey.trim()
+            if (name.isEmpty() || key.isEmpty() || key.length > MAX_PROVIDER_ICON_KEY_LENGTH) continue
+            if (accountDao.countByServiceName(name) == 0) continue
+            if (providerMetaDao.get(name) != null) continue
+            providerMetaDao.upsert(
+                com.rescueauth.v2.database.ProviderMetaEntity(providerName = name, iconKey = key),
+            )
+        }
+    }
 
 
     /** Marks a recovery code as used (serialized). */
@@ -319,6 +351,11 @@ class VaultRepository(
                 block()
             }
         }
+    }
+
+    private companion object {
+        /** Defensive cap for persisted/ imported icon keys (display tokens). */
+        const val MAX_PROVIDER_ICON_KEY_LENGTH = 64
     }
 
     private fun checkUnlocked() {

@@ -436,4 +436,77 @@ class PackageValidatorTest {
             assertTrue(e.message!!.contains("DEVELOPER_ONLY"))
         }
     }
+
+    // ------------------------------------------------------------------
+    // providerIcons (schema v4, additive optional section)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun validProviderIconsPass() {
+        val snapshot = VaultSnapshot(
+            accounts = listOf(validAccount()),
+            providerIcons = listOf(
+                VaultProviderIcon("GitHub", "github"),
+                VaultProviderIcon("My Bank", "letter"),
+            ),
+        )
+        PackageValidator.validate(validPayload(snapshot))
+        // no exception = pass
+    }
+
+    @Test
+    fun emptyProviderIconListPasses() {
+        PackageValidator.validate(validPayload())
+        // no exception = pass
+    }
+
+    @Test
+    fun blankProviderIconNameRejected() {
+        val snapshot = VaultSnapshot(providerIcons = listOf(VaultProviderIcon("  ", "github")))
+        try {
+            PackageValidator.validate(validPayload(snapshot))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("providerName"))
+        }
+    }
+
+    @Test
+    fun blankIconKeyRejected() {
+        val snapshot = VaultSnapshot(providerIcons = listOf(VaultProviderIcon("GitHub", "")))
+        try {
+            PackageValidator.validate(validPayload(snapshot))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("blank or exceeds"))
+        }
+    }
+
+    @Test
+    fun oversizedIconKeyRejected() {
+        val longKey = "a".repeat(PackageValidator.MAX_PROVIDER_ICON_KEY_LENGTH + 1)
+        val snapshot = VaultSnapshot(providerIcons = listOf(VaultProviderIcon("GitHub", longKey)))
+        try {
+            PackageValidator.validate(validPayload(snapshot))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("blank or exceeds"))
+        }
+    }
+
+    @Test
+    fun duplicateProviderIconOverrideRejected() {
+        val snapshot = VaultSnapshot(
+            providerIcons = listOf(
+                VaultProviderIcon("GitHub", "github"),
+                VaultProviderIcon("GitHub", "letter"),
+            ),
+        )
+        try {
+            PackageValidator.validate(validPayload(snapshot))
+            fail("expected ValidationException")
+        } catch (e: PackageValidator.ValidationException) {
+            assertTrue(e.message!!.contains("duplicate provider icon override"))
+        }
+    }
 }

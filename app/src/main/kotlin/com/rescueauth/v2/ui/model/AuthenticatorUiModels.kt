@@ -11,6 +11,12 @@ data class ProviderUi(
     val id: String,
     val serviceName: String,
     val accounts: List<AccountUi> = emptyList(),
+    /**
+     * Persisted icon override (schema v4 `provider_meta.iconKey`): a
+     * `BrandIcons` key, the "letter" sentinel, or null = AUTO (brand
+     * auto-match by name, then letter badge). Display-only.
+     */
+    val iconKey: String? = null,
 )
 
 /**

@@ -84,6 +84,10 @@
     <!-- Provider & Account management (Phase 4 — hierarchy management) -->
     <string name="provider_add_provider">添加服务</string>
     <string name="provider_actions">服务操作</string>
+    <string name="provider_icon_picker_title">选择图标</string>
+    <string name="provider_icon_picker_subtitle">%1$s 的图标。“自动”会在有内置品牌图标时自动匹配。</string>
+    <string name="provider_icon_auto">自动</string>
+    <string name="provider_icon_letter">字母</string>
     <string name="provider_accounts_count">%1$d 个账户</string>
     <string name="provider_accounts_with_pinned">%1$d 个账户 · %2$d 已置顶</string>
     <string name="provider_rename">重命名服务</string>

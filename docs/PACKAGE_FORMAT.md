@@ -301,6 +301,18 @@ MergePlanner。wrong PIN 与 ciphertext corruption 在 AEAD 层无法安全区�
 - portable schema 保持 platform-neutral（JSON，kotlinx.serialization）。
 - 外层 `formatVersion` / `cryptoVersion` 与内层 `logicalSchemaVersion` 是
   **两个不同概念**，不得混成一个版本号（已分别校验）。
+- **`providerIcons`（2026-09 UI polish 加法式扩展，schema v4）**：
+  `VaultSnapshot` 新增可选字段 `providerIcons: List<VaultProviderIcon>`
+  （默认空列表）。每项 = `(providerName, iconKey)`，其中 `iconKey` 是
+  **非敏感的显示 token**（`BrandIcons` key 或 `"letter"` 哨兵）——不是
+  secret，不参与任何 merge identity / semantic fingerprint / conflict
+  判定。旧 package 无此字段 → 解码为空列表（kotlinx 默认值）；
+  旧版本构建读取新 package 依赖 `PayloadJson.ignoreUnknownKeys = true`。
+  Validation 规则（`PackageValidator`）：providerName 非空、iconKey 非空且
+  ≤ 64 字符、同一 providerName 不得重复。Import 合并策略为
+  **fill-missing**：本地已有 override 的 provider 绝不被 import 覆盖，
+  包内值只补齐本地没有 override 的 provider，且仅在该 provider 本地存在
+  （≥1 account）时写入。
 
 ## 版本化与兼容
 
@@ -350,6 +362,12 @@ Phase 3B 完全在 JVM 测试中验证。
   `core/src/test/resources/codec-fixtures/v2_package_fixture_v1.bin`
   （test-only PIN `fixture-pin-0000`，synthetic fake secrets，无真实
   credential）。future codec 重构时可用它验证旧 package 仍能解密。
+- **fixture v2（2026-09 fixture bump）**：`providerIcons` 加法式字段改变了
+  序列化字节，按 fixture 约定生成
+  `v2_package_fixture_v2.bin`（payload 含一条 provider icon override），
+  字节稳定性测试锁定 v2；**v1 fixture 保留**并新增测试锁定
+  “无 `providerIcons` 的旧 package 仍可被当前 codec 解码”
+  （forward compatibility 的可执行证据）。
 
 ## Legacy 边界（保持 Phase 1 不变）
 
