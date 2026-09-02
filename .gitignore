@@ -24,6 +24,14 @@ captures/
 *.log
 
 # ---------------------------------------------------------------------------
+# Agent / IDE assistant project data. These directories hold session memory,
+# daily work logs and transient automation state. They are NEVER committed —
+# enforce it here so a blanket `git add .` cannot leak them in.
+# ---------------------------------------------------------------------------
+.workbuddy/
+.codebuddy/
+
+# ---------------------------------------------------------------------------
 # RescueAuth production Android signing secrets (Release Provisioning Step 1).
 # The production private key must live entirely OUTSIDE the repo. Only the
 # `.example` template is committed. Developer Vault synthetic keystore
