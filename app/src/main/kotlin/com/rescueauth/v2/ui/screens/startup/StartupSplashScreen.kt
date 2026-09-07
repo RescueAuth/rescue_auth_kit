@@ -33,7 +33,7 @@ object StartupSplashTestTags {
 @Composable
 fun StartupBranding(
     modifier: Modifier = Modifier,
-    logoSize: Dp = 88.dp,
+    logoSize: Dp = 72.dp,
 ) {
     Column(
         modifier = modifier.testTag(StartupSplashTestTags.BRANDING),
@@ -42,8 +42,8 @@ fun StartupBranding(
         Box(
             modifier = Modifier
                 .size(logoSize + 24.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center,
         ) {
             Image(

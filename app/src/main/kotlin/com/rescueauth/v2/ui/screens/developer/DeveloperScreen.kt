@@ -40,6 +40,7 @@ import com.rescueauth.v2.ui.model.DeveloperEntryUi
 import com.rescueauth.v2.ui.model.DeveloperPreviewData
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 /** Modern Developer Vault list. */
@@ -64,7 +65,13 @@ fun DeveloperScreen(
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = if (onAddClick != null) {
             {
-                FloatingActionButton(onClick = onAddClick) {
+                FloatingActionButton(
+                    onClick = onAddClick,
+                    shape = MaterialTheme.shapes.medium,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
+                ) {
                     Icon(
                         imageVector = Icons.Filled.Add,
                         contentDescription = stringResource(R.string.developer_add),
@@ -130,44 +137,13 @@ private fun DeveloperContent(
             top = Spacing.md,
             bottom = Spacing.xxl,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         item(key = "developer-summary") {
-            RescueAuthCard(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentPadding = Spacing.lg,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    RescueAuthIconBadge(
-                        icon = Icons.Filled.Build,
-                        size = 48.dp,
-                        iconSize = 25.dp,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    )
-                    androidx.compose.foundation.layout.Column(
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.developer_overview_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Text(
-                            text = stringResource(
-                                R.string.developer_overview_count,
-                                entries.size,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
-            }
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.developer_overview_title),
+                subtitle = stringResource(R.string.developer_overview_count, entries.size),
+            )
         }
         orderedTypes.forEach { type ->
             val typeEntries = groups[type].orEmpty()

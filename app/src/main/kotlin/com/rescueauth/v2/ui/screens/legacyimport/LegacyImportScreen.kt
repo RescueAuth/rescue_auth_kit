@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -123,7 +123,7 @@ fun LegacyImportScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                        RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
                             RescueAuthSectionHeader(
                                 title = stringResource(R.string.legacy_import_title),
                                 subtitle = stringResource(R.string.legacy_import_intro),

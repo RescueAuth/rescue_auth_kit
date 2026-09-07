@@ -7,9 +7,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
- * The app uses one visual family: cool neutral surfaces with blue-violet
+ * The app uses one visual family: neutral surfaces with blue
  * accents. The six persisted theme IDs are kept for compatibility, but each
- * preset is now a blue-violet variation instead of an unrelated hue.
+ * preset is now a coordinated accent variation instead of an unrelated hue.
  */
 @Immutable
 internal class ThemeColorPreset(
@@ -19,41 +19,41 @@ internal class ThemeColorPreset(
 
 /** Shared neutral surfaces. Accent color is intentionally isolated to roles. */
 private object Neutrals {
-    val backgroundLight = Color(0xFFF3F5FB)
-    val onBackgroundLight = Color(0xFF1A1B22)
+    val backgroundLight = Color(0xFFF3F3F5)
+    val onBackgroundLight = Color(0xFF202124)
     val surfaceLight = Color(0xFFFFFFFF)
-    val onSurfaceLight = Color(0xFF1A1B22)
-    val surfaceVariantLight = Color(0xFFEFF1F9)
-    val onSurfaceVariantLight = Color(0xFF5B5C68)
-    val outlineLight = Color(0xFF7C7E8D)
+    val onSurfaceLight = Color(0xFF202124)
+    val surfaceVariantLight = Color(0xFFEFEFF2)
+    val onSurfaceVariantLight = Color(0xFF66686D)
+    val outlineLight = Color(0xFF85878D)
 
-    val backgroundDark = Color(0xFF0E0F15)
-    val onBackgroundDark = Color(0xFFE5E1EE)
-    val surfaceDark = Color(0xFF15161E)
-    val onSurfaceDark = Color(0xFFE5E1EE)
-    val surfaceVariantDark = Color(0xFF454652)
-    val onSurfaceVariantDark = Color(0xFFC7C5D1)
-    val outlineDark = Color(0xFF90909D)
+    val backgroundDark = Color(0xFF1C1C1E)
+    val onBackgroundDark = Color(0xFFF2F2F3)
+    val surfaceDark = Color(0xFF272729)
+    val onSurfaceDark = Color(0xFFF2F2F3)
+    val surfaceVariantDark = Color(0xFF363638)
+    val onSurfaceVariantDark = Color(0xFFB9BBC1)
+    val outlineDark = Color(0xFF898B92)
 
     /**
      * Explicit tonal surface-container ramp (light + dark) so cards and sheets
      * get a real, layered cool-blue surface instead of falling back to the M3
      * auto-derived (muddy violet-grey) container colors. The ramp is shared by
-     * every blue-violet preset; only the accent (primary) differs per preset.
+     * every accent preset; only the accent (primary) differs per preset.
      */
     val surfaceContainerLowestLight = Color(0xFFFFFFFF)
-    val surfaceContainerLowLight = Color(0xFFFCFDFF)
-    val surfaceContainerLight = Color(0xFFF8F9FE)
-    val surfaceContainerHighLight = Color(0xFFF3F5FB)
-    val surfaceContainerHighestLight = Color(0xFFECEFF8)
-    val outlineVariantLight = Color(0xFFDBDEEF)
+    val surfaceContainerLowLight = Color(0xFFFAFAFC)
+    val surfaceContainerLight = Color(0xFFFFFFFF)
+    val surfaceContainerHighLight = Color(0xFFF3F3F5)
+    val surfaceContainerHighestLight = Color(0xFFE8E8ED)
+    val outlineVariantLight = Color(0xFFD7D7DC)
 
-    val surfaceContainerLowestDark = Color(0xFF0A0B11)
-    val surfaceContainerLowDark = Color(0xFF1A1B25)
-    val surfaceContainerDark = Color(0xFF20212C)
-    val surfaceContainerHighDark = Color(0xFF2A2B38)
-    val surfaceContainerHighestDark = Color(0xFF353644)
-    val outlineVariantDark = Color(0xFF3E3F4D)
+    val surfaceContainerLowestDark = Color(0xFF171719)
+    val surfaceContainerLowDark = Color(0xFF242426)
+    val surfaceContainerDark = Color(0xFF2C2C2E)
+    val surfaceContainerHighDark = Color(0xFF333336)
+    val surfaceContainerHighestDark = Color(0xFF3D3D40)
+    val outlineVariantDark = Color(0xFF48484C)
 }
 
 private object SemanticColors {
@@ -68,8 +68,8 @@ private object SemanticColors {
     val onErrorContainerDark = Color(0xFFFFDAD6)
 }
 
-/** Builds one coherent blue-violet light/dark pair. */
-private fun blueVioletPreset(
+/** Builds one coherent accent light/dark pair. */
+private fun accentPreset(
     lightPrimary: Color,
     lightPrimaryContainer: Color,
     lightOnPrimaryContainer: Color,
@@ -124,11 +124,11 @@ private fun blueVioletPreset(
         ),
         dark = darkColorScheme(
             primary = darkPrimary,
-            onPrimary = Color(0xFF2F2168),
+            onPrimary = Color(0xFF092E54),
             primaryContainer = darkPrimaryContainer,
             onPrimaryContainer = darkOnPrimaryContainer,
             secondary = darkSecondary,
-            onSecondary = Color(0xFF302A42),
+            onSecondary = Color(0xFF272B35),
             secondaryContainer = darkSecondaryContainer,
             onSecondaryContainer = darkOnSecondaryContainer,
             tertiary = darkTertiary,
@@ -157,30 +157,30 @@ private fun blueVioletPreset(
 }
 
 internal object ThemeColorPalettes {
-    // Historical names map to blue-violet tonal variants so stored preferences
+    // Historical names map to accent tonal variants so stored preferences
     // remain valid while the brand family stays consistent.
-    val SHIYI_ORANGE = blueVioletPreset(
-        lightPrimary = Color(0xFF5B4DB1),
-        lightPrimaryContainer = Color(0xFFE8E1FF),
-        lightOnPrimaryContainer = Color(0xFF1D124E),
-        darkPrimary = Color(0xFFC9BEFF),
-        darkPrimaryContainer = Color(0xFF46368D),
-        darkOnPrimaryContainer = Color(0xFFE8E1FF),
-        lightSecondary = Color(0xFF625A7D),
-        lightSecondaryContainer = Color(0xFFE9E2F6),
-        lightOnSecondaryContainer = Color(0xFF201A31),
-        darkSecondary = Color(0xFFCEC4E8),
-        darkSecondaryContainer = Color(0xFF4B4160),
-        darkOnSecondaryContainer = Color(0xFFE9E2F6),
+    val SHIYI_ORANGE = accentPreset(
+        lightPrimary = Color(0xFF0066CC),
+        lightPrimaryContainer = Color(0xFFE7F1FC),
+        lightOnPrimaryContainer = Color(0xFF174779),
+        darkPrimary = Color(0xFF75B7FF),
+        darkPrimaryContainer = Color(0xFF163A61),
+        darkOnPrimaryContainer = Color(0xFFE7F1FC),
+        lightSecondary = Color(0xFF5A6573),
+        lightSecondaryContainer = Color(0xFFEEF0F3),
+        lightOnSecondaryContainer = Color(0xFF303842),
+        darkSecondary = Color(0xFFBBC5D2),
+        darkSecondaryContainer = Color(0xFF38434E),
+        darkOnSecondaryContainer = Color(0xFFEEF0F3),
     )
 
-    val CYAN_BLUE = blueVioletPreset(
-        lightPrimary = Color(0xFF4F56B5),
-        lightPrimaryContainer = Color(0xFFE0E4FF),
-        lightOnPrimaryContainer = Color(0xFF11164B),
-        darkPrimary = Color(0xFFC1C6FF),
-        darkPrimaryContainer = Color(0xFF383F92),
-        darkOnPrimaryContainer = Color(0xFFE0E4FF),
+    val CYAN_BLUE = accentPreset(
+        lightPrimary = Color(0xFF076BBA),
+        lightPrimaryContainer = Color(0xFFE9F3FB),
+        lightOnPrimaryContainer = Color(0xFF174779),
+        darkPrimary = Color(0xFF82C3FC),
+        darkPrimaryContainer = Color(0xFF173D5D),
+        darkOnPrimaryContainer = Color(0xFFE9F3FB),
         lightSecondary = Color(0xFF5D607D),
         lightSecondaryContainer = Color(0xFFE5E5F8),
         lightOnSecondaryContainer = Color(0xFF191A31),
@@ -189,13 +189,13 @@ internal object ThemeColorPalettes {
         darkOnSecondaryContainer = Color(0xFFE5E5F8),
     )
 
-    val JADE_GREEN = blueVioletPreset(
-        lightPrimary = Color(0xFF5050A7),
-        lightPrimaryContainer = Color(0xFFE4E2FF),
-        lightOnPrimaryContainer = Color(0xFF171447),
-        darkPrimary = Color(0xFFC5C1FF),
-        darkPrimaryContainer = Color(0xFF39378B),
-        darkOnPrimaryContainer = Color(0xFFE4E2FF),
+    val JADE_GREEN = accentPreset(
+        lightPrimary = Color(0xFF23689B),
+        lightPrimaryContainer = Color(0xFFEAF2F8),
+        lightOnPrimaryContainer = Color(0xFF23445F),
+        darkPrimary = Color(0xFF85C3EF),
+        darkPrimaryContainer = Color(0xFF1D3C54),
+        darkOnPrimaryContainer = Color(0xFFEAF2F8),
         lightSecondary = Color(0xFF60607E),
         lightSecondaryContainer = Color(0xFFE8E6FA),
         lightOnSecondaryContainer = Color(0xFF1C1B32),
@@ -204,13 +204,13 @@ internal object ThemeColorPalettes {
         darkOnSecondaryContainer = Color(0xFFE8E6FA),
     )
 
-    val INDIGO = blueVioletPreset(
-        lightPrimary = Color(0xFF455CA9),
-        lightPrimaryContainer = Color(0xFFDCE1FF),
-        lightOnPrimaryContainer = Color(0xFF00174A),
-        darkPrimary = Color(0xFFB7C4FF),
-        darkPrimaryContainer = Color(0xFF2C4390),
-        darkOnPrimaryContainer = Color(0xFFDCE1FF),
+    val INDIGO = accentPreset(
+        lightPrimary = Color(0xFF3958AD),
+        lightPrimaryContainer = Color(0xFFEEF1FC),
+        lightOnPrimaryContainer = Color(0xFF23366A),
+        darkPrimary = Color(0xFFA1B8FA),
+        darkPrimaryContainer = Color(0xFF283862),
+        darkOnPrimaryContainer = Color(0xFFEEF1FC),
         lightSecondary = Color(0xFF5B5D72),
         lightSecondaryContainer = Color(0xFFE0E1F9),
         lightOnSecondaryContainer = Color(0xFF171B2C),
@@ -219,33 +219,33 @@ internal object ThemeColorPalettes {
         darkOnSecondaryContainer = Color(0xFFE0E1F9),
     )
 
-    val VIOLET = blueVioletPreset(
+    val VIOLET = accentPreset(
         lightPrimary = Color(0xFF6750A4),
         lightPrimaryContainer = Color(0xFFEADDFF),
         lightOnPrimaryContainer = Color(0xFF21005D),
         darkPrimary = Color(0xFFCFBCFF),
         darkPrimaryContainer = Color(0xFF4F378B),
         darkOnPrimaryContainer = Color(0xFFEADDFF),
-        lightSecondary = Color(0xFF625B71),
-        lightSecondaryContainer = Color(0xFFE8DEF8),
-        lightOnSecondaryContainer = Color(0xFF1E192B),
+        lightSecondary = Color(0xFF626570),
+        lightSecondaryContainer = Color(0xFFF0EFF5),
+        lightOnSecondaryContainer = Color(0xFF33313D),
         darkSecondary = Color(0xFFCCC2DC),
         darkSecondaryContainer = Color(0xFF4A4458),
-        darkOnSecondaryContainer = Color(0xFFE8DEF8),
+        darkOnSecondaryContainer = Color(0xFFF0EFF5),
     )
 
-    val ROSE = blueVioletPreset(
+    val ROSE = accentPreset(
         lightPrimary = Color(0xFF6550A8),
         lightPrimaryContainer = Color(0xFFE8E2FF),
         lightOnPrimaryContainer = Color(0xFF20144C),
-        darkPrimary = Color(0xFFC9BEFF),
+        darkPrimary = Color(0xFF75B7FF),
         darkPrimaryContainer = Color(0xFF49368E),
         darkOnPrimaryContainer = Color(0xFFE8E2FF),
         lightSecondary = Color(0xFF625A7C),
         lightSecondaryContainer = Color(0xFFE9E3F7),
-        lightOnSecondaryContainer = Color(0xFF201A31),
+        lightOnSecondaryContainer = Color(0xFF303842),
         darkSecondary = Color(0xFFCEC4E7),
-        darkSecondaryContainer = Color(0xFF4B4160),
+        darkSecondaryContainer = Color(0xFF38434E),
         darkOnSecondaryContainer = Color(0xFFE9E3F7),
     )
 

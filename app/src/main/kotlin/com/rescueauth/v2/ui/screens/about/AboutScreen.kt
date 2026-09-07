@@ -13,12 +13,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.Button
+import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,7 +92,7 @@ fun AboutScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             RescueAuthCard(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor(),
                 contentPadding = Spacing.md,
             ) {
                 Row(
@@ -112,12 +112,12 @@ fun AboutScreen(
                             text = stringResource(R.string.app_name),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             text = stringResource(R.string.about_product_description),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                         )
                     }

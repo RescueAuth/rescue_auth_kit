@@ -29,19 +29,19 @@ object ScreenTokens {
     val compactVerticalPadding = 10.dp
     val sectionGap = 24.dp
     val headerGap = 6.dp
-    val controlMinHeight = 52.dp
+    val controlMinHeight = 48.dp
 }
 
 /** Corner radius scale (design tokens). */
 object CornerRadius {
     /** Smallest radius — chips, badges, inline controls. */
-    val xs = 12.dp
+    val xs = 8.dp
     /** Compact list rows / medium cards. */
-    val sm = 16.dp
-    /** Standard card container — generous, modern rounding. */
-    val md = 20.dp
+    val sm = 10.dp
+    /** Standard card container — restrained panel rounding. */
+    val md = 12.dp
     /** Fully rounded pill (FAB, tags). */
-    val pill = 28.dp
+    val pill = 8.dp
 }
 
 /** Elevation scale (design tokens). */
@@ -71,7 +71,7 @@ object ElevationTokens {
 object CardTokens {
     /** Surface container used as the standard card fill (M3 tonal surface). */
     @Composable
-    fun containerColor(): Color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
+    fun containerColor(): Color = androidx.compose.material3.MaterialTheme.colorScheme.surface
 
     /** Slightly elevated card fill used for tappable / emphasis cards. */
     @Composable
@@ -83,18 +83,20 @@ object CardTokens {
     fun outlineColor(): Color =
         androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
 
-    /** Standard card corner radius — generous, modern rounding (20dp). */
+    /** Standard card corner radius — restrained panel rounding (12dp). */
     val shape = RoundedCornerShape(CornerRadius.md)
 
-    /** Slightly tighter radius for compact list rows (16dp) so rows still
+    /** Slightly tighter radius for compact list rows (10dp) so rows still
      *  read as part of the same card family without bulking up the list. */
     val rowShape = RoundedCornerShape(CornerRadius.sm)
 
     /** Standard card inner content padding — roomier for a calm, breathable feel. */
-    val contentPadding = 20.dp
+    val contentPadding = 16.dp
+
+    val borderWidth = 0.5.dp
 
     /** Padding between sibling cards inside a list / column. */
-    val listSpacing = Spacing.md
+    val listSpacing = Spacing.xs
 
     /** Padding applied around the whole carded list from its container edges. */
     val listOuterPadding = Spacing.md

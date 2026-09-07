@@ -181,7 +181,13 @@ fun AuthenticatorScreen(
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = if (onAddClick != null && !atProviderLevel) {
             {
-                FloatingActionButton(onClick = onAddClick) {
+                FloatingActionButton(
+                    onClick = onAddClick,
+                    shape = MaterialTheme.shapes.medium,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
+                ) {
                     Icon(
                         imageVector = Icons.Filled.Add,
                         contentDescription = stringResource(R.string.nav_authenticator),
@@ -283,7 +289,7 @@ private fun ProviderHomeContent(
             top = Spacing.md,
             bottom = Spacing.xxl,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         item(key = "providers-heading") {
             RescueAuthSectionHeader(
@@ -329,7 +335,7 @@ private fun ProviderAccountsContent(
             horizontal = ScreenTokens.horizontalPadding,
             vertical = Spacing.md,
         ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         item(key = "accounts-heading") {
             RescueAuthSectionHeader(
@@ -490,7 +496,8 @@ private fun TotpInlineRow(
                 text = code,
                 style = MaterialTheme.typography.displaySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
+                    fontFeatureSettings = "tnum",
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
             )

@@ -43,11 +43,10 @@ class CardTokensTest {
 
     @Test
     fun geometryIsDerivedFromTheSharedScale() {
-        // Card content padding is generous (20dp) to match the standard 20dp
-        // card corner radius for a calm, breathable card feel.
-        assertEquals(20.dp, CardTokens.contentPadding)
-        assertEquals(CornerRadius.md, CardTokens.contentPadding)
-        assertEquals(Spacing.md, CardTokens.listSpacing)
+        // Flat panels use a 16dp inset and compact list rhythm. The corner
+        // radius is intentionally independent from the content padding.
+        assertEquals(16.dp, CardTokens.contentPadding)
+        assertEquals(Spacing.xs, CardTokens.listSpacing)
         assertEquals(Spacing.md, CardTokens.listOuterPadding)
     }
 

@@ -12,12 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -132,7 +132,7 @@ fun ExportVaultScreen(
             when (state) {
                 is ExportImportViewModel.ExportState.Idle -> {
                     RescueAuthCard(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor(),
                     ) {
                         RescueAuthSectionHeader(
                             title = stringResource(R.string.export_title),
@@ -163,7 +163,7 @@ fun ExportVaultScreen(
                     // Fresh Biometric / Device Credential re-auth is in progress
                     // (the system prompt is showing). This screen only renders a
                     // safe waiting hint; no PIN is collected here yet.
-                    RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                    RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             RescueAuthIconBadge(icon = Icons.Filled.Lock, size = 40.dp, iconSize = 20.dp)
                             Column {
@@ -198,7 +198,7 @@ fun ExportVaultScreen(
                     RescueAuthSectionHeader(title = stringResource(R.string.common_working))
                 }
                 is ExportImportViewModel.ExportState.Success -> {
-                    RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                    RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
                         RescueAuthSectionHeader(
                             title = stringResource(R.string.export_success),
                             subtitle = stringResource(R.string.export_success_detail),
@@ -266,7 +266,7 @@ fun ImportNativePackageScreen(
         ) {
             when (state) {
                 is ExportImportViewModel.ImportState.Idle -> {
-                    RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                    RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
                         RescueAuthSectionHeader(
                             title = stringResource(R.string.import_title),
                             subtitle = stringResource(R.string.import_intro),
@@ -754,7 +754,7 @@ private fun PinEntry(
     val transformation = if (revealed) VisualTransformation.None else PasswordVisualTransformation()
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+        RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,

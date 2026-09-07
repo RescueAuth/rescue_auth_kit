@@ -35,8 +35,8 @@
 
 ### 3.1 首选：复用统一卡片组件
 
-- `com.rescueauth.v2.ui.components.RescueAuthCard` —— 竖向内容卡片（默认 `surfaceContainer` 填充、`CornerRadius.md` 圆角、`Spacing.md` 内边距）。
-- `com.rescueauth.v2.ui.components.RescueAuthRowCard` —— 单行（Row 布局）卡片，content 是 `RowScope`，可直接用 `Modifier.weight(...)`。默认 `surfaceContainerLow` 填充。
+- `com.rescueauth.v2.ui.components.RescueAuthCard` —— 竖向内容卡片（默认中性 surface 填充、`CardTokens.shape` 圆角、统一内边距）。
+- `com.rescueauth.v2.ui.components.RescueAuthRowCard` —— 单行（Row 布局）卡片，content 是 `RowScope`，可直接用 `Modifier.weight(...)`。默认中性 surface 填充。
 
 ```kotlin
 RescueAuthCard {                       // 标准竖向卡
@@ -82,3 +82,15 @@ Card(
 - [ ] 是否存在硬编码 `surfaceContainer*`、`RoundedCornerShape(...)`、`Spacing.md` 替代 token 的写法？
 - [ ] 新增子页面是否延续卡片式（而非裸平铺）？
 - [ ] 卡片内容是否为纯 UI 模型（不含 Room 实体 / secret 明文）？
+
+## 5. Flat UI（2026-09-07）
+
+当前视觉方向为 macOS 风格的扁平原生工具界面：中性灰画布、白色/石墨色面板、
+细描边和蓝色操作强调。保留 Card-First 的分组语义，取消厚重阴影和大面积彩色卡片。
+
+- 卡片：12 dp 标准圆角、10 dp 行圆角，0.5 dp 描边，静止/按下均无阴影。
+- 列表：16 dp 内容内边距、8 dp 卡间距；操作触摸目标至少 48 dp。
+- 全局按钮：统一 `RescueAuthButton` / `RescueAuthOutlinedButton`，8 dp 圆角。
+- 页面工具栏和底部导航用细线分层；导航选中态用强调色图标与文字。
+- 表单、详情、导入导出、空状态和启动页沿用同一套 tokens；深浅主题均使用中性色。
+- 既有主题存储 ID、导航、认证与加密契约不变。图标/数据截图只使用无秘密的合成元数据。

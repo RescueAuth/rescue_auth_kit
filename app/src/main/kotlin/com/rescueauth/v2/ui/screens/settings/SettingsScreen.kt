@@ -1,5 +1,7 @@
 package com.rescueauth.v2.ui.screens.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,13 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -80,30 +82,34 @@ fun SettingsScreen(
                     top = Spacing.md,
                 ),
             )
-            SettingsEntryCard(
-                icon = Icons.Filled.FileUpload,
-                title = stringResource(R.string.settings_export_vault),
-                subtitle = stringResource(R.string.settings_export_vault_subtitle),
-                enabled = onExportClick != null,
-                onClick = onExportClick,
+            RescueAuthCard(
                 modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-            )
-            SettingsEntryCard(
-                icon = Icons.Filled.FileDownload,
-                title = stringResource(R.string.settings_import_native),
-                subtitle = stringResource(R.string.settings_import_native_subtitle),
-                enabled = onImportClick != null,
-                onClick = onImportClick,
-                modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-            )
-            SettingsEntryCard(
-                icon = Icons.Filled.History,
-                title = stringResource(R.string.settings_import_legacy),
-                subtitle = stringResource(R.string.settings_import_legacy_subtitle),
-                enabled = onLegacyImportClick != null,
-                onClick = onLegacyImportClick,
-                modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-            )
+                contentPadding = 0.dp,
+            ) {
+                SettingsEntryCard(
+                    icon = Icons.Outlined.FileUpload,
+                    title = stringResource(R.string.settings_export_vault),
+                    subtitle = stringResource(R.string.settings_export_vault_subtitle),
+                    enabled = onExportClick != null,
+                    onClick = onExportClick,
+                )
+                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
+                SettingsEntryCard(
+                    icon = Icons.Outlined.FileDownload,
+                    title = stringResource(R.string.settings_import_native),
+                    subtitle = stringResource(R.string.settings_import_native_subtitle),
+                    enabled = onImportClick != null,
+                    onClick = onImportClick,
+                )
+                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
+                SettingsEntryCard(
+                    icon = Icons.Outlined.History,
+                    title = stringResource(R.string.settings_import_legacy),
+                    subtitle = stringResource(R.string.settings_import_legacy_subtitle),
+                    enabled = onLegacyImportClick != null,
+                    onClick = onLegacyImportClick,
+                )
+            }
             Text(
                 text = stringResource(R.string.settings_backup_transfer_notice),
                 style = MaterialTheme.typography.bodySmall,
@@ -119,24 +125,27 @@ fun SettingsScreen(
                     top = Spacing.lg,
                 ),
             )
-            SettingsInfoCard(
-                icon = Icons.Filled.Verified,
-                title = stringResource(
-                    R.string.settings_version,
-                    versionName ?: stringResource(R.string.common_unknown),
-                ),
+            RescueAuthCard(
                 modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-            )
-            SettingsEntryCard(
-                icon = Icons.Filled.Info,
-                title = stringResource(R.string.settings_about),
-                subtitle = stringResource(R.string.settings_about_subtitle),
-                enabled = onAboutClick != null,
-                onClick = onAboutClick,
-                modifier = Modifier
-                    .padding(horizontal = ScreenTokens.horizontalPadding)
-                    .testTag(SettingsTestTags.ABOUT_ROW),
-            )
+                contentPadding = 0.dp,
+            ) {
+                SettingsEntryCard(
+                    icon = Icons.Outlined.Verified,
+                    title = stringResource(R.string.settings_version, versionName ?: stringResource(R.string.common_unknown)),
+                    subtitle = null,
+                    enabled = true,
+                    onClick = null,
+                )
+                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
+                SettingsEntryCard(
+                    icon = Icons.Outlined.Info,
+                    title = stringResource(R.string.settings_about),
+                    subtitle = stringResource(R.string.settings_about_subtitle),
+                    enabled = onAboutClick != null,
+                    onClick = onAboutClick,
+                    modifier = Modifier.testTag(SettingsTestTags.ABOUT_ROW),
+                )
+            }
             Text(
                 text = stringResource(R.string.settings_security_body),
                 style = MaterialTheme.typography.bodySmall,
@@ -159,18 +168,21 @@ private fun SettingsEntryCard(
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    RescueAuthRowCard(
-        modifier = modifier,
-        onClick = onClick,
-        containerColor = CardTokens.elevatedContainerColor(),
-        verticalPadding = Spacing.xs,
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = ScreenTokens.controlMinHeight)
+            .padding(CardTokens.contentPadding),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        RescueAuthIconBadge(icon = icon, size = 36.dp, iconSize = 18.dp)
+        RescueAuthIconBadge(icon = icon, size = 32.dp, iconSize = 18.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Medium,
                 color = if (enabled || onClick == null) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
@@ -186,31 +198,6 @@ private fun SettingsEntryCard(
             }
         }
         if (onClick != null) RescueAuthChevron()
-    }
-}
-
-@Composable
-private fun SettingsInfoCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    modifier: Modifier = Modifier,
-) {
-    RescueAuthCard(
-        modifier = modifier,
-        containerColor = CardTokens.containerColor(),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            RescueAuthIconBadge(icon = icon)
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-        }
     }
 }
 

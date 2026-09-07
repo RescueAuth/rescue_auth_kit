@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +78,7 @@ fun RescueAuthPageHeader(
             .statusBarsPadding(),
         color = MaterialTheme.colorScheme.background,
     ) {
+        Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -110,6 +112,8 @@ fun RescueAuthPageHeader(
                 }
             }
             actions()
+        }
+        RescueAuthDivider()
         }
     }
 }
@@ -149,9 +153,9 @@ fun RescueAuthSectionHeader(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!subtitle.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(Spacing.xxs))
@@ -168,9 +172,9 @@ fun RescueAuthSectionHeader(
 fun RescueAuthIconBadge(
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
-    size: Dp = 44.dp,
+    containerColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+    contentColor: Color = MaterialTheme.colorScheme.primary,
+    size: Dp = 40.dp,
     iconSize: Dp = 22.dp,
 ) {
     Box(
@@ -194,7 +198,7 @@ fun RescueAuthIconBadge(
 fun RescueAuthInitialBadge(
     label: String,
     modifier: Modifier = Modifier,
-    size: Dp = 44.dp,
+    size: Dp = 40.dp,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
@@ -202,7 +206,7 @@ fun RescueAuthInitialBadge(
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
+            .clip(androidx.compose.material3.MaterialTheme.shapes.small)
             .background(containerColor),
         contentAlignment = Alignment.Center,
     ) {
@@ -257,14 +261,17 @@ fun RescueAuthAutoBadge(
     modifier: Modifier = Modifier,
     colorSeed: String = label,
     iconRes: Int? = null,
-    size: Dp = 44.dp,
+    size: Dp = 40.dp,
     iconSize: Dp = 22.dp,
 ) {
-    val (container, content) = RescueAuthBadgePalette.forName(colorSeed)
+    val (lightContainer, lightContent) = RescueAuthBadgePalette.forName(colorSeed)
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val container = if (dark) lightContainer.copy(alpha = 0.12f) else lightContent.copy(alpha = 0.07f)
+    val content = if (dark) lightContainer else lightContent
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
+            .clip(androidx.compose.material3.MaterialTheme.shapes.small)
             .background(container),
         contentAlignment = Alignment.Center,
     ) {
@@ -404,6 +411,7 @@ fun RescueAuthChevron(
 fun RescueAuthDivider(modifier: Modifier = Modifier) {
     HorizontalDivider(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.outlineVariant,
+        color = com.rescueauth.v2.ui.theme.CardTokens.outlineColor(),
+        thickness = com.rescueauth.v2.ui.theme.CardTokens.borderWidth,
     )
 }

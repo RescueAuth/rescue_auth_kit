@@ -44,8 +44,8 @@ fun RescueAuthCard(
             modifier = modifier.fillMaxWidth(),
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp),
-            border = BorderStroke(1.dp, CardTokens.outlineColor()),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
         ) {
             Column(modifier = Modifier.padding(contentPadding)) {
                 content()
@@ -57,7 +57,7 @@ fun RescueAuthCard(
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            border = BorderStroke(1.dp, CardTokens.outlineColor()),
+            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
         ) {
             Column(modifier = Modifier.padding(contentPadding)) {
                 content()
@@ -79,8 +79,8 @@ fun RescueAuthRowCard(
     containerColor: androidx.compose.ui.graphics.Color = CardTokens.elevatedContainerColor(),
     shape: Shape = CardTokens.rowShape,
     horizontalPadding: Dp = CardTokens.contentPadding,
-    verticalPadding: Dp = CardTokens.contentPadding,
-    horizontalArrangement: androidx.compose.foundation.layout.Arrangement.Horizontal = androidx.compose.foundation.layout.Arrangement.Start,
+    verticalPadding: Dp = com.rescueauth.v2.ui.theme.Spacing.sm,
+    horizontalArrangement: androidx.compose.foundation.layout.Arrangement.Horizontal = androidx.compose.foundation.layout.Arrangement.spacedBy(com.rescueauth.v2.ui.theme.Spacing.sm),
     content: @Composable RowScope.() -> Unit,
 ) {
     val cardModifier = modifier.fillMaxWidth()
@@ -90,8 +90,8 @@ fun RescueAuthRowCard(
             modifier = cardModifier,
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp),
-            border = BorderStroke(1.dp, CardTokens.outlineColor()),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
         ) {
             Row(
                 modifier = Modifier.padding(
@@ -109,7 +109,7 @@ fun RescueAuthRowCard(
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            border = BorderStroke(1.dp, CardTokens.outlineColor()),
+            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
         ) {
             Row(
                 modifier = Modifier.padding(

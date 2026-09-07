@@ -1,9 +1,9 @@
 package com.rescueauth.v2.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.RescueAuthTestTags
@@ -31,19 +31,19 @@ object TopLevelDestinations {
     val AUTHENTICATOR = TopLevelDestination(
         route = RescueAuthRoutes.AUTHENTICATOR,
         labelRes = R.string.nav_authenticator,
-        icon = Icons.Filled.Shield,
+        icon = Icons.Outlined.Shield,
         testTag = RescueAuthTestTags.NAV_AUTHENTICATOR,
     )
     val DEVELOPER = TopLevelDestination(
         route = RescueAuthRoutes.DEVELOPER,
         labelRes = R.string.nav_developer,
-        icon = Icons.Filled.Build,
+        icon = Icons.Outlined.Code,
         testTag = RescueAuthTestTags.NAV_DEVELOPER,
     )
     val SETTINGS = TopLevelDestination(
         route = RescueAuthRoutes.SETTINGS,
         labelRes = R.string.nav_settings,
-        icon = Icons.Filled.Settings,
+        icon = Icons.Outlined.Settings,
         testTag = RescueAuthTestTags.NAV_SETTINGS,
     )
 
