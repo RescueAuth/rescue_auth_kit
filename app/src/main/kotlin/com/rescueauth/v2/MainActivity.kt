@@ -189,9 +189,14 @@ class MainActivity : AppCompatActivity() {
         // No global FLAG_SECURE / secure-window policy — screenshots and screen
         // recording are allowed on ordinary pages (see class doc).
 
-        stateMachine = SecureSessionStateMachine()
+        val initialStateMachine = SecureSessionStateMachine()
         sessionManager = sessionManagerFactory?.invoke(this)
-            ?: SessionManager(this, stateMachine, scope)
+            ?: SessionManager(this, initialStateMachine, scope)
+        // Test hosts may inject a SessionManager with its own state machine.
+        // The activity must observe the same machine that SessionManager
+        // mutates; otherwise the UI can remain on the auth host forever even
+        // though the database has opened successfully.
+        stateMachine = sessionManager.sessionState
         VaultAccess.sessionManager = sessionManager
 
         startupMode = if (sessionManager.needsFirstRunSetup()) {
@@ -331,17 +336,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPostResume() {
+        super.onPostResume()
+        // onResume can run before Lifecycle has entered RESUMED. Reconcile
+        // once more at the first callback guaranteed to be after that
+        // transition. If Android dismissed a prompt while the app was in the
+        // background, the controller is no longer active and this schedules a
+        // fresh request instead of leaving the neutral host stranded.
+        if (!isFinishing && !isDestroyed && !stateMachine.isUnlocked() &&
+            vaultOpenJob?.isActive != true && startupMode != StartupMode.FIRST_RUN
+        ) {
+            val promptIsActive = startupAuthPrompt?.isPromptActive() == true
+            if (!promptIsActive) promptActive.set(false)
+            if (!promptIsActive) {
+                _uiState.value = StartupUiState.AUTHENTICATING
+                scheduleAuthentication()
+            }
+        }
+    }
+
     override fun onPause() {
         isPausingForBackground = true
         if (::sensitiveActionGate.isInitialized) {
             sensitiveActionGate.onLifecyclePause()
         }
-        // Cancel any in-flight startup auth prompt so its internal state
-        // (promptShowing / pending callback) is cleared. Without this, a
-        // BiometricPrompt dismissed by the system when the activity leaves
-        // foreground leaves promptActive stuck true and the next foreground
-        // resume can never re-request authentication (Issue #70).
-        startupAuthPrompt?.cancel()
+        // Do not cancel the startup prompt here. Device-credential auth can
+        // temporarily pause the host while the system credential activity is
+        // in front; cancelling from onPause races that flow and loses the
+        // callback before the credential result returns. AndroidX Biometric
+        // owns cancellation when the prompt is actually dismissed/stopped.
+        authSchedulerJob?.cancel()
         super.onPause()
     }
 

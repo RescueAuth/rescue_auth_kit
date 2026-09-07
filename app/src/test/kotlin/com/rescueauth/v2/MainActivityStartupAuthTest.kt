@@ -313,11 +313,15 @@ class MainActivityStartupAuthTest {
         // Existing vault → auth requested automatically.
         assertTrue("first launch must request auth", prompt.promptLaunched)
 
-        // User presses Home while the prompt is showing → onPause fires and
-        // cancels the prompt.
+        // User presses Home while the prompt is showing. The Activity must not
+        // cancel from onPause because DEVICE_CREDENTIAL itself temporarily
+        // pauses the host; AndroidX delivers cancellation when the prompt is
+        // actually dismissed.
         controller.pause()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        assertTrue("prompt must be cancelled when activity pauses", prompt.cancelCalled)
+        assertFalse("onPause must not cancel a credential prompt", prompt.cancelCalled)
+        // Simulate AndroidX reporting that the prompt was dismissed by Home.
+        prompt.deliver(StartupAuthResult.Cancelled)
         // The Activity must NOT be finished because the cancel came from going
         // to background, not a user-initiated cancel.
         assertFalse("activity must not finish on background", activity.isFinishing)

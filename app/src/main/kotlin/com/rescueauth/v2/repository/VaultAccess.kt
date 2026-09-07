@@ -55,6 +55,7 @@ object VaultAccess {
     private var cachedLegacyImportService: LegacyImportService? = null
 
     /** Drops cached state (called on app teardown). */
+    @Synchronized
     fun clear() {
         cachedDb = null
         cachedVaultRepository = null
@@ -71,11 +72,13 @@ object VaultAccess {
      * @return the shared production [VaultRepository] for the current open DB,
      *   or null while locked / never unlocked.
      */
+    @Synchronized
     fun vaultRepository(): VaultRepository? {
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull() ?: return null
+        refreshForDatabase(db)
         val cached = cachedVaultRepository
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val repo = VaultRepository(db, sm.sessionState)
         cachedDb = db
         cachedVaultRepository = repo
@@ -83,12 +86,13 @@ object VaultAccess {
     }
 
     /** @return the production Authenticator repository, or null while locked. */
+    @Synchronized
     fun authenticatorRepository(): AuthenticatorRepository? {
         val vault = vaultRepository() ?: return null
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull() ?: return null
         val cached = cachedAuthRepository
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val repo = AuthenticatorRepository(vault, db, sm.sessionState)
         cachedDb = db
         cachedAuthRepository = repo
@@ -101,12 +105,13 @@ object VaultAccess {
      *   writes (Recovery CRUD, Authenticator CRUD, export/import) stay
      *   serialized.
      */
+    @Synchronized
     fun recoveryRepository(): RecoveryCodeRepository? {
         val vault = vaultRepository() ?: return null
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull() ?: return null
         val cached = cachedRecoveryRepository
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val repo = RecoveryCodeRepository(vault, db, sm.sessionState)
         cachedDb = db
         cachedRecoveryRepository = repo
@@ -118,12 +123,13 @@ object VaultAccess {
      *   DB, or null while locked. Shares the single [VaultRepository] mutex so
      *   Developer CRUD stays serialized with export/import merges.
      */
+    @Synchronized
     fun developerRepository(): DeveloperRepository? {
         val vault = vaultRepository() ?: return null
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull() ?: return null
         val cached = cachedDeveloperRepository
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val repo = DeveloperRepository(vault, db, sm.sessionState)
         cachedDb = db
         cachedDeveloperRepository = repo
@@ -136,12 +142,13 @@ object VaultAccess {
      *   [VaultRepository] mutex so all hierarchy mutations stay serialized with
      *   Authenticator CRUD / Recovery CRUD / export-import merges.
      */
+    @Synchronized
     fun providerAccountRepository(): ProviderAccountRepository? {
         val vault = vaultRepository() ?: return null
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull() ?: return null
         val cached = cachedProviderAccountRepository
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val repo = ProviderAccountRepository(vault, db, sm.sessionState)
         cachedDb = db
         cachedProviderAccountRepository = repo
@@ -152,12 +159,13 @@ object VaultAccess {
      * @return the Phase 3D Export/Import use-case service for the current open
      *   DB, or null while locked.
      */
+    @Synchronized
     fun exportImportService(): ExportImportService? {
         val vault = vaultRepository() ?: return null
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull() ?: return null
         val cached = cachedExportImportService
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val svc = ExportImportService(vault, BuildConfig.VERSION_NAME)
         cachedDb = db
         cachedExportImportService = svc
@@ -176,15 +184,36 @@ object VaultAccess {
      * required only at [com.rescueauth.v2.legacyimport.LegacyImportService.buildPreview]
      * / [com.rescueauth.v2.legacyimport.LegacyImportService.confirmImport].
      */
+    @Synchronized
     fun legacyImportService(): LegacyImportService? {
         val sm = sessionManager ?: return null
         val db = sm.databaseOrNull()
         val vault = vaultRepository() // null while locked
         val cached = cachedLegacyImportService
-        if (cached != null && cachedDb === db) return cached
+        if (cached != null) return cached
         val svc = LegacyImportService(vault)
         cachedDb = db
         cachedLegacyImportService = svc
         return svc
+    }
+
+    /**
+     * A lock closes the old Room handle before the next unlock creates a new
+     * one. Every service keeps DAOs from its construction-time database, so
+     * retaining those services across a reopen makes the UI call a closed
+     * connection. Invalidate the whole dependency graph as one unit whenever
+     * the active database identity changes.
+     */
+    @Synchronized
+    private fun refreshForDatabase(db: RescueAuthDatabase) {
+        if (cachedDb === db) return
+        cachedDb = db
+        cachedVaultRepository = null
+        cachedAuthRepository = null
+        cachedRecoveryRepository = null
+        cachedDeveloperRepository = null
+        cachedProviderAccountRepository = null
+        cachedExportImportService = null
+        cachedLegacyImportService = null
     }
 }

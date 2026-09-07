@@ -77,7 +77,7 @@ class SessionManager(
         }
         return try {
             val key = vaultKeyManager.generateAndWrap()
-            val db = databaseFactory(context, key)
+            val db = openDatabase(key)
             vaultKey?.fill(0)
             vaultKey = key.copyOf()
             database = db
@@ -112,7 +112,7 @@ class SessionManager(
         }
         return try {
             val key = vaultKeyManager.unwrap()
-            val db = databaseFactory(context, key)
+            val db = openDatabase(key)
             vaultKey?.fill(0)
             vaultKey = key
             database = db
@@ -142,7 +142,7 @@ class SessionManager(
     fun unlockWithFreshKey(key: ByteArray): Boolean = synchronized(lifecycleLock) {
         if (!stateMachine.beginAuthentication()) return false
         return try {
-            val db = databaseFactory(context, key)
+            val db = openDatabase(key)
             vaultKey?.fill(0)
             vaultKey = key.copyOf()
             database = db
@@ -153,6 +153,18 @@ class SessionManager(
         } catch (e: Exception) {
             stateMachine.onAuthenticationFailure()
             false
+        }
+    }
+
+    /** Room is lazy, so validate the connection before publishing UNLOCKED. */
+    private fun openDatabase(key: ByteArray): RescueAuthDatabase {
+        val db = databaseFactory(context, key)
+        return try {
+            db.openHelper.writableDatabase
+            db
+        } catch (error: Exception) {
+            db.close()
+            throw error
         }
     }
 
