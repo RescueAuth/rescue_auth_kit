@@ -69,6 +69,7 @@ import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.components.RescueAuthMetric
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
@@ -291,6 +292,32 @@ private fun ProviderHomeContent(
         ),
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
+        item(key = "vault-overview") {
+            RescueAuthCard(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentPadding = Spacing.sm,
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.authenticator_providers_subtitle,
+                        providerCount,
+                        accountCount,
+                        credentialCount,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    RescueAuthMetric(providerCount.toString(), stringResource(R.string.authenticator_providers_heading))
+                    RescueAuthMetric(accountCount.toString(), stringResource(R.string.authenticator_accounts_heading))
+                    RescueAuthMetric(credentialCount.toString(), stringResource(R.string.nav_authenticator))
+                }
+            }
+        }
         item(key = "providers-heading") {
             RescueAuthSectionHeader(
                 title = stringResource(R.string.authenticator_providers_heading),
