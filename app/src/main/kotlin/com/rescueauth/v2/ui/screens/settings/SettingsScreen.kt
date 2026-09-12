@@ -18,11 +18,16 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -36,6 +41,7 @@ import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
@@ -43,6 +49,7 @@ import com.rescueauth.v2.ui.theme.Spacing
 
 object SettingsTestTags {
     const val ABOUT_ROW = "settings_about_row"
+    const val TRANSFER_ROW = "settings_transfer_row"
 }
 
 /** Modern settings surface: transfer actions first, preferences below. */
@@ -55,7 +62,18 @@ fun SettingsScreen(
     onImportClick: (() -> Unit)? = null,
     onLegacyImportClick: (() -> Unit)? = null,
     onAboutClick: (() -> Unit)? = null,
+    onTransferClick: (() -> Unit)? = null,
 ) {
+    var transferOpen by remember { mutableStateOf(false) }
+    if (transferOpen) {
+        SettingsTransferScreen(
+            onBack = { transferOpen = false },
+            onExportClick = onExportClick,
+            onImportClick = onImportClick,
+            onLegacyImportClick = onLegacyImportClick,
+        )
+        return
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
@@ -73,7 +91,9 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            // Keep the high-frequency transfer actions near the first viewport.
+            // The root is a directory of settings areas. Transfer details stay
+            // behind one entry so three long descriptions do not dominate the
+            // first viewport.
             RescueAuthSectionHeader(
                 title = stringResource(R.string.settings_backup_transfer_section),
                 modifier = Modifier.padding(
@@ -82,40 +102,28 @@ fun SettingsScreen(
                     top = Spacing.md,
                 ),
             )
-            RescueAuthCard(
-                modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-                contentPadding = 0.dp,
+            RescueAuthRowCard(
+                onClick = onTransferClick ?: { transferOpen = true },
+                containerColor = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .padding(horizontal = ScreenTokens.horizontalPadding)
+                    .testTag(SettingsTestTags.TRANSFER_ROW),
             ) {
-                SettingsEntryCard(
-                    icon = Icons.Outlined.FileUpload,
-                    title = stringResource(R.string.settings_export_vault),
-                    subtitle = stringResource(R.string.settings_export_vault_subtitle),
-                    enabled = onExportClick != null,
-                    onClick = onExportClick,
-                )
-                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
-                SettingsEntryCard(
-                    icon = Icons.Outlined.FileDownload,
-                    title = stringResource(R.string.settings_import_native),
-                    subtitle = stringResource(R.string.settings_import_native_subtitle),
-                    enabled = onImportClick != null,
-                    onClick = onImportClick,
-                )
-                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
-                SettingsEntryCard(
-                    icon = Icons.Outlined.History,
-                    title = stringResource(R.string.settings_import_legacy),
-                    subtitle = stringResource(R.string.settings_import_legacy_subtitle),
-                    enabled = onLegacyImportClick != null,
-                    onClick = onLegacyImportClick,
-                )
+                RescueAuthIconBadge(icon = Icons.Outlined.FileUpload, size = 36.dp, iconSize = 18.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_transfer_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_transfer_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                RescueAuthChevron()
             }
-            Text(
-                text = stringResource(R.string.settings_backup_transfer_notice),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-            )
 
             RescueAuthSectionHeader(
                 title = stringResource(R.string.settings_about_section),
@@ -155,6 +163,72 @@ fun SettingsScreen(
                     vertical = Spacing.md,
                 ),
             )
+        }
+    }
+}
+
+@Composable
+fun SettingsTransferScreen(
+    onBack: () -> Unit,
+    onExportClick: (() -> Unit)?,
+    onImportClick: (() -> Unit)?,
+    onLegacyImportClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+        topBar = {
+            RescueAuthPageHeader(
+                title = stringResource(R.string.settings_transfer_title),
+                subtitle = stringResource(R.string.settings_transfer_subtitle),
+                navigationIcon = {
+                    androidx.compose.material3.IconButton(onClick = onBack) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.a11y_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.settings_backup_transfer_section),
+                subtitle = stringResource(R.string.settings_backup_transfer_notice),
+            )
+            RescueAuthCard(contentPadding = 0.dp) {
+                SettingsEntryCard(
+                    icon = Icons.Outlined.FileUpload,
+                    title = stringResource(R.string.settings_export_vault),
+                    subtitle = stringResource(R.string.settings_export_vault_subtitle),
+                    enabled = onExportClick != null,
+                    onClick = onExportClick,
+                )
+                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
+                SettingsEntryCard(
+                    icon = Icons.Outlined.FileDownload,
+                    title = stringResource(R.string.settings_import_native),
+                    subtitle = stringResource(R.string.settings_import_native_subtitle),
+                    enabled = onImportClick != null,
+                    onClick = onImportClick,
+                )
+                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
+                SettingsEntryCard(
+                    icon = Icons.Outlined.History,
+                    title = stringResource(R.string.settings_import_legacy),
+                    subtitle = stringResource(R.string.settings_import_legacy_subtitle),
+                    enabled = onLegacyImportClick != null,
+                    onClick = onLegacyImportClick,
+                )
+            }
         }
     }
 }

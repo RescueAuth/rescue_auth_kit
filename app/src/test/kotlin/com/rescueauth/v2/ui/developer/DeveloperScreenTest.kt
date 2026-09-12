@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -76,7 +77,9 @@ class DeveloperScreenTest {
                 )
             }
         }
-        // Metadata visible.
+        // Category directory never expands entries in place.
+        composeRule.onNodeWithText("Stripe").assertDoesNotExist()
+        composeRule.onNodeWithTag("developer_category_API_CREDENTIAL").performClick()
         composeRule.onNodeWithText("Stripe").assertIsDisplayed()
         // Secret value never rendered by default.
         composeRule.onNodeWithText("sk_live_SUPERSECRET").assertDoesNotExist()
@@ -84,17 +87,18 @@ class DeveloperScreenTest {
     }
 
     @Test
-    fun developerGroupsCanBeCollapsedToKeepLongListsReadable() {
+    fun categoriesOpenDedicatedListsAndBackRestoresDirectory() {
         composeRule.setContent {
             RescueAuthTheme {
-                DeveloperScreen(
-                    uiState = DeveloperListUiState(loading = false, entries = listOf(apiEntry)),
-                )
+                DeveloperScreen(uiState = DeveloperListUiState(loading = false, entries = listOf(apiEntry)))
             }
         }
-        composeRule.onNodeWithText("Stripe").assertIsDisplayed()
-        composeRule.onNodeWithText("API Credential").performClick()
         composeRule.onNodeWithText("Stripe").assertDoesNotExist()
+        composeRule.onNodeWithTag("developer_category_API_CREDENTIAL").performClick()
+        composeRule.onNodeWithText("Stripe").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        composeRule.onNodeWithText("Stripe").assertDoesNotExist()
+        composeRule.onNodeWithTag("developer_category_API_CREDENTIAL").assertIsDisplayed()
     }
 
     @Test

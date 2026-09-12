@@ -38,6 +38,8 @@ import com.rescueauth.v2.ui.developer.DeveloperDetailRoute
 import com.rescueauth.v2.ui.developer.DeveloperFormRoute
 import com.rescueauth.v2.ui.developer.DeveloperFormType
 import com.rescueauth.v2.ui.developer.DeveloperRoute
+import com.rescueauth.v2.ui.developer.DeveloperListViewModel
+import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
 import com.rescueauth.v2.ui.screens.about.AboutRoute
@@ -46,8 +48,10 @@ import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportMode
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
+import com.rescueauth.v2.ui.screens.settings.SettingsTransferScreen
 import com.rescueauth.v2.ui.screens.legacyimport.LegacyImportRoute
 import com.rescueauth.v2.ui.search.SearchRoute
+import android.net.Uri
 
 object RescueAuthTestTags {
     const val NAV_AUTHENTICATOR = "nav_authenticator"
@@ -118,6 +122,13 @@ fun RescueAuthApp(
             scope = authenticatorScope,
         )
     }
+    val developerViewModel = remember {
+        DeveloperListViewModel(
+            developerRepositoryProvider = { VaultAccess.developerRepository() },
+            sessionState = sessionStateFlow,
+            scope = authenticatorScope,
+        )
+    }
 
     Scaffold(
         modifier = modifier
@@ -163,7 +174,10 @@ fun RescueAuthApp(
                 AuthenticatorRoute(
                     viewModel = authenticatorViewModel,
                     onOpenAccount = { accountId ->
-                        navController.navigate("authenticator/account/$accountId")
+                        navController.navigate("authenticator/account-detail/$accountId")
+                    },
+                    onOpenProvider = { providerName ->
+                        navController.navigate("authenticator/provider/${Uri.encode(providerName)}")
                     },
                     onOpenSearch = {
                         navController.navigate(RescueAuthRoutes.SEARCH)
@@ -177,19 +191,17 @@ fun RescueAuthApp(
                     onResultClick = { result ->
                         when (result) {
                             is com.rescueauth.v2.search.SearchResult.Provider -> {
-                                navController.popBackStack()
-                                // Provider = serviceName grouping; landing on the
-                                // Authenticator home (its natural context).
+                                navController.navigate("authenticator/provider/${Uri.encode(result.navigationId)}")
                             }
                             is com.rescueauth.v2.search.SearchResult.Account -> {
-                                navController.navigate("authenticator/account/${result.navigationId}")
+                                navController.navigate("authenticator/account-detail/${result.navigationId}")
                             }
                             is com.rescueauth.v2.search.SearchResult.Totp -> {
                                 // Open the owning Account detail (P7 §12).
-                                navController.navigate("authenticator/account/${result.accountId}")
+                                navController.navigate("authenticator/account-detail/${result.accountId}")
                             }
                             is com.rescueauth.v2.search.SearchResult.RecoverySet -> {
-                                navController.navigate("authenticator/account/${result.accountId}")
+                                navController.navigate("authenticator/account-detail/${result.accountId}")
                             }
                             is com.rescueauth.v2.search.SearchResult.Developer -> {
                                 navController.navigate(RescueAuthRoutes.developerEntry(result.navigationId))
@@ -200,7 +212,44 @@ fun RescueAuthApp(
                 )
             }
             composable(
-                route = RescueAuthRoutes.AUTHENTICATOR_ACCOUNT,
+                route = RescueAuthRoutes.AUTHENTICATOR_PROVIDER,
+                arguments = listOf(
+                    androidx.navigation.navArgument("providerName") {
+                        type = androidx.navigation.NavType.StringType
+                    },
+                ),
+            ) { entry ->
+                val providerName = entry.arguments?.getString("providerName").orEmpty()
+                AuthenticatorRoute(
+                    viewModel = authenticatorViewModel,
+                    providerName = providerName,
+                    onBack = { navController.popBackStack() },
+                    onOpenAccount = { accountId ->
+                        navController.navigate("authenticator/account-detail/$accountId")
+                    },
+                    onOpenRecovery = { accountId ->
+                        navController.navigate("authenticator/account/$accountId/recovery")
+                    },
+                )
+            }
+            composable(
+                route = RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_DETAIL,
+                arguments = listOf(
+                    androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
+                        type = androidx.navigation.NavType.StringType
+                    },
+                ),
+            ) { entry ->
+                val accountId = entry.arguments?.getString(RescueAuthRoutes.ARG_ACCOUNT_ID).orEmpty()
+                AuthenticatorRoute(
+                    viewModel = authenticatorViewModel,
+                    accountId = accountId,
+                    onBack = { navController.popBackStack() },
+                    onOpenRecovery = { id -> navController.navigate("authenticator/account/$id/recovery") },
+                )
+            }
+            composable(
+                route = RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY,
                 arguments = listOf(
                     androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
                         type = androidx.navigation.NavType.StringType
@@ -213,9 +262,7 @@ fun RescueAuthApp(
                     onBack = { navController.popBackStack() },
                     onNavigate = { route ->
                         navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
@@ -224,6 +271,7 @@ fun RescueAuthApp(
             }
             composable(RescueAuthRoutes.DEVELOPER) {
                 DeveloperRoute(
+                    viewModel = developerViewModel,
                     onOpenEntry = { entry ->
                         navController.navigate(RescueAuthRoutes.developerEntry(entry.stableId))
                     },
@@ -232,7 +280,32 @@ fun RescueAuthApp(
                             RescueAuthRoutes.developerAdd(type.name),
                         )
                     },
+                    onOpenCategory = { type ->
+                        navController.navigate("developer/category/${type.name}")
+                    },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_DEVELOPER),
+                )
+            }
+            composable(
+                route = "developer/category/{categoryType}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("categoryType") {
+                        type = androidx.navigation.NavType.StringType
+                    },
+                ),
+            ) { entry ->
+                val type = entry.arguments?.getString("categoryType")
+                    ?.let { runCatching { DeveloperEntryType.valueOf(it) }.getOrNull() }
+                DeveloperRoute(
+                    viewModel = developerViewModel,
+                    categoryType = type,
+                    onBack = { navController.popBackStack() },
+                    onOpenEntry = { item ->
+                        navController.navigate(RescueAuthRoutes.developerEntry(item.stableId))
+                    },
+                    onAddTypeSelected = { selected ->
+                        navController.navigate(RescueAuthRoutes.developerAdd(selected.name))
+                    },
                 )
             }
             composable(
@@ -302,7 +375,16 @@ fun RescueAuthApp(
                     onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
                     onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
                     onAboutClick = { navController.navigate(RescueAuthRoutes.ABOUT) },
+                    onTransferClick = { navController.navigate(RescueAuthRoutes.SETTINGS_TRANSFER) },
                     modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_SETTINGS),
+                )
+            }
+            composable(RescueAuthRoutes.SETTINGS_TRANSFER) {
+                SettingsTransferScreen(
+                    onBack = { navController.popBackStack() },
+                    onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
+                    onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
+                    onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
                 )
             }
             composable(RescueAuthRoutes.ABOUT) {

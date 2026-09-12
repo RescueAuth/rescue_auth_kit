@@ -53,6 +53,9 @@
     <string name="authenticator_section_totp">TOTP</string>
     <string name="authenticator_section_recovery">恢复码</string>
     <string name="authenticator_countdown_label">剩余</string>
+    <string name="authenticator_account_detail_heading">账户凭据</string>
+    <string name="account_credentials_summary">%1$d 个身份验证凭据</string>
+    <string name="account_credentials_and_recovery_summary">%1$d 个凭据 · %2$d 个恢复码集</string>
 
     <!-- Provider / Account list item -->
     <string name="account_provider_label">服务</string>
@@ -354,6 +357,8 @@
     <string name="settings_security_section">安全</string>
     <string name="settings_about_section">关于</string>
     <string name="settings_backup_transfer_section">备份 / 迁移</string>
+    <string name="settings_transfer_title">备份与传输</string>
+    <string name="settings_transfer_subtitle">在设备之间传输加密的保险库包</string>
     <string name="settings_export_vault">导出保险库</string>
     <string name="settings_export_vault_subtitle">创建整个保险库的加密数据包</string>
     <string name="settings_import_native">导入原生数据包</string>

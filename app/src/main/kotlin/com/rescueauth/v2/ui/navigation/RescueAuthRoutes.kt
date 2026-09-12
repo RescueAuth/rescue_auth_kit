@@ -16,6 +16,7 @@ object RescueAuthRoutes {
     const val AUTHENTICATOR = "authenticator"
     const val DEVELOPER = "developer"
     const val SETTINGS = "settings"
+    const val SETTINGS_TRANSFER = "settings/transfer"
 
     /** Phase 4 P1: Add TOTP sheet hosted above the Authenticator screen. */
     const val AUTHENTICATOR_ADD = "authenticator/add"
@@ -36,6 +37,9 @@ object RescueAuthRoutes {
     // --- Authenticator structure ---
     // Phase 4 P3: the Account detail destination is wired (Recovery Codes).
     const val AUTHENTICATOR_ACCOUNT = "authenticator/account/{accountId}"
+    const val AUTHENTICATOR_PROVIDER = "authenticator/provider/{providerName}"
+    const val AUTHENTICATOR_ACCOUNT_DETAIL = "authenticator/account-detail/{accountId}"
+    const val AUTHENTICATOR_ACCOUNT_RECOVERY = "authenticator/account/{accountId}/recovery"
     const val AUTHENTICATOR_TOTP = "authenticator/totp/{credentialId}"
     const val AUTHENTICATOR_RECOVERY = "authenticator/recovery/{recoverySetId}"
 

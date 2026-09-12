@@ -25,6 +25,7 @@ import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
+import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.screens.developer.DeveloperAddSheet
 import com.rescueauth.v2.ui.screens.developer.DeveloperDeleteDialog
 import com.rescueauth.v2.ui.screens.developer.DeveloperDetailScreen
@@ -45,6 +46,10 @@ fun DeveloperRoute(
     modifier: Modifier = Modifier,
     onOpenEntry: ((DeveloperEntryUi) -> Unit)? = null,
     onAddTypeSelected: ((DeveloperFormType) -> Unit)? = null,
+    viewModel: DeveloperListViewModel? = null,
+    categoryType: DeveloperEntryType? = null,
+    onOpenCategory: ((DeveloperEntryType) -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -59,7 +64,7 @@ fun DeveloperRoute(
             SecureSessionStateMachine().state
         }
     }
-    val listViewModel = remember {
+    val listViewModel = viewModel ?: remember {
         DeveloperListViewModel(
             developerRepositoryProvider = { VaultAccess.developerRepository() },
             sessionState = sessionState,
@@ -103,6 +108,9 @@ fun DeveloperRoute(
         snackbarHostState = snackbarHostState,
         onAddClick = { showAddSheet = true },
         onEntryClick = onOpenEntry,
+        onOpenCategory = onOpenCategory,
+        onBack = onBack,
+        categoryType = categoryType,
         modifier = modifier,
     )
 

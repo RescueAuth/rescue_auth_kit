@@ -68,7 +68,9 @@ class RescueAuthAppNavigationTest {
     fun settingsShowsLegacyImportEntrySeparateFromNativeImport() {
         setAppContent()
         composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
-        // Both import entries are visible: Native and Legacy are distinct.
+        composeRule.onNodeWithTag("settings_transfer_row").performClick()
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertDoesNotExist()
+        // Native and Legacy remain separate choices in the transfer hub.
         composeRule.onNodeWithText("Import Native Package").assertIsDisplayed()
         composeRule.onNodeWithText("Import Legacy v1 Vault").assertIsDisplayed()
         // Opening the Legacy entry navigates to the Legacy import screen.

@@ -90,7 +90,7 @@ class AuthenticatorScreenTest {
     }
 
     @Test
-    fun clickingProviderShowsAccountAndCode() {
+    fun accountDirectoryKeepsCodesOnDedicatedAccountPage() {
         composeRule.setContent {
             RescueAuthTheme {
                 com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
@@ -131,6 +131,8 @@ class AuthenticatorScreenTest {
         // Drill into the provider's account list.
         composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         composeRule.onNodeWithText("alice@example.com").assertIsDisplayed()
+        composeRule.onNodeWithText("996554").assertDoesNotExist()
+        composeRule.onNodeWithTag("account_row_a1").performClick()
         composeRule.onNodeWithText("996554").assertIsDisplayed()
         composeRule.onNodeWithText("24").assertIsDisplayed()
     }
@@ -187,7 +189,8 @@ class AuthenticatorScreenTest {
             }
         }
         composeRule.onNodeWithTag("provider_row_GitHub").performClick()
-        // Both TOTP codes should be visible — no silent dropping.
+        composeRule.onNodeWithTag("account_row_a1").performClick()
+        // Every code remains reachable on its owning account page.
         composeRule.onNodeWithText("111111").assertIsDisplayed()
         composeRule.onNodeWithText("22222222").assertIsDisplayed()
     }
@@ -265,6 +268,8 @@ class AuthenticatorScreenTest {
         // Drilling into GitHub shows its account + code.
         composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         composeRule.onNodeWithText("alice@example.com").assertIsDisplayed()
+        composeRule.onNodeWithText("111111").assertDoesNotExist()
+        composeRule.onNodeWithTag("account_row_a1").performClick()
         composeRule.onNodeWithText("111111").assertIsDisplayed()
         composeRule.onNodeWithText("222222").assertDoesNotExist()
     }

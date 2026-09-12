@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui.screens.developer
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -41,6 +43,9 @@ import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.components.RescueAuthChevron
+import com.rescueauth.v2.ui.components.icon
 import com.rescueauth.v2.ui.developer.DeveloperListUiState
 import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
@@ -59,14 +64,36 @@ fun DeveloperScreen(
     snackbarHostState: SnackbarHostState? = null,
     onAddClick: (() -> Unit)? = null,
     onEntryClick: ((DeveloperEntryUi) -> Unit)? = null,
+    onOpenCategory: ((DeveloperEntryType) -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    categoryType: DeveloperEntryType? = null,
 ) {
+    var localCategory by remember { mutableStateOf(categoryType) }
+    val selectedCategory = localCategory
+    val visibleEntries = selectedCategory?.let { type -> uiState.entries.filter { it.type == type } }
+        ?: uiState.entries
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
             RescueAuthPageHeader(
-                title = stringResource(R.string.developer_title),
-                subtitle = stringResource(R.string.developer_subtitle),
+                title = selectedCategory?.let { typeLabel(it) }
+                    ?: stringResource(R.string.developer_title),
+                subtitle = selectedCategory?.let {
+                    stringResource(R.string.developer_group_count, visibleEntries.size)
+                } ?: stringResource(R.string.developer_subtitle),
+                navigationIcon = if (selectedCategory != null) {
+                    {
+                        androidx.compose.material3.IconButton(
+                            onClick = onBack ?: { localCategory = null },
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.a11y_back),
+                            )
+                        }
+                    }
+                } else null,
             )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
@@ -103,9 +130,13 @@ fun DeveloperScreen(
                     .fillMaxSize()
                     .padding(padding),
             )
-            uiState.isEmpty -> EmptyState(
-                title = stringResource(R.string.developer_empty_title),
-                body = stringResource(R.string.developer_empty_body),
+            (selectedCategory != null && visibleEntries.isEmpty()) ||
+                (selectedCategory == null && uiState.isEmpty) -> EmptyState(
+                title = selectedCategory?.let { typeLabel(it) }
+                    ?: stringResource(R.string.developer_empty_title),
+                body = if (selectedCategory != null) {
+                    stringResource(R.string.developer_empty_body)
+                } else stringResource(R.string.developer_empty_body),
                 actionLabel = onAddClick?.let { stringResource(R.string.developer_add_first) },
                 onAction = onAddClick,
                 icon = Icons.Filled.Build,
@@ -113,10 +144,123 @@ fun DeveloperScreen(
                     .fillMaxSize()
                     .padding(padding),
             )
-            else -> DeveloperContent(
+            selectedCategory == null -> DeveloperDirectoryContent(
                 entries = uiState.entries,
+                onOpenCategory = { type ->
+                    if (onOpenCategory != null) onOpenCategory(type) else localCategory = type
+                },
+                modifier = Modifier.padding(padding),
+            )
+            else -> DeveloperCategoryContent(
+                entries = visibleEntries,
                 onEntryClick = onEntryClick,
                 modifier = Modifier.padding(padding),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeveloperDirectoryContent(
+    entries: List<DeveloperEntryUi>,
+    onOpenCategory: (DeveloperEntryType) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val groups = entries.groupingBy { it.type }.eachCount()
+    val orderedTypes = listOf(
+        DeveloperEntryType.API_CREDENTIAL,
+        DeveloperEntryType.SSH_KEY,
+        DeveloperEntryType.ANDROID_SIGNING_KEY,
+        DeveloperEntryType.ENVIRONMENT_VARIABLE_SET,
+        DeveloperEntryType.GENERIC_SECRET,
+    )
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = ScreenTokens.horizontalPadding,
+            end = ScreenTokens.horizontalPadding,
+            top = Spacing.md,
+            bottom = Spacing.xxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+    ) {
+        item(key = "developer-summary") {
+            RescueAuthCard(containerColor = MaterialTheme.colorScheme.surface) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RescueAuthIconBadge(
+                        icon = Icons.Filled.Build,
+                        size = 44.dp,
+                        iconSize = 22.dp,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Column(modifier = Modifier.padding(start = Spacing.sm)) {
+                        Text(
+                            text = stringResource(R.string.developer_overview_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.developer_overview_count, entries.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = Spacing.xxs),
+                        )
+                    }
+                }
+            }
+        }
+        items(orderedTypes, key = { it.name }) { type ->
+            RescueAuthRowCard(
+                onClick = { onOpenCategory(type) },
+                containerColor = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.testTag("developer_category_${type.name}"),
+            ) {
+                RescueAuthIconBadge(icon = type.icon(), size = 36.dp, iconSize = 18.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = typeLabel(type),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.developer_group_count, groups[type] ?: 0),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                RescueAuthChevron()
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeveloperCategoryContent(
+    entries: List<DeveloperEntryUi>,
+    onEntryClick: ((DeveloperEntryUi) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = ScreenTokens.horizontalPadding,
+            end = ScreenTokens.horizontalPadding,
+            top = Spacing.md,
+            bottom = Spacing.xxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+    ) {
+        item(key = "category-summary") {
+            RescueAuthSectionHeader(
+                title = typeLabel(entries.first().type),
+                subtitle = stringResource(R.string.developer_group_count, entries.size),
+            )
+        }
+        items(entries, key = { it.stableId }) { entry ->
+            DeveloperEntryCard(
+                entry = entry,
+                onClick = onEntryClick?.let { callback -> { callback(entry) } },
             )
         }
     }

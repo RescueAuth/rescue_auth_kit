@@ -53,6 +53,9 @@
     <string name="authenticator_section_totp">TOTP</string>
     <string name="authenticator_section_recovery">Recovery codes</string>
     <string name="authenticator_countdown_label">Expires in</string>
+    <string name="authenticator_account_detail_heading">Account credentials</string>
+    <string name="account_credentials_summary">%1$d authenticator credential(s)</string>
+    <string name="account_credentials_and_recovery_summary">%1$d credential(s) · %2$d recovery set(s)</string>
 
     <!-- Provider / Account list item -->
     <string name="account_provider_label">Service</string>
@@ -356,6 +359,8 @@
     <string name="settings_security_section">Security</string>
     <string name="settings_about_section">About</string>
     <string name="settings_backup_transfer_section">Backup / Transfer</string>
+    <string name="settings_transfer_title">Backup &amp; transfer</string>
+    <string name="settings_transfer_subtitle">Move an encrypted vault package between devices</string>
     <string name="settings_export_vault">Export Vault</string>
     <string name="settings_export_vault_subtitle">Create an encrypted package of your entire vault</string>
     <string name="settings_import_native">Import Native Package</string>

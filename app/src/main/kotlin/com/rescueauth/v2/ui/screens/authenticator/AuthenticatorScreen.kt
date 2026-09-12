@@ -66,6 +66,7 @@ import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthDivider
 import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
@@ -89,6 +90,9 @@ fun AuthenticatorScreen(
     onCopyClick: ((TotpCardUi) -> Unit)? = null,
     onDeleteClick: ((TotpCardUi) -> Unit)? = null,
     onOpenAccount: ((String) -> Unit)? = null,
+    onOpenProvider: ((String) -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    onOpenRecovery: ((String) -> Unit)? = null,
     onOpenSearch: (() -> Unit)? = null,
     onTogglePin: ((AccountUi) -> Unit)? = null,
     onAddProviderClick: (() -> Unit)? = null,
@@ -101,8 +105,11 @@ fun AuthenticatorScreen(
     onDeleteAccount: ((AccountUi) -> Unit)? = null,
     /** Persists a provider icon override (schema v4); null key = AUTO. */
     onSetProviderIcon: ((String, String?) -> Unit)? = null,
+    initialProviderName: String? = null,
+    initialAccountId: String? = null,
 ) {
-    var selectedProviderName by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedProviderName by rememberSaveable { mutableStateOf(initialProviderName) }
+    var selectedAccountId by rememberSaveable { mutableStateOf(initialAccountId) }
     var iconPickerProvider by remember { mutableStateOf<ProviderUi?>(null) }
     // The production mapper supplies grouped providers. Keep the public screen
     // tolerant of older previews/tests that provide only the flat account list.
@@ -125,7 +132,11 @@ fun AuthenticatorScreen(
     val selectedProvider = selectedProviderName?.let { name ->
         displayProviders.firstOrNull { it.serviceName == name }
     }
-    val atProviderLevel = selectedProvider != null
+    val selectedAccount = selectedAccountId?.let { id ->
+        displayProviders.asSequence().flatMap { it.accounts.asSequence() }.firstOrNull { it.id == id }
+    }
+    val atAccountLevel = selectedAccount != null
+    val atProviderLevel = selectedProvider != null && !atAccountLevel
     val providerCount = displayProviders.size
     val accountCount = displayProviders.sumOf { it.accounts.size }
     val credentialCount = displayProviders.sumOf { provider ->
@@ -137,19 +148,31 @@ fun AuthenticatorScreen(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
             RescueAuthPageHeader(
-                title = if (atProviderLevel) {
+                title = if (atAccountLevel) {
+                    selectedAccount?.accountName.orEmpty()
+                } else if (atProviderLevel) {
                     selectedProvider?.serviceName.orEmpty()
                 } else {
                     stringResource(R.string.authenticator_title)
                 },
-                subtitle = if (atProviderLevel) {
+                subtitle = if (atAccountLevel) {
+                    selectedAccount?.providerName
+                } else if (atProviderLevel) {
                     stringResource(R.string.authenticator_provider_subtitle)
                 } else {
                     stringResource(R.string.authenticator_home_subtitle)
                 },
-                navigationIcon = if (atProviderLevel) {
+                navigationIcon = if (atAccountLevel || atProviderLevel) {
                     {
-                        IconButton(onClick = { selectedProviderName = null }) {
+                        IconButton(onClick = {
+                            if (onBack != null) {
+                                onBack()
+                            } else if (atAccountLevel) {
+                                selectedAccountId = null
+                            } else {
+                                selectedProviderName = null
+                            }
+                        }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.a11y_back),
@@ -168,7 +191,7 @@ fun AuthenticatorScreen(
                             )
                         }
                     }
-                    if (!atProviderLevel && onAddProviderClick != null) {
+                    if (!atAccountLevel && !atProviderLevel && onAddProviderClick != null) {
                         IconButton(onClick = onAddProviderClick) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
@@ -180,7 +203,7 @@ fun AuthenticatorScreen(
             )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-        floatingActionButton = if (onAddClick != null && !atProviderLevel) {
+        floatingActionButton = if (onAddClick != null && !uiState.isEmpty) {
             {
                 FloatingActionButton(
                     onClick = onAddClick,
@@ -223,16 +246,23 @@ fun AuthenticatorScreen(
                     .fillMaxSize()
                     .padding(padding),
             )
-            atProviderLevel -> ProviderAccountsContent(
-                provider = selectedProvider!!,
+            atAccountLevel -> AccountDetailContent(
+                account = selectedAccount!!,
                 onCopyClick = onCopyClick,
                 onDeleteClick = onDeleteClick,
-                onOpenAccount = onOpenAccount,
                 onTogglePin = onTogglePin,
                 onRename = onRenameAccount,
                 onMove = onMoveAccount,
                 onMerge = onMergeAccount,
                 onDelete = onDeleteAccount,
+                onOpenRecovery = onOpenRecovery,
+                modifier = Modifier.padding(padding),
+            )
+            atProviderLevel -> ProviderAccountsContent(
+                provider = selectedProvider!!,
+                onOpenAccount = { accountId ->
+                    if (onOpenAccount != null) onOpenAccount(accountId) else selectedAccountId = accountId
+                },
                 onAddAccount = onAddAccount?.let { callback ->
                     { callback(selectedProvider.serviceName) }
                 },
@@ -243,7 +273,9 @@ fun AuthenticatorScreen(
                 providerCount = providerCount,
                 accountCount = accountCount,
                 credentialCount = credentialCount,
-                onProviderClick = { selectedProviderName = it },
+                onProviderClick = { providerName ->
+                    if (onOpenProvider != null) onOpenProvider(providerName) else selectedProviderName = providerName
+                },
                 onRenameProvider = onRenameProvider,
                 onAddAccount = onAddAccount,
                 onDeleteProvider = onDeleteProvider,
@@ -345,14 +377,7 @@ private fun ProviderHomeContent(
 @Composable
 private fun ProviderAccountsContent(
     provider: ProviderUi,
-    onCopyClick: ((TotpCardUi) -> Unit)?,
-    onDeleteClick: ((TotpCardUi) -> Unit)?,
-    onOpenAccount: ((String) -> Unit)?,
-    onTogglePin: ((AccountUi) -> Unit)?,
-    onRename: ((AccountUi) -> Unit)?,
-    onMove: ((AccountUi) -> Unit)?,
-    onMerge: ((AccountUi) -> Unit)?,
-    onDelete: ((AccountUi) -> Unit)?,
+    onOpenAccount: (String) -> Unit,
     onAddAccount: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -372,16 +397,9 @@ private fun ProviderAccountsContent(
             )
         }
         items(provider.accounts, key = { it.id }) { account ->
-            AccountWithTotpCard(
+            AccountDirectoryRow(
                 account = account,
-                onCopyClick = onCopyClick,
-                onDeleteClick = onDeleteClick,
-                onOpenAccount = onOpenAccount?.let { callback -> { callback(account.id) } },
-                onTogglePin = onTogglePin,
-                onRename = onRename,
-                onMove = onMove,
-                onMerge = onMerge,
-                onDelete = onDelete,
+                onClick = { onOpenAccount(account.id) },
             )
         }
         if (onAddAccount != null) {
@@ -402,6 +420,121 @@ private fun ProviderAccountsContent(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f),
                     )
+                    RescueAuthChevron()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountDirectoryRow(
+    account: AccountUi,
+    onClick: () -> Unit,
+) {
+    RescueAuthRowCard(
+        onClick = onClick,
+        containerColor = CardTokens.elevatedContainerColor(),
+        modifier = Modifier
+            .testTag("account_row_${account.id}")
+            .semantics { role = Role.Button },
+    ) {
+        RescueAuthAutoBadge(label = account.accountName, colorSeed = account.providerName)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = account.accountName,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = accountSummary(account),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (account.isPinned) {
+            Icon(
+                imageVector = Icons.Filled.PushPin,
+                contentDescription = stringResource(R.string.account_pinned_label),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        RescueAuthChevron()
+    }
+}
+
+@Composable
+private fun accountSummary(account: AccountUi): String {
+    val credentialCount = account.totpCredentials.size
+    val recoveryCount = account.recoverySets.size
+    return if (recoveryCount > 0) {
+        stringResource(R.string.account_credentials_and_recovery_summary, credentialCount, recoveryCount)
+    } else {
+        stringResource(R.string.account_credentials_summary, credentialCount)
+    }
+}
+
+@Composable
+private fun AccountDetailContent(
+    account: AccountUi,
+    onCopyClick: ((TotpCardUi) -> Unit)?,
+    onDeleteClick: ((TotpCardUi) -> Unit)?,
+    onTogglePin: ((AccountUi) -> Unit)?,
+    onRename: ((AccountUi) -> Unit)?,
+    onMove: ((AccountUi) -> Unit)?,
+    onMerge: ((AccountUi) -> Unit)?,
+    onDelete: ((AccountUi) -> Unit)?,
+    onOpenRecovery: ((String) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+    ) {
+        item(key = "account-heading") {
+            RescueAuthSectionHeader(
+                title = stringResource(R.string.authenticator_account_detail_heading),
+                subtitle = account.providerName,
+            )
+        }
+        item(key = account.id) {
+            AccountWithTotpCard(
+                account = account,
+                onCopyClick = onCopyClick,
+                onDeleteClick = onDeleteClick,
+                onOpenAccount = null,
+                onTogglePin = onTogglePin,
+                onRename = onRename,
+                onMove = onMove,
+                onMerge = onMerge,
+                onDelete = onDelete,
+            )
+        }
+        if (account.recoverySets.isNotEmpty()) {
+            item(key = "recovery-link") {
+                RescueAuthRowCard(
+                    onClick = onOpenRecovery?.let { callback -> { callback(account.id) } },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    RescueAuthIconBadge(icon = Icons.Filled.Shield, size = 36.dp, iconSize = 18.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.recovery_codes_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.recovery_codes_account_summary, account.remainingRecoveryCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     RescueAuthChevron()
                 }
             }
