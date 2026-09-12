@@ -84,6 +84,20 @@ class DeveloperScreenTest {
     }
 
     @Test
+    fun developerGroupsCanBeCollapsedToKeepLongListsReadable() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                DeveloperScreen(
+                    uiState = DeveloperListUiState(loading = false, entries = listOf(apiEntry)),
+                )
+            }
+        }
+        composeRule.onNodeWithText("Stripe").assertIsDisplayed()
+        composeRule.onNodeWithText("API Credential").performClick()
+        composeRule.onNodeWithText("Stripe").assertDoesNotExist()
+    }
+
+    @Test
     fun revealButtonContentDescriptionNeverContainsSecret() {
         composeRule.setContent {
             RescueAuthTheme {
