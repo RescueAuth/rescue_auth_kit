@@ -130,13 +130,10 @@ fun DeveloperScreen(
                     .fillMaxSize()
                     .padding(padding),
             )
-            (selectedCategory != null && visibleEntries.isEmpty()) ||
-                (selectedCategory == null && uiState.isEmpty) -> EmptyState(
+            selectedCategory != null && visibleEntries.isEmpty() -> EmptyState(
                 title = selectedCategory?.let { typeLabel(it) }
                     ?: stringResource(R.string.developer_empty_title),
-                body = if (selectedCategory != null) {
-                    stringResource(R.string.developer_empty_body)
-                } else stringResource(R.string.developer_empty_body),
+                body = stringResource(R.string.developer_empty_body),
                 actionLabel = onAddClick?.let { stringResource(R.string.developer_add_first) },
                 onAction = onAddClick,
                 icon = Icons.Filled.Build,
@@ -149,6 +146,7 @@ fun DeveloperScreen(
                 onOpenCategory = { type ->
                     if (onOpenCategory != null) onOpenCategory(type) else localCategory = type
                 },
+                onAddClick = onAddClick,
                 modifier = Modifier.padding(padding),
             )
             else -> DeveloperCategoryContent(
@@ -164,6 +162,7 @@ fun DeveloperScreen(
 private fun DeveloperDirectoryContent(
     entries: List<DeveloperEntryUi>,
     onOpenCategory: (DeveloperEntryType) -> Unit,
+    onAddClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val groups = entries.groupingBy { it.type }.eachCount()
@@ -206,6 +205,22 @@ private fun DeveloperDirectoryContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = Spacing.xxs),
                         )
+                        if (entries.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.developer_empty_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Spacing.xs),
+                            )
+                        }
+                        if (entries.isEmpty() && onAddClick != null) {
+                            com.rescueauth.v2.ui.components.RescueAuthButton(
+                                onClick = onAddClick,
+                                modifier = Modifier.padding(top = Spacing.sm),
+                            ) {
+                                Text(stringResource(R.string.developer_add_first))
+                            }
+                        }
                     }
                 }
             }

@@ -12,6 +12,7 @@
 
     <!-- Startup auth (Issue #50) -->
     <string name="startup_intro_title">使用手机解锁</string>
+    <string name="startup_intro_tagline">把重要凭据安静地收在一个地方。</string>
     <string name="startup_intro_body">通过指纹或锁屏密码验证即可。</string>
     <string name="startup_intro_continue">开启</string>
     <string name="startup_intro_import_v1">从 v1 Rescue Auth 导入</string>

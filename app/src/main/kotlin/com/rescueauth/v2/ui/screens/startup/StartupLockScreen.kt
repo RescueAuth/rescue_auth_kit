@@ -5,6 +5,7 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -75,30 +76,50 @@ fun StartupIntroScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 88.dp, bottom = 32.dp),
+                    .padding(top = 72.dp, bottom = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    StartupBranding(logoSize = 64.dp)
-                }
-                RescueAuthCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ) {
+                    StartupBranding(logoSize = 56.dp)
                     Text(
-                        text = stringResource(R.string.startup_intro_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        text = stringResource(R.string.startup_intro_body),
+                        text = stringResource(R.string.startup_intro_tagline),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                        modifier = Modifier.padding(top = Spacing.sm),
                     )
+                }
+                RescueAuthCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.xl),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RescueAuthIconBadge(
+                            icon = Icons.Filled.Lock,
+                            size = 42.dp,
+                            iconSize = 21.dp,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.startup_intro_title),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                            Text(
+                                text = stringResource(R.string.startup_intro_body),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Spacing.xxs),
+                            )
+                        }
+                    }
                     Button(
                         onClick = onContinue,
                         modifier = Modifier
