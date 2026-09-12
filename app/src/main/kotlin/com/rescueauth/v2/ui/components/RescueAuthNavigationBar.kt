@@ -40,7 +40,7 @@ fun RescueAuthNavigationBar(
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
                         selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = Color.Transparent,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
