@@ -298,6 +298,12 @@ private fun ProviderHomeContent(
                 contentPadding = Spacing.sm,
             ) {
                 Text(
+                    text = stringResource(R.string.authenticator_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
                     text = stringResource(
                         R.string.authenticator_providers_subtitle,
                         providerCount,
@@ -307,7 +313,7 @@ private fun ProviderHomeContent(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -321,12 +327,6 @@ private fun ProviderHomeContent(
         item(key = "providers-heading") {
             RescueAuthSectionHeader(
                 title = stringResource(R.string.authenticator_providers_heading),
-                subtitle = stringResource(
-                    R.string.authenticator_providers_subtitle,
-                    providerCount,
-                    accountCount,
-                    credentialCount,
-                ),
             )
         }
         items(providers, key = { it.id }) { provider ->

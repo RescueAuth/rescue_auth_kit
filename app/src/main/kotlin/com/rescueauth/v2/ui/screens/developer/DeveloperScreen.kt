@@ -140,10 +140,32 @@ private fun DeveloperContent(
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         item(key = "developer-summary") {
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.developer_overview_title),
-                subtitle = stringResource(R.string.developer_overview_count, entries.size),
-            )
+            RescueAuthCard(containerColor = MaterialTheme.colorScheme.surface) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    RescueAuthIconBadge(
+                        icon = Icons.Filled.Build,
+                        size = 44.dp,
+                        iconSize = 22.dp,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.padding(start = Spacing.sm),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.developer_overview_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = stringResource(R.string.developer_overview_count, entries.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = Spacing.xxs),
+                        )
+                    }
+                }
+            }
         }
         orderedTypes.forEach { type ->
             val typeEntries = groups[type].orEmpty()
