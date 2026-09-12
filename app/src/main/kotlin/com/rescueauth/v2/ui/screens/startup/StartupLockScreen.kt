@@ -59,7 +59,7 @@ fun StartupIntroScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(Spacing.lg),
+                .padding(horizontal = Spacing.lg),
         ) {
             if (onImportV1 != null) {
                 TextButton(
@@ -73,13 +73,17 @@ fun StartupIntroScreen(
                 }
             }
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 88.dp, bottom = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                StartupBranding(logoSize = 72.dp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    StartupBranding(logoSize = 64.dp)
+                }
                 RescueAuthCard(
-                    modifier = Modifier.padding(top = Spacing.xl),
+                    modifier = Modifier.fillMaxWidth(),
                     containerColor = MaterialTheme.colorScheme.surface,
                 ) {
                     Text(
@@ -93,9 +97,7 @@ fun StartupIntroScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Spacing.xs),
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
                     )
                     Button(
                         onClick = onContinue,

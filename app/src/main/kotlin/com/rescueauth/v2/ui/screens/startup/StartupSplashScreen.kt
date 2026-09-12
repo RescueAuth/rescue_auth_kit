@@ -1,6 +1,5 @@
 package com.rescueauth.v2.ui.screens.startup
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Icon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -46,10 +47,11 @@ fun StartupBranding(
                 .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center,
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
+            Icon(
+                imageVector = Icons.Filled.Lock,
                 contentDescription = null,
-                modifier = Modifier.size(logoSize),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(logoSize * 0.52f),
             )
         }
         Text(
