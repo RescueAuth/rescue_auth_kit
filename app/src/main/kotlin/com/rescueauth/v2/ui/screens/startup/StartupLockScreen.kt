@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
@@ -20,6 +24,7 @@ import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButto
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthRibbonBackdrop
 import com.rescueauth.v2.ui.theme.Spacing
 
 object StartupLockTestTags {
@@ -57,11 +63,13 @@ fun StartupIntroScreen(
     ) {
         // Box so the "Import from v1" entry can sit in the top-right corner,
         // independent of the vertically-centered intro card below.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = Spacing.lg),
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            RescueAuthRibbonBackdrop(Modifier.fillMaxSize())
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = Spacing.lg),
+            ) {
             if (onImportV1 != null) {
                 TextButton(
                     onClick = onImportV1,
@@ -69,17 +77,33 @@ fun StartupIntroScreen(
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
                         .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.xs),
                 ) {
-                    Text(text = stringResource(R.string.startup_intro_import_v1))
+                    Text(
+                        text = stringResource(R.string.startup_intro_import_v1),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             }
-            Column(
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween(420)) + slideInVertically(
+                    animationSpec = tween(420),
+                    initialOffsetY = { it / 12 },
+                ),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 72.dp, bottom = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
             ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     StartupBranding(logoSize = 56.dp)
                     Text(
@@ -130,6 +154,8 @@ fun StartupIntroScreen(
                         Text(text = stringResource(R.string.startup_intro_continue))
                     }
                 }
+                }
+            }
             }
         }
     }

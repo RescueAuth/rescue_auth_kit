@@ -339,33 +339,39 @@ private fun ProviderHomeContent(
     ) {
         item(key = "vault-overview") {
             RescueAuthCard(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentPadding = Spacing.sm,
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f),
+                contentPadding = Spacing.md,
             ) {
-                Text(
-                    text = stringResource(R.string.authenticator_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.authenticator_providers_subtitle,
-                        providerCount,
-                        accountCount,
-                        credentialCount,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    RescueAuthMetric(providerCount.toString(), stringResource(R.string.authenticator_providers_heading))
-                    RescueAuthMetric(accountCount.toString(), stringResource(R.string.authenticator_accounts_heading))
-                    RescueAuthMetric(credentialCount.toString(), stringResource(R.string.nav_authenticator))
+                    RescueAuthIconBadge(
+                        icon = Icons.Filled.Shield,
+                        size = 38.dp,
+                        iconSize = 20.dp,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.authenticator_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.authenticator_providers_subtitle,
+                                providerCount,
+                                accountCount,
+                                credentialCount,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
+                        )
+                    }
                 }
             }
         }

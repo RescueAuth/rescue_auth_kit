@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -64,6 +67,36 @@ fun RescueAuthPageBackground(
     }
 }
 
+/**
+ * Quiet decorative ribbons used behind welcome / empty states. The strokes are
+ * intentionally low contrast so they add depth without competing with vault
+ * content or reducing text contrast.
+ */
+@Composable
+fun RescueAuthRibbonBackdrop(modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val blue = colors.primary.copy(alpha = 0.055f)
+    val violet = colors.secondary.copy(alpha = 0.045f)
+    val cyan = colors.tertiary.copy(alpha = 0.04f)
+    Canvas(modifier = modifier) {
+        val first = Path().apply {
+            moveTo(size.width * -0.12f, size.height * 0.28f)
+            cubicTo(size.width * 0.24f, size.height * 0.05f, size.width * 0.7f, size.height * 0.62f, size.width * 1.12f, size.height * 0.34f)
+        }
+        val second = Path().apply {
+            moveTo(size.width * -0.12f, size.height * 0.34f)
+            cubicTo(size.width * 0.28f, size.height * 0.11f, size.width * 0.72f, size.height * 0.7f, size.width * 1.12f, size.height * 0.4f)
+        }
+        val third = Path().apply {
+            moveTo(size.width * -0.08f, size.height * 0.4f)
+            cubicTo(size.width * 0.33f, size.height * 0.2f, size.width * 0.72f, size.height * 0.76f, size.width * 1.1f, size.height * 0.48f)
+        }
+        drawPath(first, blue, style = Stroke(width = 26.dp.toPx()))
+        drawPath(second, violet, style = Stroke(width = 18.dp.toPx()))
+        drawPath(third, cyan, style = Stroke(width = 12.dp.toPx()))
+    }
+}
+
 @Composable
 fun RescueAuthPageHeader(
     title: String,
@@ -85,8 +118,8 @@ fun RescueAuthPageHeader(
                 .padding(
                     start = ScreenTokens.horizontalPadding,
                     end = ScreenTokens.horizontalPadding,
-                    top = ScreenTokens.verticalPadding,
-                    bottom = ScreenTokens.compactVerticalPadding,
+                    top = 10.dp,
+                    bottom = 8.dp,
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -95,7 +128,7 @@ fun RescueAuthPageHeader(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

@@ -45,7 +45,7 @@ fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(Spacing.xl),
+            .padding(Spacing.lg),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -53,27 +53,27 @@ fun EmptyState(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 RescueAuthIconBadge(
                     icon = icon,
-                    size = 64.dp,
-                    iconSize = 30.dp,
+                    size = 48.dp,
+                    iconSize = 24.dp,
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.xxs))
                 Text(
                     text = body,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
                 if (actionLabel != null && onAction != null) {
-                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    Spacer(modifier = Modifier.height(Spacing.md))
                     Button(onClick = onAction) { Text(actionLabel) }
                 }
             }

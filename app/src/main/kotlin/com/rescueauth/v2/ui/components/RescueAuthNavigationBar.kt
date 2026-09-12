@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,7 @@ fun RescueAuthNavigationBar(
     Column {
         RescueAuthDivider()
         NavigationBar(
+            modifier = Modifier.height(76.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
         ) {
