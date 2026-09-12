@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -20,6 +22,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,7 +39,7 @@ import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.developer.DeveloperListUiState
 import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
@@ -122,6 +128,7 @@ private fun DeveloperContent(
     modifier: Modifier = Modifier,
 ) {
     val groups = entries.groupBy { it.type }
+    var expandedTypes by remember { mutableStateOf(groups.keys.toSet()) }
     val orderedTypes = listOf(
         DeveloperEntryType.API_CREDENTIAL,
         DeveloperEntryType.SSH_KEY,
@@ -171,20 +178,42 @@ private fun DeveloperContent(
             val typeEntries = groups[type].orEmpty()
             if (typeEntries.isNotEmpty()) {
                 item(key = "header-$type") {
-                    RescueAuthSectionHeader(
-                        title = typeLabel(type),
-                        subtitle = stringResource(
-                            R.string.developer_group_count,
-                            typeEntries.size,
-                        ),
+                    RescueAuthRowCard(
+                        onClick = {
+                            expandedTypes = if (type in expandedTypes) {
+                                expandedTypes - type
+                            } else {
+                                expandedTypes + type
+                            }
+                        },
                         modifier = Modifier.padding(top = Spacing.md),
-                    )
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ) {
+                        Text(
+                            text = typeLabel(type),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = stringResource(R.string.developer_group_count, typeEntries.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Icon(
+                            imageVector = if (type in expandedTypes) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                items(typeEntries, key = { it.stableId }) { entry ->
-                    DeveloperEntryCard(
-                        entry = entry,
-                        onClick = onEntryClick?.let { callback -> { callback(entry) } },
-                    )
+                if (type in expandedTypes) {
+                    items(typeEntries, key = { it.stableId }) { entry ->
+                        DeveloperEntryCard(
+                            entry = entry,
+                            onClick = onEntryClick?.let { callback -> { callback(entry) } },
+                        )
+                    }
                 }
             }
         }
