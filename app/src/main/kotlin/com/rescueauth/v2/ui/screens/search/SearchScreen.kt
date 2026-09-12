@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,7 +22,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -40,7 +45,6 @@ import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.search.SearchUiState
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
@@ -154,6 +158,9 @@ private fun SearchResults(
     val orderedKeys = grouped.keys.sortedBy { key ->
         order.indexOf(key).let { index -> if (index < 0) order.size else index }
     }
+    var expandedLabels by remember(orderedKeys) {
+        mutableStateOf(orderedKeys.firstOrNull()?.let(::setOf).orEmpty())
+    }
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(
@@ -165,16 +172,42 @@ private fun SearchResults(
     ) {
         orderedKeys.forEach { label ->
             item(key = "header_$label") {
-                RescueAuthSectionHeader(
-                    title = resultTypeLabel(label),
+                RescueAuthRowCard(
+                    onClick = {
+                        expandedLabels = if (label in expandedLabels) {
+                            expandedLabels - label
+                        } else {
+                            expandedLabels + label
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.padding(top = Spacing.sm),
-                )
+                ) {
+                    Text(
+                        text = resultTypeLabel(label),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = grouped.getValue(label).size.toString(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        imageVector = if (label in expandedLabels) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            items(
-                items = grouped.getValue(label),
-                key = { result -> "$label:${result.navigationId}" },
-            ) { result ->
-                SearchResultRow(result = result, onClick = { onResultClick(result) })
+            if (label in expandedLabels) {
+                items(
+                    items = grouped.getValue(label),
+                    key = { result -> "$label:${result.navigationId}" },
+                ) { result ->
+                    SearchResultRow(result = result, onClick = { onResultClick(result) })
+                }
             }
         }
     }
