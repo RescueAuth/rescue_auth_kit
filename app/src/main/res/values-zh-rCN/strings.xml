@@ -54,6 +54,8 @@
     <string name="authenticator_section_recovery">恢复码</string>
     <string name="authenticator_countdown_label">剩余</string>
     <string name="authenticator_account_detail_heading">账户凭据</string>
+    <string name="authenticator_filter_all">全部</string>
+    <string name="authenticator_filter_pinned">已置顶</string>
     <string name="account_credentials_summary">%1$d 个身份验证凭据</string>
     <string name="account_credentials_and_recovery_summary">%1$d 个凭据 · %2$d 个恢复码集</string>
 
@@ -133,6 +135,8 @@
     <!-- Add TOTP sheet -->
     <string name="add_totp_title">添加 TOTP</string>
     <string name="add_totp_sheet_subtitle">选择添加一次性密码的方式</string>
+    <string name="add_totp_change_method">更换方式</string>
+    <string name="add_totp_advanced">高级设置</string>
     <string name="add_totp_manual_subtitle">输入账户信息和密钥</string>
     <string name="add_totp_paste_subtitle">粘贴服务提供商生成的 otpauth URI</string>
     <string name="add_totp_mode_scan">扫码</string>
@@ -294,6 +298,11 @@
     <string name="developer_remove_field">移除字段</string>
     <string name="developer_public_key_present">已保存公钥。</string>
     <string name="developer_save">保存</string>
+    <string name="developer_form_details">基本信息</string>
+    <string name="developer_form_credentials">凭据信息</string>
+    <string name="developer_form_step">第 %1$d 步，共 %2$d 步</string>
+    <string name="developer_form_next">继续</string>
+    <string name="developer_form_previous">返回</string>
     <string name="developer_delete_confirm_title">删除 %1$s？</string>
     <string name="developer_delete_confirm_message">此条目及其所有机密将被永久删除，且无法撤销。</string>
     <string name="developer_error_title">请输入标题。</string>

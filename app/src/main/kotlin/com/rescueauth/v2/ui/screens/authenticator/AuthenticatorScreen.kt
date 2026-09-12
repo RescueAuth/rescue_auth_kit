@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,6 +111,7 @@ fun AuthenticatorScreen(
 ) {
     var selectedProviderName by rememberSaveable { mutableStateOf(initialProviderName) }
     var selectedAccountId by rememberSaveable { mutableStateOf(initialAccountId) }
+    var pinnedOnly by rememberSaveable { mutableStateOf(false) }
     var iconPickerProvider by remember { mutableStateOf<ProviderUi?>(null) }
     // The production mapper supplies grouped providers. Keep the public screen
     // tolerant of older previews/tests that provide only the flat account list.
@@ -268,11 +270,18 @@ fun AuthenticatorScreen(
                 },
                 modifier = Modifier.padding(padding),
             )
-            else -> ProviderHomeContent(
-                providers = displayProviders,
-                providerCount = providerCount,
-                accountCount = accountCount,
-                credentialCount = credentialCount,
+            else -> {
+                val homeProviders = if (pinnedOnly) {
+                    displayProviders.filter { provider -> provider.accounts.any { it.isPinned } }
+                } else displayProviders
+                ProviderHomeContent(
+                providers = homeProviders,
+                providerCount = homeProviders.size,
+                accountCount = homeProviders.sumOf { it.accounts.size },
+                credentialCount = homeProviders.sumOf { provider -> provider.accounts.sumOf { it.totpCredentials.size } },
+                hasPinnedAccounts = displayProviders.any { provider -> provider.accounts.any { it.isPinned } },
+                pinnedOnly = pinnedOnly,
+                onPinnedOnlyChange = { pinnedOnly = it },
                 onProviderClick = { providerName ->
                     if (onOpenProvider != null) onOpenProvider(providerName) else selectedProviderName = providerName
                 },
@@ -285,7 +294,8 @@ fun AuthenticatorScreen(
                     null
                 },
                 modifier = Modifier.padding(padding),
-            )
+                )
+            }
         }
     }
 
@@ -307,6 +317,9 @@ private fun ProviderHomeContent(
     providerCount: Int,
     accountCount: Int,
     credentialCount: Int,
+    hasPinnedAccounts: Boolean,
+    pinnedOnly: Boolean,
+    onPinnedOnlyChange: (Boolean) -> Unit,
     onProviderClick: (String) -> Unit,
     onRenameProvider: ((String) -> Unit)?,
     onAddAccount: ((String) -> Unit)?,
@@ -357,6 +370,24 @@ private fun ProviderHomeContent(
             }
         }
         item(key = "providers-heading") {
+            if (hasPinnedAccounts) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    FilterChip(
+                        selected = !pinnedOnly,
+                        onClick = { onPinnedOnlyChange(false) },
+                        label = { Text(stringResource(R.string.authenticator_filter_all)) },
+                    )
+                    FilterChip(
+                        selected = pinnedOnly,
+                        onClick = { onPinnedOnlyChange(true) },
+                        label = { Text(stringResource(R.string.authenticator_filter_pinned)) },
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
             RescueAuthSectionHeader(
                 title = stringResource(R.string.authenticator_providers_heading),
             )

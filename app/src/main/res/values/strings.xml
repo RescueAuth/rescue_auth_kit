@@ -54,6 +54,8 @@
     <string name="authenticator_section_recovery">Recovery codes</string>
     <string name="authenticator_countdown_label">Expires in</string>
     <string name="authenticator_account_detail_heading">Account credentials</string>
+    <string name="authenticator_filter_all">All</string>
+    <string name="authenticator_filter_pinned">Pinned</string>
     <string name="account_credentials_summary">%1$d authenticator credential(s)</string>
     <string name="account_credentials_and_recovery_summary">%1$d credential(s) · %2$d recovery set(s)</string>
 
@@ -133,6 +135,8 @@
     <!-- Add TOTP sheet -->
     <string name="add_totp_title">Add TOTP</string>
     <string name="add_totp_sheet_subtitle">Choose how to add a one-time password</string>
+    <string name="add_totp_change_method">Change method</string>
+    <string name="add_totp_advanced">Advanced settings</string>
     <string name="add_totp_manual_subtitle">Enter the account details and secret</string>
     <string name="add_totp_paste_subtitle">Paste an otpauth URI from your provider</string>
     <string name="add_totp_mode_scan">Scan QR</string>
@@ -296,6 +300,11 @@
     <string name="developer_remove_field">Remove field</string>
     <string name="developer_public_key_present">Public key is stored.</string>
     <string name="developer_save">Save</string>
+    <string name="developer_form_details">Details</string>
+    <string name="developer_form_credentials">Credentials</string>
+    <string name="developer_form_step">Step %1$d of %2$d</string>
+    <string name="developer_form_next">Continue</string>
+    <string name="developer_form_previous">Back</string>
     <string name="developer_delete_confirm_title">Delete %1$s?</string>
     <string name="developer_delete_confirm_message">This entry and all its secrets will be permanently deleted. This action cannot be undone.</string>
     <string name="developer_error_title">Enter a title.</string>

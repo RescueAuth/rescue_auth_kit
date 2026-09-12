@@ -273,4 +273,32 @@ class AuthenticatorScreenTest {
         composeRule.onNodeWithText("111111").assertIsDisplayed()
         composeRule.onNodeWithText("222222").assertDoesNotExist()
     }
+
+    @Test
+    fun pinnedFilterKeepsTheProviderDirectoryCompact() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
+                    uiState = AuthenticatorUiState(
+                        loading = false,
+                        providers = listOf(
+                            ProviderUi(
+                                id = "provider:GitHub",
+                                serviceName = "GitHub",
+                                accounts = listOf(AccountUi("pinned", "GitHub", "alice", isPinned = true)),
+                            ),
+                            ProviderUi(
+                                id = "provider:Google",
+                                serviceName = "Google",
+                                accounts = listOf(AccountUi("other", "Google", "bob")),
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
+        composeRule.onNodeWithText("Pinned").performClick()
+        composeRule.onNodeWithText("GitHub").assertIsDisplayed()
+        composeRule.onNodeWithText("Google").assertDoesNotExist()
+    }
 }

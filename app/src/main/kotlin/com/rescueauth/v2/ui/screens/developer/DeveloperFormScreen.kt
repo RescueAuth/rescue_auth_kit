@@ -3,6 +3,7 @@ package com.rescueauth.v2.ui.screens.developer
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -41,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -115,6 +119,11 @@ fun DeveloperFormScreen(
 ) {
     val context = LocalContext.current
     var keystoreError by rememberSaveable { mutableStateOf<String?>(null) }
+    var credentialsStep by rememberSaveable { mutableStateOf(false) }
+    val goBack = {
+        if (credentialsStep) credentialsStep = false else onBack()
+    }
+    BackHandler(enabled = credentialsStep) { credentialsStep = false }
     val keystoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
@@ -135,8 +144,48 @@ fun DeveloperFormScreen(
                     else R.string.developer_add_title,
                 ),
                 subtitle = formTypeLabel(form.type),
-                navigationIcon = { RescueAuthBackButton(onBack) },
+                navigationIcon = { RescueAuthBackButton(goBack) },
             )
+        },
+        bottomBar = {
+            RescueAuthCard(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentPadding = Spacing.sm,
+                modifier = Modifier.navigationBarsPadding().imePadding(),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    androidx.compose.material3.TextButton(
+                        onClick = goBack,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("developer_form_previous"),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (credentialsStep) R.string.developer_form_previous else R.string.common_cancel,
+                            ),
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            if (credentialsStep) onSubmit() else credentialsStep = true
+                        },
+                        enabled = credentialsStep || form.title.isNotBlank(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(if (credentialsStep) "developer_form_save" else "developer_form_next"),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (credentialsStep) R.string.developer_save else R.string.developer_form_next,
+                            ),
+                        )
+                    }
+                }
+            }
         },
     ) { padding ->
         Column(
@@ -147,15 +196,13 @@ fun DeveloperFormScreen(
                 .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            RescueAuthCard(
+            if (!credentialsStep) RescueAuthCard(
                 containerColor = CardTokens.elevatedContainerColor(),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     RescueAuthSectionHeader(
-                        title = stringResource(
-                            if (form.isEditing) R.string.developer_edit_title else R.string.developer_add_title,
-                        ),
-                        subtitle = formTypeLabel(form.type),
+                        title = stringResource(R.string.developer_form_details),
+                        subtitle = stringResource(R.string.developer_form_step, 1, 2),
                     )
                     OutlinedTextField(
                         value = form.title,
@@ -175,11 +222,11 @@ fun DeveloperFormScreen(
                 }
             }
 
-            RescueAuthCard(containerColor = CardTokens.containerColor()) {
+            if (credentialsStep) RescueAuthCard(containerColor = CardTokens.containerColor()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     RescueAuthSectionHeader(
-                        title = stringResource(R.string.developer_fields_section),
-                        subtitle = formTypeLabel(form.type),
+                        title = stringResource(R.string.developer_form_credentials),
+                        subtitle = stringResource(R.string.developer_form_step, 2, 2),
                     )
                     when (form.type) {
                 DeveloperFormType.API_CREDENTIAL -> {
@@ -409,7 +456,6 @@ fun DeveloperFormScreen(
                     }
                 }
             }
-
             }
 
             // End of the type-specific fields card.
@@ -424,16 +470,7 @@ fun DeveloperFormScreen(
                 }
             }
 
-            RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
-                Button(
-                    onClick = onSubmit,
-                    enabled = !form.submitting,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.developer_save))
-                }
-            }
-            Spacer(modifier = Modifier.height(Spacing.lg))
+            Spacer(modifier = Modifier.height(Spacing.xl))
         }
     }
 }

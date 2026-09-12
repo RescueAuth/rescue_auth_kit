@@ -233,7 +233,13 @@ fun AuthenticatorRoute(
     AuthenticatorScreen(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
-        onAddClick = { showAddSheet = true },
+        onAddClick = {
+            uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == accountId }?.let { account ->
+                viewModel.onProviderChange(account.providerName)
+                viewModel.onAccountNameChange(account.accountName)
+            }
+            showAddSheet = true
+        },
         onCopyClick = { viewModel.copyCode(it) },
         onDeleteClick = { appScope.launch { viewModel.deleteCard(it) } },
         onOpenAccount = onOpenAccount?.let { cb -> { accountId -> cb(accountId) } },

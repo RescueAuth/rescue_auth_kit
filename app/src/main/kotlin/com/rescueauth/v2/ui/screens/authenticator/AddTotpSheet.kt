@@ -14,22 +14,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ContentPaste
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.rescueauth.v2.R
 import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.ui.authenticator.AddMode
@@ -58,6 +62,16 @@ fun AddTotpSheet(
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The first surface is a method chooser. It keeps the sheet quiet and
+    // prevents a long form from appearing before the user has chosen a path.
+    var selectedMode by remember {
+        // PASTE is the ViewModel's storage default; it is not a user choice.
+        // Start with the quiet method directory for the normal add flow while
+        // preserving explicit MANUAL state for previews and restored forms.
+        mutableStateOf<AddMode?>(form.mode.takeIf { it == AddMode.MANUAL })
+    }
+    val mode = selectedMode
+    var showAdvanced by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Column(
             modifier = Modifier
@@ -86,40 +100,62 @@ fun AddTotpSheet(
                     )
                 }
             }
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                listOf(
-                    AddMode.SCAN to R.string.add_totp_mode_scan,
-                    AddMode.PASTE to R.string.add_totp_mode_paste,
-                    AddMode.MANUAL to R.string.add_totp_mode_manual,
-                ).forEachIndexed { index, (mode, labelRes) ->
-                    SegmentedButton(
-                        selected = form.mode == mode,
-                        onClick = { onModeChange(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
-                    ) {
-                        Text(stringResource(labelRes))
-                    }
-                }
-            }
-
-            // Keep the primary scan action in the first visible portion of the
-            // sheet; the explanatory copy can scroll below it on small phones.
-            if (form.mode == AddMode.SCAN) {
-                Button(
-                    onClick = onStartScan,
+            if (mode == null) {
+                MethodChoiceRow(
+                    icon = Icons.Filled.CameraAlt,
+                    title = stringResource(R.string.add_totp_mode_scan),
+                    subtitle = stringResource(R.string.add_totp_scan_hint),
+                    testTag = "totp_method_SCAN",
+                    onClick = {
+                        selectedMode = AddMode.SCAN
+                        onModeChange(AddMode.SCAN)
+                    },
+                )
+                MethodChoiceRow(
+                    icon = Icons.Filled.ContentPaste,
+                    title = stringResource(R.string.add_totp_mode_paste),
+                    subtitle = stringResource(R.string.add_totp_paste_subtitle),
+                    testTag = "totp_method_PASTE",
+                    onClick = {
+                        selectedMode = AddMode.PASTE
+                        onModeChange(AddMode.PASTE)
+                    },
+                )
+                MethodChoiceRow(
+                    icon = Icons.Filled.Add,
+                    title = stringResource(R.string.add_totp_mode_manual),
+                    subtitle = stringResource(R.string.add_totp_manual_subtitle),
+                    testTag = "totp_method_MANUAL",
+                    onClick = {
+                        selectedMode = AddMode.MANUAL
+                        onModeChange(AddMode.MANUAL)
+                    },
+                )
+            } else {
+                TextButton(
+                    onClick = { selectedMode = null },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                    Spacer(modifier = Modifier.width(Spacing.xxs))
-                    Text(stringResource(R.string.add_totp_scan_action))
+                    Text(stringResource(R.string.add_totp_change_method))
                 }
-            }
+                // Keep the primary scan action in the first visible portion of
+                // the sheet; the explanatory copy can scroll below it on small phones.
+                if (mode == AddMode.SCAN) {
+                    Button(
+                        onClick = onStartScan,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.CameraAlt, contentDescription = null)
+                        Spacer(modifier = Modifier.width(Spacing.xxs))
+                        Text(stringResource(R.string.add_totp_scan_action))
+                    }
+                }
 
-            RescueAuthCard(
-                containerColor = CardTokens.elevatedContainerColor(),
-                contentPadding = Spacing.md,
-            ) {
-                when (form.mode) {
+                RescueAuthCard(
+                    containerColor = CardTokens.elevatedContainerColor(),
+                    contentPadding = Spacing.md,
+                ) {
+                    when (mode) {
                     AddMode.SCAN -> {
                         Text(
                             text = stringResource(R.string.add_totp_scan_hint),
@@ -169,26 +205,33 @@ fun AddTotpSheet(
                             label = { Text(stringResource(R.string.add_totp_secret_label)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
                         )
-                        AlgorithmSelector(form.algorithm, onAlgorithmChange)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        ) {
-                            DigitSelector(form.digits, onDigitsChange, Modifier.weight(1f))
-                            PeriodSelector(form.periodSeconds, onPeriodChange, Modifier.weight(1f))
+                        TextButton(onClick = { showAdvanced = !showAdvanced }) {
+                            Text(stringResource(R.string.add_totp_advanced))
+                        }
+                        if (showAdvanced) {
+                            AlgorithmSelector(form.algorithm, onAlgorithmChange)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            ) {
+                                DigitSelector(form.digits, onDigitsChange, Modifier.weight(1f))
+                                PeriodSelector(form.periodSeconds, onPeriodChange, Modifier.weight(1f))
+                            }
                         }
                     }
                 }
             }
-            form.error?.let { error ->
+            }
+            if (mode != null) form.error?.let { error ->
                 Text(
                     text = error,
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                     color = androidx.compose.material3.MaterialTheme.colorScheme.error,
                 )
             }
-            Row(
+            if (mode != null && mode != AddMode.SCAN) Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
@@ -204,6 +247,32 @@ fun AddTotpSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MethodChoiceRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    testTag: String,
+) {
+    com.rescueauth.v2.ui.components.RescueAuthRowCard(
+        onClick = onClick,
+        containerColor = CardTokens.containerColor(),
+        modifier = Modifier.testTag(testTag),
+    ) {
+        RescueAuthIconBadge(icon = icon, size = 38.dp, iconSize = 20.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                subtitle,
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        com.rescueauth.v2.ui.components.RescueAuthChevron()
     }
 }
 

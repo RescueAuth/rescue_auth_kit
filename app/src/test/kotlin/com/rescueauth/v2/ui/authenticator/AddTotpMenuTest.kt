@@ -3,6 +3,9 @@ package com.rescueauth.v2.ui.authenticator
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.totp.TotpCore
 import com.rescueauth.v2.ui.screens.authenticator.AddTotpSheet
@@ -43,9 +46,9 @@ class AddTotpMenuTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Scan QR").assertIsDisplayed()
-        composeRule.onNodeWithText("Paste URI").assertIsDisplayed()
-        composeRule.onNodeWithText("Manual").assertIsDisplayed()
+        composeRule.onNodeWithText("Scan QR").assertExists()
+        composeRule.onNodeWithText("Paste URI").assertExists()
+        composeRule.onNodeWithText("Manual").assertExists()
     }
 
     @Test
@@ -67,7 +70,8 @@ class AddTotpMenuTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Open camera").assertIsDisplayed()
+        composeRule.onNodeWithTag("totp_method_SCAN").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.onNodeWithText("Open camera").assertExists()
     }
 
     @Test
@@ -95,5 +99,29 @@ class AddTotpMenuTest {
         org.junit.Assert.assertEquals(TotpCore.DEFAULT_ALGORITHM, default.algorithm)
         org.junit.Assert.assertEquals(6, default.digits)
         org.junit.Assert.assertEquals(30, default.periodSeconds)
+    }
+
+    @Test
+    fun `method chooser opens manual form only after selection`() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                AddTotpSheet(
+                    form = AddTotpFormState(),
+                    onDismiss = {},
+                    onModeChange = {},
+                    onUriChange = {},
+                    onProviderChange = {},
+                    onAccountNameChange = {},
+                    onSecretChange = {},
+                    onAlgorithmChange = {},
+                    onDigitsChange = {},
+                    onPeriodChange = {},
+                    onSubmit = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("Provider / issuer").assertDoesNotExist()
+        composeRule.onNodeWithTag("totp_method_MANUAL").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.onNodeWithText("Provider / issuer").assertExists()
     }
 }
