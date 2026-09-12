@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -128,7 +129,9 @@ private fun DeveloperContent(
     modifier: Modifier = Modifier,
 ) {
     val groups = entries.groupBy { it.type }
-    var expandedTypes by remember { mutableStateOf(groups.keys.toSet()) }
+    // Show one useful group immediately, while keeping a large vault calm on
+    // first render. Every other category remains one tap away.
+    var expandedTypes by remember { mutableStateOf(groups.keys.firstOrNull()?.let(::setOf).orEmpty()) }
     val orderedTypes = listOf(
         DeveloperEntryType.API_CREDENTIAL,
         DeveloperEntryType.SSH_KEY,
@@ -186,7 +189,9 @@ private fun DeveloperContent(
                                 expandedTypes + type
                             }
                         },
-                        modifier = Modifier.padding(top = Spacing.md),
+                        modifier = Modifier
+                            .padding(top = Spacing.md)
+                            .testTag("developer_group_${type.name}"),
                         containerColor = MaterialTheme.colorScheme.surface,
                     ) {
                         Text(
