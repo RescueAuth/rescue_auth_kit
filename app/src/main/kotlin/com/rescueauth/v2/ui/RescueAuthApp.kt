@@ -87,6 +87,13 @@ fun RescueAuthApp(
     }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    // Keep the primary navigation visible only at the three product roots.
+    // Detail, search and transfer flows get the full viewport and their own
+    // back affordance; leaving the tab bar visible there makes secondary pages
+    // feel like another root and competes with the task at hand.
+    val showBottomBar = TopLevelDestinations.all.any { destination ->
+        currentDestination?.hierarchy?.any { it.route == destination.route } == true
+    }
 
     // The Authenticator ViewModel is held at the app-shell level (not inside
     // the per-tab route) so switching bottom tabs — which disposes the route's
@@ -125,19 +132,23 @@ fun RescueAuthApp(
         // Bottom insets are still handled by the NavigationBar itself.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { UndoSnackbarHost(snackbarHostState) },
-        bottomBar = {
-            com.rescueauth.v2.ui.components.RescueAuthNavigationBar(
-                isSelected = { destination ->
-                    currentDestination?.hierarchy?.any { it.route == destination.route } == true
-                },
-                onNavigate = { destination ->
-                    navController.navigate(destination.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-            )
+        bottomBar = if (showBottomBar) {
+            {
+                com.rescueauth.v2.ui.components.RescueAuthNavigationBar(
+                    isSelected = { destination ->
+                        currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                    },
+                    onNavigate = { destination ->
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
+        } else {
+            {}
         },
     ) { padding ->
         NavHost(
