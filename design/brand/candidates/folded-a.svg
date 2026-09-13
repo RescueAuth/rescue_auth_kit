@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" data-launcher-scale="0.49" width="128" height="128" role="img" aria-labelledby="title desc">
+  <title id="title">RescueAuth — Folded A</title>
+  <desc id="desc">An abstract A formed by two geometric ribbons and an interrupted crossbar.</desc>
+  <path id="ascending-ribbon" fill="#A7D6BF" d="M10 108 L50 24 C53 17 57 14 63 14 L76 42 L36 108 Z"/>
+  <path id="descending-ribbon" fill="#B8AAEB" d="M63 14 C69 14 72 18 75 24 L114 108 L88 108 L62 52 L49 25 C53 17 57 14 63 14 Z"/>
+  <path id="crossbar" fill="#A7D6BF" d="M44 78 L72 78 L82 100 L33 100 Z"/>
+</svg>

@@ -71,7 +71,11 @@ import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
-import com.rescueauth.v2.ui.components.RescueAuthMetric
+import com.rescueauth.v2.ui.components.StudioVaultHero
+import com.rescueauth.v2.ui.components.StudioAction
+import com.rescueauth.v2.ui.components.StudioColors
+import com.rescueauth.v2.ui.components.StudioEntrance
+import com.rescueauth.v2.ui.components.RescueAuthButton
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
@@ -112,6 +116,7 @@ fun AuthenticatorScreen(
     var selectedProviderName by rememberSaveable { mutableStateOf(initialProviderName) }
     var selectedAccountId by rememberSaveable { mutableStateOf(initialAccountId) }
     var pinnedOnly by rememberSaveable { mutableStateOf(false) }
+    var addMenuOpen by remember { mutableStateOf(false) }
     var iconPickerProvider by remember { mutableStateOf<ProviderUi?>(null) }
     // The production mapper supplies grouped providers. Keep the public screen
     // tolerant of older previews/tests that provide only the flat account list.
@@ -162,7 +167,7 @@ fun AuthenticatorScreen(
                 } else if (atProviderLevel) {
                     stringResource(R.string.authenticator_provider_subtitle)
                 } else {
-                    stringResource(R.string.authenticator_home_subtitle)
+                    null
                 },
                 navigationIcon = if (atAccountLevel || atProviderLevel) {
                     {
@@ -185,44 +190,33 @@ fun AuthenticatorScreen(
                     null
                 },
                 actions = {
-                    if (onOpenSearch != null) {
-                        IconButton(onClick = onOpenSearch) {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.search_title),
-                            )
-                        }
-                    }
-                    if (!atAccountLevel && !atProviderLevel && onAddProviderClick != null) {
-                        IconButton(onClick = onAddProviderClick) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = stringResource(R.string.provider_add_provider),
-                            )
+                    if (onAddClick != null) {
+                        Box {
+                            RescueAuthButton(
+                                onClick = { if (!atAccountLevel && !atProviderLevel) addMenuOpen = true else onAddClick() },
+                                modifier = Modifier.testTag("vault_add_menu"),
+                                contentPadding = PaddingValues(horizontal = Spacing.sm),
+                            ) {
+                                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(Spacing.xxs))
+                                Text(stringResource(R.string.studio_add))
+                            }
+                            DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.studio_add_credential)) },
+                                    onClick = { addMenuOpen = false; onAddClick() },
+                                )
+                                if (onAddProviderClick != null) DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.studio_new_service)) },
+                                    onClick = { addMenuOpen = false; onAddProviderClick() },
+                                )
+                            }
                         }
                     }
                 },
             )
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-        floatingActionButton = if (onAddClick != null && !uiState.isEmpty) {
-            {
-                FloatingActionButton(
-                    onClick = onAddClick,
-                    shape = MaterialTheme.shapes.medium,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.nav_authenticator),
-                    )
-                }
-            }
-        } else {
-            {}
-        },
     ) { padding ->
         when {
             uiState.loading -> LoadingState(
@@ -230,16 +224,6 @@ fun AuthenticatorScreen(
                     .fillMaxSize()
                     .padding(padding),
                 label = stringResource(R.string.authenticator_loading),
-            )
-            uiState.isEmpty -> EmptyState(
-                title = stringResource(R.string.authenticator_empty_title),
-                body = stringResource(R.string.authenticator_empty_body),
-                actionLabel = onAddClick?.let { stringResource(R.string.authenticator_add_first) },
-                onAction = onAddClick,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                icon = Icons.Filled.Shield,
             )
             uiState.error != null -> ErrorState(
                 title = stringResource(R.string.common_error_title),
@@ -276,6 +260,8 @@ fun AuthenticatorScreen(
                 } else displayProviders
                 ProviderHomeContent(
                 providers = homeProviders,
+                onAddClick = onAddClick,
+                onOpenSearch = onOpenSearch,
                 providerCount = homeProviders.size,
                 accountCount = homeProviders.sumOf { it.accounts.size },
                 credentialCount = homeProviders.sumOf { provider -> provider.accounts.sumOf { it.totpCredentials.size } },
@@ -314,6 +300,8 @@ fun AuthenticatorScreen(
 @Composable
 private fun ProviderHomeContent(
     providers: List<ProviderUi>,
+    onAddClick: (() -> Unit)?,
+    onOpenSearch: (() -> Unit)?,
     providerCount: Int,
     accountCount: Int,
     credentialCount: Int,
@@ -332,47 +320,36 @@ private fun ProviderHomeContent(
         contentPadding = PaddingValues(
             start = ScreenTokens.horizontalPadding,
             end = ScreenTokens.horizontalPadding,
-            top = Spacing.md,
+            top = Spacing.xs,
             bottom = Spacing.xxl,
         ),
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         item(key = "vault-overview") {
-            RescueAuthCard(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f),
-                contentPadding = Spacing.md,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    RescueAuthIconBadge(
-                        icon = Icons.Filled.Shield,
-                        size = 38.dp,
-                        iconSize = 20.dp,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.authenticator_title),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Text(
-                            text = stringResource(
-                                R.string.authenticator_providers_subtitle,
-                                providerCount,
-                                accountCount,
-                                credentialCount,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
-                        )
-                    }
-                }
+            StudioEntrance {
+                StudioVaultHero(
+                    eyebrow = stringResource(R.string.studio_vault_label),
+                    title = if (accountCount == 0) stringResource(R.string.studio_vault_title)
+                        else stringResource(R.string.studio_vault_count, accountCount),
+                    subtitle = if (accountCount == 0) stringResource(R.string.studio_vault_empty_body)
+                        else stringResource(R.string.studio_vault_summary, providerCount, credentialCount),
+                )
+            }
+        }
+        if (onOpenSearch != null) item(key = "search-entry") {
+            RescueAuthRowCard(onClick = onOpenSearch, modifier = Modifier.padding(top = Spacing.xs)) {
+                Icon(Icons.Filled.Search, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.studio_search_prompt), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            }
+        }
+        if (providers.isEmpty()) item(key = "empty-directory") {
+            RescueAuthCard(modifier = Modifier.padding(top = Spacing.sm)) {
+                Text(stringResource(R.string.authenticator_empty_title), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.authenticator_empty_body), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.xs))
+                if (onAddClick != null) StudioAction(stringResource(R.string.authenticator_add_first), onAddClick,
+                    Modifier.padding(top = Spacing.lg))
             }
         }
         item(key = "providers-heading") {
@@ -395,7 +372,7 @@ private fun ProviderHomeContent(
                 Spacer(modifier = Modifier.height(Spacing.xs))
             }
             RescueAuthSectionHeader(
-                title = stringResource(R.string.authenticator_providers_heading),
+                title = stringResource(R.string.studio_services),
             )
         }
         items(providers, key = { it.id }) { provider ->
@@ -534,26 +511,24 @@ private fun AccountDetailContent(
         contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
-        item(key = "account-heading") {
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.authenticator_account_detail_heading),
-                subtitle = account.providerName,
-            )
+        item(key = "account-context") {
+            RescueAuthRowCard {
+                RescueAuthAutoBadge(label = account.providerName,
+                    iconRes = BrandIcons.effectiveDrawableRes(null, account.providerName))
+                Column(Modifier.weight(1f)) {
+                    Text(account.providerName, style = MaterialTheme.typography.titleMedium)
+                    Text(accountSummary(account), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                AccountActionsMenu(account, onTogglePin, onRename, onMove, onMerge, onDelete)
+            }
         }
-        item(key = account.id) {
-            AccountWithTotpCard(
-                account = account,
-                onCopyClick = onCopyClick,
-                onDeleteClick = onDeleteClick,
-                onOpenAccount = null,
-                onTogglePin = onTogglePin,
-                onRename = onRename,
-                onMove = onMove,
-                onMerge = onMerge,
-                onDelete = onDelete,
-            )
+        items(account.totpCredentials, key = { it.id }) { totp ->
+            CredentialPanel(totp,
+                onCopyClick = onCopyClick?.let { cb -> { cb(totp.toTotpCardUi(account)) } },
+                onDeleteClick = onDeleteClick?.let { cb -> { cb(totp.toTotpCardUi(account)) } })
         }
-        if (account.recoverySets.isNotEmpty()) {
+        if (onOpenRecovery != null || account.recoverySets.isNotEmpty()) {
             item(key = "recovery-link") {
                 RescueAuthRowCard(
                     onClick = onOpenRecovery?.let { callback -> { callback(account.id) } },
@@ -580,159 +555,36 @@ private fun AccountDetailContent(
 }
 
 @Composable
-private fun AccountWithTotpCard(
-    account: AccountUi,
-    onCopyClick: ((TotpCardUi) -> Unit)?,
-    onDeleteClick: ((TotpCardUi) -> Unit)?,
-    onOpenAccount: (() -> Unit)?,
-    onTogglePin: ((AccountUi) -> Unit)?,
-    onRename: ((AccountUi) -> Unit)?,
-    onMove: ((AccountUi) -> Unit)?,
-    onMerge: ((AccountUi) -> Unit)?,
-    onDelete: ((AccountUi) -> Unit)?,
-) {
-    RescueAuthCard(
-        containerColor = CardTokens.containerColor(),
-        onClick = onOpenAccount,
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            RescueAuthAutoBadge(
-                label = account.accountName,
-                colorSeed = account.providerName,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = account.accountName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = account.providerName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (account.isPinned) {
-                Icon(
-                    imageVector = Icons.Filled.PushPin,
-                    contentDescription = stringResource(R.string.account_pinned_label),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            AccountActionsMenu(
-                account = account,
-                onTogglePin = onTogglePin,
-                onRename = onRename,
-                onMove = onMove,
-                onMerge = onMerge,
-                onDelete = onDelete,
-            )
-        }
-
-        if (account.recoverySets.isNotEmpty() && account.totpCredentials.isEmpty()) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            com.rescueauth.v2.ui.components.RescueAuthStatusLine(
-                text = stringResource(
-                    R.string.recovery_codes_account_summary,
-                    account.remainingRecoveryCount,
-                ),
-            )
-        }
-
-        account.totpCredentials.forEachIndexed { index, totp ->
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            if (index > 0) RescueAuthDivider()
-            TotpInlineRow(
-                totp = totp,
-                onCopyClick = onCopyClick?.let { callback ->
-                    { callback(totp.toTotpCardUi(account)) }
-                },
-                onDeleteClick = onDeleteClick?.let { callback ->
-                    { callback(totp.toTotpCardUi(account)) }
-                },
-            )
-        }
-
-        if (account.totpCredentials.isEmpty() && account.recoverySets.isNotEmpty() && onOpenAccount != null) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Text(
-                text = stringResource(R.string.authenticator_open_account_hint),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TotpInlineRow(
-    totp: TotpCredentialUi,
-    onCopyClick: (() -> Unit)?,
-    onDeleteClick: (() -> Unit)?,
-) {
-    val code = totp.currentCode ?: "••••••"
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .then(if (onCopyClick != null) Modifier.clickable(onClick = onCopyClick) else Modifier),
-        ) {
-            Text(
-                text = code,
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium,
-                    fontFeatureSettings = "tnum",
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(
-                    R.string.authenticator_code_metadata,
-                    totp.algorithm,
-                    totp.digits,
-                ),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        CountdownIndicator(
-            progressFraction = totp.progressFraction,
-            remainingSeconds = totp.remainingSeconds,
-            modifier = Modifier.width(72.dp),
-        )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (onCopyClick != null) {
-                IconButton(onClick = onCopyClick) {
-                    Icon(
-                        imageVector = Icons.Filled.ContentCopy,
-                        contentDescription = stringResource(R.string.totp_copy_code),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
+private fun CredentialPanel(totp: TotpCredentialUi, onCopyClick: (() -> Unit)?, onDeleteClick: (() -> Unit)?) {
+    var menuOpen by remember { mutableStateOf(false) }
+    RescueAuthCard(contentPadding = CardTokens.heroPadding) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            com.rescueauth.v2.ui.components.StudioEyebrow(stringResource(R.string.studio_code_label), Modifier.weight(1f))
+            if (onDeleteClick != null) Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.MoreVert, stringResource(R.string.account_actions_label))
                 }
-            }
-            if (onDeleteClick != null) {
-                IconButton(onClick = onDeleteClick) {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = stringResource(R.string.totp_delete),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.totp_delete)) },
+                        onClick = { menuOpen = false; onDeleteClick() })
                 }
             }
         }
+        Spacer(Modifier.height(Spacing.sm))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(totp.currentCode ?: "••••••", modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurface)
+            CountdownIndicator(progressFraction = totp.progressFraction, remainingSeconds = totp.remainingSeconds,
+                modifier = Modifier.width(56.dp))
+        }
+        Text(stringResource(R.string.authenticator_code_metadata, totp.algorithm, totp.digits),
+            Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (onCopyClick != null) StudioAction(stringResource(R.string.totp_copy_code), onCopyClick,
+            Modifier.padding(top = Spacing.lg))
     }
 }
 

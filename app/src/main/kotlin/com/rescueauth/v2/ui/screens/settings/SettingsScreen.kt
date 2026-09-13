@@ -3,6 +3,9 @@ package com.rescueauth.v2.ui.screens.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,8 +43,7 @@ import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
-import com.rescueauth.v2.ui.components.RescueAuthRowCard
-import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.components.*
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
@@ -80,89 +82,55 @@ fun SettingsScreen(
         topBar = {
             RescueAuthPageHeader(
                 title = stringResource(R.string.settings_title),
-                subtitle = stringResource(R.string.settings_subtitle),
+                subtitle = null,
             )
         },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.xs),
+            verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing),
         ) {
-            // The root is a directory of settings areas. Transfer details stay
-            // behind one entry so three long descriptions do not dominate the
-            // first viewport.
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.settings_backup_transfer_section),
-                modifier = Modifier.padding(
-                    start = ScreenTokens.horizontalPadding,
-                    end = ScreenTokens.horizontalPadding,
-                    top = Spacing.md,
-                ),
-            )
-            RescueAuthRowCard(
-                onClick = onTransferClick ?: { transferOpen = true },
-                containerColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier
-                    .padding(horizontal = ScreenTokens.horizontalPadding)
-                    .testTag(SettingsTestTags.TRANSFER_ROW),
-            ) {
-                RescueAuthIconBadge(icon = Icons.Outlined.FileUpload, size = 36.dp, iconSize = 18.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.settings_transfer_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_transfer_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                RescueAuthChevron()
+            StudioEntrance {
+                StudioVaultHero(
+                    stringResource(R.string.studio_settings_label),
+                    stringResource(R.string.studio_settings_title),
+                    stringResource(R.string.studio_settings_body),
+                )
             }
-
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.settings_about_section),
-                modifier = Modifier.padding(
-                    start = ScreenTokens.horizontalPadding,
-                    end = ScreenTokens.horizontalPadding,
-                    top = Spacing.lg,
-                ),
-            )
+            RescueAuthSectionHeader(stringResource(R.string.settings_backup_transfer_section), modifier = Modifier.padding(top = Spacing.sm))
             RescueAuthCard(
-                modifier = Modifier.padding(horizontal = ScreenTokens.horizontalPadding),
-                contentPadding = 0.dp,
+                onClick = onTransferClick ?: { transferOpen = true },
+                modifier = Modifier.testTag(SettingsTestTags.TRANSFER_ROW),
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentPadding = CardTokens.heroPadding,
             ) {
-                SettingsEntryCard(
-                    icon = Icons.Outlined.Verified,
-                    title = stringResource(R.string.settings_version, versionName ?: stringResource(R.string.common_unknown)),
-                    subtitle = null,
-                    enabled = true,
-                    onClick = null,
-                )
-                com.rescueauth.v2.ui.components.RescueAuthDivider(Modifier.padding(start = 64.dp))
-                SettingsEntryCard(
-                    icon = Icons.Outlined.Info,
-                    title = stringResource(R.string.settings_about),
-                    subtitle = stringResource(R.string.settings_about_subtitle),
-                    enabled = onAboutClick != null,
-                    onClick = onAboutClick,
-                    modifier = Modifier.testTag(SettingsTestTags.ABOUT_ROW),
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.FileUpload, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Spacer(Modifier.weight(1f))
+                    RescueAuthChevron()
+                }
+                Text(stringResource(R.string.settings_transfer_title), style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(top = Spacing.lg), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(stringResource(R.string.studio_transfer_description), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(top = Spacing.xxs))
             }
-            Text(
-                text = stringResource(R.string.settings_security_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(
-                    horizontal = ScreenTokens.horizontalPadding,
-                    vertical = Spacing.md,
-                ),
-            )
+            RescueAuthCard(contentPadding = CardTokens.noPadding) {
+                SettingsEntryCard(Icons.Outlined.Info, stringResource(R.string.settings_about),
+                    stringResource(R.string.studio_about_description), onAboutClick != null, onAboutClick,
+                    Modifier.testTag(SettingsTestTags.ABOUT_ROW))
+            }
+            RescueAuthRowCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+                Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_security_body), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = Spacing.lg), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.startup_brand_name), style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_version, versionName ?: stringResource(R.string.common_unknown)),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -197,6 +165,7 @@ fun SettingsTransferScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {

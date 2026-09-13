@@ -543,4 +543,39 @@
     <string name="a11y_back">Back</string>
     <string name="a11y_sensitive_value">Sensitive value</string>
 
+
+    <!-- Studio visual identity, shared across welcome and vault directories. -->
+    <string name="studio_private_label">PRIVATE BY DESIGN</string>
+    <string name="studio_local_label">STORED ON YOUR DEVICE</string>
+    <string name="studio_collection_label">YOUR PRIVATE COLLECTION</string>
+    <string name="studio_welcome_title">A little space.\nFor what matters.</string>
+    <string name="studio_welcome_body">Codes, keys and credentials. A considered home for your digital life.</string>
+    <string name="studio_create_vault">Create my vault</string>
+    <string name="studio_vault_label">PERSONAL VAULT</string>
+    <string name="studio_vault_title">Everything,\nin its place.</string>
+    <string name="studio_vault_count">%1$d accounts</string>
+    <string name="studio_vault_summary">%1$d services · %2$d authenticators</string>
+    <string name="studio_vault_empty_body">Start small. Add your first account.</string>
+    <string name="studio_services">Your services</string>
+    <string name="studio_add_credential">Add authenticator</string>
+    <string name="studio_new_service">Create a service</string>
+    <string name="studio_add">Add</string>
+    <string name="studio_developer_label">DEVELOPER VAULT</string>
+    <string name="studio_developer_title">Built for\nyour next idea.</string>
+    <string name="studio_categories">Browse by category</string>
+    <string name="studio_settings_label">MAKE IT YOURS</string>
+    <string name="studio_settings_title">Yours.\nOn your terms.</string>
+    <string name="studio_settings_body">Local storage. Encrypted by default.</string>
+    <string name="studio_transfer_description">Export or bring your vault with you</string>
+    <string name="studio_transfer_title">Take it with you.</string>
+    <string name="studio_transfer_body">An encrypted package. A PIN of its own.</string>
+    <string name="studio_about_description">Version, updates and the story</string>
+    <string name="studio_security_note">Protected by your device</string>
+    <string name="studio_search_prompt">Find something in your vault</string>
+    <string name="studio_code_label">ONE-TIME CODE</string>
+    <string name="studio_api">API credentials</string>
+    <string name="studio_ssh">SSH keys</string>
+    <string name="studio_signing">Signing keys</string>
+    <string name="studio_environment">Environments</string>
+    <string name="studio_generic">Other secrets</string>
 </resources>

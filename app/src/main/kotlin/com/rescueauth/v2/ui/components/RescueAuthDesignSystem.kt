@@ -1,7 +1,6 @@
 package com.rescueauth.v2.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -34,8 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -67,36 +65,6 @@ fun RescueAuthPageBackground(
     }
 }
 
-/**
- * Quiet decorative ribbons used behind welcome / empty states. The strokes are
- * intentionally low contrast so they add depth without competing with vault
- * content or reducing text contrast.
- */
-@Composable
-fun RescueAuthRibbonBackdrop(modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
-    val blue = colors.primary.copy(alpha = 0.055f)
-    val violet = colors.secondary.copy(alpha = 0.045f)
-    val cyan = colors.tertiary.copy(alpha = 0.04f)
-    Canvas(modifier = modifier) {
-        val first = Path().apply {
-            moveTo(size.width * -0.12f, size.height * 0.28f)
-            cubicTo(size.width * 0.24f, size.height * 0.05f, size.width * 0.7f, size.height * 0.62f, size.width * 1.12f, size.height * 0.34f)
-        }
-        val second = Path().apply {
-            moveTo(size.width * -0.12f, size.height * 0.34f)
-            cubicTo(size.width * 0.28f, size.height * 0.11f, size.width * 0.72f, size.height * 0.7f, size.width * 1.12f, size.height * 0.4f)
-        }
-        val third = Path().apply {
-            moveTo(size.width * -0.08f, size.height * 0.4f)
-            cubicTo(size.width * 0.33f, size.height * 0.2f, size.width * 0.72f, size.height * 0.76f, size.width * 1.1f, size.height * 0.48f)
-        }
-        drawPath(first, blue, style = Stroke(width = 26.dp.toPx()))
-        drawPath(second, violet, style = Stroke(width = 18.dp.toPx()))
-        drawPath(third, cyan, style = Stroke(width = 12.dp.toPx()))
-    }
-}
-
 @Composable
 fun RescueAuthPageHeader(
     title: String,
@@ -106,47 +74,31 @@ fun RescueAuthPageHeader(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding(),
+        modifier = modifier.fillMaxWidth().statusBarsPadding(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = ScreenTokens.horizontalPadding,
-                    end = ScreenTokens.horizontalPadding,
-                    top = 10.dp,
-                    bottom = 8.dp,
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            navigationIcon?.invoke()
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(ScreenTokens.headerGap))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+        Column(Modifier.padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md)) {
+            if (navigationIcon == null) {
+                StudioEyebrow(androidx.compose.ui.res.stringResource(R.string.studio_collection_label))
+                Spacer(Modifier.height(Spacing.xs))
             }
-            actions()
-        }
-        RescueAuthDivider()
+            Row(Modifier.fillMaxWidth().heightIn(min = ScreenTokens.controlMinHeight), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                navigationIcon?.invoke()
+                Column(Modifier.weight(1f)) {
+                    Text(title,
+                        style = if (navigationIcon == null) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = if (navigationIcon == null) 2 else 1, overflow = TextOverflow.Ellipsis)
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(subtitle, modifier = Modifier.padding(top = Spacing.xxs),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                actions()
+            }
         }
     }
 }
@@ -252,42 +204,7 @@ fun RescueAuthInitialBadge(
     }
 }
 
-/**
- * Bright, hue-varied palette for auto badges (UI polish 2026-09).
- *
- * Each entry is a (container, content) pair: a light vivid background with a
- * deep letter/glyph of the same hue family — replacing the muddy M3
- * `secondaryContainer` grey-purple the user explicitly rejected.
- * Tones are tuned for the light theme; dark-theme variants are deferred
- * until the dark palette work happens.
- */
-object RescueAuthBadgePalette {
-    private val pairs = listOf(
-        0xFFE6DBFF to 0xFF5A2ECF, // violet
-        0xFFD6E6FF to 0xFF1A56C4, // blue
-        0xFFD2F3FF to 0xFF036C8F, // cyan
-        0xFFCCF5EA to 0xFF007A5E, // teal
-        0xFFDCF5CC to 0xFF2F6B14, // green
-        0xFFFFE9C7 to 0xFF8F5A00, // amber
-        0xFFFFE0CC to 0xFF9A3D0C, // orange
-        0xFFFFDCEC to 0xFFA8155F, // pink
-    )
-
-    private val colors = pairs.map { Color(it.first) to Color(it.second) }
-
-    /** Stable per-name colour: same name always gets the same hue. */
-    fun forName(seed: String): Pair<Color, Color> {
-        val h = seed.hashCode()
-        val index = ((h % colors.size) + colors.size) % colors.size
-        return colors[index]
-    }
-}
-
-/**
- * Circular identity badge with the auto colour palette and optional brand
- * glyph. With [iconRes] == null the uppercase initial is drawn; otherwise the
- * monochrome brand VectorDrawable is tinted with the palette content colour.
- */
+/** Provider identities share the active theme; glyph and name distinguish the service. */
 @Composable
 fun RescueAuthAutoBadge(
     label: String,
@@ -297,10 +214,8 @@ fun RescueAuthAutoBadge(
     size: Dp = 40.dp,
     iconSize: Dp = 22.dp,
 ) {
-    val (lightContainer, lightContent) = RescueAuthBadgePalette.forName(colorSeed)
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val container = if (dark) lightContainer.copy(alpha = 0.12f) else lightContent.copy(alpha = 0.07f)
-    val content = if (dark) lightContainer else lightContent
+    val container = MaterialTheme.colorScheme.primaryContainer
+    val content = MaterialTheme.colorScheme.onPrimaryContainer
     Box(
         modifier = modifier
             .size(size)

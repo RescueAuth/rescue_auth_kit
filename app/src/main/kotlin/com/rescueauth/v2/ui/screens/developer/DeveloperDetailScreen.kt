@@ -167,46 +167,13 @@ private fun DeveloperDetailContent(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        item(key = "summary") {
-            RescueAuthCard(
-                containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor(),
-                contentPadding = Spacing.lg,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    RescueAuthIconBadge(
-                        icon = detailTypeIcon(detail),
-                        size = 48.dp,
-                        iconSize = 25.dp,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = detail.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = developerTypeLabel(detail),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-            }
-        }
-        item(key = "metadata-heading") {
+        if (detail !is DeveloperDetailUi.GenericSecret) item(key = "metadata-heading") {
             RescueAuthSectionHeader(
                 title = stringResource(R.string.developer_metadata_section),
                 modifier = Modifier.padding(top = Spacing.sm),
             )
         }
-        item(key = "metadata") {
+        if (detail !is DeveloperDetailUi.GenericSecret) item(key = "metadata") {
             RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
                 when (detail) {
                     is DeveloperDetailUi.ApiCredential -> {
@@ -283,11 +250,11 @@ private fun DeveloperDetailContent(
             }
         }
         item(key = "actions") {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.developer_edit))
                 }
-                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.developer_delete), color = MaterialTheme.colorScheme.error)
                 }
             }

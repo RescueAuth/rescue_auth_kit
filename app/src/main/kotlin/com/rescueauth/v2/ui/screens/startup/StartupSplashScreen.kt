@@ -40,20 +40,7 @@ fun StartupBranding(
         modifier = modifier.testTag(StartupSplashTestTags.BRANDING),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(logoSize + 24.dp)
-                .clip(MaterialTheme.shapes.large)
-                .background(MaterialTheme.colorScheme.surface),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Lock,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(logoSize * 0.52f),
-            )
-        }
+        com.rescueauth.v2.ui.components.RescueAuthMark(Modifier.size(logoSize + 48.dp), monochrome = true)
         Text(
             text = stringResource(R.string.startup_brand_name),
             style = MaterialTheme.typography.headlineMedium,

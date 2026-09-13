@@ -100,13 +100,7 @@ fun AboutScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    RescueAuthIconBadge(
-                        icon = Icons.Filled.Info,
-                        size = 42.dp,
-                        iconSize = 22.dp,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    )
+                    com.rescueauth.v2.ui.components.RescueAuthMark(Modifier.size(52.dp), animated = false, monochrome = true)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = stringResource(R.string.app_name),

@@ -45,7 +45,7 @@ fun RescueAuthCard(
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
+            border = CardTokens.border,
         ) {
             Column(modifier = Modifier.padding(contentPadding)) {
                 content()
@@ -57,7 +57,7 @@ fun RescueAuthCard(
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
+            border = CardTokens.border,
         ) {
             Column(modifier = Modifier.padding(contentPadding)) {
                 content()
@@ -91,7 +91,7 @@ fun RescueAuthRowCard(
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
+            border = CardTokens.border,
         ) {
             Row(
                 modifier = Modifier.padding(
@@ -109,7 +109,7 @@ fun RescueAuthRowCard(
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = containerColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            border = BorderStroke(CardTokens.borderWidth, CardTokens.outlineColor()),
+            border = CardTokens.border,
         ) {
             Row(
                 modifier = Modifier.padding(

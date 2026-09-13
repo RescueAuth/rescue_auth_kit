@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.model.AccountUi
@@ -192,7 +193,7 @@ class AuthenticatorScreenTest {
         composeRule.onNodeWithTag("account_row_a1").performClick()
         // Every code remains reachable on its owning account page.
         composeRule.onNodeWithText("111111").assertIsDisplayed()
-        composeRule.onNodeWithText("22222222").assertIsDisplayed()
+        composeRule.onNodeWithText("22222222").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -301,4 +302,26 @@ class AuthenticatorScreenTest {
         composeRule.onNodeWithText("GitHub").assertIsDisplayed()
         composeRule.onNodeWithText("Google").assertDoesNotExist()
     }
+    @Test
+    fun addMenuSeparatesCredentialAndServiceCreation() {
+        var added = false
+        var created = false
+        composeRule.setContent {
+            RescueAuthTheme {
+                com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
+                    uiState = AuthenticatorUiState(loading = false),
+                    onAddClick = { added = true },
+                    onAddProviderClick = { created = true },
+                )
+            }
+        }
+        composeRule.onNodeWithTag("vault_add_menu").performClick()
+        composeRule.onNodeWithText("Add authenticator").performClick()
+        org.junit.Assert.assertTrue(added)
+        org.junit.Assert.assertFalse(created)
+        composeRule.onNodeWithTag("vault_add_menu").performClick()
+        composeRule.onNodeWithText("Create a service").performClick()
+        org.junit.Assert.assertTrue(created)
+    }
+
 }

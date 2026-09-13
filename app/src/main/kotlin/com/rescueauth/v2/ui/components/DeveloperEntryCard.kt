@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.VerifiedUser
+import androidx.compose.material.icons.outlined.DataObject
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Key
@@ -38,11 +43,11 @@ import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
 fun DeveloperEntryType.icon(): ImageVector = when (this) {
-    DeveloperEntryType.ANDROID_SIGNING_KEY -> Icons.Filled.VpnKey
-    DeveloperEntryType.API_CREDENTIAL -> Icons.Filled.Key
-    DeveloperEntryType.SSH_KEY -> Icons.Filled.Lock
-    DeveloperEntryType.ENVIRONMENT_VARIABLE_SET -> Icons.Filled.Build
-    DeveloperEntryType.GENERIC_SECRET -> Icons.Filled.Key
+    DeveloperEntryType.ANDROID_SIGNING_KEY -> Icons.Outlined.VerifiedUser
+    DeveloperEntryType.API_CREDENTIAL -> Icons.Outlined.Key
+    DeveloperEntryType.SSH_KEY -> Icons.Outlined.Terminal
+    DeveloperEntryType.ENVIRONMENT_VARIABLE_SET -> Icons.Outlined.DataObject
+    DeveloperEntryType.GENERIC_SECRET -> Icons.Outlined.Article
 }
 
 private fun DeveloperEntryType.displayNameRes(): Int = when (this) {
@@ -61,7 +66,8 @@ fun DeveloperEntryCard(
     onClick: (() -> Unit)? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
-    val (badgeContainer, badgeContent) = entry.type.badgeColors()
+    val badgeContainer = MaterialTheme.colorScheme.primaryContainer
+    val badgeContent = MaterialTheme.colorScheme.onPrimaryContainer
     RescueAuthCard(
         modifier = modifier.then(
             if (onClick != null) Modifier.semantics { role = Role.Button } else Modifier,
@@ -117,20 +123,6 @@ fun DeveloperEntryCard(
             content()
         }
     }
-}
-
-@Composable
-private fun DeveloperEntryType.badgeColors(): Pair<Color, Color> = when (this) {
-    DeveloperEntryType.API_CREDENTIAL ->
-        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-    DeveloperEntryType.SSH_KEY ->
-        MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-    DeveloperEntryType.ANDROID_SIGNING_KEY ->
-        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-    DeveloperEntryType.ENVIRONMENT_VARIABLE_SET ->
-        MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-    DeveloperEntryType.GENERIC_SECRET ->
-        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
 }
 
 @Preview(showBackground = true)

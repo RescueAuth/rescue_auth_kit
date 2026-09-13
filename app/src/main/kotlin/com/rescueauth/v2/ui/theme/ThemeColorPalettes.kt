@@ -7,8 +7,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
- * The app uses one visual family: neutral surfaces with blue
- * accents. The six persisted theme IDs are kept for compatibility, but each
+ * The app uses one visual family: warm neutral surfaces with ink and
+ * lavender accents. The six persisted theme IDs are kept for compatibility, but each
  * preset is now a coordinated accent variation instead of an unrelated hue.
  */
 @Immutable
@@ -19,17 +19,17 @@ internal class ThemeColorPreset(
 
 /** Shared neutral surfaces. Accent color is intentionally isolated to roles. */
 private object Neutrals {
-    val backgroundLight = Color(0xFFF3F3F5)
-    val onBackgroundLight = Color(0xFF202124)
+    val backgroundLight = Color(0xFFF6F5F1)
+    val onBackgroundLight = Color(0xFF242A38)
     val surfaceLight = Color(0xFFFFFFFF)
-    val onSurfaceLight = Color(0xFF202124)
-    val surfaceVariantLight = Color(0xFFEFEFF2)
-    val onSurfaceVariantLight = Color(0xFF66686D)
+    val onSurfaceLight = Color(0xFF242A38)
+    val surfaceVariantLight = Color(0xFFEEECE7)
+    val onSurfaceVariantLight = Color(0xFF676B73)
     val outlineLight = Color(0xFF85878D)
 
-    val backgroundDark = Color(0xFF1C1C1E)
+    val backgroundDark = Color(0xFF11151C)
     val onBackgroundDark = Color(0xFFF2F2F3)
-    val surfaceDark = Color(0xFF272729)
+    val surfaceDark = Color(0xFF1F2530)
     val onSurfaceDark = Color(0xFFF2F2F3)
     val surfaceVariantDark = Color(0xFF363638)
     val onSurfaceVariantDark = Color(0xFFB9BBC1)
@@ -37,14 +37,14 @@ private object Neutrals {
 
     /**
      * Explicit tonal surface-container ramp (light + dark) so cards and sheets
-     * get a real, layered cool-blue surface instead of falling back to the M3
-     * auto-derived (muddy violet-grey) container colors. The ramp is shared by
+     * keep the Studio panels coordinated in both themes instead of falling
+     * back to automatically derived container colors. The ramp is shared by
      * every accent preset; only the accent (primary) differs per preset.
      */
     val surfaceContainerLowestLight = Color(0xFFFFFFFF)
-    val surfaceContainerLowLight = Color(0xFFFAFAFC)
+    val surfaceContainerLowLight = Color(0xFFFCFBF8)
     val surfaceContainerLight = Color(0xFFFFFFFF)
-    val surfaceContainerHighLight = Color(0xFFF3F3F5)
+    val surfaceContainerHighLight = Color(0xFFF6F5F1)
     val surfaceContainerHighestLight = Color(0xFFE8E8ED)
     val outlineVariantLight = Color(0xFFD7D7DC)
 
@@ -83,12 +83,12 @@ private fun accentPreset(
     darkSecondaryContainer: Color,
     darkOnSecondaryContainer: Color,
 ): ThemeColorPreset {
-    val lightTertiary = Color(0xFF48657D)
-    val lightTertiaryContainer = Color(0xFFD5E6F7)
-    val lightOnTertiaryContainer = Color(0xFF081D2D)
-    val darkTertiary = Color(0xFFB7D0E6)
-    val darkTertiaryContainer = Color(0xFF304B60)
-    val darkOnTertiaryContainer = Color(0xFFD5E6F7)
+    val lightTertiary = Color(0xFF625B74)
+    val lightTertiaryContainer = Color(0xFFE5E3F3)
+    val lightOnTertiaryContainer = Color(0xFF34324D)
+    val darkTertiary = Color(0xFFC7BDF6)
+    val darkTertiaryContainer = Color(0xFF38354F)
+    val darkOnTertiaryContainer = Color(0xFFE5E3F3)
 
     return ThemeColorPreset(
         light = lightColorScheme(
@@ -160,24 +160,24 @@ internal object ThemeColorPalettes {
     // Historical names map to accent tonal variants so stored preferences
     // remain valid while the brand family stays consistent.
     val SHIYI_ORANGE = accentPreset(
-        lightPrimary = Color(0xFF0066CC),
-        lightPrimaryContainer = Color(0xFFE7F1FC),
-        lightOnPrimaryContainer = Color(0xFF174779),
-        darkPrimary = Color(0xFF75B7FF),
-        darkPrimaryContainer = Color(0xFF163A61),
-        darkOnPrimaryContainer = Color(0xFFE7F1FC),
-        lightSecondary = Color(0xFF5A6573),
-        lightSecondaryContainer = Color(0xFFEEF0F3),
+        lightPrimary = Color(0xFF242A38),
+        lightPrimaryContainer = Color(0xFFE5E3F3),
+        lightOnPrimaryContainer = Color(0xFF34324D),
+        darkPrimary = Color(0xFFC7BDF6),
+        darkPrimaryContainer = Color(0xFF38354F),
+        darkOnPrimaryContainer = Color(0xFFE5E3F3),
+        lightSecondary = Color(0xFF625B74),
+        lightSecondaryContainer = Color(0xFFE5E3F3),
         lightOnSecondaryContainer = Color(0xFF303842),
-        darkSecondary = Color(0xFFBBC5D2),
+        darkSecondary = Color(0xFFC3BED3),
         darkSecondaryContainer = Color(0xFF38434E),
-        darkOnSecondaryContainer = Color(0xFFEEF0F3),
+        darkOnSecondaryContainer = Color(0xFFE5E3F3),
     )
 
     val CYAN_BLUE = accentPreset(
         lightPrimary = Color(0xFF076BBA),
         lightPrimaryContainer = Color(0xFFE9F3FB),
-        lightOnPrimaryContainer = Color(0xFF174779),
+        lightOnPrimaryContainer = Color(0xFF34324D),
         darkPrimary = Color(0xFF82C3FC),
         darkPrimaryContainer = Color(0xFF173D5D),
         darkOnPrimaryContainer = Color(0xFFE9F3FB),
@@ -238,7 +238,7 @@ internal object ThemeColorPalettes {
         lightPrimary = Color(0xFF6550A8),
         lightPrimaryContainer = Color(0xFFE8E2FF),
         lightOnPrimaryContainer = Color(0xFF20144C),
-        darkPrimary = Color(0xFF75B7FF),
+        darkPrimary = Color(0xFFC7BDF6),
         darkPrimaryContainer = Color(0xFF49368E),
         darkOnPrimaryContainer = Color(0xFFE8E2FF),
         lightSecondary = Color(0xFF625A7C),

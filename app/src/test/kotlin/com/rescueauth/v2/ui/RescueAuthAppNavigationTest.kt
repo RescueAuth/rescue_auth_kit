@@ -68,7 +68,7 @@ class RescueAuthAppNavigationTest {
     fun settingsShowsLegacyImportEntrySeparateFromNativeImport() {
         setAppContent()
         composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
-        composeRule.onNodeWithTag("settings_transfer_row").performClick()
+        composeRule.onNodeWithTag("settings_transfer_row").performScrollTo().performClick()
         composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertDoesNotExist()
         // Native and Legacy remain separate choices in the transfer hub.
         composeRule.onNodeWithText("Import Native Package").assertIsDisplayed()

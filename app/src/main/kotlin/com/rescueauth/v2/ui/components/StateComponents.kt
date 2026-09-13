@@ -1,5 +1,7 @@
 package com.rescueauth.v2.ui.components
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -43,40 +45,18 @@ fun EmptyState(
     onAction: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(Spacing.lg),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
+        verticalArrangement = Arrangement.Top,
     ) {
-        RescueAuthCard(modifier = Modifier.fillMaxWidth()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                RescueAuthIconBadge(
-                    icon = icon,
-                    size = 48.dp,
-                    iconSize = 24.dp,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xxs))
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                if (actionLabel != null && onAction != null) {
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    Button(onClick = onAction) { Text(actionLabel) }
-                }
-            }
+        RescueAuthCard(contentPadding = com.rescueauth.v2.ui.theme.CardTokens.heroPadding) {
+            RescueAuthIconBadge(icon = icon, size = 48.dp, iconSize = 24.dp,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+            Spacer(Modifier.height(Spacing.lg))
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            if (body.isNotBlank()) Text(body, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.xs))
+            if (actionLabel != null && onAction != null) StudioAction(actionLabel, onAction, Modifier.padding(top = Spacing.lg))
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
@@ -43,10 +44,10 @@ class StartupLockScreenTest {
         // the launch brand recognisable (default locale = English here).
         composeRule.onNodeWithTag(StartupSplashTestTags.BRANDING).assertIsDisplayed()
         composeRule.onNodeWithText("RescueAuth").assertIsDisplayed()
-        composeRule.onNodeWithText("Use phone to unlock").assertIsDisplayed()
-        composeRule.onNodeWithText("Enable").assertIsDisplayed()
+        composeRule.onNodeWithText("Use phone to unlock").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Create my vault").assertExists()
 
-        composeRule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performClick()
+        composeRule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo().performClick()
         assertTrue("Enable callback must fire", enabled)
     }
 

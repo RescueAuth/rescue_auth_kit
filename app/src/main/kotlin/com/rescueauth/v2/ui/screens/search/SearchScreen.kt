@@ -7,6 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.style.TextOverflow
+import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -28,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
@@ -67,11 +75,12 @@ fun SearchScreen(
     onResultClick: (SearchResult) -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    var inputReady by remember { mutableStateOf(false) }
+    LaunchedEffect(inputReady) { if (inputReady) focusRequester.requestFocus() }
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .testTag(SearchTestTags.SCREEN_SEARCH),
+            .testTag(SearchTestTags.SCREEN_SEARCH).imePadding(),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
             RescueAuthPageHeader(
@@ -103,6 +112,7 @@ fun SearchScreen(
                         vertical = Spacing.sm,
                     )
                     .focusRequester(focusRequester)
+                    .onGloballyPositioned { inputReady = true }
                     .testTag(SearchTestTags.SEARCH_INPUT)
                     .semantics { contentDescription = uiState.query },
                 placeholder = { Text(stringResource(R.string.search_hint)) },
@@ -121,6 +131,12 @@ fun SearchScreen(
                     }
                 },
                 singleLine = true,
+                shape = CardTokens.rowShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
             when {
                 uiState.isEmptyQuery -> EmptyState(
@@ -137,6 +153,7 @@ fun SearchScreen(
                 )
                 else -> SearchResults(
                     results = uiState.results,
+                    query = uiState.query,
                     onResultClick = onResultClick,
                     modifier = Modifier
                         .fillMaxSize()
@@ -149,6 +166,7 @@ fun SearchScreen(
 
 @Composable
 private fun SearchResults(
+    query: String,
     results: List<SearchResult>,
     onResultClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
@@ -158,55 +176,32 @@ private fun SearchResults(
     val orderedKeys = grouped.keys.sortedBy { key ->
         order.indexOf(key).let { index -> if (index < 0) order.size else index }
     }
-    var expandedLabels by remember(orderedKeys) {
-        mutableStateOf(orderedKeys.firstOrNull()?.let(::setOf).orEmpty())
-    }
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(
-            start = ScreenTokens.horizontalPadding,
-            end = ScreenTokens.horizontalPadding,
-            bottom = Spacing.xxl,
-        ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        orderedKeys.forEach { label ->
-            item(key = "header_$label") {
-                RescueAuthRowCard(
-                    onClick = {
-                        expandedLabels = if (label in expandedLabels) {
-                            expandedLabels - label
-                        } else {
-                            expandedLabels + label
-                        }
-                    },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.padding(top = Spacing.sm),
-                ) {
-                    Text(
-                        text = resultTypeLabel(label),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = grouped.getValue(label).size.toString(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Icon(
-                        imageVector = if (label in expandedLabels) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+    var selectedType by remember(query) { mutableStateOf<String?>(null) }
+    val activeType = selectedType.takeIf { it in grouped }
+    Column(modifier) {
+        LazyRow(contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            item {
+                FilterChip(selected = activeType == null, onClick = { selectedType = null },
+                    label = { Text(stringResource(R.string.authenticator_filter_all)) },
+                    modifier = Modifier.testTag("search_filter_all"))
             }
-            if (label in expandedLabels) {
-                items(
-                    items = grouped.getValue(label),
-                    key = { result -> "$label:${result.navigationId}" },
-                ) { result ->
-                    SearchResultRow(result = result, onClick = { onResultClick(result) })
+            items(orderedKeys) { type ->
+                FilterChip(selected = activeType == type, onClick = { selectedType = type },
+                    label = { Text(resultTypeLabel(type)) }, modifier = Modifier.testTag("search_filter_$type"))
+            }
+        }
+        LazyColumn(
+            Modifier.weight(1f),
+            contentPadding = PaddingValues(start = ScreenTokens.horizontalPadding, end = ScreenTokens.horizontalPadding, bottom = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+        ) {
+            orderedKeys.filter { activeType == null || it == activeType }.forEach { label ->
+                item(key = "header_$label") {
+                    RescueAuthSectionHeader(resultTypeLabel(label), modifier = Modifier.padding(top = Spacing.sm))
+                }
+                items(grouped.getValue(label), key = { "$label:${it.navigationId}" }) { result ->
+                    SearchResultRow(result, onClick = { onResultClick(result) })
                 }
             }
         }
@@ -230,7 +225,7 @@ private fun SearchResultRow(result: SearchResult, onClick: () -> Unit) {
     RescueAuthRowCard(
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.semantics { role = Role.Button },
+        modifier = Modifier.testTag("search_result_${result.typeLabel}_${result.navigationId}").semantics { role = Role.Button },
         verticalPadding = Spacing.sm,
     ) {
         RescueAuthIconBadge(
@@ -241,6 +236,7 @@ private fun SearchResultRow(result: SearchResult, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = result.title,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -248,6 +244,7 @@ private fun SearchResultRow(result: SearchResult, onClick: () -> Unit) {
             result.subtitle?.let { subtitle ->
                 Text(
                     text = subtitle,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

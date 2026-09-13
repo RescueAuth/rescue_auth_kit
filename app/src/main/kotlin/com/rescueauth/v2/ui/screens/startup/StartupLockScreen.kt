@@ -1,5 +1,26 @@
 package com.rescueauth.v2.ui.screens.startup
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.rescueauth.v2.ui.components.StudioAction
+import com.rescueauth.v2.ui.components.StudioColors
+import com.rescueauth.v2.ui.components.StudioEntrance
+import com.rescueauth.v2.ui.components.StudioEyebrow
+import com.rescueauth.v2.ui.components.RescueAuthMark
+import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.theme.ScreenTokens
+
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthRibbonBackdrop
 import com.rescueauth.v2.ui.theme.Spacing
 
 object StartupLockTestTags {
@@ -56,106 +76,77 @@ fun StartupIntroScreen(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag(StartupLockTestTags.INTRO_SCREEN),
+        modifier = modifier.fillMaxSize().testTag(StartupLockTestTags.INTRO_SCREEN),
         color = MaterialTheme.colorScheme.background,
     ) {
-        // Box so the "Import from v1" entry can sit in the top-right corner,
-        // independent of the vertically-centered intro card below.
-        Box(modifier = Modifier.fillMaxSize()) {
-            RescueAuthRibbonBackdrop(Modifier.fillMaxSize())
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = Spacing.lg),
-            ) {
-            if (onImportV1 != null) {
-                TextButton(
-                    onClick = onImportV1,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .statusBarsPadding()
-                        .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
-                    colors = ButtonDefaults.textButtonColors(
-                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.xs),
-                ) {
-                    Text(
-                        text = stringResource(R.string.startup_intro_import_v1),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
-            }
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(animationSpec = tween(420)) + slideInVertically(
-                    animationSpec = tween(420),
-                    initialOffsetY = { it / 12 },
-                ),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 72.dp, bottom = 32.dp),
-            ) {
+        BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
+            val minimumHeight = maxHeight
+            StudioEntrance(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    StartupBranding(logoSize = 56.dp)
-                    Text(
-                        text = stringResource(R.string.startup_intro_tagline),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = Spacing.sm),
-                    )
-                }
-                RescueAuthCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.xl),
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                        .heightIn(min = minimumHeight)
+                        .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.lg),
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        Modifier.fillMaxWidth().testTag(StartupSplashTestTags.BRANDING),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        RescueAuthIconBadge(
-                            icon = Icons.Filled.Lock,
-                            size = 42.dp,
-                            iconSize = 21.dp,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        RescueAuthMark(Modifier.size(32.dp), animated = false, monochrome = true)
+                        Text(stringResource(R.string.startup_brand_name), style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.weight(1f))
+                        StudioEyebrow(stringResource(R.string.studio_private_label))
+                    }
+                    Spacer(Modifier.height(Spacing.xl))
+                    RescueAuthCard(
+                        shape = CardTokens.heroShape,
+                        contentPadding = CardTokens.noPadding,
+                        containerColor = StudioColors.ink,
+                    ) {
+                        Box(Modifier.fillMaxWidth().height(180.dp)) {
+                            RescueAuthMark(Modifier.align(Alignment.Center).size(180.dp))
+                        }
+                        StudioEyebrow(
+                            stringResource(R.string.studio_local_label),
+                            Modifier.padding(start = CardTokens.heroPadding, end = CardTokens.heroPadding, bottom = Spacing.lg),
+                            StudioColors.mutedInk,
                         )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.startup_intro_title),
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                            Text(
-                                text = stringResource(R.string.startup_intro_body),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = Spacing.xxs),
-                            )
+                    }
+                    Spacer(Modifier.height(Spacing.xl))
+                    Text(
+                        stringResource(R.string.studio_welcome_title),
+                        fontSize = 36.sp, lineHeight = 43.sp, letterSpacing = (-1).sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text(stringResource(R.string.studio_welcome_body),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(Spacing.lg))
+                    // One quiet security note; the action is no longer nested in a second card.
+                    RescueAuthRowCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+                        Icon(Icons.Outlined.Fingerprint, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.startup_intro_title), style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.startup_intro_body), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    Button(
-                        onClick = onContinue,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Spacing.lg)
-                            .testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
-                    ) {
-                        Text(text = stringResource(R.string.startup_intro_continue))
+                    Spacer(Modifier.height(Spacing.lg))
+                    StudioAction(
+                        text = stringResource(R.string.studio_create_vault), onClick = onContinue,
+                        modifier = Modifier.testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
+                    )
+                    if (onImportV1 != null) {
+                        TextButton(
+                            onClick = onImportV1,
+                            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
+                                .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                        ) { Text(stringResource(R.string.startup_intro_import_v1), style = MaterialTheme.typography.labelMedium) }
                     }
                 }
-                }
-            }
             }
         }
     }

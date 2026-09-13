@@ -541,4 +541,39 @@
     <string name="a11y_back">返回</string>
     <string name="a11y_sensitive_value">敏感值</string>
 
+
+    <!-- Studio visual identity, shared across welcome and vault directories. -->
+    <string name="studio_private_label">私密，由此开始</string>
+    <string name="studio_local_label">仅存于你的设备</string>
+    <string name="studio_collection_label">你的私密收藏</string>
+    <string name="studio_welcome_title">重要之物，\n妥善收藏。</string>
+    <string name="studio_welcome_body">验证码、密钥与重要凭据，\n让数字生活，井然有序。</string>
+    <string name="studio_create_vault">开启我的保险库</string>
+    <string name="studio_vault_label">个人保险库</string>
+    <string name="studio_vault_title">重要的，都在这里。</string>
+    <string name="studio_vault_count">%1$d 个账户</string>
+    <string name="studio_vault_summary">%1$d 个服务 · %2$d 个验证码</string>
+    <string name="studio_vault_empty_body">从添加第一个账户开始。</string>
+    <string name="studio_services">你的服务</string>
+    <string name="studio_add_credential">添加验证码</string>
+    <string name="studio_new_service">新建服务</string>
+    <string name="studio_add">添加</string>
+    <string name="studio_developer_label">开发者保险库</string>
+    <string name="studio_developer_title">灵感背后，\n安心有序。</string>
+    <string name="studio_categories">按类型浏览</string>
+    <string name="studio_settings_label">属于你的空间</string>
+    <string name="studio_settings_title">你的数据，\n由你掌握。</string>
+    <string name="studio_settings_body">本地存储，始终加密。</string>
+    <string name="studio_transfer_description">导出备份，或导入已有保险库</string>
+    <string name="studio_transfer_title">安心，随你而行。</string>
+    <string name="studio_transfer_body">一个加密包，一个专属 PIN。</string>
+    <string name="studio_about_description">版本、更新与产品信息</string>
+    <string name="studio_security_note">由你的设备守护</string>
+    <string name="studio_search_prompt">查找保险库中的内容</string>
+    <string name="studio_code_label">一次性验证码</string>
+    <string name="studio_api">API 凭据</string>
+    <string name="studio_ssh">SSH 密钥</string>
+    <string name="studio_signing">签名密钥</string>
+    <string name="studio_environment">环境变量</string>
+    <string name="studio_generic">其他凭据</string>
 </resources>

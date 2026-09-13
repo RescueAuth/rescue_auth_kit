@@ -24,7 +24,7 @@ object Spacing {
 
 /** Screen-level layout tokens. Keep page rhythm consistent across routes. */
 object ScreenTokens {
-    val horizontalPadding = 20.dp
+    val horizontalPadding = 24.dp
     val verticalPadding = 16.dp
     val compactVerticalPadding = 10.dp
     val sectionGap = 24.dp
@@ -35,13 +35,13 @@ object ScreenTokens {
 /** Corner radius scale (design tokens). */
 object CornerRadius {
     /** Smallest radius — chips, badges, inline controls. */
-    val xs = 8.dp
+    val xs = 14.dp
     /** Compact list rows / medium cards. */
-    val sm = 10.dp
+    val sm = 18.dp
     /** Standard card container — restrained panel rounding. */
-    val md = 12.dp
+    val md = 24.dp
     /** Fully rounded pill (FAB, tags). */
-    val pill = 8.dp
+    val pill = 50.dp
 }
 
 /** Elevation scale (design tokens). */
@@ -83,10 +83,10 @@ object CardTokens {
     fun outlineColor(): Color =
         androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
 
-    /** Standard card corner radius — restrained panel rounding (12dp). */
+    /** Standard 24 dp content panel. */
     val shape = RoundedCornerShape(CornerRadius.md)
 
-    /** Slightly tighter radius for compact list rows (10dp) so rows still
+    /** Slightly tighter 18 dp radius for compact list rows so rows still
      *  read as part of the same card family without bulking up the list. */
     val rowShape = RoundedCornerShape(CornerRadius.sm)
 
@@ -94,6 +94,19 @@ object CardTokens {
     val contentPadding = 16.dp
 
     val borderWidth = 0.5.dp
+
+    /** Studio panels use a flat fill; dividers retain the fine outline token. */
+    val border: androidx.compose.foundation.BorderStroke? = null
+    val heroShape = RoundedCornerShape(32.dp)
+    val dockShape = RoundedCornerShape(28.dp)
+    val heroPadding = 24.dp
+    val noPadding = 0.dp
+    val actionSpacing = 12.dp
+    /** All directory banners share one geometry, independent of copy length. */
+    val bannerHeight = 144.dp
+    val bannerArtworkSize = 84.dp
+    val bannerPadding = 20.dp
+    val bannerLargeTextGrowth = 120.dp
 
     /** Padding between sibling cards inside a list / column. */
     val listSpacing = Spacing.xs
