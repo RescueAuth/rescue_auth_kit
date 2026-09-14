@@ -41,6 +41,7 @@ import com.rescueauth.v2.ui.developer.DeveloperRoute
 import com.rescueauth.v2.ui.developer.DeveloperListViewModel
 import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
+import com.rescueauth.v2.ui.navigation.vaultDestination
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
 import com.rescueauth.v2.ui.screens.about.AboutRoute
 import com.rescueauth.v2.ui.screens.about.AboutTestTags
@@ -188,26 +189,7 @@ fun RescueAuthApp(
             composable(RescueAuthRoutes.SEARCH) {
                 SearchRoute(
                     onBack = { navController.popBackStack() },
-                    onResultClick = { result ->
-                        when (result) {
-                            is com.rescueauth.v2.search.SearchResult.Provider -> {
-                                navController.navigate("authenticator/provider/${Uri.encode(result.navigationId)}")
-                            }
-                            is com.rescueauth.v2.search.SearchResult.Account -> {
-                                navController.navigate("authenticator/account-detail/${result.navigationId}")
-                            }
-                            is com.rescueauth.v2.search.SearchResult.Totp -> {
-                                // Open the owning Account detail (P7 §12).
-                                navController.navigate("authenticator/account-detail/${result.accountId}")
-                            }
-                            is com.rescueauth.v2.search.SearchResult.RecoverySet -> {
-                                navController.navigate("authenticator/account-detail/${result.accountId}")
-                            }
-                            is com.rescueauth.v2.search.SearchResult.Developer -> {
-                                navController.navigate(RescueAuthRoutes.developerEntry(result.navigationId))
-                            }
-                        }
-                    },
+                    onResultClick = { result -> navController.navigate(result.vaultDestination()) },
                     modifier = Modifier.testTag("screen_search"),
                 )
             }

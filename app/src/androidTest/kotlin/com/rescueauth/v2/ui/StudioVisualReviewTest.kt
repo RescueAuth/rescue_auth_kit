@@ -156,4 +156,22 @@ class StudioVisualReviewTest {
         assertTrue(continued)
         capture("10-large-text")
     }
+    @Test fun removedAccountRetainsItsBackAction() {
+        val state = mutableStateOf(AuthenticatorUiState(loading = false, providers = providers))
+        var backedOut = false
+        content {
+            AuthenticatorScreen(
+                uiState = state.value, initialAccountId = "0-1",
+                onBack = { backedOut = true }, onAddClick = {},
+            )
+        }
+        rule.onNodeWithText("Personal account").assertIsDisplayed()
+        rule.runOnIdle { state.value = AuthenticatorUiState(loading = false) }
+        rule.onNodeWithTag("vault_item_unavailable").assertIsDisplayed()
+        rule.onNodeWithTag("vault_add_menu").assertDoesNotExist()
+        capture("11-removed-account")
+        rule.onNodeWithTag("authenticator_back").performClick()
+        assertTrue(backedOut)
+    }
+
 }

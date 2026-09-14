@@ -50,6 +50,8 @@
     <string name="authenticator_loading">正在打开保险库…</string>
     <string name="authenticator_add_first">添加第一个账户</string>
     <string name="authenticator_empty_title">还没有账户</string>
+    <string name="vault_item_unavailable_title">条目已不可用</string>
+    <string name="vault_item_unavailable_body">条目可能已被删除或重命名，请返回保险库继续操作。</string>
     <string name="authenticator_empty_body">添加服务和账户后即可开始生成一次性密码。</string>
     <string name="authenticator_section_totp">TOTP</string>
     <string name="authenticator_section_recovery">恢复码</string>

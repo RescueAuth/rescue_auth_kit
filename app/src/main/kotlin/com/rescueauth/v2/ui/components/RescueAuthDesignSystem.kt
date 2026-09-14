@@ -113,10 +113,12 @@ fun RescueAuthPageHeader(
 fun RescueAuthBackButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     androidx.compose.material3.IconButton(
         onClick = onClick,
         modifier = modifier,
+        enabled = enabled,
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,

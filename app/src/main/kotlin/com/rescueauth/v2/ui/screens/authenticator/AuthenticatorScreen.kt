@@ -1,5 +1,6 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -144,18 +145,28 @@ fun AuthenticatorScreen(
     }
     val atAccountLevel = selectedAccount != null
     val atProviderLevel = selectedProvider != null && !atAccountLevel
-    val providerCount = displayProviders.size
-    val accountCount = displayProviders.sumOf { it.accounts.size }
-    val credentialCount = displayProviders.sumOf { provider ->
-        provider.accounts.sumOf { it.totpCredentials.size }
+    val isDetailRequested = selectedAccountId != null || selectedProviderName != null
+    val selectionExists = if (selectedAccountId != null) selectedAccount != null else selectedProvider != null
+    val selectionUnavailable = isDetailRequested && !selectionExists && !uiState.loading && uiState.error == null
+    val returnToParent: () -> Unit = {
+        if (onBack != null) {
+            onBack()
+        } else if (selectedAccountId != null) {
+            selectedAccountId = null
+        } else {
+            selectedProviderName = null
+        }
     }
+    BackHandler(enabled = isDetailRequested && onBack == null, onBack = returnToParent)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         topBar = {
             RescueAuthPageHeader(
-                title = if (atAccountLevel) {
+                title = if (selectionUnavailable) {
+                    stringResource(R.string.vault_item_unavailable_title)
+                } else if (atAccountLevel) {
                     selectedAccount?.accountName.orEmpty()
                 } else if (atProviderLevel) {
                     selectedProvider?.serviceName.orEmpty()
@@ -169,17 +180,9 @@ fun AuthenticatorScreen(
                 } else {
                     null
                 },
-                navigationIcon = if (atAccountLevel || atProviderLevel) {
+                navigationIcon = if (isDetailRequested) {
                     {
-                        IconButton(onClick = {
-                            if (onBack != null) {
-                                onBack()
-                            } else if (atAccountLevel) {
-                                selectedAccountId = null
-                            } else {
-                                selectedProviderName = null
-                            }
-                        }) {
+                        IconButton(onClick = returnToParent, modifier = Modifier.testTag("authenticator_back")) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.a11y_back),
@@ -190,7 +193,7 @@ fun AuthenticatorScreen(
                     null
                 },
                 actions = {
-                    if (onAddClick != null) {
+                    if (onAddClick != null && !uiState.loading && (!isDetailRequested || selectionExists)) {
                         Box {
                             RescueAuthButton(
                                 onClick = { if (!atAccountLevel && !atProviderLevel) addMenuOpen = true else onAddClick() },
@@ -231,6 +234,13 @@ fun AuthenticatorScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
+            )
+            selectionUnavailable -> EmptyState(
+                title = stringResource(R.string.vault_item_unavailable_title),
+                body = stringResource(R.string.vault_item_unavailable_body),
+                actionLabel = stringResource(R.string.a11y_back),
+                onAction = returnToParent,
+                modifier = Modifier.fillMaxSize().padding(padding).testTag("vault_item_unavailable"),
             )
             atAccountLevel -> AccountDetailContent(
                 account = selectedAccount!!,

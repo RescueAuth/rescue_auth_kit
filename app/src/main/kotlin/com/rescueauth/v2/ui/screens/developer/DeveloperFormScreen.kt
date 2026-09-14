@@ -121,9 +121,13 @@ fun DeveloperFormScreen(
     var keystoreError by rememberSaveable { mutableStateOf<String?>(null) }
     var credentialsStep by rememberSaveable { mutableStateOf(false) }
     val goBack = {
-        if (credentialsStep) credentialsStep = false else onBack()
+        if (!form.submitting) {
+            if (credentialsStep) credentialsStep = false else onBack()
+        }
     }
-    BackHandler(enabled = credentialsStep) { credentialsStep = false }
+    BackHandler(enabled = credentialsStep || form.submitting) {
+        if (!form.submitting) credentialsStep = false
+    }
     val keystoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
@@ -144,7 +148,7 @@ fun DeveloperFormScreen(
                     else R.string.developer_add_title,
                 ),
                 subtitle = formTypeLabel(form.type),
-                navigationIcon = { RescueAuthBackButton(goBack) },
+                navigationIcon = { RescueAuthBackButton(goBack, enabled = !form.submitting) },
             )
         },
         bottomBar = {
@@ -159,6 +163,7 @@ fun DeveloperFormScreen(
                 ) {
                     androidx.compose.material3.TextButton(
                         onClick = goBack,
+                        enabled = !form.submitting,
                         modifier = Modifier
                             .weight(1f)
                             .testTag("developer_form_previous"),
@@ -173,7 +178,7 @@ fun DeveloperFormScreen(
                         onClick = {
                             if (credentialsStep) onSubmit() else credentialsStep = true
                         },
-                        enabled = credentialsStep || form.title.isNotBlank(),
+                        enabled = !form.submitting && (credentialsStep || form.title.isNotBlank()),
                         modifier = Modifier
                             .weight(1f)
                             .testTag(if (credentialsStep) "developer_form_save" else "developer_form_next"),

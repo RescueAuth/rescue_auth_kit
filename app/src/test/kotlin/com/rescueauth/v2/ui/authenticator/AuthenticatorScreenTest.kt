@@ -1,5 +1,7 @@
 package com.rescueauth.v2.ui.authenticator
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -322,6 +324,49 @@ class AuthenticatorScreenTest {
         composeRule.onNodeWithTag("vault_add_menu").performClick()
         composeRule.onNodeWithText("Create a service").performClick()
         org.junit.Assert.assertTrue(created)
+    }
+
+    @Test
+    fun removedAccountRetainsBackAndCanRecoverAfterUndo() {
+        val account = AccountUi("a1", "GitHub", "Personal")
+        val loaded = AuthenticatorUiState(loading = false, providers = listOf(ProviderUi("p1", "GitHub", listOf(account))))
+        val state = mutableStateOf(loaded)
+        var backCount = 0
+        composeRule.setContent {
+            RescueAuthTheme {
+                com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
+                    uiState = state.value, initialAccountId = account.id,
+                    onBack = { backCount++ }, onAddClick = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("Personal").assertIsDisplayed()
+        composeRule.runOnIdle { state.value = AuthenticatorUiState(loading = false) }
+        composeRule.onNodeWithTag("vault_item_unavailable").assertIsDisplayed()
+        composeRule.onNodeWithTag("vault_add_menu").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        org.junit.Assert.assertEquals(1, backCount)
+        // A snackbar Undo restoring the same ID must restore the detail page,
+        // without having silently reset the navigation selection to root.
+        composeRule.runOnIdle { state.value = loaded }
+        composeRule.onNodeWithText("Personal").assertIsDisplayed()
+        composeRule.onNodeWithTag("vault_item_unavailable").assertDoesNotExist()
+    }
+
+    @Test
+    fun missingProviderDoesNotPretendToBeTheRootDirectory() {
+        var backedOut = false
+        composeRule.setContent {
+            RescueAuthTheme {
+                com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen(
+                    uiState = AuthenticatorUiState(loading = false), initialProviderName = "Removed service",
+                    onBack = { backedOut = true },
+                )
+            }
+        }
+        composeRule.onNodeWithTag("vault_item_unavailable").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        org.junit.Assert.assertTrue(backedOut)
     }
 
 }

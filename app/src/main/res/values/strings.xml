@@ -50,6 +50,8 @@
     <string name="authenticator_loading">Opening your vault…</string>
     <string name="authenticator_add_first">Add your first account</string>
     <string name="authenticator_empty_title">No accounts yet</string>
+    <string name="vault_item_unavailable_title">Item unavailable</string>
+    <string name="vault_item_unavailable_body">This item may have been removed or renamed. Return to your vault to continue.</string>
     <string name="authenticator_empty_body">Add a service and account to start generating one-time passwords.</string>
     <string name="authenticator_section_totp">TOTP</string>
     <string name="authenticator_section_recovery">Recovery codes</string>
