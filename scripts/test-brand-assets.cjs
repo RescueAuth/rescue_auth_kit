@@ -29,9 +29,28 @@ test('adaptive background remains an unmasked rectangle', () => {
     const background = fs.readFileSync(path.join(root, 'app/src/main/res/drawable/ic_rescueauth_launcher_background.xml'), 'utf8');
     assert.match(background, /android:shape="rectangle"/);
     assert.doesNotMatch(background, /<corners|android:radius/);
+    assert.match(background, /<gradient\b/);
+    assert.match(background, /android:angle="315"/);
     for (const name of ['ic_launcher.xml', 'ic_launcher_round.xml']) {
         const adaptive = fs.readFileSync(path.join(root, 'app/src/main/res/mipmap-anydpi-v26', name), 'utf8');
         assert.match(adaptive, /<adaptive-icon/);
         assert.match(adaptive, /@drawable\/ic_rescueauth_launcher_background/);
     }
+});
+
+test('foreground fits inside the conservative 66dp adaptive safe circle', async () => {
+    const source = fs.readFileSync(path.join(root, 'design/brand/shiyifang-logo.svg'), 'utf8');
+    const scale = Number(source.match(/data-launcher-scale="([\d.]+)"/)[1]);
+    const offset = 54 - 64 * scale;
+    const inner = source.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+    const foreground = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 108 108"><g transform="translate(${offset} ${offset}) scale(${scale})">${inner}</g></svg>`;
+    const {data, info} = await sharp(Buffer.from(foreground)).ensureAlpha().raw().toBuffer({resolveWithObject: true});
+    let painted = 0;
+    for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
+        if (data[(y * info.width + x) * info.channels + 3] < 16) continue;
+        painted++;
+        assert.ok(Math.hypot((x + .5) / 10 - 54, (y + .5) / 10 - 54) <= 33,
+            `Foreground reaches outside the adaptive safe circle at (${x}, ${y})`);
+    }
+    assert.ok(painted > 1000, 'The foreground must not be empty');
 });

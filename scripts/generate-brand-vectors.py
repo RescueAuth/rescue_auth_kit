@@ -38,6 +38,10 @@ def outputs():
     if not 0 < launcher_scale <= 0.7:
         raise ValueError('Invalid adaptive launcher scale.')
     launcher_offset = 54 - 64 * launcher_scale
+    background_start = source.get('data-launcher-background-start', '#F7F5EF')
+    background_end = source.get('data-launcher-background-end', background_start)
+    for color in (background_start, background_end):
+        color_with_alpha(color)  # Validate the launcher's independent, opaque background colors.
     paths = source.findall(f'{{{SVG}}}path')
     if not paths or any(path.get('d') is None or path.get('fill') is None for path in paths):
         raise ValueError('Only explicitly filled SVG paths are supported.')
@@ -133,6 +137,13 @@ def outputs():
         'ic_rescueauth_mark_mono.xml': vector(mono=True),
         'ic_rescueauth_launcher_foreground.xml': vector(launcher=True),
         'ic_rescueauth_launcher_monochrome.xml': vector(launcher=True, mono=True),
+        'ic_rescueauth_launcher_background.xml': (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<!-- Generated from design/brand/shiyifang-logo.svg. Run scripts/generate-brand-vectors.py. -->\n'
+            f'<shape xmlns:android="{ANDROID}" android:shape="rectangle">\n'
+            f'    <gradient android:type="linear" android:angle="315" android:startColor="{background_start}" android:endColor="{background_end}"/>\n'
+            '</shape>\n'
+        ),
     }
 
 
@@ -152,7 +163,7 @@ def main():
     if mismatches:
         print('Brand vector drift: ' + ', '.join(mismatches), file=sys.stderr)
         return 1
-    print('SVG and Android brand vectors match.' if args.check else 'Generated four vectors from the Shiyifang SVG master.')
+    print('SVG and Android brand resources match.' if args.check else 'Generated brand vectors and launcher background from the Shiyifang SVG master.')
     return 0
 
 

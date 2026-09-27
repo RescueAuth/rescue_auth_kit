@@ -65,7 +65,7 @@ class BrandVectorTest(unittest.TestCase):
             self.assertGreaterEqual(paths[0].get(A + 'pathData').count('M'), 2)
             self.assertEqual(root.findall('.//gradient'), [])
 
-    def test_launcher_is_centered_and_fifteen_percent_larger(self):
+    def test_launcher_is_centered_and_twenty_percent_smaller(self):
         root = ET.fromstring(brand.outputs()['ic_rescueauth_launcher_foreground.xml'])
         group = root.find('group')
         scale = float(group.get(A + 'scaleX'))
@@ -73,7 +73,7 @@ class BrandVectorTest(unittest.TestCase):
         self.assertAlmostEqual(offset + 64 * scale, 54)
         self.assertEqual(group.get(A + 'scaleX'), group.get(A + 'scaleY'))
         self.assertEqual(group.get(A + 'translateX'), group.get(A + 'translateY'))
-        self.assertAlmostEqual(scale, 0.6 * 1.15)
+        self.assertAlmostEqual(scale, 0.69 * 0.80)
 
 
 if __name__ == '__main__':
