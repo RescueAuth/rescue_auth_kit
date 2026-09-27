@@ -511,7 +511,7 @@ evidence; phase progress stays in [ROADMAP.md](../ROADMAP.md).
 
 ### Verified baseline
 
-The code baseline is `ae734943f7f5b32f714a35b5c1694347e74465ad`, checked on
+The code baseline is `cb9699977ae6cba3759e061040ec45160ed9f833`, checked on
 2026-09-27. Subsequent source or release-configuration changes need validation
 against the new candidate revision.
 
@@ -519,7 +519,7 @@ against the new candidate revision.
 | --- | --- |
 | Product and UI | Planned feature scope complete; final brand assets, theme / Dock, shared page templates, floating inputs and synchronized page / Dock motion are in the baseline. Local review artifacts have been removed. See [UI_POLISH_REPORT.md](UI_POLISH_REPORT.md). |
 | Local regression | Core 420/420 + app JVM 769/769; Android instrumented 87/87 on an Android 15 / API 35 emulator. No failures or skips. |
-| Build and static checks | Debug + AndroidTest APKs built; lint: 0 errors, 254 warnings, 1 information item. Nine brand checks passed. This is not a production APK acceptance record. |
+| Build and static checks | Debug + AndroidTest APKs built; lint: 0 errors, 254 warnings, 1 information item. Ten brand checks passed. This is not a production APK acceptance record. |
 | Android production identity | Step 1 merged; Step 2 provisioned on 2026-08-11. Public certificate metadata is in [release/android-signing-certificate.txt](../release/android-signing-certificate.txt). The old local signed APK in §10 does not cover the current source. |
 | CI entry points | Manual debug, full regression and FTL entries are configured. Production signing and APK attachment run only for `rescueauth-vX.Y.Z` tags. Update-manifest publication is not wired into this pipeline. |
 | Cloud / real-device evidence | Historical database-only FTL 6/6 PASS is retained. Final FTL regression and physical-device signed-candidate smoke have no current acceptance record. |

@@ -23,7 +23,7 @@
 - 当前阶段（同步于 2026-09-27）：**Phase 0/1/2/3/4/5 CLOSED**；Phase 6 的 L1/L2 CLOSED，L3
   Clipboard / security polish 明确 DEFER。**DAILY-USE READY = YES**，
   **V2.0 FEATURE COMPLETE = YES**，**V2.0 RELEASED = NO**。
-  本轮界面整理和本地回归已完成（代码基线 `ae73494`，见 `docs/UI_POLISH_REPORT.md`），
+  本轮界面整理和本地回归已完成（代码基线 `cb96999`，见 `docs/UI_POLISH_REPORT.md`），
   当前进入 **1.0.0 发布准备**，工作重点是发布配置、候选包验证与必要缺陷修复。
 - 当前 release blockers：production Update Ed25519 provisioning、
   `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、signed release real-device smoke
