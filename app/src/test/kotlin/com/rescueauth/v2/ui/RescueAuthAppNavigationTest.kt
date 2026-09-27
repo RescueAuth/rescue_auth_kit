@@ -3,6 +3,8 @@ package com.rescueauth.v2.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -41,6 +43,20 @@ class RescueAuthAppNavigationTest {
         setAppContent(com.rescueauth.v2.ui.navigation.RescueAuthRoutes.DEVELOPER)
         composeRule.onNodeWithTag(RescueAuthTestTags.SCREEN_DEVELOPER).assertIsDisplayed()
         composeRule.onNodeWithTag(RescueAuthTestTags.NAV_DEVELOPER).assertIsSelected()
+    }
+
+    @Test
+    fun restoringDetailKeepsItsSelectedHomeWhenReturning() {
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent { RescueAuthTheme { RescueAuthApp() } }
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        composeRule.onNodeWithTag(com.rescueauth.v2.ui.screens.settings.SettingsTestTags.ABOUT_ROW)
+            .performScrollTo().performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.onNodeWithTag(com.rescueauth.v2.ui.screens.about.AboutTestTags.SCREEN).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        composeRule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertIsSelected()
     }
 
     @Test

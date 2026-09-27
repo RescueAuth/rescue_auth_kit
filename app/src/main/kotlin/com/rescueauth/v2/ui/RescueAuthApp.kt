@@ -277,6 +277,13 @@ fun RescueAuthApp(
                     }
                 }
             }
+            // Older saved back stacks may still contain these root destinations. Keep their
+            // IDs resolvable, then fold them into the matching page of the retained home entry.
+            listOf(RescueAuthRoutes.DEVELOPER, RescueAuthRoutes.SETTINGS).forEach { route ->
+                composable(route) {
+                    LaunchedEffect(route) { navigateFromWorkflow(route) }
+                }
+            }
             composable(RescueAuthRoutes.SEARCH) {
                 SearchRoute(
                     onBack = { navController.popBackStack() },
