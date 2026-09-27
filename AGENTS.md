@@ -23,13 +23,13 @@
 - 当前阶段（同步于 2026-09-27）：**Phase 0/1/2/3/4/5 CLOSED**；Phase 6 的 L1/L2 CLOSED，L3
   Clipboard / security polish 明确 DEFER。**DAILY-USE READY = YES**，
   **V2.0 FEATURE COMPLETE = YES**，**V2.0 RELEASED = NO**。
-  本轮界面整理和本地回归已完成（代码基线 `cb96999`，见 `docs/UI_POLISH_REPORT.md`），
+  本轮界面整理和本地回归已完成（代码基线 `69127e6`，见 `docs/UI_POLISH_REPORT.md`），
   当前进入 **1.0.0 发布准备**，工作重点是发布配置、候选包验证与必要缺陷修复。
 - 当前 release blockers：production Update Ed25519 provisioning、
   `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、signed release real-device smoke
   与最终 FTL / device regression；顺序和验收证据集中维护于
   [RELEASE_PROVISIONING.md §15](docs/RELEASE_PROVISIONING.md#release-readiness)。
-  历史数据库 Firebase Test Lab 6/6 PASS 与当前本地模拟器 87/87 PASS 均不替代
+  历史数据库 Firebase Test Lab 6/6 PASS 与当前本地模拟器 90/90 PASS 均不替代
   候选版本的最终设备回归；生物识别、Keystore 有效期和锁屏仍需真机验证。
 - 阶段与 slice 定义见 `ROADMAP.md §5`，详细实现证据见对应 `docs/PHASE*_REPORT.md`
   与 ADR；文档导航及时效规则见 `docs/README.md`。**不要再新增平行的阶段表**。

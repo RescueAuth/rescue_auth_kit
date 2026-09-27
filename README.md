@@ -14,8 +14,8 @@ them between devices with a manually exported, encrypted vault package.
 
 The planned feature scope is implemented; the interface and navigation motion
 have passed local regression checks.
-The latest code baseline, `cb96999`, passed 420 core tests, 769 app JVM tests
-and 87 Android instrumented tests. Debug builds passed; lint reported no errors
+The latest code baseline, `69127e6`, passed 420 core tests, 769 app JVM tests
+and 90 Android instrumented tests. Debug builds passed; lint reported no errors
 and still has warnings. See the [validation record](docs/UI_POLISH_REPORT.md).
 
 The native app has **not been released**. Remaining work covers production

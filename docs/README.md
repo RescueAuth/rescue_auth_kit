@@ -50,7 +50,7 @@
 - `V2.0 RELEASED = NO`：仍需 production update Ed25519 provisioning、
   `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、签名 release 的真机 smoke
   和最终 FTL/device regression；以[发布检查清单](RELEASE_PROVISIONING.md#release-readiness)为准。
-- 代码基线 `cb96999` 已通过 420 项 Core、769 项 App JVM 和 87 项本地 Android 原生测试。
+- 代码基线 `69127e6` 已通过 420 项 Core、769 项 App JVM 和 90 项本地 Android 原生测试。
   Debug / AndroidTest APK 构建成功，lint 无错误但仍有告警。该记录不等于云端回归或签名候选包验收。
 - Native app 位于仓库根目录，`applicationId=com.rescueauth.v2`，
   `versionName=1.0.0`、`versionCode=10000`；旧 Flutter 源码只在
