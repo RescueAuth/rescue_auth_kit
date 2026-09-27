@@ -1,0 +1,240 @@
+package com.rescueauth.v2.ui
+
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.os.LocaleList
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.espresso.Espresso.pressBack
+import androidx.test.platform.app.InstrumentationRegistry
+import com.rescueauth.v2.ui.components.StudioVaultHero
+import com.rescueauth.v2.ui.screens.about.AboutTestTags
+import com.rescueauth.v2.ui.screens.settings.SettingsTestTags
+import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import java.io.File
+import java.util.Locale
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** Exercise the real shell at intermediate frames, not only after animations settle. */
+@OptIn(ExperimentalTestApi::class)
+@RunWith(AndroidJUnit4::class)
+class NavigationMotionTest {
+    private val motionScale = object : MotionDurationScale { override var scaleFactor = 1f }
+    @get:Rule val rule = createComposeRule(effectContext = motionScale)
+
+    private fun show(rtl: Boolean = false) {
+        rule.setContent {
+            val base = LocalContext.current
+            val config = Configuration(base.resources.configuration).apply { setLocales(LocaleList(Locale.ENGLISH)) }
+            CompositionLocalProvider(
+                LocalContext provides base.createConfigurationContext(config),
+                LocalConfiguration provides config,
+                LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+            ) { RescueAuthTheme { RescueAuthApp(versionName = "1.0.0") } }
+        }
+        rule.waitForIdle()
+    }
+
+    private fun bounds(tag: String) = rule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+    private fun midFrame() { rule.mainClock.advanceTimeByFrame(); rule.mainClock.advanceTimeBy(80) }
+    private fun finish() { rule.mainClock.advanceTimeBy(240); rule.waitForIdle() }
+    private fun about() = rule.onNodeWithTag(SettingsTestTags.ABOUT_ROW).performScrollTo().performClick()
+    private fun back() = rule.onNodeWithContentDescription("Back").performClick()
+
+    private fun assertDockTracksPages(rtl: Boolean = false) {
+        val viewport = rule.onRoot().getUnclippedBoundsInRoot()
+        val width = (viewport.right - viewport.left).value
+        val tags = listOf(RescueAuthTestTags.SCREEN_AUTHENTICATOR,
+            RescueAuthTestTags.SCREEN_DEVELOPER, RescueAuthTestTags.SCREEN_SETTINGS)
+        val visible = tags.mapIndexedNotNull { index, tag ->
+            if (rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) null else {
+                val page = bounds(tag)
+                if (page.right > viewport.left && page.left < viewport.right) index to page else null
+            }
+        }.first()
+        val direction = if (rtl) -1 else 1
+        val pagePosition = visible.first - (visible.second.left - viewport.left).value / (width * direction)
+        val first = bounds(RescueAuthTestTags.NAV_AUTHENTICATOR).left.value
+        val second = bounds(RescueAuthTestTags.NAV_DEVELOPER).left.value
+        val dockPosition = (bounds("navigation_indicator").left.value - first) / (second - first)
+        assertEquals("Dock and page must represent the same fractional position", pagePosition, dockPosition, .02f)
+    }
+
+    private fun capture(name: String) {
+        // Gradle collects this ignored build output; no gallery or image fixture is committed.
+        val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir") ?: return
+        val directory = File(output, "navigation-motion").apply { mkdirs() }
+        File(directory, "$name.png").outputStream().use {
+            rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
+    @Test fun tabsPushHorizontallyWhileDockStaysFixed() {
+        show()
+        val source = bounds(RescueAuthTestTags.SCREEN_AUTHENTICATOR)
+        val dock = bounds("navigation_dock")
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_DEVELOPER).performClick()
+        midFrame()
+        val outgoing = bounds(RescueAuthTestTags.SCREEN_AUTHENTICATOR)
+        val incoming = bounds(RescueAuthTestTags.SCREEN_DEVELOPER)
+        assertTrue("Outgoing page must move left, not just fade", outgoing.left < source.left)
+        assertTrue("Incoming page must enter from the right", incoming.left > source.left && incoming.left < source.right)
+        assertEquals(dock, bounds("navigation_dock"))
+        assertDockTracksPages()
+        capture("tabs-forward")
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR).assertIsNotDisplayed()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_DEVELOPER).assertIsDisplayed()
+    }
+
+    @Test fun skippingATabKeepsPagesAndDockInStepAtEverySample() {
+        show()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        repeat(5) {
+            rule.mainClock.advanceTimeBy(32)
+            rule.waitForIdle()
+            assertDockTracksPages()
+        }
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+        assertDockTracksPages()
+    }
+
+    private fun reverseTabs(rtl: Boolean) {
+        show(rtl)
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        val origin = bounds(RescueAuthTestTags.SCREEN_SETTINGS).left.value
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_DEVELOPER).performClick()
+        midFrame()
+        val sign = if (rtl) -1 else 1
+        assertTrue((bounds(RescueAuthTestTags.SCREEN_SETTINGS).left.value - origin) * sign > 0)
+        assertTrue((bounds(RescueAuthTestTags.SCREEN_DEVELOPER).left.value - origin) * sign < 0)
+        assertDockTracksPages(rtl)
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsNotDisplayed()
+    }
+
+    @Test fun reverseTabSwitchMirrorsTheTravelDirection() = reverseTabs(rtl = false)
+    @Test fun tabTravelRespectsRtlOrder() = reverseTabs(rtl = true)
+
+    @Test fun systemBackFromAnotherHomeReturnsToAccounts() {
+        show()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+        pressBack()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR).assertIsDisplayed()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_AUTHENTICATOR).assertIsSelected()
+        assertDockTracksPages()
+    }
+
+    @Test fun detailPushAndBackSlideWithoutResizingTheUnderlyingRoot() {
+        show()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        val root = bounds(RescueAuthTestTags.SCREEN_SETTINGS)
+        rule.mainClock.autoAdvance = false
+        about()
+        midFrame()
+        assertTrue(bounds(AboutTestTags.SCREEN).left > root.left)
+        assertTrue(bounds(RescueAuthTestTags.SCREEN_SETTINGS).left < root.left)
+        val departingRoot = bounds(RescueAuthTestTags.SCREEN_SETTINGS)
+        assertEquals("Hiding the dock must not resize the departing page", root.bottom - root.top,
+            departingRoot.bottom - departingRoot.top)
+        capture("detail-push")
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertDoesNotExist()
+        back()
+        midFrame()
+        assertTrue("Back must move the detail toward the right", bounds(AboutTestTags.SCREEN).left > root.left)
+        assertTrue(bounds(RescueAuthTestTags.SCREEN_SETTINGS).left < root.left)
+        val returningRoot = bounds(RescueAuthTestTags.SCREEN_SETTINGS)
+        assertEquals(root.bottom - root.top, returningRoot.bottom - returningRoot.top)
+        capture("detail-back")
+        finish()
+        rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
+        assertEquals(root, bounds(RescueAuthTestTags.SCREEN_SETTINGS))
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertIsSelected()
+    }
+
+    @Test fun rapidTabSwitchesSettleOnTheLastTap() {
+        show()
+        rule.mainClock.autoAdvance = false
+        for (tag in listOf(RescueAuthTestTags.NAV_SETTINGS, RescueAuthTestTags.NAV_DEVELOPER,
+            RescueAuthTestTags.NAV_AUTHENTICATOR)) {
+            rule.onNodeWithTag(tag).performClick()
+            rule.mainClock.advanceTimeBy(48)
+            // Flush NavController's back-stack Flow between taps, as a real UI frame does.
+            rule.waitForIdle()
+        }
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_AUTHENTICATOR).assertIsSelected()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR).assertIsDisplayed()
+        assertEquals(0f, bounds(RescueAuthTestTags.SCREEN_AUTHENTICATOR).left.value, .5f)
+        // Transition-completion effects remove the now off-screen back-stack entries.
+        repeat(3) { rule.mainClock.advanceTimeByFrame() }
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_DEVELOPER).assertIsNotDisplayed()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsNotDisplayed()
+        assertDockTracksPages()
+    }
+
+    @Test fun disabledSystemAnimationsSnapTabsAndDetailBack() {
+        motionScale.scaleFactor = 0f
+        show()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        repeat(4) { rule.mainClock.advanceTimeByFrame() }
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR).assertIsNotDisplayed()
+        about()
+        repeat(4) { rule.mainClock.advanceTimeByFrame() }
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertDoesNotExist()
+        back()
+        repeat(4) { rule.mainClock.advanceTimeByFrame() }
+        rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+    }
+
+    @Test fun bannerTextIsOpaqueFromItsFirstFrame() {
+        rule.mainClock.autoAdvance = false
+        rule.setContent { RescueAuthTheme {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                StudioVaultHero(accountCount = 12)
+            }
+        } }
+        rule.mainClock.advanceTimeByFrame()
+        val first = rule.onNodeWithTag("vault_brand_banner").captureToImage()
+        rule.mainClock.advanceTimeBy(240)
+        val settled = rule.onNodeWithTag("vault_brand_banner").captureToImage()
+        fun ink(image: ImageBitmap): Int {
+            val pixels = image.toPixelMap()
+            var count = 0
+            for (y in 0 until pixels.height) for (x in 0 until (pixels.width * .6f).toInt()) {
+                val color = pixels[x, y]
+                if (maxOf(color.red, color.green, color.blue) < .4f) count++
+            }
+            return count
+        }
+        assertTrue("The settled banner must contain readable text", ink(settled) > 20)
+        assertTrue("Only artwork may fade; text must already have its final contrast",
+            ink(first) >= ink(settled) * .95f)
+    }
+}

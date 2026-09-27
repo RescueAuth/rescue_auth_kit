@@ -1,6 +1,14 @@
 package com.rescueauth.v2.ui
 
 import com.rescueauth.v2.BuildConfig
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import com.rescueauth.v2.ui.theme.DockTokens
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,14 +23,17 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -41,6 +52,7 @@ import com.rescueauth.v2.ui.developer.DeveloperRoute
 import com.rescueauth.v2.ui.developer.DeveloperListViewModel
 import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
+import com.rescueauth.v2.ui.navigation.RescueAuthNavigationMotion
 import com.rescueauth.v2.ui.navigation.vaultDestination
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
 import com.rescueauth.v2.ui.screens.about.AboutRoute
@@ -85,13 +97,44 @@ fun RescueAuthApp(
 ) {
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
+    val layoutDirection = LocalLayoutDirection.current
+    val motion = remember(layoutDirection) { RescueAuthNavigationMotion(layoutDirection) }
+    var retainedRootBottomPadding by remember { mutableStateOf(0.dp) }
+    val homePagerState = rememberPagerState(
+        initialPage = TopLevelDestinations.all.indexOfFirst { it.route == startRoute }.coerceAtLeast(0),
+        pageCount = { TopLevelDestinations.all.size },
+    )
+    val navigationScope = rememberCoroutineScope()
+    var homeScrollJob by remember { mutableStateOf<Job?>(null) }
+    val selectHomePage: (Int) -> Unit = { page ->
+        // Cancel first, including a return to the still-current page before its first frame.
+        homeScrollJob?.cancel()
+        homeScrollJob = navigationScope.launch {
+            homePagerState.animateScrollToPage(page,
+                animationSpec = tween(DockTokens.slideDurationMillis, easing = FastOutSlowInEasing))
+        }
+    }
+    val navigateFromWorkflow: (String) -> Unit = { route ->
+        val rootPage = TopLevelDestinations.all.indexOfFirst { it.route == route }
+        if (rootPage >= 0) {
+            homeScrollJob?.cancel()
+            navController.popBackStack(RescueAuthRoutes.HOME, inclusive = false)
+            homeScrollJob = navigationScope.launch { homePagerState.scrollToPage(rootPage) }
+        } else {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     // Optional deep-link on first app launch (e.g. a v1 migration entry tapped
     // from the Intro screen lands here straight inside the legacy importer).
     LaunchedEffect(startRoute) {
-        if (startRoute != null) {
-            navController.navigate(startRoute) { launchSingleTop = true }
-        }
+        val rootPage = TopLevelDestinations.all.indexOfFirst { it.route == startRoute }
+        if (rootPage >= 0) homePagerState.scrollToPage(rootPage)
+        else if (startRoute != null) navController.navigate(startRoute) { launchSingleTop = true }
     }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -99,9 +142,8 @@ fun RescueAuthApp(
     // Detail, search and transfer flows get the full viewport and their own
     // back affordance; leaving the tab bar visible there makes secondary pages
     // feel like another root and competes with the task at hand.
-    val showBottomBar = TopLevelDestinations.all.any { destination ->
-        currentDestination?.hierarchy?.any { it.route == destination.route } == true
-    }
+    val showBottomBar = currentDestination?.route == RescueAuthRoutes.HOME
+    BackHandler(enabled = showBottomBar && homePagerState.targetPage != 0) { selectHomePage(0) }
 
     // The Authenticator ViewModel is held at the app-shell level (not inside
     // the per-tab route) so switching bottom tabs — which disposes the route's
@@ -151,43 +193,89 @@ fun RescueAuthApp(
             {
                 com.rescueauth.v2.ui.components.RescueAuthNavigationBar(
                     isSelected = { destination ->
-                        currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                        TopLevelDestinations.all[homePagerState.targetPage] == destination
                     },
-                    onNavigate = { destination ->
-                        navController.navigate(destination.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    pagePosition = { homePagerState.currentPage + homePagerState.currentPageOffsetFraction },
+                    onNavigate = { destination -> selectHomePage(TopLevelDestinations.all.indexOf(destination)) },
                 )
             }
         } else {
             {}
         },
     ) { padding ->
+        // Keep the host full-height. Root pages own their dock clearance, including while
+        // they leave/re-enter; toggling the dock must not resize either page mid-transition.
+        val rootBottomPadding = if (showBottomBar) padding.calculateBottomPadding() else retainedRootBottomPadding
+        SideEffect {
+            if (showBottomBar) retainedRootBottomPadding = rootBottomPadding
+        }
         NavHost(
             navController = navController,
-            startDestination = RescueAuthRoutes.AUTHENTICATOR,
+            startDestination = RescueAuthRoutes.HOME,
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(padding),
+                .background(MaterialTheme.colorScheme.background),
+            enterTransition = { motion.enter(isPop = false) },
+            exitTransition = { motion.exit(isPop = false) },
+            popEnterTransition = { motion.enter(isPop = true) },
+            popExitTransition = { motion.exit(isPop = true) },
         ) {
-            composable(RescueAuthRoutes.AUTHENTICATOR) {
-                AuthenticatorRoute(
-                    viewModel = authenticatorViewModel,
-                    onOpenAccount = { accountId ->
-                        navController.navigate("authenticator/account-detail/$accountId")
-                    },
-                    onOpenProvider = { providerName ->
-                        navController.navigate("authenticator/provider/${Uri.encode(providerName)}")
-                    },
-                    onOpenSearch = {
-                        navController.navigate(RescueAuthRoutes.SEARCH)
-                    },
-                    modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR),
-                )
+            composable(RescueAuthRoutes.HOME) {
+                HorizontalPager(
+                    state = homePagerState,
+                    // Navigation remains button-driven; the pager supplies one shared motion clock.
+                    userScrollEnabled = false,
+                    key = { TopLevelDestinations.all[it].route },
+                    modifier = Modifier.padding(bottom = rootBottomPadding).fillMaxSize().testTag("home_pager"),
+                ) { page ->
+                    when (page) {
+                        0 -> {
+                            AuthenticatorRoute(
+                                viewModel = authenticatorViewModel,
+                                onOpenAccount = { accountId ->
+                                    navController.navigate("authenticator/account-detail/$accountId")
+                                },
+                                onOpenProvider = { providerName ->
+                                    navController.navigate("authenticator/provider/${Uri.encode(providerName)}")
+                                },
+                                onOpenSearch = {
+                                    navController.navigate(RescueAuthRoutes.SEARCH)
+                                },
+                                modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR),
+                            )
+                        }
+                        1 -> {
+                            DeveloperRoute(
+                                viewModel = developerViewModel,
+                                onOpenEntry = { entry ->
+                                    navController.navigate(RescueAuthRoutes.developerEntry(entry.stableId))
+                                },
+                                onAddTypeSelected = { type ->
+                                    navController.navigate(
+                                        RescueAuthRoutes.developerAdd(type.name),
+                                    )
+                                },
+                                onOpenCategory = { type ->
+                                    navController.navigate("developer/category/${type.name}")
+                                },
+                                modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_DEVELOPER),
+                            )
+                        }
+                        2 -> {
+                            SettingsScreen(
+                                versionName = versionName,
+                                themeMode = themeMode,
+                                onThemeModeChange = onThemeModeChange,
+                                onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
+                                onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
+                                onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
+                                onAboutClick = { navController.navigate(RescueAuthRoutes.ABOUT) },
+                                onTransferClick = { navController.navigate(RescueAuthRoutes.SETTINGS_TRANSFER) },
+                                modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_SETTINGS),
+                            )
+                        }
+                    }
+                }
             }
             composable(RescueAuthRoutes.SEARCH) {
                 SearchRoute(
@@ -245,30 +333,7 @@ fun RescueAuthApp(
                 RecoveryCodesRoute(
                     accountId = accountId,
                     onBack = { navController.popBackStack() },
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                )
-            }
-            composable(RescueAuthRoutes.DEVELOPER) {
-                DeveloperRoute(
-                    viewModel = developerViewModel,
-                    onOpenEntry = { entry ->
-                        navController.navigate(RescueAuthRoutes.developerEntry(entry.stableId))
-                    },
-                    onAddTypeSelected = { type ->
-                        navController.navigate(
-                            RescueAuthRoutes.developerAdd(type.name),
-                        )
-                    },
-                    onOpenCategory = { type ->
-                        navController.navigate("developer/category/${type.name}")
-                    },
-                    modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_DEVELOPER),
+                    onNavigate = navigateFromWorkflow,
                 )
             }
             composable(
@@ -308,15 +373,7 @@ fun RescueAuthApp(
                     onEdit = { stableId ->
                         navController.navigate(RescueAuthRoutes.developerEdit(stableId))
                     },
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onNavigate = navigateFromWorkflow,
                 )
             }
             composable(
@@ -342,28 +399,7 @@ fun RescueAuthApp(
                     initialType = type,
                     onBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                )
-            }
-            composable(RescueAuthRoutes.SETTINGS) {
-                SettingsScreen(
-                    versionName = versionName,
-                    themeMode = themeMode,
-                    onThemeModeChange = onThemeModeChange,
-                    onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
-                    onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
-                    onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
-                    onAboutClick = { navController.navigate(RescueAuthRoutes.ABOUT) },
-                    onTransferClick = { navController.navigate(RescueAuthRoutes.SETTINGS_TRANSFER) },
-                    modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_SETTINGS),
+                    onNavigate = navigateFromWorkflow,
                 )
             }
             composable(RescueAuthRoutes.SETTINGS_TRANSFER) {
@@ -381,15 +417,7 @@ fun RescueAuthApp(
                     encodedPublicKey = BuildConfig.UPDATE_PUBLIC_KEY,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag(AboutTestTags.SCREEN),
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onNavigate = navigateFromWorkflow,
                 )
             }
             composable(RescueAuthRoutes.EXPORT) {
@@ -397,15 +425,7 @@ fun RescueAuthApp(
                     mode = ExportImportMode.EXPORT,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_export"),
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onNavigate = navigateFromWorkflow,
                 )
             }
             composable(RescueAuthRoutes.IMPORT) {
@@ -413,30 +433,14 @@ fun RescueAuthApp(
                     mode = ExportImportMode.IMPORT,
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_import"),
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onNavigate = navigateFromWorkflow,
                 )
             }
             composable(RescueAuthRoutes.LEGACY_IMPORT) {
                 LegacyImportRoute(
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_legacy_import"),
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onNavigate = navigateFromWorkflow,
                 )
             }
         }

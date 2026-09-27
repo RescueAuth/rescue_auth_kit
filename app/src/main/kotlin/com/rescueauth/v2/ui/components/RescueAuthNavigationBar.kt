@@ -36,16 +36,19 @@ import kotlin.math.roundToInt
 @Composable
 fun RescueAuthNavigationBar(
     isSelected: (TopLevelDestination) -> Boolean,
+    pagePosition: (() -> Float)? = null,
     onNavigate: (TopLevelDestination) -> Unit,
 ) {
     val destinations = TopLevelDestinations.all
     val selectedIndex = destinations.indexOfFirst(isSelected)
-    val position by animateFloatAsState(
-        targetValue = selectedIndex.coerceAtLeast(0).toFloat(),
-        animationSpec = tween(DockTokens.slideDurationMillis, easing = FastOutSlowInEasing),
-        label = "dock indicator position",
-    )
-    val indicatorPosition = position
+    val indicatorPosition = pagePosition ?: run {
+        val position = animateFloatAsState(
+            targetValue = selectedIndex.coerceAtLeast(0).toFloat(),
+            animationSpec = tween(DockTokens.slideDurationMillis, easing = FastOutSlowInEasing),
+            label = "dock indicator position",
+        )
+        return@run { position.value }
+    }
     Box(Modifier.navigationBarsPadding().padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.xs)) {
         Surface(modifier = Modifier.testTag("navigation_dock"),
             color = DockTokens.containerColor(), shape = CardTokens.dockShape,
@@ -64,7 +67,9 @@ fun RescueAuthNavigationBar(
                     val pill = measurables.single().measure(Constraints.fixed(cellWidth.roundToInt(), constraints.maxHeight))
                     layout(constraints.maxWidth, constraints.maxHeight) {
                         // Relative placement mirrors both the slide and the resting position in RTL.
-                        pill.placeRelative(((cellWidth + gap) * indicatorPosition).roundToInt(), 0)
+                        // Read the shared pager position only during placement; scrolling
+                        // must not recompose the app shell or run a second indicator clock.
+                        pill.placeRelative(((cellWidth + gap) * indicatorPosition()).roundToInt(), 0)
                     }
                 }
                 Row(Modifier.fillMaxWidth().selectableGroup(),

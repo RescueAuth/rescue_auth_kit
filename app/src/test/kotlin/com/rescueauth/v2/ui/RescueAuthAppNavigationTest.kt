@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -27,12 +28,19 @@ class RescueAuthAppNavigationTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun setAppContent() {
+    private fun setAppContent(startRoute: String? = null) {
         composeRule.setContent {
             RescueAuthTheme {
-                RescueAuthApp()
+                RescueAuthApp(startRoute = startRoute)
             }
         }
+    }
+
+    @Test
+    fun topLevelStartRouteSelectsTheMatchingHomePage() {
+        setAppContent(com.rescueauth.v2.ui.navigation.RescueAuthRoutes.DEVELOPER)
+        composeRule.onNodeWithTag(RescueAuthTestTags.SCREEN_DEVELOPER).assertIsDisplayed()
+        composeRule.onNodeWithTag(RescueAuthTestTags.NAV_DEVELOPER).assertIsSelected()
     }
 
     @Test

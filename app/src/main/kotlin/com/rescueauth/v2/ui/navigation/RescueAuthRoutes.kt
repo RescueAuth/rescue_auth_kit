@@ -13,6 +13,8 @@ package com.rescueauth.v2.ui.navigation
  * list → entry detail → create/edit form.
  */
 object RescueAuthRoutes {
+    /** One retained pager hosts the three product roots; details live above it. */
+    const val HOME = "home"
     const val AUTHENTICATOR = "authenticator"
     const val DEVELOPER = "developer"
     const val SETTINGS = "settings"

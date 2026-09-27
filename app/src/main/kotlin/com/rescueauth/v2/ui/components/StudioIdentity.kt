@@ -111,8 +111,7 @@ fun StudioVaultHero(
     val reveal = remember { Animatable(0f) }
     LaunchedEffect(Unit) { reveal.animateTo(1f, tween(CardTokens.bannerEnterDurationMillis)) }
     RescueAuthCard(
-        modifier = modifier.testTag("vault_brand_banner").heightIn(min = bannerHeight)
-            .graphicsLayer { alpha = reveal.value },
+        modifier = modifier.testTag("vault_brand_banner").heightIn(min = bannerHeight),
         containerColor = CardTokens.containerColor(),
         shape = CardTokens.shape,
         contentPadding = CardTokens.noPadding,
@@ -125,9 +124,11 @@ fun StudioVaultHero(
                 else size.width - artworkSize + CardTokens.bannerMotifEndOffset.toPx()
             val artworkY = CardTokens.bannerMotifTopOffset.toPx()
             onDrawBehind {
-                drawRect(wash)
+                // Text and account totals are readable from the first frame. Only the
+                // decorative paint fades, without an extra layer over the whole card.
+                drawRect(wash, alpha = reveal.value)
                 withTransform({ translate(artworkX, artworkY) }) {
-                    with(motif) { draw(Size(artworkSize, artworkSize), alpha = motifAlpha) }
+                    with(motif) { draw(Size(artworkSize, artworkSize), alpha = motifAlpha * reveal.value) }
                 }
             }
         }) {
