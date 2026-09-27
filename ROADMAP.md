@@ -1,6 +1,6 @@
-# ROADMAP.md — Rescue Auth Kit v2（正式产品路线图）
+# ROADMAP.md — 拾遗坊 / RescueAuth v2（正式产品路线图）
 
-> 状态：**正式**（2026-08-07，Issue #17 产品决策落定）。
+> 状态：**1.0.0 发布准备**（2026-09-27 核对；产品范围沿用 2026-08-07 Issue #17 决策）。
 > 本文是 v2 唯一的路线图 source of truth。Phase 级进度、阶段状态
 > 由 `AGENTS.md` 同步维护；**不要**在 PR body / issue / 其他文档中
 > 再维护一份平行的阶段表。
@@ -12,8 +12,8 @@
 
 ## 0. 产品定义（v2 = Android-only、local-first、加密个人安全库）
 
-Rescue Auth Kit v2 是一个 **Android-only、local-first、encrypted personal
-security vault**。它不是单纯的 TOTP Authenticator。完整产品由三个
+拾遗坊（RescueAuth）是一个 **Android-only、local-first、encrypted personal
+security vault**。v2 为原生重写代际，首个原生版本号为 `1.0.0`。完整产品由三个
 **正式产品能力**组成：
 
 ```
@@ -185,8 +185,11 @@ unlock 中**。覆盖操作与 Roadmap 安排见 §5.6。
 
 ## 5. Phase Roadmap（Phase 3 之后全部重新规划）
 
-> 当前结论（同步于 2026-08-27）：Phase 0–5 CLOSED；Phase 6 的 L1/L2 CLOSED、L3 DEFER；
-> DAILY-USE READY 与 V2.0 FEATURE COMPLETE 均已达到，但尚未正式发布。
+> 当前结论（同步于 2026-09-27）：Phase 0–5 CLOSED；Phase 6 的 L1/L2 CLOSED、L3 DEFER；
+> DAILY-USE READY 与 V2.0 FEATURE COMPLETE 均已达到。本轮界面整理已完成，
+> 当前进入 **1.0.0 发布准备**，尚未正式发布。验证记录见
+> [UI_POLISH_REPORT.md](docs/UI_POLISH_REPORT.md)，发布门槛集中维护于
+> [RELEASE_PROVISIONING.md §15](docs/RELEASE_PROVISIONING.md#release-readiness)。
 
 ### 5.0 已关闭阶段（保持不动）
 
@@ -288,6 +291,7 @@ P5 完成，继续复用同一 Merge Engine。
 | --- | --- | --- | --- | --- |
 | **L1 — Localization（en + zh-CN）** | ✅ 已实现（完整双语 key 与 format 对齐） | 双语 UI | 任意阶段可并行开始 | M |
 | **L2 — About / Update Check** | ✅ 已实现（见 `docs/PHASE6_L2_REPORT.md`）version/about、签名校验的手动更新检查、外部打开 release | 用户可看到版本与更新入口（不自动安装） | — | S |
+| **L3 — Clipboard / security polish** | DEFER：clipboard auto-clear 与后续动画 / 无障碍打磨 | 后期安全打磨 | — | S |
 
 > **L2 当前状态**：已实现并合并。About 页
 > （runtime versionName/versionCode、product description、Check for Updates、
@@ -296,9 +300,14 @@ P5 完成，继续复用同一 Merge Engine。
 > 签名覆盖 exact raw bytes，`.sig` 为 Base64 原始 64-byte；schema v1 strict
 > validation；manual only（无 WorkManager/后台）；update data fail closed /
 > app fail open；INTERNET 权限显式声明；UI 状态机 + error taxonomy 冻结。
-> 发布基础设施（`rescueauth-updates` 仓库、生产 update 公钥 provisioning）
-> 未完成 —— 见 `docs/UPDATE_PROTOCOL.md` §Release Infrastructure Pending。
-| **L3 — Clipboard / security polish** | DEFER：clipboard auto-clear、动画/无障碍 polish | 后期安全打磨 | — | S |
+> 发布基础设施（`rescueauth-updates` 更新渠道、生产 update 公钥 provisioning）
+> 尚未验收 —— 见 `docs/UPDATE_PROTOCOL.md` §Release Infrastructure Pending。
+
+2026-09-27 界面整理已完成：品牌与图标、账户入口、主题与 Dock、浮动标签、
+通用页面模板，以及 Developer 完整编辑器重认证均有回归记录。
+当前代码基线 `ae73494` 的本地 JVM / 原生测试已通过，详见
+[界面整理报告](docs/UI_POLISH_REPORT.md)。这些结果不替代生产签名候选包的真机验收，
+也不将 L3 的剩余项改为已完成。
 
 > Update Check 具体实现可复用旧版 UpdateChecker 语义 + 新
 > UPDATE_PROTOCOL.md（CNB 固定清单 + Ed25519 验签）。**不做** self
@@ -535,10 +544,11 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 > **V2.0 FEATURE COMPLETE = YES**（经最终 release-readiness 审计确认，全部
 > v2.0 正式产品能力已实现并有测试覆盖）。
 >
-> **V2.0 RELEASED = NO**：FEATURE COMPLETE 不等于已发布。Android production
+> **V2.0 RELEASED = NO**：当前为 **1.0.0 发布准备**。Android production
 > signing identity 已 provision；仍待 production Update Ed25519 provisioning、
-> `rescueauth-updates` 基础设施、signed release real-device smoke、FTL / final
-> device regression。
+> `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、signed release real-device smoke、
+> FTL / final device regression。执行顺序和验收证据见
+> [RELEASE_PROVISIONING.md §15](docs/RELEASE_PROVISIONING.md#release-readiness)。
 >
 > **Release Provisioning Step 1 = MERGED；Step 2 = PROVISIONED**（见
 > `docs/RELEASE_PROVISIONING.md`）：新 App `applicationId=com.rescueauth.v2`

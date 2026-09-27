@@ -1,7 +1,8 @@
 # Firebase Test Lab CI 接入文档
 
 > 适用于仓库 `xincy22/rescue_auth_kit` 的 Firebase Test Lab（下称 FTL）接入。
-> 本 PR 只接入测试基础设施，不修改任何产品代码。
+> 本文记录当前手动设备测试入口与凭据边界；最终候选版本的验收状态见
+> [发布检查清单](RELEASE_PROVISIONING.md#release-readiness)。
 
 ---
 

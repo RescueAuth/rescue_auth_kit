@@ -1,4 +1,4 @@
-# AGENTS.md — RescueAuth v2 维护契约
+# AGENTS.md — 拾遗坊 / RescueAuth v2 维护契约
 
 > 面向所有 AI / 人类维护者的执行规则。违反以下任何一条都属于违约提交。
 > 产品范围与路线图：`PRODUCT.md`（范围） / `ROADMAP.md`（路线图） /
@@ -6,6 +6,8 @@
 
 ## 项目状态
 
+- 产品中文名为**拾遗坊**、英文名为 **RescueAuth**；仓库名保留 `rescue_auth_kit`，
+  v2 仅表示原生重写代际，首个原生版本号为 `1.0.0`。
 - v2 是**全新 Android 原生应用**（Kotlin + Jetpack Compose + Room/SQLCipher），
   当前仓库根目录只保留原生应用主体。旧 Flutter 源码冻结在
   `legacy-v1.0.0`–`legacy-v1.2.0` tags；当前树保留 legacy fixtures 与只读
@@ -18,13 +20,17 @@
 - v2 代码即仓库根目录（Kotlin + Room/SQLCipher 原生 Android 应用，已从 `v2/` 提升为仓库主体）；`databaseSchemaVersion`（Phase 3A 已升 **2**，Phase 3C 已升 **3**，UI polish 已升 **4**），
   `packageFormatVersion = 1`（PACKAGE_FORMAT.md）。
 - **App 身份 / 版本（Release Provisioning，见 `docs/RELEASE_PROVISIONING.md`）**：新 App `applicationId = com.rescueauth.v2`（≠ Legacy `com.xincy.rescue_auth_kit`，可 side-by-side 安装）、`namespace = com.rescueauth.v2`、`versionName = "1.0.0"`、`versionCode = 10000`。**“v2” 是 generation/rewrite 名称，不等于 `versionName`**（V2.0 FEATURE COMPLETE ≠ versionName 2.0.0）。新 App 独立 release sequence，从 `1.0.0` 开始。Production signing 基础设施已建立（`keystore.properties` / env vars；无 debug fallback；无 config 时 release 为 unsigned；`validateReleaseSigning` 显式校验）。**Production Android signing identity = PROVISIONED（2026-08-11）**；公开证书元数据固定于 `release/android-signing-certificate.txt`，private material 仅存于外部保管位置与 CNB Secret Repository。第一份 local production-signed `1.0.0` candidate 已通过 signer/package/version/debuggable/16K alignment 验证。**Build & Release Workflow 已建立（issue #48）**：CNB production release 现在为 **tag-only**，仅由 `rescueauth-vX.Y.Z` release tag 的 `tag_push` 触发（格式与 tag↔versionName 严格校验，FAIL CLOSED）；`main` / feature / fix 分支不可生产发布。日常真机 smoke 用 Debug Pipeline（`web_trigger_debug_apk`，`Build debug RescueAuth`，owner 手动触发，不读取任何 production secret）。secret 仅注入 production signing stage；Debug 流水线不导入 Secret Repo。
-- 当前阶段（同步于 2026-08-27）：**Phase 0/1/2/3/4/5 CLOSED**；Phase 6 的 L1/L2 CLOSED，L3
+- 当前阶段（同步于 2026-09-27）：**Phase 0/1/2/3/4/5 CLOSED**；Phase 6 的 L1/L2 CLOSED，L3
   Clipboard / security polish 明确 DEFER。**DAILY-USE READY = YES**，
   **V2.0 FEATURE COMPLETE = YES**，**V2.0 RELEASED = NO**。
+  本轮界面整理和本地回归已完成（代码基线 `ae73494`，见 `docs/UI_POLISH_REPORT.md`），
+  当前进入 **1.0.0 发布准备**，工作重点是发布配置、候选包验证与必要缺陷修复。
 - 当前 release blockers：production Update Ed25519 provisioning、
-  `rescueauth-updates` 基础设施、signed release real-device smoke 与最终 FTL /
-  device regression。数据库 instrumented 验证历史结果为 Firebase Test Lab
-  6/6 PASS；生物识别、Keystore 认证有效期与锁屏行为仍有真机验证缺口。
+  `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、signed release real-device smoke
+  与最终 FTL / device regression；顺序和验收证据集中维护于
+  [RELEASE_PROVISIONING.md §15](docs/RELEASE_PROVISIONING.md#release-readiness)。
+  历史数据库 Firebase Test Lab 6/6 PASS 与当前本地模拟器 87/87 PASS 均不替代
+  候选版本的最终设备回归；生物识别、Keystore 有效期和锁屏仍需真机验证。
 - 阶段与 slice 定义见 `ROADMAP.md §5`，详细实现证据见对应 `docs/PHASE*_REPORT.md`
   与 ADR；文档导航及时效规则见 `docs/README.md`。**不要再新增平行的阶段表**。
 

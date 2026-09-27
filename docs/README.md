@@ -1,7 +1,7 @@
-# RescueAuth 文档索引
+# 拾遗坊 / RescueAuth 文档索引
 
 > 本页是文档导航，不替代产品契约、路线图或安全协议。
-> 当前状态同步日期：2026-08-27。
+> 当前状态同步日期：2026-09-27，进入 1.0.0 发布准备。
 
 ## 先读什么
 
@@ -13,6 +13,12 @@
 4. [`../AGENTS.md`](../AGENTS.md)：维护约束、架构禁区、提交和验证要求。
 5. 本页：按主题查找设计契约、实现证据和历史报告。
 
+发布准备从 [RELEASE_PROVISIONING.md §15](RELEASE_PROVISIONING.md#release-readiness)
+开始：其中集中列出已验证的代码基线、创建生产 tag 前的待办，以及签名候选包产出后的验收顺序。
+最近的界面与本地回归证据见 [UI_POLISH_REPORT.md](UI_POLISH_REPORT.md)；
+更新渠道和云端设备操作分别见 [UPDATE_PROTOCOL.md](UPDATE_PROTOCOL.md) 与
+[FIREBASE_TEST_LAB.md](FIREBASE_TEST_LAB.md)。
+
 ## 单一事实来源
 
 | 问题 | 以哪个文件为准 |
@@ -23,7 +29,7 @@
 | Portable Package 字节格式 | [`PACKAGE_FORMAT.md`](PACKAGE_FORMAT.md) |
 | Legacy `.rakvault` 兼容格式 | [`LEGACY_IMPORT.md`](LEGACY_IMPORT.md) |
 | 安全边界和威胁 | [`THREAT_MODEL.md`](THREAT_MODEL.md) 及相关 ADR |
-| 发布签名与流水线 | [`RELEASE_PROVISIONING.md`](RELEASE_PROVISIONING.md) |
+| 发布签名、流水线、发布前清单与验收证据 | [`RELEASE_PROVISIONING.md`](RELEASE_PROVISIONING.md#release-readiness) |
 | 更新清单、签名和客户端状态机 | [`UPDATE_PROTOCOL.md`](UPDATE_PROTOCOL.md) |
 | Firebase Test Lab 操作 | [`FIREBASE_TEST_LAB.md`](FIREBASE_TEST_LAB.md) |
 | Compose 卡片式 UI 约定 | [`UI_CARD_CONVENTION.md`](UI_CARD_CONVENTION.md) |
@@ -36,12 +42,16 @@
 
 ## 当前状态摘要
 
+- 当前工作为 **1.0.0 发布准备**；正式产品范围和本轮界面整理已完成。
 - Phase 0–5：CLOSED。
 - Phase 6：L1 Localization、L2 About/Update Check 已完成；L3 Clipboard / security polish 为 DEFER。
 - `DAILY-USE READY = YES`。
 - `V2.0 FEATURE COMPLETE = YES`。
 - `V2.0 RELEASED = NO`：仍需 production update Ed25519 provisioning、
-  `rescueauth-updates` 基础设施、签名 release 的真机 smoke 和最终 FTL/device regression。
+  `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、签名 release 的真机 smoke
+  和最终 FTL/device regression；以[发布检查清单](RELEASE_PROVISIONING.md#release-readiness)为准。
+- 代码基线 `ae73494` 已通过 420 项 Core、769 项 App JVM 和 87 项本地 Android 原生测试。
+  Debug / AndroidTest APK 构建成功，lint 无错误但仍有告警。该记录不等于云端回归或签名候选包验收。
 - Native app 位于仓库根目录，`applicationId=com.rescueauth.v2`，
   `versionName=1.0.0`、`versionCode=10000`；旧 Flutter 源码只在
   `legacy-v1.0.0`–`legacy-v1.2.0` tags 中。
@@ -52,11 +62,12 @@
 - [`LEGACY_IMPORT.md`](LEGACY_IMPORT.md)：旧 `.rakvault` 的只读兼容边界、解密、映射、stable ID 和 Android 导入流程。
 - [`THREAT_MODEL.md`](THREAT_MODEL.md)：资产、攻击面、信任边界、已接受风险和验证缺口。
 - [`UPDATE_PROTOCOL.md`](UPDATE_PROTOCOL.md)：固定 CNB manifest、Ed25519 验签、schema v1、错误分类和 fail-open/fail-closed 语义。
-- [`RELEASE_PROVISIONING.md`](RELEASE_PROVISIONING.md)：application identity、production signing、tag-only release 和 debug smoke。
+- [`RELEASE_PROVISIONING.md`](RELEASE_PROVISIONING.md)：application identity、production signing、tag-only candidate build、发布检查清单与验收证据。
 - [`FIREBASE_TEST_LAB.md`](FIREBASE_TEST_LAB.md)：instrumented APK 构建、测试矩阵、凭据边界和手动触发方式。
 - [`UI_CARD_CONVENTION.md`](UI_CARD_CONVENTION.md)：`RescueAuthCard`、`RescueAuthRowCard` 与 `CardTokens` 的使用边界。
 - [`UI_PAGE_TEMPLATES.md`](UI_PAGE_TEMPLATES.md)：通用页壳、滚动表单页、公共内容组件，以及 Native / Legacy 流程的展示复用边界。
-- [`UI_REDESIGN_REPORT.md`](UI_REDESIGN_REPORT.md)：当前生产 UI 的完整重构、旧组件清理和验证记录。
+- [`UI_POLISH_REPORT.md`](UI_POLISH_REPORT.md)：2026-09-27 界面、品牌、输入框、交互和源码清理的验证记录。
+- [`UI_REDESIGN_REPORT.md`](UI_REDESIGN_REPORT.md)：2026-08-28 首轮整体 UI 重构的历史记录；后续外观和组件以当前约定及整理报告为准。
 - [`UI_FOUNDATION_REPORT.md`](UI_FOUNDATION_REPORT.md)：Compose shell 和设计系统的建立记录。
 
 ## ADR 索引

@@ -1,14 +1,15 @@
-# PRODUCT.md — RescueAuth v2
+# PRODUCT.md — 拾遗坊 / RescueAuth v2
 
-> 状态：**正式**（2026-08-07，Issue #17 产品决策落定；2026-08-27 与当前
-> 实现状态同步）。
+> 状态：**正式范围已完成，进入 1.0.0 发布准备**（2026-09-27 核对；
+> 产品范围沿用 2026-08-07 Issue #17 决策）。尚未正式发布。
 > 本文定义 v2 的**产品范围**；路线图见 `ROADMAP.md`；阶段进度见
 > `AGENTS.md`。三处不一致视为文档违约。
 
 ## 产品定位
 
-RescueAuth v2 是 **Android-only、local-first、encrypted personal
-security vault**。它不是单纯的 TOTP Authenticator。完整产品包含三个
+产品中文名为**拾遗坊**，英文名为 **RescueAuth**；仓库名仍为 `rescue_auth_kit`。
+v2 表示原生重写代际，首个原生版本为 `1.0.0`。产品是
+**Android-only、local-first、encrypted personal security vault**，完整产品包含三个
 **正式产品能力**：
 
 ```
@@ -16,6 +17,10 @@ A. Authenticator          —— Service Provider / Account / TOTP / Recovery Co
 B. Developer Vault        —— 五类 Developer Entry（完整保留 v1.2.0）
 C. Portable Vault Package —— backup / migration / selective transfer / vault merge
 ```
+
+界面的入口名称为“账户 / Accounts”“开发者 / Developer”和“设置 / Settings”。
+Authenticator 仍作为内部领域名称。发布准备侧重生产更新配置、候选包验证与必要缺陷修复；
+门槛和证据统一见 [发布检查清单](docs/RELEASE_PROVISIONING.md#release-readiness)。
 
 > ⚠️ **已废弃的旧假设**：本仓库曾存在“Developer Vault 在 v2 被
 > intentionally removed”的说法。该假设**已废止**：Developer Vault 五类
@@ -99,7 +104,7 @@ export**，不是 DevOps automation platform。
 - **Environment Variable Set**：projectName、多个 KEY=VALUE；
   create/view/edit/delete/copy。
 - **Generic Secret**：arbitrary label=value fields、title/notes；
-  create/view/edit/delete/copy。
+  create/view/edit/delete/copy。可用字段保存用户名 / 密码；当前不包含系统自动填充或 Passkey 管理。
 
 Legacy（`.rakvault`）导入时的旧 Developer 数据**完整迁移**：Legacy v1
 Developer Vault 五类（Android Signing Key / API Credential / SSH Key /
@@ -113,7 +118,7 @@ CRUD/UI，不是补 migration capability。
 
 - TOTP/恢复码/恢复密钥/导入数据/Developer Entry → 本地加密数据库
   （SQLCipher）。
-- 非敏感 UI 偏好 → Preferences DataStore（当前用于主题色）；敏感数据、搜索
+- 非敏感 UI 偏好 → Preferences DataStore（主题色，以及浅色 / 深色 / 跟随系统）；敏感数据、搜索
   query、PIN、明文 payload 与 Undo snapshot 不得写入 DataStore。
 - 跨设备迁移只通过 **manual Export Package**：每份包由独立 per-export
   PIN 派生 key 保护；PIN 不保存到 Vault、不改变 VaultKey。

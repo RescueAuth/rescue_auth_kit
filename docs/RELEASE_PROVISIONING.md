@@ -1,11 +1,13 @@
-# RescueAuth v2 — Release Provisioning
+# 拾遗坊 / RescueAuth — Release preparation and provisioning
 
-> **Status: Release Provisioning Step 1 = MERGED; Step 2 — Android production
-> signing identity + CNB secret provisioning = PROVISIONED (2026-08-11)**
+> **Status: preparing native release 1.0.0; not published. Checked 2026-09-27.**
 >
-> The app identity/version are frozen, a long-lived production signing identity
-> has been generated, and CNB has a master-only manual signing flow. This does
-> **not** publish an APK, generate the Update Ed25519 key, or run FTL.
+> Application identity and Android signing infrastructure are established.
+> Android signing identity / CNB secret provisioning was recorded on 2026-08-11.
+> The current CNB production path is **tag-only**; debug builds, full regression
+> and Firebase Test Lab use separate manual buttons. Production update trust
+> configuration, update-channel publishing and final device acceptance remain open.
+> Start with [the release checklist and evidence](#release-readiness).
 
 ---
 
@@ -14,6 +16,9 @@
 The internal/project name **RescueAuth v2** (also written `v2 rewrite`,
 `V2.0 FEATURE COMPLETE`) is a **second-generation architecture / rewrite
 generation** name. It is **not** the Android `versionName`.
+
+The product name is **拾遗坊** in Chinese and **RescueAuth** in English.
+The repository remains `rescue_auth_kit`.
 
 - **RescueAuth v2** = second-generation rewrite / project generation name.
 - **V2.0 FEATURE COMPLETE = YES** = the product feature scope of the
@@ -63,8 +68,8 @@ app sandbox. Static proof:
 - different Android sandbox identity,
 - independent signing plan (see §6).
 
-> **REAL-DEVICE SIDE-BY-SIDE SMOKE = PENDING** — validated dynamically in a
-> later signed-release smoke, not in this PR.
+> **REAL-DEVICE SIDE-BY-SIDE SMOKE = PENDING** — the final signed candidate
+> must be exercised alongside the legacy app before release acceptance.
 
 ---
 
@@ -113,8 +118,10 @@ A non-enforced illustrative example:
 - Update Check compares only: `new App current versionCode` vs. `new App
   manifest versionCode`.
 
-> Production Update Ed25519 key provisioning is a **later** release
-> provisioning step and is **not** done in this PR.
+> Production Update Ed25519 provisioning remains a release gate. The checked-in
+> build defaults to an empty `UPDATE_PUBLIC_KEY`, and the current tag pipeline
+> does not provision this value or publish `latest.json` / `latest.json.sig`.
+> The local debug build checked on 2026-09-27 has no configured update key.
 
 ---
 
@@ -310,6 +317,9 @@ Without production signing secrets, normal CI continues to support:
 
 ### First production-signed candidate audit (local, not published)
 
+This is the **2026-08-11 provisioning artifact**, not a signed build of the
+current UI baseline. Its checksum is retained as historical evidence only.
+
 - Artifact: `RescueAuth-1.0.0-production-signed.apk`.
 - APK SHA-256:
   `71D32E2DF3DFAD426DA8A4873AD4058C2A4BF354A28966DC096A06366BA4D931`.
@@ -325,8 +335,10 @@ Without production signing secrets, normal CI continues to support:
 
 ## 10a. Build & Release Workflow (formal)
 
-Long-term policy: **`main` is development; tags are releases.** See also the
-root `README.md` "Branch / Version / Release Policy".
+Long-term policy: **`main` is development; tags identify production candidates
+and releases.** Publishing a tag starts the signing and attachment pipeline;
+stable-channel publication still requires the checks below. See also the
+root [build and release entry points](../README.md#build-and-release-entry-points).
 
 ### Git / version model
 
@@ -354,7 +366,7 @@ Web trigger **"Build debug RescueAuth"** (`web_trigger_debug_apk`), available to
 `owner` on `main` / feature / fix branches:
 
 ```
-tests / assembleDebug
+assembleDebug (no core / Robolectric tests or lint)
   -> debug signing (standard Android debug key)
   -> verify applicationId=com.rescueauth.v2, debuggable=true, valid debug sig
   -> RescueAuth-<versionName>-debug-<shortCommit>.apk
@@ -363,11 +375,25 @@ tests / assembleDebug
 
 - No production Secret Repo import. No production signing password / keystore.
 - No `validateReleaseSigning` / `assembleRelease`.
-- Used for real-device `.rakvault` smoke before merging to `main`.
+- Used for development and real-device `.rakvault` smoke. A successful debug
+  build is not evidence that the full regression suite passed.
+
+### Manual regression entry points
+
+- **Run full RescueAuth test suite** (`web_trigger_full_test`, any branch):
+  core JVM + app Robolectric tests, lint, `assembleDebug` and
+  `assembleDebugAndroidTest`; no secret imports and no FTL execution.
+- **Run Firebase device tests** (`web_trigger_firebase_test`, `main` only):
+  build and validate the debug / AndroidTest APKs, then run the configured
+  single virtual-device matrix. FTL credentials are confined to that stage.
+- All three buttons are owner-only. Ordinary branch push, PR merge and `main`
+  updates do not automatically run these suites. Configuration lives in
+  [`.cnb.yml`](../.cnb.yml) and [`.cnb/web_trigger.yml`](../.cnb/web_trigger.yml).
 
 ### Formal production release — Tag-only pipeline
 
-1. `main` reaches release-ready (feature/fix merged, real-device smoke PASS).
+1. Complete the [pre-tag gates](#release-readiness) for the chosen `main`
+   commit, including update configuration and debug / device regression.
 2. Confirm `versionName` / `versionCode` in `app/build.gradle.kts`.
 3. Owner creates an **annotated** release tag, e.g. `git tag -a rescueauth-v1.0.0`,
    and pushes it.
@@ -380,7 +406,11 @@ tests / assembleDebug
    identity assertions (applicationId, versionName == tag version, versionCode,
    debuggable=false).
 7. Artifact `RescueAuth-X.Y.Z.apk` is attached to the release tag's commit.
-8. Final real-device smoke, then publish / release.
+8. Download that exact attachment, verify its checksum and signer, and complete
+   the signed-candidate real-device smoke.
+9. Publish release notes and the stable update channel only after candidate
+   acceptance. The current pipeline stops at step 7; signed update-manifest
+   publication remains to be implemented and verified.
 
 ### Tag/version assertion (long-term contract)
 
@@ -471,26 +501,73 @@ bridge).
 
 ---
 
-## 15. Release status
+<a id="release-readiness"></a>
 
-| Item | Status |
-|------|--------|
-| RescueAuth v2 (generation name) | second-generation rewrite / project name |
-| New App release version | **1.0.0** |
-| V2.0 FEATURE COMPLETE | YES |
-| V2.0 RELEASED | NO |
-| Release Provisioning Step 1 (identity/version/signing infra) | MERGED (#40) |
-| Release Provisioning Step 2 (Android signing identity + CNB secrets) | **PROVISIONED** |
-| Production Android signing certificate SHA-256 | `2C56E6B764F5664DFD34EA7BFB38F07F1B991055093754E4104714C527584944` |
-| First local production-signed 1.0.0 candidate | **VERIFIED / NOT PUBLISHED** |
-| Candidate APK SHA-256 | `71D32E2DF3DFAD426DA8A4873AD4058C2A4BF354A28966DC096A06366BA4D931` |
-| Independent offline backup | PENDING USER ACTION |
-| Production Update Ed25519 key | **NOT GENERATED** |
-| `rescueauth-updates` production infra | PENDING |
-| Real-device side-by-side smoke | PENDING |
-| FTL | PENDING |
-| Debug APK pipeline (`web_trigger_debug_apk`) | **ESTABLISHED** (issue #48) |
-| Production tag-only release pipeline (`tag_push`) | **ESTABLISHED** (issue #48) |
-| `main` production release entry | **REMOVED** — tag-only now (issue #48) |
-| New release tag `rescueauth-v1.0.0` | **NOT CREATED** (waiting for release-ready) |
-| 1.0.0 published | **NO** |
+## 15. Release readiness — 1.0.0
+
+**Current stage: release preparation. `V2.0 FEATURE COMPLETE = YES`;
+`V2.0 RELEASED = NO`.** This section owns the release gates and acceptance
+evidence; phase progress stays in [ROADMAP.md](../ROADMAP.md).
+
+### Verified baseline
+
+The code baseline is `ae734943f7f5b32f714a35b5c1694347e74465ad`, checked on
+2026-09-27. Subsequent source or release-configuration changes need validation
+against the new candidate revision.
+
+| Area | Evidence and limit |
+| --- | --- |
+| Product and UI | Planned feature scope complete; final brand assets, theme / Dock, shared page templates, floating inputs and synchronized page / Dock motion are in the baseline. Local review artifacts have been removed. See [UI_POLISH_REPORT.md](UI_POLISH_REPORT.md). |
+| Local regression | Core 420/420 + app JVM 769/769; Android instrumented 87/87 on an Android 15 / API 35 emulator. No failures or skips. |
+| Build and static checks | Debug + AndroidTest APKs built; lint: 0 errors, 254 warnings, 1 information item. Nine brand checks passed. This is not a production APK acceptance record. |
+| Android production identity | Step 1 merged; Step 2 provisioned on 2026-08-11. Public certificate metadata is in [release/android-signing-certificate.txt](../release/android-signing-certificate.txt). The old local signed APK in §10 does not cover the current source. |
+| CI entry points | Manual debug, full regression and FTL entries are configured. Production signing and APK attachment run only for `rescueauth-vX.Y.Z` tags. Update-manifest publication is not wired into this pipeline. |
+| Cloud / real-device evidence | Historical database-only FTL 6/6 PASS is retained. Final FTL regression and physical-device signed-candidate smoke have no current acceptance record. |
+| Release publication | No `rescueauth-v*` tag was present in the remote tag check on 2026-09-27; native `1.0.0` remains unpublished. |
+
+### Before creating the production tag
+
+- [ ] **Update signing and trusted configuration.** Provision the independent
+  production Ed25519 manifest key, keep its private material in the designated
+  secret storage, and supply its public key through `UPDATE_PUBLIC_KEY`. Verify
+  a correctly signed manifest and rejection of tampered / incorrectly signed
+  bytes with the candidate configuration. Android APK signing identity stays
+  unchanged. See [UPDATE_PROTOCOL.md](UPDATE_PROTOCOL.md).
+- [ ] **Update hosting and publishing path.** Verify public raw-file access for
+  the fixed `rescueauth-updates` endpoints, versioned APK and release-page URLs,
+  and the workflow that signs and publishes the exact manifest bytes. Repository
+  existence alone is not acceptance; retain fetch / signature / checksum evidence.
+- [ ] **Independent signing-key backup.** Confirm recovery of the established
+  Android signing identity from an independent offline backup. Record completion
+  without passwords, private keys or secret storage locations in the repository.
+- [ ] **Final source regression.** Run the manual full suite and `main`-only FTL
+  entry for the chosen revision; record the CNB run and FTL matrix results. Review
+  remaining lint warnings. Exercise unlock / lock / background return, account
+  and developer CRUD, fresh re-auth, and native / legacy migration on a physical
+  device using disposable test data. Local emulator results do not substitute for
+  Keystore and biometric behavior on that device.
+- [ ] **Candidate identity.** Record the source revision and expected
+  `applicationId=com.rescueauth.v2`, `versionName=1.0.0`, `versionCode=10000`;
+  confirm the tag/version match and release notes. Only then create the annotated
+  production tag via the owner release workflow in §10a.
+
+### After the tag build, before stable-channel publication
+
+- [ ] **Exact signed artifact.** Verify the CI-produced attachment's SHA-256,
+  pinned signer, package identity, version, `debuggable=false` and 16 KiB
+  alignment. Re-download it from its hosted URL and verify the same bytes.
+- [ ] **Signed real-device smoke.** Install that exact artifact; verify legacy
+  side-by-side installation, migration / export-import round-trip, biometric /
+  screen-lock behavior, Keystore authentication validity and sensitive editor
+  access. Record device / OS and results without real vault data.
+- [ ] **Publish and verify the update channel.** Publish the versioned APK and
+  release notes first. Only after verification publish `latest.json` with its
+  matching `.sig`, then verify the client update-check flow from the hosted
+  endpoints. Do not overwrite historical APKs or move an existing release tag.
+- [ ] **Close the release.** Record the tag, CI run, artifact hash, signer,
+  release URL, FTL / device results and update-check result here. Update the
+  README, `ROADMAP.md` and `AGENTS.md` to released only after these gates pass.
+
+Cloud execution, secret provisioning and production publication have not been
+performed by this documentation update. Clipboard auto-clear and further
+accessibility / animation polish remain deferred under `ROADMAP.md §18`.

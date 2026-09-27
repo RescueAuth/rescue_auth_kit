@@ -1,10 +1,10 @@
 # UPDATE_PROTOCOL.md — 更新协议
 
 > 状态：**Client Contract Final / Release Infrastructure Pending**
-> （2026-08-10，Issue #20 Phase 6 L2 本轮实现后定稿）。
+> （客户端契约于 2026-08-10 Phase 6 L2 定稿；发布状态于 2026-09-27 核对）。
 > 客户端侧契约已与本仓库生产代码（`core` / `app` 的 update 包）一致并冻结；
-> 跨仓发布基础设施（`rescueauth-updates` 仓库、生产 Ed25519 密钥、签名发布
-> 流水线）尚未 provision，见 §Release Infrastructure Pending。
+> 生产更新链路（`rescueauth-updates` 公开端点、公钥注入、清单签名与跨仓发布）
+> 尚未验收，见 §Release Infrastructure Pending；Android APK 签名流水线已建立。
 
 ## 1. 结论
 
@@ -238,10 +238,18 @@ Error taxonomy：
 - manifest 中的 `apkUrl` 本轮保留并验证（用于 release metadata / future
   publishing verification），但普通用户主按钮不做 "Download APK"。
 
-## 17. 发布流水线（未来；本轮不做）
+## 17. 发布流程与现有能力
+
+2026-09-27 状态：本仓库的 `tag_push` 流水线已具备测试 / lint、生产 Android 签名、
+APK 身份与签名校验、上传 commit 附件的能力。生产更新公钥注入、更新仓库发布、
+manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
+发布门槛和执行顺序集中维护在
+[RELEASE_PROVISIONING.md §15](RELEASE_PROVISIONING.md#release-readiness)。
+
+完整稳定渠道的目标发布顺序如下；不是对当前 CI 自动化覆盖范围的声明：
 
 1. 格式化/静态检查/单测/截图测试。
-2. 构建 release AAB/APK。
+2. 构建 release APK。
 3. 长期固定 signing key 签名。
 4. 验证签名证书指纹、包名、versionCode。
 5. 生成 SHA-256、release notes、`latest.json` + 签名。
@@ -250,10 +258,10 @@ Error taxonomy：
 8. **最后**原子更新 `stable/latest.json`。
 9. 保留最近至少 3 个稳定版本。
 
-> 本轮 L2 目标是 client-side About + verified manual update check。正式 release
-> pipeline（signed APK / upload / generate manifest / sign / publish）留到最终
-> release/signing 阶段。**不要**：创建 production APK signing key、创建 update
-> private key、配置未知 CNB secrets、自动发布 APK。
+> 沿用已建立的 Android APK 签名身份，不重新生成或替换签名证书。
+> Update Ed25519 是独立的清单签名身份，private key 只进入指定秘密保管位置；
+> 应用仅接收公钥。签名 APK 附件上传成功后，仍须完成真实托管地址校验和
+> 候选包验收，最后才发布匹配的 `stable/latest.json` 与 `.sig`。
 
 ## 18. 回滚规则
 
@@ -263,11 +271,14 @@ Error taxonomy：
 
 ## Release Infrastructure Pending
 
-以下客户端契约已冻结；基础设施待 provision（见 PHASE6_L2_REPORT.md 与
-`ROADMAP.md` L2 状态）：
+客户端契约已冻结。以下生产链路尚未完成验收；不能由本地 Debug 测试通过、
+历史签名包或仓库存在推断其已经可用：
 
-- 创建 `rescueauth-updates` 仓库并配置公开原始文件访问。
+- 配置并验收 `rescueauth-updates` 仓库的公开原始文件访问和版本化资源地址。
 - 生成生产 update manifest Ed25519 key（offline）；private key → CI secret only；
   public key → 应用 trusted config（`UPDATE_PUBLIC_KEY`）。
 - 确认发布页跳转 URL 形态（release page 或 `releaseNotesUrl`）。
-- 跨仓 CI 发布自动化（本轮明确不做）。
+- 完成并验证跨仓发布流程：APK 上传与回读验证在前，签名更新清单发布在后。
+
+`UPDATE_PUBLIC_KEY` 的构建默认值为空；未配置时更新检查返回 `NOT_CONFIGURED`，
+本地保险库继续可用。该行为是未配置状态处理，不能记为生产更新渠道验收通过。
