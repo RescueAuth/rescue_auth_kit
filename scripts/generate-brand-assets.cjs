@@ -14,6 +14,8 @@ if (!paths) throw new Error('SVG master contains no paths.');
 const scale = Number(source.match(/data-launcher-scale="([\d.]+)"/)?.[1] ?? 0.49);
 const backgroundStart = source.match(/data-launcher-background-start="(#[\dA-Fa-f]{6})"/)?.[1] ?? '#F7F5EF';
 const backgroundEnd = source.match(/data-launcher-background-end="(#[\dA-Fa-f]{6})"/)?.[1] ?? backgroundStart;
+const backgroundSpan = Number(source.match(/data-launcher-background-span="([\d.]+)"/)?.[1] ?? 108);
+const backgroundInset = (108 - backgroundSpan) / 2 * 1024 / 108;
 const iconScale = scale * 1024 / 108;
 const offset = 512 - 64 * iconScale;
 const mark = `<g transform="translate(${offset} ${offset}) scale(${iconScale})">${paths}</g>`;
@@ -23,7 +25,7 @@ const base = (mask = null, viewportDp = 108) => {
     const shape = mask === 'round' ? `<circle cx="512" cy="512" r="${size / 2}"/>`
         : `<rect x="${inset}" y="${inset}" width="${size}" height="${size}" rx="${size * 232 / 1024}"/>`;
     const maskDef = mask ? `<defs><clipPath id="launcher-preview-mask">${shape}</clipPath></defs>` : '';
-    const background = `<defs><linearGradient id="launcher-background" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse"><stop stop-color="${backgroundStart}"/><stop offset="1" stop-color="${backgroundEnd}"/></linearGradient></defs>`;
+    const background = `<defs><linearGradient id="launcher-background" x1="${backgroundInset}" y1="${backgroundInset}" x2="${1024 - backgroundInset}" y2="${1024 - backgroundInset}" gradientUnits="userSpaceOnUse"><stop stop-color="${backgroundStart}"/><stop offset="1" stop-color="${backgroundEnd}"/></linearGradient></defs>`;
     const layers = `<rect width="1024" height="1024" fill="url(#launcher-background)"/>${mark}`;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="${inset} ${inset} ${size} ${size}">${defs}${background}${maskDef}${mask ? `<g clip-path="url(#launcher-preview-mask)">${layers}</g>` : layers}</svg>`;
 };

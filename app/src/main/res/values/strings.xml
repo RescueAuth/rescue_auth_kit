@@ -555,7 +555,7 @@
 
 
     <!-- Studio visual identity, shared across welcome and vault directories. -->
-    <string name="studio_welcome_title">Your vault.</string>
+    <string name="startup_intro_storage">Stored locally · Encrypted</string>
     <string name="studio_create_vault">Create vault</string>
     <string name="studio_vault_empty_body">Start small. Add your first account.</string>
     <string name="studio_add_credential">Add authenticator</string>

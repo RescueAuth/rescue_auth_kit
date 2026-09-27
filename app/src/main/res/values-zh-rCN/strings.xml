@@ -553,7 +553,7 @@
 
 
     <!-- Studio visual identity, shared across welcome and vault directories. -->
-    <string name="studio_welcome_title">你的保险库。</string>
+    <string name="startup_intro_storage">仅存本机 · 加密保护</string>
     <string name="studio_create_vault">开启保险库</string>
     <string name="studio_vault_empty_body">从添加第一个账户开始。</string>
     <string name="studio_add_credential">添加验证码</string>

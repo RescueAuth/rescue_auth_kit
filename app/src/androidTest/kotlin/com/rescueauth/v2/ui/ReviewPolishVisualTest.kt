@@ -11,6 +11,7 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -22,6 +23,8 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.core.view.WindowCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -98,7 +101,9 @@ class ReviewPolishVisualTest {
         rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         automation.waitForIdle(350, 5_000)
-        val directory = File(rule.activity.getExternalFilesDir(null), "polish-ui-review").apply { mkdirs() }
+        val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")
+            ?.let(::File) ?: checkNotNull(rule.activity.getExternalFilesDir(null))
+        val directory = File(output, "polish-ui-review").apply { mkdirs() }
         val bitmap = checkNotNull(automation.takeScreenshot())
         try {
             File(directory, "$id.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -129,7 +134,11 @@ class ReviewPolishVisualTest {
 
     private fun welcome(english: Boolean, dark: Boolean = false, large: Boolean = false) {
         var continued = 0
-        content(dark, english, if (large) 1.5f else 1f) { StartupIntroScreen({ continued++ }, {}) }
+        var imported = 0
+        content(dark, english, if (large) 1.5f else 1f) { StartupIntroScreen({ continued++ }, { imported++ }) }
+        val name = if (english) "RescueAuth" else "拾遗坊"
+        rule.onAllNodes(hasText(name) or hasContentDescription(name)).assertCountEquals(1)
+        rule.onNodeWithText(if (english) "Your vault." else "你的保险库。").assertDoesNotExist()
         val action = rule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON)
         action.performScrollTo().assertIsDisplayed()
         rule.onNode(hasText(if (english) "Fingerprint or screen lock" else "指纹或锁屏密码") and
@@ -137,11 +146,23 @@ class ReviewPolishVisualTest {
         val id = if (dark) "213-welcome-dark" else if (large) "212-welcome-large" else if (english) "210-welcome-en" else "211-welcome-zh"
         capture(id, if (large) "欢迎页 · 大字体新版" else if (dark) "欢迎页 · 深色新版" else if (english) "欢迎页 · 英文新版" else "欢迎页 · 新版", "启动与外观")
         action.performClick(); rule.runOnIdle { assertEquals(1, continued) }
+        rule.onNodeWithTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON).performScrollTo().performClick()
+        rule.runOnIdle { assertEquals(1, imported) }
     }
     @Test fun welcomeEnglish() = welcome(true)
     @Test fun welcomeChinese() = welcome(false)
     @Test fun welcomeLargeEnglish() = welcome(true, large = true)
     @Test fun welcomeDark() = welcome(false, dark = true)
+
+    @Test fun welcomeSmallViewportKeepsBothActionsReachable() {
+        var continued = 0; var imported = 0
+        content(english = true, fontScale = 1.5f) {
+            StartupIntroScreen({ continued++ }, { imported++ }, Modifier.width(320.dp).height(480.dp))
+        }
+        rule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo().assertIsDisplayed().performClick()
+        rule.onNodeWithTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON).performScrollTo().assertIsDisplayed().performClick()
+        rule.runOnIdle { assertEquals(1, continued); assertEquals(1, imported) }
+    }
 
     @Composable private fun manual(submit: () -> Unit = {}) {
         AddTotpSheet(AddTotpFormState(mode = AddMode.MANUAL), {}, {}, onUriChange = {}, onProviderChange = {},

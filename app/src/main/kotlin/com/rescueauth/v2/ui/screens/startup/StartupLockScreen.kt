@@ -3,50 +3,28 @@ package com.rescueauth.v2.ui.screens.startup
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.outlined.Fingerprint
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material.icons.outlined.Shield
-import com.rescueauth.v2.ui.components.StudioIconLabel
-import com.rescueauth.v2.ui.components.RescueAuthMetaPill
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import com.rescueauth.v2.ui.components.StudioAction
-import com.rescueauth.v2.ui.components.StudioBrandArtwork
-import com.rescueauth.v2.ui.components.StudioColors
-import com.rescueauth.v2.ui.components.StudioEntrance
-import com.rescueauth.v2.ui.components.StudioEyebrow
 import com.rescueauth.v2.ui.components.RescueAuthMark
-import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.components.RescueAuthWordmark
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.ScreenTokens
 
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
@@ -80,7 +58,6 @@ object StartupLockTestTags {
     const val SETTINGS_BUTTON = "startup_settings_button"
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StartupIntroScreen(
     onContinue: () -> Unit,
@@ -93,61 +70,56 @@ fun StartupIntroScreen(
     ) {
         BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
             val minimumHeight = maxHeight
-            StudioEntrance(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
-                Column(
-                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                        .heightIn(min = minimumHeight)
-                        .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.lg),
+            Column(
+                Modifier.widthIn(max = 520.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .heightIn(min = minimumHeight)
+                    .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.weight(1f))
+                RescueAuthCard(
+                    modifier = Modifier.testTag(StartupSplashTestTags.BRANDING),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentPadding = CardTokens.noPadding,
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth().testTag(StartupSplashTestTags.BRANDING),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        RescueAuthMark(Modifier.size(32.dp), animated = false, monochrome = true)
-                        Text(stringResource(R.string.startup_brand_name), style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        RescueAuthMark(Modifier.size(CardTokens.welcomeLogoSize))
+                        Spacer(Modifier.height(Spacing.sm))
+                        RescueAuthWordmark(prominent = true)
+                        Text(
+                            stringResource(R.string.startup_intro_storage),
+                            modifier = Modifier.padding(top = Spacing.sm),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
                     }
-                    Spacer(Modifier.height(Spacing.xl))
-                    StudioBrandArtwork()
-                    Spacer(Modifier.height(Spacing.xl))
-                    Text(
-                        stringResource(R.string.studio_welcome_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(Spacing.sm))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        RescueAuthMetaPill(stringResource(R.string.compact_codes), icon = Icons.Outlined.Timer)
-                        RescueAuthMetaPill(stringResource(R.string.compact_keys), icon = Icons.Outlined.Key)
-                        RescueAuthMetaPill(stringResource(R.string.recovery_codes_title), icon = Icons.Outlined.Shield)
+                }
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(Spacing.xl))
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth().testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
+                    contentPadding = PaddingValues(horizontal = CardTokens.heroPadding, vertical = Spacing.md),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background),
+                ) {
+                    Icon(Icons.Outlined.Fingerprint, null, Modifier.size(24.dp))
+                    Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
+                        Text(stringResource(R.string.studio_create_vault), style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.compact_unlock_methods),
+                            Modifier.padding(top = Spacing.xxs), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.background.copy(alpha = 0.78f))
                     }
-                    Spacer(Modifier.height(Spacing.lg))
-                    Button(
-                        onClick = onContinue,
-                        modifier = Modifier.fillMaxWidth().testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
-                        contentPadding = PaddingValues(horizontal = CardTokens.heroPadding, vertical = Spacing.md),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground,
-                            contentColor = MaterialTheme.colorScheme.background),
-                    ) {
-                        Icon(Icons.Outlined.Fingerprint, null, Modifier.size(24.dp))
-                        Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-                            Text(stringResource(R.string.studio_create_vault), style = MaterialTheme.typography.labelLarge)
-                            Text(stringResource(R.string.compact_unlock_methods),
-                                Modifier.padding(top = Spacing.xxs), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.background.copy(alpha = 0.78f))
-                        }
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(20.dp))
-                    }
-                    if (onImportV1 != null) {
-                        TextButton(
-                            onClick = onImportV1,
-                            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
-                                .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                        ) { Text(stringResource(R.string.startup_intro_import_v1), style = MaterialTheme.typography.labelMedium) }
-                    }
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(20.dp))
+                }
+                if (onImportV1 != null) {
+                    TextButton(
+                        onClick = onImportV1,
+                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
+                            .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                    ) { Text(stringResource(R.string.startup_intro_import_v1), style = MaterialTheme.typography.labelMedium) }
                 }
             }
         }

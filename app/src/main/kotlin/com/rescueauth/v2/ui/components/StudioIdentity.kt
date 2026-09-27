@@ -1,8 +1,8 @@
 package com.rescueauth.v2.ui.components
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -14,12 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -30,6 +33,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
@@ -40,22 +45,6 @@ object StudioColors {
     val onInk = Color(0xFFF8F7F2)
     val mutedInk = Color(0xFFBCBFCC)
     val lavender = Color(0xFFC1B4F3)
-}
-
-/** Finite entrance, respecting Compose's system animation duration scale. */
-@Composable
-fun StudioEntrance(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        progress.animateTo(1f, tween(440, easing = FastOutSlowInEasing))
-    }
-    Box(
-        modifier = modifier.graphicsLayer {
-            alpha = progress.value
-            translationY = (1f - progress.value) * 12.dp.toPx()
-        },
-        content = content,
-    )
 }
 
 /** E2 ribbon key, generated from the editable path-and-gradient SVG master. */
@@ -77,7 +66,37 @@ fun RescueAuthMark(modifier: Modifier = Modifier, animated: Boolean = false, mon
     }
 }
 
-/** Shared artwork panel for the welcome and About pages. */
+/** The selected transparent Chinese wordmark; other locales retain native text. */
+@Composable
+fun RescueAuthWordmark(modifier: Modifier = Modifier, prominent: Boolean = false) {
+    val name = stringResource(R.string.app_name)
+    // Follow the resolved product-name resource, including Android's locale fallback.
+    if (name == "拾遗坊") {
+        val bitmap = ImageBitmap.imageResource(R.drawable.shiyifang_wordmark)
+        val painter = remember(bitmap) {
+            // Trim only the drawing viewport, keeping the original RGBA asset intact.
+            // The inset leaves 12 px around the visible brushwork and its soft edges.
+            BitmapPainter(bitmap, srcOffset = IntOffset(133, 91), srcSize = IntSize(1847, 579))
+        }
+        val height = (if (prominent) CardTokens.welcomeWordmarkHeight else CardTokens.bannerWordmarkHeight) *
+            LocalDensity.current.fontScale
+        val colorFilter = if (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+            ColorFilter.tint(MaterialTheme.colorScheme.onSurface) else null
+        Box(modifier, contentAlignment = if (prominent) Alignment.Center else Alignment.CenterStart) {
+            Image(painter, contentDescription = name,
+                modifier = Modifier.height(height).width(height * (1847f / 579f)),
+                contentScale = ContentScale.Fit, colorFilter = colorFilter)
+        }
+    } else {
+        Text(name, modifier = modifier,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = if (prominent) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+            fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold,
+            maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Brand artwork panel used by the About page. */
 @Composable
 fun StudioBrandArtwork(modifier: Modifier = Modifier) {
     RescueAuthCard(modifier = modifier, shape = CardTokens.heroShape,
@@ -137,11 +156,7 @@ fun StudioVaultHero(
                 .heightIn(min = bannerHeight - CardTokens.bannerPadding * 2),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(stringResource(R.string.app_name), modifier = Modifier.weight(1f),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                RescueAuthWordmark(Modifier.weight(1f))
                 if (accountCount != null) {
                     val description = pluralStringResource(R.plurals.banner_account_count, accountCount, accountCount)
                     Column(Modifier.testTag("vault_banner_accounts").clearAndSetSemantics {

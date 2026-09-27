@@ -113,6 +113,9 @@ object CardTokens {
     val actionIconSize = 20.dp
     val actionBarBalancedWidth = 320.dp
     val brandArtworkSize = 180.dp
+    val welcomeLogoSize = 160.dp
+    val welcomeWordmarkHeight = 40.dp
+    val bannerWordmarkHeight = 28.dp
     val inputFocusBorderWidth = 2.dp
     val inputRestBorderWidth = 1.dp
     val inputMinHeight = 56.dp

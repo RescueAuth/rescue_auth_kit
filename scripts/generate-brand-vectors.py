@@ -40,6 +40,10 @@ def outputs():
     launcher_offset = 54 - 64 * launcher_scale
     background_start = source.get('data-launcher-background-start', '#F7F5EF')
     background_end = source.get('data-launcher-background-end', background_start)
+    background_span = float(source.get('data-launcher-background-span', '108'))
+    if not 0 < background_span <= 108:
+        raise ValueError('Invalid launcher background gradient span.')
+    background_inset = (108 - background_span) / 2
     for color in (background_start, background_end):
         color_with_alpha(color)  # Validate the launcher's independent, opaque background colors.
     paths = source.findall(f'{{{SVG}}}path')
@@ -140,9 +144,16 @@ def outputs():
         'ic_rescueauth_launcher_background.xml': (
             '<?xml version="1.0" encoding="utf-8"?>\n'
             '<!-- Generated from design/brand/shiyifang-logo.svg. Run scripts/generate-brand-vectors.py. -->\n'
-            f'<shape xmlns:android="{ANDROID}" android:shape="rectangle">\n'
-            f'    <gradient android:type="linear" android:angle="315" android:startColor="{background_start}" android:endColor="{background_end}"/>\n'
-            '</shape>\n'
+            f'<vector xmlns:android="{ANDROID}" xmlns:aapt="http://schemas.android.com/aapt" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">\n'
+            '    <path android:pathData="M0,0 H108 V108 H0 Z">\n'
+            '        <aapt:attr name="android:fillColor">\n'
+            f'            <gradient android:type="linear" android:startX="{background_inset:g}" android:startY="{background_inset:g}" android:endX="{108 - background_inset:g}" android:endY="{108 - background_inset:g}">\n'
+            f'                <item android:offset="0" android:color="{background_start}"/>\n'
+            f'                <item android:offset="1" android:color="{background_end}"/>\n'
+            '            </gradient>\n'
+            '        </aapt:attr>\n'
+            '    </path>\n'
+            '</vector>\n'
         ),
     }
 

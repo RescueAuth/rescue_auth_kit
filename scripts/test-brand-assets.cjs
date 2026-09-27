@@ -25,16 +25,31 @@ test('generic density fallbacks do not bake a rounded mask into the source', asy
     }
 });
 
-test('adaptive background remains an unmasked rectangle', () => {
+test('adaptive background paints a full unmasked square', () => {
     const background = fs.readFileSync(path.join(root, 'app/src/main/res/drawable/ic_rescueauth_launcher_background.xml'), 'utf8');
-    assert.match(background, /android:shape="rectangle"/);
+    assert.match(background, /android:viewportWidth="108"/);
+    assert.match(background, /android:pathData="M0,0 H108 V108 H0 Z"/);
     assert.doesNotMatch(background, /<corners|android:radius/);
     assert.match(background, /<gradient\b/);
-    assert.match(background, /android:angle="315"/);
     for (const name of ['ic_launcher.xml', 'ic_launcher_round.xml']) {
         const adaptive = fs.readFileSync(path.join(root, 'app/src/main/res/mipmap-anydpi-v26', name), 'utf8');
         assert.match(adaptive, /<adaptive-icon/);
         assert.match(adaptive, /@drawable\/ic_rescueauth_launcher_background/);
+    }
+});
+
+test('gradient remains visible after adaptive cropping at launcher size', async () => {
+    for (const mask of ['rounded', 'round']) {
+        const {data, info} = await sharp(path.join(root, `build/brand-assets/rescueauth-adaptive-${mask}-preview.png`))
+            .resize(96,96).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+        const pixel = (fraction) => {
+            const p = Math.round((info.width - 1) * fraction);
+            return Array.from(data.subarray((p * info.width + p) * 4, (p * info.width + p) * 4 + 4));
+        };
+        const start = pixel(.18), end = pixel(.82);
+        assert.equal(start[3],255); assert.equal(end[3],255);
+        const difference = start.slice(0,3).reduce((sum, channel, i) => sum + Math.abs(channel - end[i]), 0);
+        assert.ok(difference >= 60, `${mask}: cropped background is nearly flat (${difference})`);
     }
 });
 

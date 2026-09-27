@@ -1,6 +1,8 @@
 package com.rescueauth.v2.ui.screens.startup
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -46,7 +48,12 @@ class StartupLockScreenTest {
         // Brand visual (Issue #64) must be present so the first-run page keeps
         // the launch brand recognisable (default locale = English here).
         composeRule.onNodeWithTag(StartupSplashTestTags.BRANDING).assertIsDisplayed()
+        composeRule.onAllNodesWithText("RescueAuth").assertCountEquals(1)
         composeRule.onNodeWithText("RescueAuth").assertIsDisplayed()
+        composeRule.onNodeWithText("Your vault.").assertDoesNotExist()
+        composeRule.onNodeWithText("Codes").assertDoesNotExist()
+        composeRule.onNodeWithText("Keys").assertDoesNotExist()
+        composeRule.onNodeWithText("Recovery codes").assertDoesNotExist()
         composeRule.onNode(hasText("Fingerprint or screen lock") and
             hasAnyAncestor(hasTestTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON)), useUnmergedTree = true)
             .assertExists()

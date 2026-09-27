@@ -86,7 +86,9 @@ class StudioVisualReviewTest {
     private fun capture(name: String, dialog: Boolean = false) {
         if (dialog) rule.mainClock.advanceTimeBy(500)
         rule.waitForIdle()
-        val directory = File(rule.activity.getExternalFilesDir(null), "ui-review").apply { mkdirs() }
+        val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")
+            ?.let(::File) ?: checkNotNull(rule.activity.getExternalFilesDir(null))
+        val directory = File(output, "ui-review").apply { mkdirs() }
         // A bottom sheet owns a separate window. Capture the synthetic test display
         // for that case so both the sheet and its dimmed background remain visible.
         val bitmap = if (dialog) checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
@@ -120,6 +122,7 @@ class StudioVisualReviewTest {
             }
             if (provider == null && account == null) shell(0, screen) else screen(Modifier)
         }
+        rule.onNodeWithContentDescription("拾遗坊").assertIsDisplayed()
         capture("02-authenticator")
         rule.onNodeWithTag("provider_row_GitHub").performScrollTo().performClick()
         rule.onNodeWithText("Personal account").assertIsDisplayed()
@@ -186,8 +189,20 @@ class StudioVisualReviewTest {
         content(dark = true) { shell(0) { AuthenticatorScreen(modifier = it,
             uiState = AuthenticatorUiState(loading = false, providers = providers), onAddClick = {}, onOpenSearch = {}) } }
         rule.onNodeWithTag("vault_brand_banner").assertHeightIsEqualTo(88.dp)
+        rule.onNodeWithContentDescription("拾遗坊").assertIsDisplayed()
         rule.onNodeWithContentDescription("12 个账户").assertIsDisplayed()
         capture("22-dark-authenticator-banner")
+    }
+
+    @Test fun narrowChineseBannerKeepsWordmarkSeparateFromCount() {
+        content(fontScale = 1.5f) { shell(0) { AuthenticatorScreen(modifier = it.width(320.dp),
+            uiState = AuthenticatorUiState(loading = false, providers = providers), onAddClick = {}, onOpenSearch = {}) } }
+        rule.onAllNodesWithContentDescription("拾遗坊").assertCountEquals(1)
+        val name = rule.onNodeWithContentDescription("拾遗坊").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val count = rule.onNodeWithContentDescription("12 个账户").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue("The artwork must not overlap the account summary", name.right < count.left)
+        rule.onNodeWithTag("vault_brand_banner").assertHeightIsEqualTo(120.dp)
+        capture("24-narrow-chinese-wordmark")
     }
 
     @Test fun largeTextAuthenticatorBanner() {
