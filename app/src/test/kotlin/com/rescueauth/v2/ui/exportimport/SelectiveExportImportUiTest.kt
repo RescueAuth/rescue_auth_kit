@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.export.SelectableAccount
 import com.rescueauth.v2.export.SelectableDeveloperEntry
@@ -325,7 +326,7 @@ class SelectiveExportImportUiTest {
                 )
             }
         }
-        composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_EVERYTHING).assertIsDisplayed()
+        composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_EVERYTHING).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_AUTH).assertExists()
         composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_DEV).assertExists()
         composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_SELECTED).assertExists()
@@ -415,7 +416,7 @@ class SelectiveExportImportUiTest {
                 )
             }
         }
-        composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_EVERYTHING).performClick()
+        composeRule.onNodeWithTag(ExportImportTestTags.IMPORT_SCOPE_EVERYTHING).performScrollTo().performClick()
         assertEquals(ImportScopeSpec.Everything, chosen)
     }
 }

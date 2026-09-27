@@ -16,7 +16,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,7 +60,7 @@ fun ManagementTextDialog(
         title = { DialogTitle(title, Icons.Filled.Edit) },
         text = {
             RescueAuthCard(containerColor = CardTokens.containerColor()) {
-                OutlinedTextField(
+                RescueAuthTextField(
                     value = value,
                     onValueChange = { value = it },
                     label = { Text(fieldLabel) },
@@ -91,14 +91,14 @@ fun CreateProviderDialog(
         text = {
             RescueAuthCard(containerColor = CardTokens.containerColor()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(
+                    RescueAuthTextField(
                         value = provider,
                         onValueChange = { provider = it },
                         label = { Text(stringResource(R.string.provider_name_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(
+                    RescueAuthTextField(
                         value = accountName,
                         onValueChange = { accountName = it },
                         label = { Text(stringResource(R.string.account_name_label)) },
@@ -139,7 +139,7 @@ fun ProviderPickerDialog(
                 expanded = expanded,
                 onExpandedChange = { expanded = it },
             ) {
-                OutlinedTextField(
+                RescueAuthTextField(
                     value = selected,
                     onValueChange = {},
                     readOnly = true,

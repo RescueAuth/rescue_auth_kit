@@ -47,6 +47,8 @@ C. Portable Vault Package —— backup / migration / selective transfer / vault
 - **高敏感操作**：即使 Vault 已解锁，Export、export keystore、reveal
   SSH private key / API secret / signing 密码等操作要求一次 fresh
   Biometric / Device Credential 认证（Sensitive Action Re-authentication）。
+  进入五类 Developer Entry 的完整编辑器同样需要独立验证，验证成功后才读取并预填既有敏感值；
+  即使本次仅修改标题等元数据也适用。新建空白条目不增加该验证，编辑授权不复用于显示、复制或下一次编辑。
 
 > Phase 3 明确不做：automatic backup、scheduled backup、background
 > backup、WorkManager backup、cloud sync、自动上传、自动 checkpoint 文件。

@@ -5,9 +5,7 @@ import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalContext
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.security.SensitiveActionController
@@ -26,7 +24,7 @@ import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
 import com.rescueauth.v2.ui.screens.startup.StartupIntroScreen
 import com.rescueauth.v2.ui.screens.startup.StartupOpeningHost
 import com.rescueauth.v2.ui.screens.startup.StartupSplashScreen
-import com.rescueauth.v2.ui.theme.RescueAuthTheme
+import com.rescueauth.v2.ui.theme.RescueAuthAppearance
 import com.rescueauth.v2.ui.theme.ThemeColor
 import com.rescueauth.v2.ui.theme.ThemePreferences
 import java.util.concurrent.atomic.AtomicBoolean
@@ -235,13 +233,7 @@ class MainActivity : AppCompatActivity() {
         val themePreferences = ThemePreferences(this)
         val composeView = ComposeView(this).apply {
             setContent {
-                val context = LocalContext.current
-                val prefs = remember(themePreferences, context) {
-                    themePreferences ?: ThemePreferences(context)
-                }
-                val themeColor by prefs.themeColor.collectAsState(initial = ThemeColor.DEFAULT)
-
-                RescueAuthTheme(themeColor = themeColor) {
+                RescueAuthAppearance(themePreferences) { themeMode, onThemeModeChange ->
                     val ui by uiState.collectAsState()
                     when (ui) {
                         StartupUiState.INIT -> StartupSplashScreen()
@@ -283,6 +275,8 @@ class MainActivity : AppCompatActivity() {
                             RescueAuthApp(
                                 versionName = BuildConfig.VERSION_NAME,
                                 startRoute = startRoute,
+                                themeMode = themeMode,
+                                onThemeModeChange = onThemeModeChange,
                             )
                         }
                     }

@@ -79,4 +79,7 @@ enum class SensitiveAction {
 
     /** Copy an Environment Variable Set value to the clipboard. */
     COPY_ENV_VAR_VALUE,
+
+    /** Open the full editor for a protected Developer entry (all five types). */
+    EDIT_DEVELOPER_ENTRY,
 }

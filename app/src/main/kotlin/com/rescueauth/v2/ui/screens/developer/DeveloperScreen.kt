@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,23 +44,15 @@ fun DeveloperScreen(
     val visibleEntries = selectedCategory?.let { type -> uiState.entries.filter { it.type == type } } ?: uiState.entries
     val back = { if (onBack != null) onBack() else selectedCategory = null }
     BackHandler(enabled = selectedCategory != null && onBack == null) { selectedCategory = null }
-    Scaffold(
+    RescueAuthPageScaffold(
         modifier = modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = selectedCategory?.let { typeLabel(it) } ?: stringResource(R.string.developer_title),
-                subtitle = selectedCategory?.let { stringResource(R.string.developer_group_count, visibleEntries.size) },
-                navigationIcon = if (selectedCategory != null) { { RescueAuthBackButton(back) } } else null,
-                actions = {
-                    if (onAddClick != null) RescueAuthButton(onClick = onAddClick,
-                        contentPadding = PaddingValues(horizontal = Spacing.sm)) {
-                        Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(Spacing.xxs))
-                        Text(stringResource(R.string.studio_add))
-                    }
-                },
-            )
+        title = selectedCategory?.let { typeLabel(it) } ?: stringResource(R.string.developer_title),
+        navigationIcon = if (selectedCategory != null) { { RescueAuthBackButton(back) } } else null,
+        actions = {
+            if (selectedCategory != null) StudioCountBadge(visibleEntries.size,
+                stringResource(R.string.developer_group_count, visibleEntries.size))
+            if (onAddClick != null) RescueAuthIconAction(Icons.Filled.Add,
+                stringResource(R.string.studio_add), onAddClick)
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
     ) { padding ->
@@ -108,14 +101,7 @@ private fun DeveloperDirectoryContent(
             horizontalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing),
         ) {
             item(key = "hero", span = { GridItemSpan(maxLineSpan) }) {
-                StudioEntrance {
-                    StudioVaultHero(stringResource(R.string.studio_developer_label),
-                        stringResource(R.string.studio_developer_title),
-                        stringResource(R.string.developer_overview_count, entries.size))
-                }
-            }
-            item(key = "category-heading", span = { GridItemSpan(maxLineSpan) }) {
-                RescueAuthSectionHeader(stringResource(R.string.studio_categories), modifier = Modifier.padding(top = Spacing.sm))
+                StudioVaultHero()
             }
             items(types, key = { it.name }, span = { GridItemSpan(if (it == DeveloperEntryType.GENERIC_SECRET) maxLineSpan else 1) }) { type ->
                 val fill = if (dark) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer
@@ -124,11 +110,8 @@ private fun DeveloperDirectoryContent(
                     RescueAuthRowCard(onClick = { onOpenCategory(type) }, containerColor = fill,
                         modifier = Modifier.testTag("developer_category_${type.name}")) {
                         Icon(type.icon(), null, Modifier.size(26.dp), tint = foreground)
-                        Column(Modifier.weight(1f)) {
-                            Text(typeLabel(type), style = MaterialTheme.typography.titleMedium)
-                            Text(stringResource(R.string.developer_group_count, groups[type] ?: 0),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Text(typeLabel(type), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        StudioCountBadge(groups[type] ?: 0, stringResource(R.string.developer_group_count, groups[type] ?: 0))
                         RescueAuthChevron()
                     }
                 } else RescueAuthCard(onClick = { onOpenCategory(type) }, containerColor = fill,
@@ -138,14 +121,11 @@ private fun DeveloperDirectoryContent(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
                             Icon(type.icon(), null, Modifier.size(26.dp), tint = foreground)
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(16.dp), tint = foreground.copy(alpha = 0.6f))
+                            StudioCountBadge(groups[type] ?: 0, stringResource(R.string.developer_group_count, groups[type] ?: 0))
                         }
                         Column(Modifier.padding(top = Spacing.md)) {
                             Text(typeLabel(type), style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                            Text(stringResource(R.string.developer_group_count, groups[type] ?: 0),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = Spacing.xxs))
                         }
                     }
                 }

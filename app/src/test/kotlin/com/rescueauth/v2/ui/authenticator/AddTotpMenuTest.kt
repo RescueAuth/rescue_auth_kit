@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.totp.TotpCore
@@ -123,5 +124,22 @@ class AddTotpMenuTest {
         composeRule.onNodeWithText("Provider / issuer").assertDoesNotExist()
         composeRule.onNodeWithTag("totp_method_MANUAL").performSemanticsAction(SemanticsActions.OnClick) { it() }
         composeRule.onNodeWithText("Provider / issuer").assertExists()
+        composeRule.onNodeWithText("Choose how to add a one-time password").assertDoesNotExist()
+        composeRule.onNodeWithTag("totp_change_method").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.onNodeWithTag("totp_method_SCAN").assertExists()
+        composeRule.onNodeWithTag("totp_method_PASTE").assertExists()
+    }
+
+    @Test
+    fun `manual form keeps submit visible without scrolling to the bottom`() {
+        var submitted = 0
+        composeRule.setContent { RescueAuthTheme {
+            AddTotpSheet(AddTotpFormState(mode = AddMode.MANUAL), onDismiss = {}, onModeChange = {},
+                onUriChange = {}, onProviderChange = {}, onAccountNameChange = {}, onSecretChange = {},
+                onAlgorithmChange = {}, onDigitsChange = {}, onPeriodChange = {}, onSubmit = { submitted++ })
+        } }
+        composeRule.onNodeWithTag("add_totp_submit").assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
+        org.junit.Assert.assertEquals(1, submitted)
     }
 }

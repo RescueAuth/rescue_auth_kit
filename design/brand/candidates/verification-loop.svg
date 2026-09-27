@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" data-launcher-scale="0.58" width="128" height="128" role="img" aria-labelledby="title desc">
-  <title id="title">RescueAuth — Verification Loop</title>
-  <desc id="desc">An open circular rhythm and an ascending folded stroke form an abstract verification mark.</desc>
-  <path id="open-loop" fill="#A7D6BF" d="M93.698 28.855 A46 46 0 1 0 86.997 103.838 L77.499 87.383 A27 27 0 1 1 81.431 43.372 Z"/>
-  <path id="rising-stroke" fill="#B8AAEB" d="M46 56 L63 73 L103 33 L116 46 L63 99 L33 69 Z"/>
-  <path id="fold" fill="#9183BC" d="M46 56 L63 73 L63 99 L33 69 Z"/>
-</svg>

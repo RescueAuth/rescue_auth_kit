@@ -29,6 +29,8 @@ data class SensitiveActionRequest(
  * - [DeveloperField] — a specific Developer entry field, identified by the
  *   entry's **stableId** plus a stable non-secret **field key** (e.g.
  *   `"apiSecret"`, `"privateKey"`, `"passphrase"`, `"field:<label>"`).
+ * - [DeveloperEdit] — a full editor opening, bound to stableId plus a fresh
+ *   in-memory attemptId so a previous opening cannot authorize a retry.
  *
  * The stableId is part of the target so a request for Entry A can never be
  * satisfied by an auth result while the user is looking at Entry B.
@@ -54,5 +56,11 @@ sealed interface SensitiveActionTarget {
     data class DeveloperField(
         val stableId: String,
         val fieldKey: String,
+    ) : SensitiveActionTarget
+
+    /** One editor-opening attempt, bound to an entry. Never persisted or passed in navigation. */
+    data class DeveloperEdit(
+        val stableId: String,
+        val attemptId: String,
     ) : SensitiveActionTarget
 }

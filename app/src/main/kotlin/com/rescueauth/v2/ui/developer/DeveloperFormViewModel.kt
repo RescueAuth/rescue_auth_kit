@@ -2,6 +2,16 @@ package com.rescueauth.v2.ui.developer
 
 import com.rescueauth.v2.export.VaultKeyValue
 import com.rescueauth.v2.repository.DeveloperRepository
+import com.rescueauth.v2.security.SensitiveAction
+import com.rescueauth.v2.security.SensitiveActionGate
+import com.rescueauth.v2.security.SensitiveActionRequest
+import com.rescueauth.v2.security.SensitiveActionResult
+import com.rescueauth.v2.security.SensitiveActionTarget
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.UUID
+import kotlin.coroutines.resume
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -104,15 +114,16 @@ sealed interface DeveloperFormEvent {
  * ViewModel for the Developer entry create/edit screen (Phase 4 P4/P6).
  *
  * - Create mints a new stableId; edit preserves the existing stableId
- *   (Issue #20 §18). Non-secret metadata edits need no fresh re-auth
- *   (Issue #20 §16); secret values are saved as part of the entry.
+ *   (Issue #20 §18). Entering the full editor requires fresh re-auth before
+ *   pre-filling protected values, even when the intended change is metadata-only.
  * - For Android Signing Key, edit / replace-keystore keeps the SAME stableId
  *   (only the payload changes — Issue #20 P6 §4).
  */
 class DeveloperFormViewModel(
     private val developerRepositoryProvider: () -> DeveloperRepository?,
-    sessionState: StateFlow<SecureSessionStateMachine.State>,
+    private val sessionState: StateFlow<SecureSessionStateMachine.State>,
     private val scope: CoroutineScope,
+    private val sensitiveActionGate: SensitiveActionGate? = null,
 ) {
 
     private val _formState = MutableStateFlow(DeveloperFormState())
@@ -120,6 +131,17 @@ class DeveloperFormViewModel(
 
     private val _events = MutableStateFlow<DeveloperFormEvent?>(null)
     val events: StateFlow<DeveloperFormEvent?> = _events.asStateFlow()
+
+    private var editGeneration = 0L
+    private var openingEdit = false
+    private var pendingEditRequest: SensitiveActionRequest? = null
+    private var editContinuation: CancellableContinuation<Boolean>? = null
+
+    init {
+        scope.launch {
+            sessionState.collect { if (it != SecureSessionStateMachine.State.UNLOCKED) dismiss() }
+        }
+    }
 
     fun onEventShown() {
         _events.value = null
@@ -130,6 +152,7 @@ class DeveloperFormViewModel(
     // ------------------------------------------------------------------
 
     fun beginCreate(type: DeveloperFormType) {
+        dismiss()
         _formState.value = DeveloperFormState(type = type)
     }
 
@@ -218,66 +241,120 @@ class DeveloperFormViewModel(
     }
 
     fun dismiss() {
+        ++editGeneration
+        val request = pendingEditRequest
+        val continuation = editContinuation
+        pendingEditRequest = null
+        editContinuation = null
+        openingEdit = false
+        // Leaving the route / locking the session abandons the loader, rather than navigating back twice.
+        continuation?.cancel()
+        if (request != null && (sensitiveActionGate?.pendingRequestOrNull() == request ||
+                sensitiveActionGate?.isAuthorizedFor(request) == true)) {
+            sensitiveActionGate.cancelPending()
+        }
         _formState.value = DeveloperFormState()
+        _events.value = null
     }
 
-    /** Pre-fills the form from an existing entry for edit (preserves stableId). */
-    suspend fun beginEdit(stableId: String) {
-        val repo = developerRepositoryProvider() ?: return
-        val entry = repo.getByStableId(stableId) ?: return
-        when (entry) {
-            is com.rescueauth.v2.export.VaultApiCredential -> _formState.value = DeveloperFormState(
-                editingStableId = stableId,
-                type = DeveloperFormType.API_CREDENTIAL,
-                title = entry.title,
-                notes = entry.notes.orEmpty(),
-                serviceName = entry.serviceName,
-                accountName = entry.accountName,
-                apiKey = entry.apiKey,
-                apiSecret = entry.apiSecret,
-            )
-            is com.rescueauth.v2.export.VaultSshKey -> _formState.value = DeveloperFormState(
-                editingStableId = stableId,
-                type = DeveloperFormType.SSH_KEY,
-                title = entry.title,
-                notes = entry.notes.orEmpty(),
-                keyName = entry.keyName,
-                publicKey = entry.publicKey,
-                privateKey = entry.privateKey,
-                passphrase = entry.passphrase,
-            )
-            is com.rescueauth.v2.export.VaultGenericSecret -> _formState.value = DeveloperFormState(
-                editingStableId = stableId,
-                type = DeveloperFormType.GENERIC_SECRET,
-                title = entry.title,
-                notes = entry.notes.orEmpty(),
-                fields = entry.fields.map { Pair(it.key, it.value) }
-                    .ifEmpty { listOf(Pair("", "")) },
-            )
-            is com.rescueauth.v2.export.VaultAndroidSigningKey -> _formState.value = DeveloperFormState(
-                editingStableId = stableId,
-                type = DeveloperFormType.ANDROID_SIGNING_KEY,
-                title = entry.title,
-                notes = entry.notes.orEmpty(),
-                projectName = entry.projectName,
-                packageName = entry.packageName,
-                keystoreFileName = entry.keystoreFileName,
-                storePassword = entry.storePassword,
-                keyAlias = entry.keyAlias,
-                keyPassword = entry.keyPassword,
-                // Keystore bytes are NOT restored on edit — the existing stored
-                // binary stays unless the user replaces it (Issue #20 P6 §4/§16).
-                keystoreBytes = null,
-            )
-            is com.rescueauth.v2.export.VaultEnvironmentVariableSet -> _formState.value = DeveloperFormState(
-                editingStableId = stableId,
-                type = DeveloperFormType.ENVIRONMENT_VARIABLE_SET,
-                title = entry.title,
-                notes = entry.notes.orEmpty(),
-                projectName = entry.projectName,
-                variables = entry.variables.map { Pair(it.key, it.value) }
-                    .ifEmpty { listOf(Pair("", "")) },
-            )
+    /** A full editor can expose all fields: authorize this attempt before any repository read. */
+    suspend fun beginEdit(stableId: String): Boolean {
+        if (openingEdit) return false
+        dismiss()
+        val gate = sensitiveActionGate ?: return false
+        if (stableId.isBlank() || sessionState.value != SecureSessionStateMachine.State.UNLOCKED) return false
+        val generation = editGeneration
+        val request = SensitiveActionRequest(SensitiveAction.EDIT_DEVELOPER_ENTRY,
+            SensitiveActionTarget.DeveloperEdit(stableId, UUID.randomUUID().toString()))
+        openingEdit = true
+        pendingEditRequest = request
+        try {
+            val authorized = suspendCancellableCoroutine<Boolean> { continuation ->
+                editContinuation = continuation
+                continuation.invokeOnCancellation {
+                    if (editGeneration == generation) dismiss()
+                }
+                val accepted = gate.authorize(request) { result ->
+                    if (continuation.isActive) {
+                        val valid = result is SensitiveActionResult.Success && result.request == request &&
+                            editGeneration == generation && sessionState.value == SecureSessionStateMachine.State.UNLOCKED
+                        val consumed = valid && gate.executePending(request) {}
+                        continuation.resume(consumed)
+                    }
+                }
+                if (!accepted && continuation.isActive) continuation.resume(false)
+            }
+            if (!authorized || generation != editGeneration || sessionState.value != SecureSessionStateMachine.State.UNLOCKED) return false
+            val repo = developerRepositoryProvider() ?: return false
+            val entry = repo.getByStableId(stableId) ?: return false
+            if (generation != editGeneration || sessionState.value != SecureSessionStateMachine.State.UNLOCKED) return false
+            val loaded = when (entry) {
+                is com.rescueauth.v2.export.VaultApiCredential -> DeveloperFormState(
+                    editingStableId = stableId,
+                    type = DeveloperFormType.API_CREDENTIAL,
+                    title = entry.title,
+                    notes = entry.notes.orEmpty(),
+                    serviceName = entry.serviceName,
+                    accountName = entry.accountName,
+                    apiKey = entry.apiKey,
+                    apiSecret = entry.apiSecret,
+                )
+                is com.rescueauth.v2.export.VaultSshKey -> DeveloperFormState(
+                    editingStableId = stableId,
+                    type = DeveloperFormType.SSH_KEY,
+                    title = entry.title,
+                    notes = entry.notes.orEmpty(),
+                    keyName = entry.keyName,
+                    publicKey = entry.publicKey,
+                    privateKey = entry.privateKey,
+                    passphrase = entry.passphrase,
+                )
+                is com.rescueauth.v2.export.VaultGenericSecret -> DeveloperFormState(
+                    editingStableId = stableId,
+                    type = DeveloperFormType.GENERIC_SECRET,
+                    title = entry.title,
+                    notes = entry.notes.orEmpty(),
+                    fields = entry.fields.map { Pair(it.key, it.value) }
+                        .ifEmpty { listOf(Pair("", "")) },
+                )
+                is com.rescueauth.v2.export.VaultAndroidSigningKey -> DeveloperFormState(
+                    editingStableId = stableId,
+                    type = DeveloperFormType.ANDROID_SIGNING_KEY,
+                    title = entry.title,
+                    notes = entry.notes.orEmpty(),
+                    projectName = entry.projectName,
+                    packageName = entry.packageName,
+                    keystoreFileName = entry.keystoreFileName,
+                    storePassword = entry.storePassword,
+                    keyAlias = entry.keyAlias,
+                    keyPassword = entry.keyPassword,
+                    // Keystore bytes are NOT restored on edit — the existing stored
+                    // binary stays unless the user replaces it (Issue #20 P6 §4/§16).
+                    keystoreBytes = null,
+                )
+                is com.rescueauth.v2.export.VaultEnvironmentVariableSet -> DeveloperFormState(
+                    editingStableId = stableId,
+                    type = DeveloperFormType.ENVIRONMENT_VARIABLE_SET,
+                    title = entry.title,
+                    notes = entry.notes.orEmpty(),
+                    projectName = entry.projectName,
+                    variables = entry.variables.map { Pair(it.key, it.value) }
+                        .ifEmpty { listOf(Pair("", "")) },
+                )
+            }
+            _formState.value = loaded
+            return true
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return false
+        } finally {
+            if (generation == editGeneration) {
+                pendingEditRequest = null
+                editContinuation = null
+                openingEdit = false
+                if (gate.pendingRequestOrNull() == request || gate.isAuthorizedFor(request)) gate.cancelPending()
+            }
         }
     }
 
@@ -288,7 +365,7 @@ class DeveloperFormViewModel(
     /** Validates and saves the form. Returns true on success. */
     suspend fun submit(): Boolean {
         val form = _formState.value
-        if (form.submitting) return false
+        if (form.submitting || openingEdit || sessionState.value != SecureSessionStateMachine.State.UNLOCKED) return false
         val repo = developerRepositoryProvider() ?: return false
 
         // Basic required-field validation (no secret echoed in errors).

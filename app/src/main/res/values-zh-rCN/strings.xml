@@ -31,12 +31,12 @@
     <string name="reauth_subtitle">使用指纹、人脸或设备凭据授权此操作</string>
 
     <!-- App shell / navigation -->
-    <string name="nav_authenticator">认证器</string>
+    <string name="nav_authenticator">账户</string>
     <string name="nav_developer">开发者</string>
     <string name="nav_settings">设置</string>
 
     <!-- Authenticator -->
-    <string name="authenticator_title">认证器</string>
+    <string name="authenticator_title">账户</string>
     <string name="authenticator_home_subtitle">安全的一次性密码保险库</string>
     <string name="authenticator_provider_subtitle">账户与验证码</string>
     <string name="authenticator_providers_heading">服务</string>
@@ -136,7 +136,7 @@
     <string name="totp_restored_message">已恢复 TOTP</string>
 
     <!-- Add TOTP sheet -->
-    <string name="add_totp_title">添加 TOTP</string>
+    <string name="add_totp_title">添加验证码</string>
     <string name="add_totp_sheet_subtitle">选择添加一次性密码的方式</string>
     <string name="add_totp_change_method">更换方式</string>
     <string name="add_totp_advanced">高级设置</string>
@@ -262,6 +262,10 @@
     <string name="developer_fields_section">条目字段</string>
     <string name="developer_sensitive_section">受保护字段</string>
     <string name="developer_sensitive_hint">每次显示或复制值都需要重新验证。</string>
+    <string name="developer_protection_hint">显示或复制需验证</string>
+    <string name="developer_protection_title">每次操作都需验证</string>
+    <string name="developer_protection_explanation">每次显示或复制前，都需通过指纹、人脸或设备凭据验证。\n\n验证仅授权本次操作。即使内容已经显示，复制时也需要再次验证。</string>
+    <string name="developer_protection_dismiss">知道了</string>
     <string name="developer_empty_title">暂无开发者条目</string>
     <string name="developer_empty_body">可安全存储签名密钥、API 凭据、SSH 密钥、环境变量及其他机密，全部保存在本机。</string>
     <string name="developer_type_signing_key">Android 签名密钥</string>
@@ -295,8 +299,8 @@
     <string name="developer_field_private_key">私钥</string>
     <string name="developer_field_passphrase">口令</string>
     <string name="developer_field_public_key">公钥</string>
-    <string name="developer_field_label">字段标签</string>
-    <string name="developer_field_value">字段值</string>
+    <string name="developer_field_label">名称</string>
+    <string name="developer_field_value">内容</string>
     <string name="developer_add_field">添加字段</string>
     <string name="developer_remove_field">移除字段</string>
     <string name="developer_public_key_present">已保存公钥。</string>
@@ -386,7 +390,9 @@
     <string name="about_title">关于</string>
     <string name="about_subtitle">适用于 Android 的 RescueAuth</string>
     <string name="about_updates_section">更新</string>
-    <string name="about_product_description">一款本地优先、加密的个人安全保险库，用于 TOTP、恢复码、开发者凭据与可移植加密备份。</string>
+    <string name="about_product_description">你的个人安全保险库</string>
+    <string name="about_encrypted">加密保护</string>
+    <string name="about_build_format">构建 %1$d</string>
     <string name="settings_version_label">版本</string>
     <string name="about_version_format">%1$s（构建 %2$d）</string>
     <string name="about_check_for_updates">检查更新</string>
@@ -488,6 +494,7 @@
     <string name="preview_title">导入预览</string>
     <string name="preview_package_meta">数据包</string>
     <string name="preview_scope">范围</string>
+    <string name="preview_scope_selected">指定项目</string>
     <string name="preview_created">导出时间</string>
     <string name="preview_source">来源</string>
     <string name="preview_content_title">内容</string>
@@ -526,6 +533,7 @@
     <string name="common_loading">正在加载…</string>
     <string name="common_retry">重试</string>
     <string name="common_error_title">出错了</string>
+    <string name="input_error">输入有误</string>
     <string name="common_error_retry_description">点击重试加载</string>
     <string name="common_unknown">未知</string>
 
@@ -545,37 +553,41 @@
 
 
     <!-- Studio visual identity, shared across welcome and vault directories. -->
-    <string name="studio_private_label">私密，由此开始</string>
-    <string name="studio_local_label">仅存于你的设备</string>
-    <string name="studio_collection_label">你的私密收藏</string>
-    <string name="studio_welcome_title">重要之物，\n妥善收藏。</string>
-    <string name="studio_welcome_body">验证码、密钥与重要凭据，\n让数字生活，井然有序。</string>
-    <string name="studio_create_vault">开启我的保险库</string>
-    <string name="studio_vault_label">个人保险库</string>
-    <string name="studio_vault_title">重要的，都在这里。</string>
-    <string name="studio_vault_count">%1$d 个账户</string>
-    <string name="studio_vault_summary">%1$d 个服务 · %2$d 个验证码</string>
+    <string name="studio_welcome_title">你的保险库。</string>
+    <string name="studio_create_vault">开启保险库</string>
     <string name="studio_vault_empty_body">从添加第一个账户开始。</string>
-    <string name="studio_services">你的服务</string>
     <string name="studio_add_credential">添加验证码</string>
     <string name="studio_new_service">新建服务</string>
     <string name="studio_add">添加</string>
-    <string name="studio_developer_label">开发者保险库</string>
-    <string name="studio_developer_title">灵感背后，\n安心有序。</string>
-    <string name="studio_categories">按类型浏览</string>
-    <string name="studio_settings_label">属于你的空间</string>
-    <string name="studio_settings_title">你的数据，\n由你掌握。</string>
-    <string name="studio_settings_body">本地存储，始终加密。</string>
-    <string name="studio_transfer_description">导出备份，或导入已有保险库</string>
-    <string name="studio_transfer_title">安心，随你而行。</string>
-    <string name="studio_transfer_body">一个加密包，一个专属 PIN。</string>
-    <string name="studio_about_description">版本、更新与产品信息</string>
-    <string name="studio_security_note">由你的设备守护</string>
-    <string name="studio_search_prompt">查找保险库中的内容</string>
-    <string name="studio_code_label">一次性验证码</string>
+    <string name="studio_search_prompt">搜索保险库</string>
     <string name="studio_api">API 凭据</string>
     <string name="studio_ssh">SSH 密钥</string>
     <string name="studio_signing">签名密钥</string>
     <string name="studio_environment">环境变量</string>
     <string name="studio_generic">其他凭据</string>
+    <string name="compact_accounts">账户</string>
+    <plurals name="banner_account_count">
+        <item quantity="one">%1$d 个账户</item>
+        <item quantity="other">%1$d 个账户</item>
+    </plurals>
+    <string name="compact_credentials">凭据</string>
+    <string name="compact_codes">验证码</string>
+    <string name="compact_keys">密钥</string>
+    <string name="compact_services_count">%1$d 个服务</string>
+    <string name="compact_totp_count">%1$d 个验证码</string>
+    <string name="compact_recovery_sets_count">%1$d 组恢复码</string>
+    <string name="compact_pinned_count">%1$d 个置顶账户</string>
+    <string name="compact_categories_count">%1$d 种类型</string>
+    <string name="compact_encrypted">加密保险库</string>
+    <string name="compact_on_device">仅存本机</string>
+    <string name="compact_sensitive_auth">敏感操作验证</string>
+    <string name="compact_unlock_methods">指纹或锁屏密码</string>
+    <string name="compact_manual_export">手动导出</string>
+    <string name="compact_package_pin">独立 PIN</string>
+    <string name="compact_merge_import">合并导入</string>
+    <string name="settings_appearance">外观</string>
+    <string name="theme_mode_system">跟随系统</string>
+    <string name="theme_mode_light">浅色</string>
+    <string name="theme_mode_dark">深色</string>
+    <string name="settings_appearance_save_error">外观设置保存失败，请重试。</string>
 </resources>

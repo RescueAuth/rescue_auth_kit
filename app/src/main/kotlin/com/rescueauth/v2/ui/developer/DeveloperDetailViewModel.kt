@@ -82,9 +82,8 @@ sealed interface DeveloperDetailEvent {
  * - Copy of any sensitive value is a high-risk action and requires its OWN
  *   fresh re-auth (Issue #20 §15) — a currently-revealed value does NOT
  *   bypass the copy gate.
- * - Non-secret metadata edits (title / notes / serviceName / accountName /
- *   keyName / field labels) do NOT require fresh re-auth in an unlocked Vault
- *   (Issue #20 §16).
+ * - The full editor independently requires fresh re-auth in DeveloperFormViewModel
+ *   before it pre-fills protected values, including for metadata-only changes.
  * - Reveal state and the in-memory secret map are cleared on session lock /
  *   leaving the screen / manual hide (Issue #20 §14).
  */

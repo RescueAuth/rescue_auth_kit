@@ -22,6 +22,7 @@ class DeveloperFormScreenTest {
     fun creationSeparatesDetailsFromCredentialsAndOnlyFinalStepSaves() {
         var saved = false
         showForm(mutableStateOf(DeveloperFormState(title = "Deployment")), onSubmit = { saved = true })
+        composeRule.onNodeWithTag("page_action_bar").assertIsDisplayed()
         composeRule.onNodeWithText("Title").assertExists()
         composeRule.onNodeWithText("API Key").assertDoesNotExist()
         composeRule.onNodeWithTag("developer_form_next").performClick()
@@ -68,7 +69,23 @@ class DeveloperFormScreenTest {
         assertFalse(submitted)
     }
 
-    private fun showForm(state: State<DeveloperFormState>, onBack: () -> Unit = {}, onSubmit: () -> Unit) {
+    @Test fun customFieldGroupActionsKeepTheirOwnTarget() {
+        var removed: Int? = null
+        var added = 0
+        val state = mutableStateOf(DeveloperFormState(title = "Demo", type = DeveloperFormType.GENERIC_SECRET,
+            fields = listOf("Username" to "", "Password" to "")))
+        showForm(state, onRemoveField = { removed = it }, onAddField = { added++ }, onSubmit = {})
+        composeRule.onNodeWithTag("developer_form_next").performClick()
+        composeRule.onNodeWithTag("generic_field_group_0").assertExists()
+        composeRule.onNodeWithTag("generic_field_group_1").assertExists()
+        composeRule.onNodeWithTag("generic_field_remove_1").performScrollTo().performClick()
+        assertEquals(1, removed)
+        composeRule.onNodeWithTag("generic_field_add").performScrollTo().performClick()
+        assertEquals(1, added)
+    }
+
+    private fun showForm(state: State<DeveloperFormState>, onBack: () -> Unit = {},
+        onRemoveField: (Int) -> Unit = {}, onAddField: () -> Unit = {}, onSubmit: () -> Unit) {
         composeRule.setContent {
             RescueAuthTheme {
                 DeveloperFormScreen(
@@ -86,8 +103,8 @@ class DeveloperFormScreenTest {
                     onPassphraseChange = {},
                     onFieldLabelChange = { _, _ -> },
                     onFieldValueChange = { _, _ -> },
-                    onAddField = {},
-                    onRemoveField = {},
+                    onAddField = onAddField,
+                    onRemoveField = onRemoveField,
                     onProjectNameChange = {},
                     onPackageNameChange = {},
                     onStorePasswordChange = {},

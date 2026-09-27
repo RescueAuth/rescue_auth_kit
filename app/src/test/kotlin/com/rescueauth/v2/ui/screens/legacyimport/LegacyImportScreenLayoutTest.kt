@@ -5,6 +5,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performTextInput
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.legacyimport.LegacyDeveloperPreviewSummary
 import com.rescueauth.v2.legacyimport.LegacyImportPreview
@@ -91,6 +95,7 @@ class LegacyImportScreenLayoutTest {
         setScreenContent(buildPreview())
         composeRule.onNodeWithTag(LegacyImportTestTags.CONFIRM).assertExists()
         composeRule.onNodeWithTag(LegacyImportTestTags.CONFIRM).assertIsDisplayed()
+        composeRule.onNodeWithTag("page_action_bar").assertIsDisplayed()
         composeRule.onNodeWithTag(LegacyImportTestTags.CANCEL).assertExists()
         composeRule.onNodeWithTag(LegacyImportTestTags.CANCEL).assertIsDisplayed()
     }
@@ -161,6 +166,7 @@ class LegacyImportScreenLayoutTest {
     @Test
     fun blockedPreview_importButtonIsDisabled() {
         setScreenContent(buildPreview(conflicts = 2))
+        composeRule.onNodeWithTag(LegacyImportTestTags.CONFIRM).assertIsNotEnabled()
         composeRule.onNodeWithTag(LegacyImportTestTags.CONFIRM).assertExists()
         // Button exists but is disabled when preview is blocked.
         composeRule.onNodeWithTag(LegacyImportTestTags.CONFIRM).assertIsDisplayed()
@@ -209,6 +215,25 @@ class LegacyImportScreenLayoutTest {
         composeRule.onNodeWithTag(LegacyImportTestTags.PASSWORD_CANCEL).assertIsDisplayed()
         composeRule.onNodeWithTag(LegacyImportTestTags.PASSWORD_SUBMIT).assertExists()
         composeRule.onNodeWithTag(LegacyImportTestTags.PASSWORD_SUBMIT).assertIsDisplayed()
+        composeRule.onNodeWithTag("page_action_bar").assertIsDisplayed()
+        composeRule.onNodeWithTag(LegacyImportTestTags.PASSWORD_SUBMIT).assertIsNotEnabled()
+    }
+
+    @Test fun legacyPasswordKeepsItsOwnPolicyAndClearsRejectedArray() {
+        var submitted: CharArray? = null
+        var calls = 0
+        composeRule.setContent {
+            RescueAuthTheme {
+                LegacyImportScreen(state = LegacyImportViewModel.State.AwaitingPassword,
+                    onPickFile = {}, onSubmitPassword = { submitted = it; calls++; false },
+                    onRetryPassword = {}, onCancelPassword = {}, onConfirm = {}, onCancel = {},
+                    onDismissResult = {}, onBack = {})
+            }
+        }
+        composeRule.onNodeWithTag(LegacyImportTestTags.PASSWORD_FIELD).performTextInput("x")
+        composeRule.onNodeWithTag(LegacyImportTestTags.PASSWORD_SUBMIT).performClick()
+        assertEquals(1, calls)
+        assertTrue(submitted!!.all { it == '\u0000' })
     }
 
     @Test

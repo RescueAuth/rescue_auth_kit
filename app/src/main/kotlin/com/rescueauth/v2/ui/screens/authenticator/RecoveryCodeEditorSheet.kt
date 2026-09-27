@@ -14,7 +14,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -80,7 +80,7 @@ fun RecoveryCodeEditorSheet(
                 contentPadding = Spacing.md,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(
+                    RescueAuthTextField(
                         value = form.title,
                         onValueChange = onTitleChange,
                         label = { Text(stringResource(R.string.recovery_codes_set_title_label)) },
@@ -89,7 +89,7 @@ fun RecoveryCodeEditorSheet(
                         singleLine = true,
                     )
 
-                    OutlinedTextField(
+                    RescueAuthTextField(
                         value = form.valuesText,
                         onValueChange = onValuesChange,
                         label = { Text(stringResource(R.string.recovery_codes_values_label)) },

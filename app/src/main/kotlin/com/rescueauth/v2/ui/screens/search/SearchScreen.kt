@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.text.style.TextOverflow
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
@@ -24,8 +23,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthTextField
+import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +50,6 @@ import com.rescueauth.v2.R
 import com.rescueauth.v2.search.SearchResult
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.search.SearchUiState
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
@@ -77,24 +75,19 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     var inputReady by remember { mutableStateOf(false) }
     LaunchedEffect(inputReady) { if (inputReady) focusRequester.requestFocus() }
-    Scaffold(
+    RescueAuthPageScaffold(
         modifier = modifier
             .fillMaxSize()
             .testTag(SearchTestTags.SCREEN_SEARCH).imePadding(),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = stringResource(R.string.search_title),
-                subtitle = stringResource(R.string.search_subtitle),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.common_close),
-                        )
-                    }
-                },
-            )
+        title = stringResource(R.string.search_title),
+        subtitle = stringResource(R.string.search_subtitle),
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.common_close),
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -102,7 +95,7 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            OutlinedTextField(
+            RescueAuthTextField(
                 value = uiState.query,
                 onValueChange = onQueryChange,
                 modifier = Modifier
@@ -131,12 +124,6 @@ fun SearchScreen(
                     }
                 },
                 singleLine = true,
-                shape = CardTokens.rowShape,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
             when {
                 uiState.isEmptyQuery -> EmptyState(

@@ -13,7 +13,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,7 +72,7 @@ fun MoveRecoveryDialog(
                         onExpandedChange = { expanded = it },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        OutlinedTextField(
+                        RescueAuthTextField(
                             value = selected?.label.orEmpty(),
                             onValueChange = {},
                             readOnly = true,

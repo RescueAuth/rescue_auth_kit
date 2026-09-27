@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -24,6 +26,7 @@ import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
+import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.model.DeveloperEntryUi
 import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.screens.developer.DeveloperAddSheet
@@ -314,6 +317,7 @@ fun DeveloperFormRoute(
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
+    formViewModel: DeveloperFormViewModel? = null,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -327,19 +331,24 @@ fun DeveloperFormRoute(
             SecureSessionStateMachine().state
         }
     }
-    val viewModel = remember {
+    val viewModel = formViewModel ?: remember(editingStableId, initialType) {
         DeveloperFormViewModel(
             developerRepositoryProvider = { VaultAccess.developerRepository() },
             sessionState = sessionState,
             scope = appScope,
+            sensitiveActionGate = SensitiveActionAccess.gate,
         )
     }
     val formState by viewModel.formState.collectAsState()
     val events by viewModel.events.collectAsState()
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.dismiss() }
+    }
+
+    LaunchedEffect(viewModel) {
         if (editingStableId != null) {
-            viewModel.beginEdit(editingStableId)
+            if (!viewModel.beginEdit(editingStableId)) onBack()
         } else {
             viewModel.beginCreate(initialType)
         }
@@ -349,7 +358,8 @@ fun DeveloperFormRoute(
         val event = events ?: return@LaunchedEffect
         when (event) {
             is DeveloperFormEvent.Saved -> {
-                snackbarHostState.showSnackbar(context.getString(R.string.developer_saved_message))
+                // Completion must reach navigation immediately; this route has no snackbar host.
+                // Waiting here would strand an authorized editor after submit clears its state.
                 onSaved()
             }
             is DeveloperFormEvent.Error -> {
@@ -357,6 +367,14 @@ fun DeveloperFormRoute(
             }
         }
         viewModel.onEventShown()
+    }
+
+    // Route restoration and direct navigation use the same guarded loader as a normal Edit tap.
+    // No editable control or plaintext form state is rendered while verification is pending.
+    if (editingStableId != null && formState.editingStableId != editingStableId) {
+        BackHandler { viewModel.dismiss(); onBack() }
+        LoadingState(modifier = modifier.fillMaxSize())
+        return
     }
 
     DeveloperFormScreen(

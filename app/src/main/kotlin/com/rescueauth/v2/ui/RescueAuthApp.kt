@@ -50,6 +50,7 @@ import com.rescueauth.v2.ui.screens.exportimport.ExportImportMode
 import com.rescueauth.v2.ui.screens.exportimport.ExportImportRoute
 import com.rescueauth.v2.ui.screens.settings.SettingsScreen
 import com.rescueauth.v2.ui.screens.settings.SettingsTransferScreen
+import com.rescueauth.v2.ui.theme.ThemeMode
 import com.rescueauth.v2.ui.screens.legacyimport.LegacyImportRoute
 import com.rescueauth.v2.ui.search.SearchRoute
 import android.net.Uri
@@ -79,6 +80,8 @@ fun RescueAuthApp(
     modifier: Modifier = Modifier,
     versionName: String? = null,
     startRoute: String? = null,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    onThemeModeChange: ((ThemeMode) -> Unit)? = null,
 ) {
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -353,6 +356,8 @@ fun RescueAuthApp(
             composable(RescueAuthRoutes.SETTINGS) {
                 SettingsScreen(
                     versionName = versionName,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
                     onImportClick = { navController.navigate(RescueAuthRoutes.IMPORT) },
                     onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },

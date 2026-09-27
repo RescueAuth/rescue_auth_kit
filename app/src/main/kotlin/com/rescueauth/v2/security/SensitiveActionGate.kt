@@ -67,6 +67,7 @@ class SensitiveActionGate(
     private var pendingCallback: ((SensitiveActionResult) -> Unit)? = null
     private var authorizedRequest: SensitiveActionRequest? = null
     private var promptActive = false
+    private var promptGeneration = 0L
 
     /** The currently pending request (or null). Test-visible. */
     fun pendingRequestOrNull(): SensitiveActionRequest? = pendingRequest
@@ -90,6 +91,8 @@ class SensitiveActionGate(
     ): Boolean {
         if (pendingRequest != null || promptActive) return false
         if (!session.isUnlocked()) return false
+        val generation = ++promptGeneration
+        authorizedRequest = null
         pendingRequest = request
         pendingCallback = onResult
         promptActive = true
@@ -97,7 +100,7 @@ class SensitiveActionGate(
             request = request,
             title = titleProvider(),
             subtitle = subtitleProvider(),
-            onResult = { result -> onPromptResult(result) },
+            onResult = { result -> onPromptResult(request, generation, result) },
         )
         if (!started) {
             // Platform cannot host the prompt right now (e.g. host not
@@ -119,6 +122,10 @@ class SensitiveActionGate(
      *   and [block] ran.
      */
     fun <T> executePending(request: SensitiveActionRequest, block: () -> T): Boolean {
+        if (!session.isUnlocked()) {
+            invalidate()
+            return false
+        }
         if (authorizedRequest != request) return false
         authorizedRequest = null
         block()
@@ -127,11 +134,7 @@ class SensitiveActionGate(
 
     /** Cancels the pending request without executing anything. */
     fun cancelPending() {
-        pendingRequest = null
-        pendingCallback = null
-        authorizedRequest = null
-        promptActive = false
-        prompt.cancel()
+        invalidate()
     }
 
     /**
@@ -139,11 +142,15 @@ class SensitiveActionGate(
      * (session lock / lifecycle pause / destroy).
      */
     fun invalidate() {
+        val callback = pendingCallback
+        ++promptGeneration
         pendingRequest = null
         pendingCallback = null
         authorizedRequest = null
         promptActive = false
         prompt.cancel()
+        // Awaiting edit loaders must finish on lifecycle cancellation as well as user cancellation.
+        callback?.invoke(SensitiveActionResult.Cancelled)
     }
 
     /** Called when the host activity pauses — clears any pending auth. */
@@ -158,7 +165,13 @@ class SensitiveActionGate(
         prompt.onLifecycleDestroy()
     }
 
-    private fun onPromptResult(result: SensitiveActionResult) {
+    private fun onPromptResult(request: SensitiveActionRequest, generation: Long, delivered: SensitiveActionResult) {
+        if (generation != promptGeneration || pendingRequest != request) return
+        val result = when {
+            !session.isUnlocked() -> SensitiveActionResult.Cancelled
+            delivered is SensitiveActionResult.Success && delivered.request != request -> SensitiveActionResult.Failed
+            else -> delivered
+        }
         promptActive = false
         when (result) {
             is SensitiveActionResult.Success -> {

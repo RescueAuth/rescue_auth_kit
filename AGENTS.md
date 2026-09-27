@@ -84,7 +84,7 @@
 5. **不恢复全局 Master Password**：Master Password 仅存在于 legacy
    `.rakvault` 兼容解密。
 6. **Sensitive Action Re-authentication**：高敏感操作（Export、export
-   keystore、reveal 长期 secret 等）即使 Vault 已解锁也要求 fresh
+   keystore、reveal 长期 secret、进入五类 Developer 完整编辑器等）即使 Vault 已解锁也要求 fresh
    Biometric / Device Credential；不得隐含在普通 unlock 中。
 7. **删除 Undo**：普通删除走 SnackBar Undo；**不要**为了 Undo 恢复
    automatic checkpoint backup。

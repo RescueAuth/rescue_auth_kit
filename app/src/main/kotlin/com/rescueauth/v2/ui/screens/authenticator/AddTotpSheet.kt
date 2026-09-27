@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,12 +16,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +44,7 @@ import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.ui.authenticator.AddMode
 import com.rescueauth.v2.ui.authenticator.AddTotpFormState
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthActionBar
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.theme.CardTokens
@@ -72,180 +78,102 @@ fun AddTotpSheet(
     }
     val mode = selectedMode
     var showAdvanced by remember { mutableStateOf(false) }
-    ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.lg)
-                .padding(bottom = Spacing.xl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
+        modifier = modifier.testTag("add_totp_sheet")) {
+        Column(Modifier.fillMaxWidth().imePadding()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()).testTag("add_totp_fields")
+                    .padding(horizontal = Spacing.lg).padding(bottom = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(CardTokens.formFieldSpacing),
             ) {
-                RescueAuthIconBadge(icon = Icons.Filled.Add, size = 40.dp, iconSize = 20.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.add_totp_title),
-                        style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = stringResource(R.string.add_totp_sheet_subtitle),
-                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (mode == null) {
-                MethodChoiceRow(
-                    icon = Icons.Filled.CameraAlt,
-                    title = stringResource(R.string.add_totp_mode_scan),
-                    subtitle = stringResource(R.string.add_totp_scan_hint),
-                    testTag = "totp_method_SCAN",
-                    onClick = {
-                        selectedMode = AddMode.SCAN
-                        onModeChange(AddMode.SCAN)
-                    },
-                )
-                MethodChoiceRow(
-                    icon = Icons.Filled.ContentPaste,
-                    title = stringResource(R.string.add_totp_mode_paste),
-                    subtitle = stringResource(R.string.add_totp_paste_subtitle),
-                    testTag = "totp_method_PASTE",
-                    onClick = {
-                        selectedMode = AddMode.PASTE
-                        onModeChange(AddMode.PASTE)
-                    },
-                )
-                MethodChoiceRow(
-                    icon = Icons.Filled.Add,
-                    title = stringResource(R.string.add_totp_mode_manual),
-                    subtitle = stringResource(R.string.add_totp_manual_subtitle),
-                    testTag = "totp_method_MANUAL",
-                    onClick = {
-                        selectedMode = AddMode.MANUAL
-                        onModeChange(AddMode.MANUAL)
-                    },
-                )
-            } else {
-                TextButton(
-                    onClick = { selectedMode = null },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.add_totp_change_method))
-                }
-                // Keep the primary scan action in the first visible portion of
-                // the sheet; the explanatory copy can scroll below it on small phones.
-                if (mode == AddMode.SCAN) {
-                    Button(
-                        onClick = onStartScan,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.Filled.CameraAlt, contentDescription = null)
-                        Spacer(modifier = Modifier.width(Spacing.xxs))
-                        Text(stringResource(R.string.add_totp_scan_action))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.add_totp_title),
+                            style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold)
+                        if (mode == null) Text(stringResource(R.string.add_totp_sheet_subtitle),
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (mode != null) TextButton(onClick = { selectedMode = null },
+                        modifier = Modifier.testTag("totp_change_method")) {
+                        Text(stringResource(R.string.add_totp_change_method))
                     }
                 }
-
-                RescueAuthCard(
-                    containerColor = CardTokens.elevatedContainerColor(),
-                    contentPadding = Spacing.md,
-                ) {
-                    when (mode) {
-                    AddMode.SCAN -> {
-                        Text(
-                            text = stringResource(R.string.add_totp_scan_hint),
-                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    AddMode.PASTE -> {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.add_totp_uri_label),
-                            subtitle = stringResource(R.string.add_totp_paste_subtitle),
-                        )
-                        OutlinedTextField(
-                            value = form.uri,
-                            onValueChange = onUriChange,
-                            label = { Text(stringResource(R.string.add_totp_uri_label)) },
-                            placeholder = { Text(stringResource(R.string.add_totp_uri_hint)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = Spacing.sm),
-                            minLines = 2,
-                        )
-                    }
-                    AddMode.MANUAL -> {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.add_totp_mode_manual),
-                            subtitle = stringResource(R.string.add_totp_manual_subtitle),
-                        )
-                        OutlinedTextField(
-                            value = form.provider,
-                            onValueChange = onProviderChange,
-                            label = { Text(stringResource(R.string.add_totp_provider_label)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = Spacing.sm),
-                            singleLine = true,
-                        )
-                        OutlinedTextField(
-                            value = form.accountName,
-                            onValueChange = onAccountNameChange,
-                            label = { Text(stringResource(R.string.add_totp_account_label)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                        OutlinedTextField(
-                            value = form.secret,
-                            onValueChange = onSecretChange,
-                            label = { Text(stringResource(R.string.add_totp_secret_label)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                        )
-                        TextButton(onClick = { showAdvanced = !showAdvanced }) {
-                            Text(stringResource(R.string.add_totp_advanced))
-                        }
-                        if (showAdvanced) {
-                            AlgorithmSelector(form.algorithm, onAlgorithmChange)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                            ) {
-                                DigitSelector(form.digits, onDigitsChange, Modifier.weight(1f))
-                                PeriodSelector(form.periodSeconds, onPeriodChange, Modifier.weight(1f))
+                if (mode == null) {
+                    MethodChoiceRow(Icons.Filled.CameraAlt, stringResource(R.string.add_totp_mode_scan),
+                        stringResource(R.string.add_totp_scan_hint), {
+                            selectedMode = AddMode.SCAN; onModeChange(AddMode.SCAN)
+                        }, "totp_method_SCAN")
+                    MethodChoiceRow(Icons.Filled.ContentPaste, stringResource(R.string.add_totp_mode_paste),
+                        stringResource(R.string.add_totp_paste_subtitle), {
+                            selectedMode = AddMode.PASTE; onModeChange(AddMode.PASTE)
+                        }, "totp_method_PASTE")
+                    MethodChoiceRow(Icons.Filled.Add, stringResource(R.string.add_totp_mode_manual),
+                        stringResource(R.string.add_totp_manual_subtitle), {
+                            selectedMode = AddMode.MANUAL; onModeChange(AddMode.MANUAL)
+                        }, "totp_method_MANUAL")
+                } else {
+                    RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(CardTokens.formFieldSpacing)) {
+                            when (mode) {
+                                AddMode.SCAN -> {
+                                    Text(stringResource(R.string.add_totp_scan_hint),
+                                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                                    Button(onClick = onStartScan, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Filled.CameraAlt, null)
+                                        Spacer(Modifier.width(Spacing.xs))
+                                        Text(stringResource(R.string.add_totp_scan_action))
+                                    }
+                                }
+                                AddMode.PASTE -> RescueAuthTextField(
+                                    value = form.uri, onValueChange = onUriChange,
+                                    label = { Text(stringResource(R.string.add_totp_uri_label)) },
+                                    placeholder = { Text(stringResource(R.string.add_totp_uri_hint)) },
+                                    modifier = Modifier.fillMaxWidth(), minLines = 2)
+                                AddMode.MANUAL -> {
+                                    RescueAuthTextField(form.provider, onProviderChange,
+                                        label = { Text(stringResource(R.string.add_totp_provider_label)) },
+                                        singleLine = true, modifier = Modifier.fillMaxWidth().testTag("add_totp_provider"))
+                                    RescueAuthTextField(form.accountName, onAccountNameChange,
+                                        label = { Text(stringResource(R.string.add_totp_account_label)) },
+                                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                                    RescueAuthTextField(form.secret, onSecretChange,
+                                        label = { Text(stringResource(R.string.add_totp_secret_label)) },
+                                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                                        modifier = Modifier.fillMaxWidth().testTag("add_totp_secret"))
+                                    TextButton(onClick = { showAdvanced = !showAdvanced }) {
+                                        Text(stringResource(R.string.add_totp_advanced))
+                                        Spacer(Modifier.width(Spacing.xxs))
+                                        Icon(if (showAdvanced) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null)
+                                    }
+                                    if (showAdvanced) {
+                                        AlgorithmSelector(form.algorithm, onAlgorithmChange)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                            DigitSelector(form.digits, onDigitsChange, Modifier.weight(1f))
+                                            PeriodSelector(form.periodSeconds, onPeriodChange, Modifier.weight(1f))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-            }
-            if (mode != null) form.error?.let { error ->
-                Text(
-                    text = error,
-                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.error,
-                )
-            }
-            if (mode != null && mode != AddMode.SCAN) Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-                Button(
-                    onClick = onSubmit,
-                    enabled = !form.submitting,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.add_totp_confirm))
+                if (mode != null) form.error?.let { error ->
+                    Text(error, style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.error)
                 }
             }
+            if (mode != null && mode != AddMode.SCAN) RescueAuthActionBar(
+                secondaryLabel = stringResource(R.string.common_cancel), secondaryIcon = Icons.Filled.Close,
+                onSecondaryClick = onDismiss,
+                primaryLabel = stringResource(R.string.add_totp_confirm), primaryIcon = Icons.Filled.Add,
+                onPrimaryClick = onSubmit, primaryEnabled = !form.submitting,
+                primaryTestTag = "add_totp_submit", secondaryTestTag = "add_totp_cancel",
+                modifier = Modifier.testTag("add_totp_actions"))
         }
     }
 }

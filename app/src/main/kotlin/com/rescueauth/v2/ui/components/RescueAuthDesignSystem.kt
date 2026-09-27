@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -53,19 +52,6 @@ import com.rescueauth.v2.R
  */
 
 @Composable
-fun RescueAuthPageBackground(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(content = content)
-    }
-}
-
-@Composable
 fun RescueAuthPageHeader(
     title: String,
     subtitle: String? = null,
@@ -78,10 +64,6 @@ fun RescueAuthPageHeader(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(Modifier.padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md)) {
-            if (navigationIcon == null) {
-                StudioEyebrow(androidx.compose.ui.res.stringResource(R.string.studio_collection_label))
-                Spacer(Modifier.height(Spacing.xs))
-            }
             Row(Modifier.fillMaxWidth().heightIn(min = ScreenTokens.controlMinHeight), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 navigationIcon?.invoke()

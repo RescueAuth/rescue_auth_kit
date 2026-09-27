@@ -10,13 +10,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,9 +35,9 @@ import com.rescueauth.v2.ui.components.DestructiveConfirmationDialog
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthActionBar
+import com.rescueauth.v2.ui.components.ProtectedFieldsCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.icon
 import com.rescueauth.v2.ui.developer.DeveloperDetailUiState
 import com.rescueauth.v2.ui.model.DeveloperDetailUi
@@ -76,16 +78,26 @@ fun DeveloperDetailScreen(
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
 ) {
-    Scaffold(
+    RescueAuthPageScaffold(
         modifier = modifier.fillMaxSize(),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = uiState.detail?.title
-                    ?: stringResource(R.string.developer_detail_title),
-                subtitle = uiState.detail?.let { developerTypeLabel(it) },
-                navigationIcon = { RescueAuthBackButton(onBack) },
-            )
+        title = uiState.detail?.title
+            ?: stringResource(R.string.developer_detail_title),
+        subtitle = uiState.detail?.let { developerTypeLabel(it) },
+        navigationIcon = { RescueAuthBackButton(onBack) },
+        bottomBar = {
+            if (!uiState.loading && uiState.detail != null) {
+                RescueAuthActionBar(
+                    secondaryLabel = stringResource(R.string.developer_delete),
+                    secondaryIcon = Icons.Outlined.Delete,
+                    onSecondaryClick = onDelete,
+                    secondaryDestructive = true,
+                    secondaryTestTag = "developer_detail_delete",
+                    primaryLabel = stringResource(R.string.developer_edit),
+                    primaryIcon = Icons.Outlined.Edit,
+                    onPrimaryClick = onEdit,
+                    primaryTestTag = "developer_detail_edit",
+                )
+            }
         },
     ) { padding ->
         when {
@@ -123,8 +135,6 @@ fun DeveloperDetailScreen(
                 onCopyKeyProperties = onCopyKeyProperties,
                 onRevealEnvVar = onRevealEnvVar,
                 onCopyEnvVar = onCopyEnvVar,
-                onEdit = onEdit,
-                onDelete = onDelete,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -155,8 +165,6 @@ private fun DeveloperDetailContent(
     onCopyKeyProperties: () -> Unit,
     onRevealEnvVar: (String) -> Unit,
     onCopyEnvVar: (String) -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
     modifier: Modifier,
 ) {
     LazyColumn(
@@ -167,12 +175,6 @@ private fun DeveloperDetailContent(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        if (detail !is DeveloperDetailUi.GenericSecret) item(key = "metadata-heading") {
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.developer_metadata_section),
-                modifier = Modifier.padding(top = Spacing.sm),
-            )
-        }
         if (detail !is DeveloperDetailUi.GenericSecret) item(key = "metadata") {
             RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
                 when (detail) {
@@ -204,15 +206,8 @@ private fun DeveloperDetailContent(
                 }
             }
         }
-        item(key = "secrets-heading") {
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.developer_sensitive_section),
-                subtitle = stringResource(R.string.developer_sensitive_hint),
-                modifier = Modifier.padding(top = Spacing.md),
-            )
-        }
         item(key = "secrets") {
-            RescueAuthCard {
+            ProtectedFieldsCard(entryId = detail.stableId) {
                 when (detail) {
                     is DeveloperDetailUi.ApiCredential -> {
                         SensitiveActionRow(stringResource(R.string.developer_field_api_key), isRevealed("apiKey"), getRevealedValue("apiKey"), onRevealApiKey, onCopyApiKey)
@@ -246,16 +241,6 @@ private fun DeveloperDetailContent(
                     OutlinedButton(onClick = onCopyKeyProperties, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.developer_copy_key_properties))
                     }
-                }
-            }
-        }
-        item(key = "actions") {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.developer_edit))
-                }
-                TextButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.developer_delete), color = MaterialTheme.colorScheme.error)
                 }
             }
         }

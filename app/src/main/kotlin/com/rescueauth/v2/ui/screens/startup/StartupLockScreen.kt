@@ -7,12 +7,23 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Shield
+import com.rescueauth.v2.ui.components.StudioIconLabel
+import com.rescueauth.v2.ui.components.RescueAuthMetaPill
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.rescueauth.v2.ui.components.StudioAction
+import com.rescueauth.v2.ui.components.StudioBrandArtwork
 import com.rescueauth.v2.ui.components.StudioColors
 import com.rescueauth.v2.ui.components.StudioEntrance
 import com.rescueauth.v2.ui.components.StudioEyebrow
@@ -69,6 +80,7 @@ object StartupLockTestTags {
     const val SETTINGS_BUTTON = "startup_settings_button"
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StartupIntroScreen(
     onContinue: () -> Unit,
@@ -94,50 +106,40 @@ fun StartupIntroScreen(
                     ) {
                         RescueAuthMark(Modifier.size(32.dp), animated = false, monochrome = true)
                         Text(stringResource(R.string.startup_brand_name), style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.weight(1f))
-                        StudioEyebrow(stringResource(R.string.studio_private_label))
                     }
                     Spacer(Modifier.height(Spacing.xl))
-                    RescueAuthCard(
-                        shape = CardTokens.heroShape,
-                        contentPadding = CardTokens.noPadding,
-                        containerColor = StudioColors.ink,
-                    ) {
-                        Box(Modifier.fillMaxWidth().height(180.dp)) {
-                            RescueAuthMark(Modifier.align(Alignment.Center).size(180.dp))
-                        }
-                        StudioEyebrow(
-                            stringResource(R.string.studio_local_label),
-                            Modifier.padding(start = CardTokens.heroPadding, end = CardTokens.heroPadding, bottom = Spacing.lg),
-                            StudioColors.mutedInk,
-                        )
-                    }
+                    StudioBrandArtwork()
                     Spacer(Modifier.height(Spacing.xl))
                     Text(
                         stringResource(R.string.studio_welcome_title),
-                        fontSize = 36.sp, lineHeight = 43.sp, letterSpacing = (-1).sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(Spacing.sm))
-                    Text(stringResource(R.string.studio_welcome_body),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(Spacing.lg))
-                    // One quiet security note; the action is no longer nested in a second card.
-                    RescueAuthRowCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                        Icon(Icons.Outlined.Fingerprint, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.startup_intro_title), style = MaterialTheme.typography.labelLarge)
-                            Text(stringResource(R.string.startup_intro_body), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        RescueAuthMetaPill(stringResource(R.string.compact_codes), icon = Icons.Outlined.Timer)
+                        RescueAuthMetaPill(stringResource(R.string.compact_keys), icon = Icons.Outlined.Key)
+                        RescueAuthMetaPill(stringResource(R.string.recovery_codes_title), icon = Icons.Outlined.Shield)
                     }
                     Spacer(Modifier.height(Spacing.lg))
-                    StudioAction(
-                        text = stringResource(R.string.studio_create_vault), onClick = onContinue,
-                        modifier = Modifier.testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
-                    )
+                    Button(
+                        onClick = onContinue,
+                        modifier = Modifier.fillMaxWidth().testTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON),
+                        contentPadding = PaddingValues(horizontal = CardTokens.heroPadding, vertical = Spacing.md),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background),
+                    ) {
+                        Icon(Icons.Outlined.Fingerprint, null, Modifier.size(24.dp))
+                        Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
+                            Text(stringResource(R.string.studio_create_vault), style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.compact_unlock_methods),
+                                Modifier.padding(top = Spacing.xxs), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.background.copy(alpha = 0.78f))
+                        }
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(20.dp))
+                    }
                     if (onImportV1 != null) {
                         TextButton(
                             onClick = onImportV1,

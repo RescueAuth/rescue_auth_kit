@@ -14,7 +14,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -32,7 +32,6 @@ import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RecoveryCodeSetCard
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.RecoveryCodeUi
@@ -68,16 +67,11 @@ fun RecoveryCodesScreen(
     onMove: ((String) -> Unit)? = null,
     onNavigate: ((String) -> Unit)? = null,
 ) {
-    Scaffold(
+    RescueAuthPageScaffold(
         modifier = modifier.fillMaxSize(),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = uiState.accountName.ifBlank { stringResource(R.string.recovery_codes_title) },
-                subtitle = uiState.providerName.ifBlank { stringResource(R.string.authenticator_title) },
-                navigationIcon = onBack?.let { callback -> { RescueAuthBackButton(callback) } },
-            )
-        },
+        title = uiState.accountName.ifBlank { stringResource(R.string.recovery_codes_title) },
+        subtitle = uiState.providerName.ifBlank { stringResource(R.string.authenticator_title) },
+        navigationIcon = onBack?.let { callback -> { RescueAuthBackButton(callback) } },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         floatingActionButton = {
             if (onAddClick != null) {

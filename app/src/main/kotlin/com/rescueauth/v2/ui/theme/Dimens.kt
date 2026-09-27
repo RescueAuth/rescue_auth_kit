@@ -3,6 +3,7 @@ package com.rescueauth.v2.ui.theme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 
 /**
@@ -98,19 +99,89 @@ object CardTokens {
     /** Studio panels use a flat fill; dividers retain the fine outline token. */
     val border: androidx.compose.foundation.BorderStroke? = null
     val heroShape = RoundedCornerShape(32.dp)
-    val dockShape = RoundedCornerShape(28.dp)
+    val dockShape = RoundedCornerShape(40.dp)
     val heroPadding = 24.dp
     val noPadding = 0.dp
     val actionSpacing = 12.dp
-    /** All directory banners share one geometry, independent of copy length. */
-    val bannerHeight = 144.dp
-    val bannerArtworkSize = 84.dp
-    val bannerPadding = 20.dp
-    val bannerLargeTextGrowth = 120.dp
+    /** Joined page actions: secondary at start, primary at end, without elevation. */
+    val actionBarShape = RoundedCornerShape(21.dp)
+    val actionButtonShape = RoundedCornerShape(15.dp)
+    val actionBarPadding = 5.dp
+    val actionBarGap = 6.dp
+    val actionBarBorderWidth = 1.dp
+    val actionButtonHeight = 52.dp
+    val actionIconSize = 20.dp
+    val actionBarBalancedWidth = 320.dp
+    val brandArtworkSize = 180.dp
+    val inputFocusBorderWidth = 2.dp
+    val inputRestBorderWidth = 1.dp
+    val inputMinHeight = 56.dp
+    val formFieldSpacing = Spacing.md
+
+    @Composable
+    fun inputOutlineColor(): Color =
+        androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
+
+    /** Shared search-style surface; form labels float into the outlined border. */
+    @Composable
+    fun inputContainerColor(): Color = containerColor()
+
+    @Composable
+    fun actionPrimaryContainerColor(): Color =
+        if (containerColor().luminance() < 0.5f) Color(0xFF364564) else Color(0xFFE0E8FA)
+
+    @Composable
+    fun actionPrimaryContentColor(): Color =
+        if (containerColor().luminance() < 0.5f) Color(0xFFD9E5FF) else Color(0xFF354C7F)
+
+    @Composable
+    fun protectedHeaderColor(): Color =
+        if (containerColor().luminance() < 0.5f) Color(0xFF303540) else Color(0xFFF5F6F9)
+    /** Shared minimum geometry; large text may grow the brand card without clipping. */
+    val bannerHeight = 88.dp
+    val bannerPadding = 12.dp
+    val bannerHorizontalPadding = 24.dp
+    val bannerMotifSize = 200.dp
+    val bannerMotifEndOffset = 44.dp
+    val bannerMotifTopOffset = (-28).dp
+    val bannerLargeTextGrowth = 64.dp
+    const val bannerEnterDurationMillis = 180
+
+    @Composable
+    fun bannerMotifAlpha(): Float =
+        if (androidx.compose.material3.MaterialTheme.colorScheme.surface.luminance() < 0.5f) 0.18f else 0.065f
+
+    @Composable
+    fun bannerWashColor(): Color = Color(0xFF2A67A6).copy(alpha =
+        if (androidx.compose.material3.MaterialTheme.colorScheme.surface.luminance() < 0.5f) 0.10f else 0.045f)
 
     /** Padding between sibling cards inside a list / column. */
     val listSpacing = Spacing.xs
 
     /** Padding applied around the whole carded list from its container edges. */
     val listOuterPadding = Spacing.md
+}
+
+/** Floating navigation material; all fills resolve from the active light/dark scheme. */
+object DockTokens {
+    val selectionShape = RoundedCornerShape(50)
+    val shadowElevation = 4.dp
+    val borderWidth = 0.5.dp
+    val focusBorderWidth = 1.dp
+    val contentPadding = Spacing.xxs
+    val itemSpacing = Spacing.xxs
+    val itemVerticalPadding = Spacing.xxs
+    val labelSpacing = 2.dp
+    val iconSize = 20.dp
+    const val slideDurationMillis = 220
+    const val selectedIconScale = 1.08f
+
+    @Composable
+    fun containerColor(): Color = androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+
+    @Composable
+    fun selectionColor(): Color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+
+    @Composable
+    fun borderColor(): Color = androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
 }

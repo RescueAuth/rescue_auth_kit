@@ -25,6 +25,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.PeopleOutline
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,7 +36,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -69,14 +72,15 @@ import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthDivider
 import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.StudioVaultHero
 import com.rescueauth.v2.ui.components.StudioAction
 import com.rescueauth.v2.ui.components.StudioColors
-import com.rescueauth.v2.ui.components.StudioEntrance
 import com.rescueauth.v2.ui.components.RescueAuthButton
+import com.rescueauth.v2.ui.components.RescueAuthIconAction
+import com.rescueauth.v2.ui.components.StudioIconCount
+import com.rescueauth.v2.ui.components.StudioCountBadge
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
@@ -159,65 +163,52 @@ fun AuthenticatorScreen(
     }
     BackHandler(enabled = isDetailRequested && onBack == null, onBack = returnToParent)
 
-    Scaffold(
+    RescueAuthPageScaffold(
         modifier = modifier.fillMaxSize(),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = if (selectionUnavailable) {
-                    stringResource(R.string.vault_item_unavailable_title)
-                } else if (atAccountLevel) {
-                    selectedAccount?.accountName.orEmpty()
-                } else if (atProviderLevel) {
-                    selectedProvider?.serviceName.orEmpty()
-                } else {
-                    stringResource(R.string.authenticator_title)
-                },
-                subtitle = if (atAccountLevel) {
-                    selectedAccount?.providerName
-                } else if (atProviderLevel) {
-                    stringResource(R.string.authenticator_provider_subtitle)
-                } else {
-                    null
-                },
-                navigationIcon = if (isDetailRequested) {
-                    {
-                        IconButton(onClick = returnToParent, modifier = Modifier.testTag("authenticator_back")) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.a11y_back),
-                            )
-                        }
+        title = if (selectionUnavailable) {
+            stringResource(R.string.vault_item_unavailable_title)
+        } else if (atAccountLevel) {
+            selectedAccount?.accountName.orEmpty()
+        } else if (atProviderLevel) {
+            selectedProvider?.serviceName.orEmpty()
+        } else {
+            stringResource(R.string.authenticator_title)
+        },
+        navigationIcon = if (isDetailRequested) {
+            {
+                IconButton(onClick = returnToParent, modifier = Modifier.testTag("authenticator_back")) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.a11y_back),
+                    )
+                }
+            }
+        } else {
+            null
+        },
+        actions = {
+            if (onAddClick != null && !uiState.loading && (!isDetailRequested || selectionExists)) {
+                Box {
+                    RescueAuthIconAction(
+                        icon = Icons.Filled.Add,
+                        label = stringResource(R.string.studio_add),
+                        onClick = { if (!atAccountLevel && !atProviderLevel) addMenuOpen = true else onAddClick() },
+                        modifier = Modifier.testTag("vault_add_menu"),
+                    )
+                    DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.studio_add_credential)) },
+                            leadingIcon = { Icon(Icons.Outlined.Timer, null) },
+                            onClick = { addMenuOpen = false; onAddClick() },
+                        )
+                        if (onAddProviderClick != null) DropdownMenuItem(
+                            text = { Text(stringResource(R.string.studio_new_service)) },
+                            leadingIcon = { Icon(Icons.Outlined.GridView, null) },
+                            onClick = { addMenuOpen = false; onAddProviderClick() },
+                        )
                     }
-                } else {
-                    null
-                },
-                actions = {
-                    if (onAddClick != null && !uiState.loading && (!isDetailRequested || selectionExists)) {
-                        Box {
-                            RescueAuthButton(
-                                onClick = { if (!atAccountLevel && !atProviderLevel) addMenuOpen = true else onAddClick() },
-                                modifier = Modifier.testTag("vault_add_menu"),
-                                contentPadding = PaddingValues(horizontal = Spacing.sm),
-                            ) {
-                                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(Spacing.xxs))
-                                Text(stringResource(R.string.studio_add))
-                            }
-                            DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.studio_add_credential)) },
-                                    onClick = { addMenuOpen = false; onAddClick() },
-                                )
-                                if (onAddProviderClick != null) DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.studio_new_service)) },
-                                    onClick = { addMenuOpen = false; onAddProviderClick() },
-                                )
-                            }
-                        }
-                    }
-                },
-            )
+                }
+            }
         },
         snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
     ) { padding ->
@@ -272,9 +263,7 @@ fun AuthenticatorScreen(
                 providers = homeProviders,
                 onAddClick = onAddClick,
                 onOpenSearch = onOpenSearch,
-                providerCount = homeProviders.size,
-                accountCount = homeProviders.sumOf { it.accounts.size },
-                credentialCount = homeProviders.sumOf { provider -> provider.accounts.sumOf { it.totpCredentials.size } },
+                accountCount = displayProviders.sumOf { it.accounts.size },
                 hasPinnedAccounts = displayProviders.any { provider -> provider.accounts.any { it.isPinned } },
                 pinnedOnly = pinnedOnly,
                 onPinnedOnlyChange = { pinnedOnly = it },
@@ -312,9 +301,7 @@ private fun ProviderHomeContent(
     providers: List<ProviderUi>,
     onAddClick: (() -> Unit)?,
     onOpenSearch: (() -> Unit)?,
-    providerCount: Int,
     accountCount: Int,
-    credentialCount: Int,
     hasPinnedAccounts: Boolean,
     pinnedOnly: Boolean,
     onPinnedOnlyChange: (Boolean) -> Unit,
@@ -336,15 +323,7 @@ private fun ProviderHomeContent(
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
         item(key = "vault-overview") {
-            StudioEntrance {
-                StudioVaultHero(
-                    eyebrow = stringResource(R.string.studio_vault_label),
-                    title = if (accountCount == 0) stringResource(R.string.studio_vault_title)
-                        else stringResource(R.string.studio_vault_count, accountCount),
-                    subtitle = if (accountCount == 0) stringResource(R.string.studio_vault_empty_body)
-                        else stringResource(R.string.studio_vault_summary, providerCount, credentialCount),
-                )
-            }
+            StudioVaultHero(accountCount = accountCount)
         }
         if (onOpenSearch != null) item(key = "search-entry") {
             RescueAuthRowCard(onClick = onOpenSearch, modifier = Modifier.padding(top = Spacing.xs)) {
@@ -362,28 +341,23 @@ private fun ProviderHomeContent(
                     Modifier.padding(top = Spacing.lg))
             }
         }
-        item(key = "providers-heading") {
-            if (hasPinnedAccounts) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    FilterChip(
-                        selected = !pinnedOnly,
-                        onClick = { onPinnedOnlyChange(false) },
-                        label = { Text(stringResource(R.string.authenticator_filter_all)) },
-                    )
-                    FilterChip(
-                        selected = pinnedOnly,
-                        onClick = { onPinnedOnlyChange(true) },
-                        label = { Text(stringResource(R.string.authenticator_filter_pinned)) },
-                    )
-                }
-                Spacer(modifier = Modifier.height(Spacing.xs))
+        if (hasPinnedAccounts) item(key = "providers-filter") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                FilterChip(
+                    selected = !pinnedOnly,
+                    onClick = { onPinnedOnlyChange(false) },
+                    label = { Text(stringResource(R.string.authenticator_filter_all)) },
+                )
+                FilterChip(
+                    selected = pinnedOnly,
+                    onClick = { onPinnedOnlyChange(true) },
+                    label = { Text(stringResource(R.string.authenticator_filter_pinned)) },
+                    leadingIcon = { Icon(Icons.Filled.PushPin, null, Modifier.size(16.dp)) },
+                )
             }
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.studio_services),
-            )
         }
         items(providers, key = { it.id }) { provider ->
             ProviderListItem(
@@ -413,13 +387,6 @@ private fun ProviderAccountsContent(
         ),
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
-        item(key = "accounts-heading") {
-            RescueAuthSectionHeader(
-                title = stringResource(R.string.authenticator_accounts_heading),
-                subtitle = stringResource(R.string.authenticator_accounts_subtitle),
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-        }
         items(provider.accounts, key = { it.id }) { account ->
             AccountDirectoryRow(
                 account = account,
@@ -472,13 +439,7 @@ private fun AccountDirectoryRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = accountSummary(account),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            AccountMetadata(account)
         }
         if (account.isPinned) {
             Icon(
@@ -493,13 +454,13 @@ private fun AccountDirectoryRow(
 }
 
 @Composable
-private fun accountSummary(account: AccountUi): String {
+private fun AccountMetadata(account: AccountUi) {
     val credentialCount = account.totpCredentials.size
     val recoveryCount = account.recoverySets.size
-    return if (recoveryCount > 0) {
-        stringResource(R.string.account_credentials_and_recovery_summary, credentialCount, recoveryCount)
-    } else {
-        stringResource(R.string.account_credentials_summary, credentialCount)
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        StudioIconCount(Icons.Outlined.Timer, credentialCount, stringResource(R.string.compact_totp_count, credentialCount))
+        if (recoveryCount > 0) StudioIconCount(Icons.Filled.Shield, recoveryCount,
+            stringResource(R.string.compact_recovery_sets_count, recoveryCount))
     }
 }
 
@@ -527,8 +488,7 @@ private fun AccountDetailContent(
                     iconRes = BrandIcons.effectiveDrawableRes(null, account.providerName))
                 Column(Modifier.weight(1f)) {
                     Text(account.providerName, style = MaterialTheme.typography.titleMedium)
-                    Text(accountSummary(account), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AccountMetadata(account)
                 }
                 AccountActionsMenu(account, onTogglePin, onRename, onMove, onMerge, onDelete)
             }
@@ -545,18 +505,14 @@ private fun AccountDetailContent(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ) {
                     RescueAuthIconBadge(icon = Icons.Filled.Shield, size = 36.dp, iconSize = 18.dp)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.recovery_codes_title),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = stringResource(R.string.recovery_codes_account_summary, account.remainingRecoveryCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        text = stringResource(R.string.recovery_codes_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StudioCountBadge(account.remainingRecoveryCount,
+                        stringResource(R.string.recovery_codes_account_summary, account.remainingRecoveryCount))
                     RescueAuthChevron()
                 }
             }
@@ -569,7 +525,11 @@ private fun CredentialPanel(totp: TotpCredentialUi, onCopyClick: (() -> Unit)?, 
     var menuOpen by remember { mutableStateOf(false) }
     RescueAuthCard(contentPadding = CardTokens.heroPadding) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            com.rescueauth.v2.ui.components.StudioEyebrow(stringResource(R.string.studio_code_label), Modifier.weight(1f))
+            Text(stringResource(R.string.authenticator_code_metadata, totp.algorithm, totp.digits),
+                Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (onCopyClick != null) RescueAuthIconAction(Icons.Filled.ContentCopy,
+                stringResource(R.string.totp_copy_code), onCopyClick)
             if (onDeleteClick != null) Box {
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(Icons.Filled.MoreVert, stringResource(R.string.account_actions_label))
@@ -590,11 +550,6 @@ private fun CredentialPanel(totp: TotpCredentialUi, onCopyClick: (() -> Unit)?, 
             CountdownIndicator(progressFraction = totp.progressFraction, remainingSeconds = totp.remainingSeconds,
                 modifier = Modifier.width(56.dp))
         }
-        Text(stringResource(R.string.authenticator_code_metadata, totp.algorithm, totp.digits),
-            Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (onCopyClick != null) StudioAction(stringResource(R.string.totp_copy_code), onCopyClick,
-            Modifier.padding(top = Spacing.lg))
     }
 }
 
@@ -662,19 +617,12 @@ private fun ProviderListItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 val pinnedCount = provider.accounts.count { it.isPinned }
-                Text(
-                    text = if (pinnedCount > 0) {
-                        stringResource(
-                            R.string.provider_accounts_with_pinned,
-                            provider.accounts.size,
-                            pinnedCount,
-                        )
-                    } else {
-                        stringResource(R.string.provider_accounts_count, provider.accounts.size)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    StudioIconCount(Icons.Outlined.PeopleOutline, provider.accounts.size,
+                        stringResource(R.string.provider_accounts_count, provider.accounts.size))
+                    if (pinnedCount > 0) StudioIconCount(Icons.Filled.PushPin, pinnedCount,
+                        stringResource(R.string.compact_pinned_count, pinnedCount))
+                }
             }
         }
         if (onRename != null || onAddAccount != null || onDelete != null) {

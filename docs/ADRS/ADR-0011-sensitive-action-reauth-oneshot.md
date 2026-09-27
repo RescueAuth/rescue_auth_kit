@@ -43,6 +43,13 @@ Phase 4 P4 之前没有任何 PRODUCT / ADR 正式定义 freshness window。
 4. reveal 与 copy 是不同 action，reveal 授权绝不能复用于 copy
    （即使同 entry 同 field），copy 必须独立 fresh re-auth。
 
+**补充决策（2026-09-26）：完整编辑器与回调生命周期**
+
+- 五类 Developer Entry 的完整编辑器使用 `EDIT_DEVELOPER_ENTRY`，目标为 `DeveloperEdit(stableId, attemptId)`；每次进入生成新的内存 attemptId，不存入导航参数、SavedStateHandle 或数据库。
+- `DeveloperFormViewModel.beginEdit` 在读取任何编辑内容前请求认证并消费授权；直接进入 / 恢复编辑路由同样验证。取消、失败、认证不可用均不预填表单；离开路由或锁定会话会清除表单并放弃在途加载。
+- 验证授权一次完整的编辑流程；新一次进入编辑器必须重新验证。既有 reveal / copy 授权不能复用于编辑，编辑授权也不能复用于它们。新建空白条目不增加验证。
+- gate 按 prompt generation 忽略旧 prompt 回调，校验成功结果与待处理 request 完全匹配，并在执行前复查会话。生命周期失效会通知等待方 `Cancelled`，避免编辑加载一直等待。
+
 ## 理由
 
 - **最安全**：fresh re-auth 的目的就是限制解锁后短暂窗口内的数据外泄面；

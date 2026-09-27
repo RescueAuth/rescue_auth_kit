@@ -4,6 +4,7 @@
 
 # Gradle / Android build outputs
 .gradle/
+.kotlin/
 build/
 **/build/
 local.properties
@@ -46,3 +47,21 @@ captures/
 # Firebase Test Lab CI: transient gate file generated at runtime on the CI
 # workspace (never committed)
 .cnb-gate.env
+
+# Local web research cache
+.firecrawl/
+
+# Local design studies and rendered UI review output; source assets live in design/brand.
+/design/banner-concepts/
+/screenshots/
+/design/brand/candidates/
+/design/brand/revisions/
+/design/brand/*-preview.*
+/design/brand/*-options.*
+/design/brand/*-check.json
+/design/brand/vector-fit.json
+/design/brand/validation.json
+
+# Python developer-tool caches.
+__pycache__/
+*.py[cod]

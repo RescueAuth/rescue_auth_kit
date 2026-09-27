@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
  *
  * The theme is a pure function of two orthogonal dimensions:
  *  - [themeColor]: which preset accent palette to use (see [ThemeColorPalettes]).
- *  - [darkTheme]: light or dark mode (from the device, preserved as-is).
+ *  - [darkTheme]: light or dark mode (resolved from appearance preference and device configuration).
  *
  * Error / destructive semantic colors are identical across every preset, so a
  * user's theme-color choice never weakens security meaning.

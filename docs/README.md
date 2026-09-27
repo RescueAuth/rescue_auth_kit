@@ -27,6 +27,9 @@
 | 更新清单、签名和客户端状态机 | [`UPDATE_PROTOCOL.md`](UPDATE_PROTOCOL.md) |
 | Firebase Test Lab 操作 | [`FIREBASE_TEST_LAB.md`](FIREBASE_TEST_LAB.md) |
 | Compose 卡片式 UI 约定 | [`UI_CARD_CONVENTION.md`](UI_CARD_CONVENTION.md) |
+| 页面模板、组件层级与复用方式 | [`UI_PAGE_TEMPLATES.md`](UI_PAGE_TEMPLATES.md) |
+| Developer 操作栏与编辑验证实现证据 | [`UI_DEVELOPER_ACTIONS_REPORT.md`](UI_DEVELOPER_ACTIONS_REPORT.md) |
+| 界面整理、品牌资源与提交清理验证 | [`UI_POLISH_REPORT.md`](UI_POLISH_REPORT.md) |
 
 若实现、阶段报告与上述契约描述不同，先以契约为准，再补充更正文档。不要
 在新的 PR、Issue 或报告中维护第二份阶段总表。
@@ -52,6 +55,7 @@
 - [`RELEASE_PROVISIONING.md`](RELEASE_PROVISIONING.md)：application identity、production signing、tag-only release 和 debug smoke。
 - [`FIREBASE_TEST_LAB.md`](FIREBASE_TEST_LAB.md)：instrumented APK 构建、测试矩阵、凭据边界和手动触发方式。
 - [`UI_CARD_CONVENTION.md`](UI_CARD_CONVENTION.md)：`RescueAuthCard`、`RescueAuthRowCard` 与 `CardTokens` 的使用边界。
+- [`UI_PAGE_TEMPLATES.md`](UI_PAGE_TEMPLATES.md)：通用页壳、滚动表单页、公共内容组件，以及 Native / Legacy 流程的展示复用边界。
 - [`UI_REDESIGN_REPORT.md`](UI_REDESIGN_REPORT.md)：当前生产 UI 的完整重构、旧组件清理和验证记录。
 - [`UI_FOUNDATION_REPORT.md`](UI_FOUNDATION_REPORT.md)：Compose shell 和设计系统的建立记录。
 

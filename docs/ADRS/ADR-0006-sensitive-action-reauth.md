@@ -27,6 +27,7 @@ Biometric / Device Credential** 认证。
    - reveal API secret
    - reveal signing storePassword / keyPassword
    - 其他等价的高敏感长期 secret（Roadmap 按类型随 Developer slice 落实）
+   - 2026-09-26 补充：进入五类 Developer Entry 完整编辑器，必须在读取 / 预填敏感值前独立 fresh re-auth；即使只计划修改元数据也适用。新建空白条目不增加认证。
 3. **不覆盖**：TOTP 查看/复制（日常高频）、普通 metadata 查看——这些
    仍走普通解锁会话。
 4. **实现要求**：

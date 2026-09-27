@@ -1,6 +1,10 @@
 package com.rescueauth.v2.ui.about
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -12,6 +16,7 @@ import com.rescueauth.v2.update.Severity
 import com.rescueauth.v2.update.UpdateManifest
 import com.rescueauth.v2.update.UpdateUiState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,14 +36,14 @@ class AboutScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun setContent(state: UpdateUiState) {
+    private fun setContent(state: UpdateUiState, onCheck: () -> Unit = {}) {
         composeRule.setContent {
             RescueAuthTheme {
                 AboutScreen(
                     versionName = "1.0.0",
                     versionCode = 10000,
                     state = state,
-                    onCheckForUpdates = {},
+                    onCheckForUpdates = onCheck,
                     onOpenReleasePage = {},
                     onBack = {},
                 )
@@ -68,14 +73,14 @@ class AboutScreenTest {
     @Test
     fun aboutShowsVersionName() {
         setContent(UpdateUiState.Idle)
-        composeRule.onNodeWithText("1.0.0", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("1.0.0", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     // --- 38. About shows runtime versionCode ---
     @Test
     fun aboutShowsVersionCode() {
         setContent(UpdateUiState.Idle)
-        composeRule.onNodeWithText("10000", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("10000", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     // --- 39. Check button → Checking state ---
@@ -84,13 +89,26 @@ class AboutScreenTest {
         setContent(UpdateUiState.Checking)
         composeRule.onNodeWithText("Checking for updates", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag(AboutTestTags.CHECK_BUTTON).assertIsDisplayed()
+        composeRule.onNodeWithTag(AboutTestTags.CHECK_BUTTON).assertIsNotEnabled()
+    }
+
+    @Test
+    fun idleCheckActionIsAtBottomWithoutDuplicateInstructions() {
+        var checks = 0
+        setContent(UpdateUiState.Idle) { checks++ }
+        val screen = composeRule.onNodeWithTag(AboutTestTags.SCREEN).getUnclippedBoundsInRoot()
+        val button = composeRule.onNodeWithTag(AboutTestTags.CHECK_BUTTON).getUnclippedBoundsInRoot()
+        assertTrue("Check action belongs at the bottom of the viewport", button.top > screen.top + (screen.bottom - screen.top) * .75f)
+        composeRule.onNodeWithText("Tap “Check for Updates”", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithTag(AboutTestTags.CHECK_BUTTON).performClick()
+        assertEquals(1, checks)
     }
 
     // --- 40. Up-to-date UI ---
     @Test
     fun upToDateUi() {
         setContent(UpdateUiState.UpToDate(UpdateUiState.AppVersion("1.0.0", 10000)))
-        composeRule.onNodeWithText("You are up to date", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("You are up to date", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     // --- 41. Update-available UI ---
@@ -104,7 +122,7 @@ class AboutScreenTest {
                 minSupportedExceeded = false,
             ),
         )
-        composeRule.onNodeWithText("A new version is available", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("A new version is available", substring = true).performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag(AboutTestTags.OPEN_RELEASE_PAGE).assertExists()
     }
 
@@ -119,22 +137,22 @@ class AboutScreenTest {
                 minSupportedExceeded = false,
             ),
         )
-        composeRule.onNodeWithText("A security update is available", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("A security update is available", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     // --- 43. network failure UI ---
     @Test
     fun networkFailureUi() {
         setContent(UpdateUiState.Error(UpdateUiState.ErrorType.NETWORK))
-        composeRule.onNodeWithText("Unable to check for updates", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithText("vault remains available offline", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Unable to check for updates", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("vault remains available offline", substring = true).performScrollTo().assertIsDisplayed()
     }
 
     // --- 44. signature failure UI ---
     @Test
     fun signatureFailureUi() {
         setContent(UpdateUiState.Error(UpdateUiState.ErrorType.INVALID_SIGNATURE))
-        composeRule.onNodeWithText("Unable to verify the update information", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Unable to verify the update information", substring = true).performScrollTo().assertIsDisplayed()
         // It must NOT claim "no update".
         composeRule.onNodeWithText("up to date", substring = true).assertDoesNotExist()
     }

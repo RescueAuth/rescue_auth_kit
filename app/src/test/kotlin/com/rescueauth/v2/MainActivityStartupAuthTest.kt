@@ -54,6 +54,8 @@ class MainActivityStartupAuthTest {
         val dbFactory: (Context, ByteArray) -> RescueAuthDatabase = { ctx, _ ->
             Room.inMemoryDatabaseBuilder(ctx, RescueAuthDatabase::class.java)
                 .allowMainThreadQueries()
+                // Startup fakes run synchronously; keep Room reads in that same test lifetime.
+                .setQueryExecutor { it.run() }
                 .build()
         }
         val mgr = SessionManager(
@@ -74,6 +76,14 @@ class MainActivityStartupAuthTest {
 
     /** Tear down the launched activity cleanly. */
     private fun teardown(controller: org.robolectric.android.controller.ActivityController<MainActivity>) {
+        // The synthetic host does not detach its window like Android does. Stop Compose's
+        // Room collectors before onDestroy closes the fake DB, so exceptions cannot leak
+        // into the next coroutine test.
+        val content = controller.get().findViewById<android.view.ViewGroup>(android.R.id.content)
+        for (index in 0 until content.childCount) {
+            (content.getChildAt(index) as? androidx.compose.ui.platform.ComposeView)?.disposeComposition()
+        }
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         controller.pause().stop().destroy()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
@@ -109,6 +119,7 @@ class MainActivityStartupAuthTest {
                 databaseFactory = { ctx, _ ->
                     Room.inMemoryDatabaseBuilder(ctx, RescueAuthDatabase::class.java)
                         .allowMainThreadQueries()
+                        .setQueryExecutor { it.run() }
                         .build()
                 },
                 vaultKeyManagerFactory = { VaultKeyManager(recordingCrypto) },

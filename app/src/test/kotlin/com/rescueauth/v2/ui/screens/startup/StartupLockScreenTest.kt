@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import org.junit.Assert.assertTrue
@@ -44,8 +47,10 @@ class StartupLockScreenTest {
         // the launch brand recognisable (default locale = English here).
         composeRule.onNodeWithTag(StartupSplashTestTags.BRANDING).assertIsDisplayed()
         composeRule.onNodeWithText("RescueAuth").assertIsDisplayed()
-        composeRule.onNodeWithText("Use phone to unlock").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Create my vault").assertExists()
+        composeRule.onNode(hasText("Fingerprint or screen lock") and
+            hasAnyAncestor(hasTestTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON)), useUnmergedTree = true)
+            .assertExists()
+        composeRule.onNodeWithText("Create vault").assertExists()
 
         composeRule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo().performClick()
         assertTrue("Enable callback must fire", enabled)

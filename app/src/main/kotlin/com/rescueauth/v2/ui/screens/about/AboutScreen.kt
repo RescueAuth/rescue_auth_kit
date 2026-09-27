@@ -1,25 +1,22 @@
 package com.rescueauth.v2.ui.screens.about
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Info
-import com.rescueauth.v2.ui.components.RescueAuthButton as Button
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,11 +27,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.size
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.RescueAuthButton as Button
+import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
+import com.rescueauth.v2.ui.components.RescueAuthBackButton
 import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
+import com.rescueauth.v2.ui.components.StudioBrandArtwork
+import com.rescueauth.v2.ui.components.RescueAuthMetaPill
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
@@ -44,11 +43,14 @@ import com.rescueauth.v2.update.UpdateUiState
 
 object AboutTestTags {
     const val SCREEN = "screen_about"
+    const val CONTENT = "about_scroll_content"
+    const val FOOTER = "about_bottom_actions"
     const val CHECK_BUTTON = "about_check_button"
     const val OPEN_RELEASE_PAGE = "about_open_release_page"
 }
 
-/** Version and verified update information, presented as a quiet utility page. */
+/** Brand and runtime version above a persistent, manually invoked update action. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AboutScreen(
     versionName: String,
@@ -60,110 +62,79 @@ fun AboutScreen(
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
 ) {
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag(AboutTestTags.SCREEN),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = stringResource(R.string.about_title),
-                subtitle = stringResource(R.string.about_subtitle),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.a11y_back),
-                        )
-                    }
-                },
-            )
-        },
+    RescueAuthPageScaffold(
+        modifier = modifier.fillMaxSize().testTag(AboutTestTags.SCREEN),
+        title = stringResource(R.string.about_title),
+        navigationIcon = { RescueAuthBackButton(onBack) },
+        bottomBar = { AboutUpdateAction(state is UpdateUiState.Checking, onCheckForUpdates) },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            Modifier.fillMaxSize().padding(padding).testTag(AboutTestTags.CONTENT)
                 .verticalScroll(rememberScrollState())
-                .padding(
-                    horizontal = ScreenTokens.horizontalPadding,
-                    vertical = Spacing.md,
-                ),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
         ) {
-            RescueAuthCard(
-                containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor(),
-                contentPadding = Spacing.md,
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    com.rescueauth.v2.ui.components.RescueAuthMark(Modifier.size(52.dp), animated = false, monochrome = true)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = stringResource(R.string.about_product_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                        )
+            StudioBrandArtwork()
+            RescueAuthCard(containerColor = MaterialTheme.colorScheme.background,
+                contentPadding = CardTokens.noPadding) {
+                Column(Modifier.fillMaxWidth().padding(vertical = Spacing.md)) {
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.about_product_description),
+                        Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(Modifier.fillMaxWidth().padding(top = Spacing.md),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        RescueAuthMetaPill(stringResource(R.string.compact_codes), icon = Icons.Outlined.Timer)
+                        RescueAuthMetaPill(stringResource(R.string.compact_keys), icon = Icons.Outlined.Key)
+                        RescueAuthMetaPill(stringResource(R.string.recovery_codes_title), icon = Icons.Outlined.Shield)
                     }
                 }
             }
-
             RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
-                VersionRow(
-                    label = stringResource(R.string.settings_version_label),
-                    value = stringResource(R.string.about_version_format, versionName, versionCode),
-                )
-            }
-
-            Button(
-                onClick = onCheckForUpdates,
-                enabled = state !is UpdateUiState.Checking,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(AboutTestTags.CHECK_BUTTON),
-            ) {
-                if (state is UpdateUiState.Checking) {
-                    CircularProgressIndicator(
-                        progress = { 0.64f },
-                        modifier = Modifier
-                            .padding(end = Spacing.sm)
-                            .size(16.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp,
-                    )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    Text(stringResource(R.string.settings_version_label), Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(2f), horizontalAlignment = Alignment.End) {
+                        Text(versionName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.End)
+                        Text(stringResource(R.string.about_build_format, versionCode),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.End)
+                    }
                 }
-                Text(stringResource(R.string.about_check_for_updates))
             }
-
-            RescueAuthCard(containerColor = CardTokens.containerColor()) {
-                UpdateStatusBody(
-                    state = state,
-                    onOpenReleasePage = onOpenReleasePage,
-                )
+            // Idle needs no instruction card. Checking is described by the disabled footer.
+            if (state != UpdateUiState.Idle && state != UpdateUiState.Checking) {
+                RescueAuthCard { UpdateStatusBody(state, onOpenReleasePage) }
             }
         }
     }
 }
 
 @Composable
-private fun VersionRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+private fun AboutUpdateAction(checking: Boolean, onCheck: () -> Unit) {
+    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
+        .imePadding().navigationBarsPadding()
+        .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.xs)
+        .testTag(AboutTestTags.FOOTER)) {
+        RescueAuthCard(shape = CardTokens.actionBarShape, contentPadding = CardTokens.actionBarPadding,
+            modifier = Modifier.border(CardTokens.actionBarBorderWidth, CardTokens.outlineColor(), CardTokens.actionBarShape)) {
+            Button(onClick = onCheck, enabled = !checking,
+                modifier = Modifier.fillMaxWidth().heightIn(min = CardTokens.actionButtonHeight).testTag(AboutTestTags.CHECK_BUTTON),
+                shape = CardTokens.actionButtonShape,
+                colors = ButtonDefaults.buttonColors(containerColor = CardTokens.actionPrimaryContainerColor(),
+                    contentColor = CardTokens.actionPrimaryContentColor())) {
+                if (checking) CircularProgressIndicator(Modifier.size(CardTokens.actionIconSize),
+                    color = CardTokens.actionPrimaryContentColor(), strokeWidth = 2.dp)
+                else Icon(Icons.Outlined.Refresh, null, Modifier.size(CardTokens.actionIconSize))
+                Text(stringResource(if (checking) R.string.about_checking else R.string.about_check_for_updates),
+                    Modifier.padding(start = Spacing.xs).weight(1f, fill = false), textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 

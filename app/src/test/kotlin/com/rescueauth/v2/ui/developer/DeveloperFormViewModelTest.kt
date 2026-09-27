@@ -8,6 +8,10 @@ import com.rescueauth.v2.export.VaultKeyValue
 import com.rescueauth.v2.repository.DeveloperRepository
 import com.rescueauth.v2.repository.VaultRepository
 import com.rescueauth.v2.session.SecureSessionStateMachine
+import com.rescueauth.v2.security.FakeSensitiveActionPrompt
+import com.rescueauth.v2.security.SensitiveActionGate
+import com.rescueauth.v2.security.SensitiveActionRequest
+import com.rescueauth.v2.security.SensitiveActionResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -35,6 +39,18 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DeveloperFormViewModelTest {
+
+    @Test fun `edit cannot load a protected entry without an authentication gate`() = runBlocking {
+        val created = repo.createGenericSecret("Demo", null, listOf(VaultKeyValue("field", "fixture-value")))
+        var reads = 0
+        val model = DeveloperFormViewModel(
+            developerRepositoryProvider = { reads++; repo }, sessionState = session.state,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+        model.beginEdit(created.stableId)
+        assertEquals(0, reads)
+        assertEquals(null, model.formState.value.editingStableId)
+    }
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var db: RescueAuthDatabase
@@ -64,6 +80,16 @@ class DeveloperFormViewModelTest {
             developerRepositoryProvider = { repo },
             sessionState = session.state,
             scope = scope,
+            sensitiveActionGate = SensitiveActionGate(
+                prompt = object : FakeSensitiveActionPrompt() {
+                    override fun tryStart(request: SensitiveActionRequest, title: CharSequence, subtitle: CharSequence?,
+                        onResult: (SensitiveActionResult) -> Unit): Boolean {
+                        onResult(SensitiveActionResult.Success(request))
+                        return true
+                    }
+                },
+                session = session, titleProvider = { "Verify" }, subtitleProvider = { null },
+            ),
         )
 
     @Test

@@ -10,30 +10,30 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthTextField
+import com.rescueauth.v2.ui.components.RescueAuthFormPage
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,15 +52,13 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.repository.DeveloperRepository
-import com.rescueauth.v2.ui.components.RescueAuthBackButton
 import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
+import com.rescueauth.v2.ui.components.RescueAuthActionBar
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.developer.DeveloperFormState
 import com.rescueauth.v2.ui.developer.DeveloperFormType
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.CardTokens
-import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
@@ -139,344 +137,285 @@ fun DeveloperFormScreen(
         // null => user cancelled the SAF picker; nothing changes.
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            RescueAuthPageHeader(
-                title = stringResource(
-                    if (form.isEditing) R.string.developer_edit_title
-                    else R.string.developer_add_title,
-                ),
-                subtitle = formTypeLabel(form.type),
-                navigationIcon = { RescueAuthBackButton(goBack, enabled = !form.submitting) },
+    RescueAuthFormPage(
+        title = stringResource(if (form.isEditing) R.string.developer_edit_title else R.string.developer_add_title),
+        subtitle = formTypeLabel(form.type),
+        onBack = goBack,
+        backEnabled = !form.submitting,
+        modifier = modifier,
+        bottomBar = {
+            RescueAuthActionBar(
+                secondaryLabel = stringResource(if (credentialsStep) R.string.developer_form_previous else R.string.common_cancel),
+                secondaryIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onSecondaryClick = goBack,
+                secondaryEnabled = !form.submitting,
+                secondaryTestTag = "developer_form_previous",
+                primaryLabel = stringResource(if (credentialsStep) R.string.developer_save else R.string.developer_form_next),
+                primaryIcon = if (credentialsStep) Icons.Filled.Check else Icons.AutoMirrored.Filled.ArrowForward,
+                onPrimaryClick = { if (credentialsStep) onSubmit() else credentialsStep = true },
+                primaryEnabled = !form.submitting && (credentialsStep || form.title.isNotBlank()),
+                primaryTestTag = if (credentialsStep) "developer_form_save" else "developer_form_next",
             )
         },
-        bottomBar = {
-            RescueAuthCard(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentPadding = Spacing.sm,
-                modifier = Modifier.navigationBarsPadding().imePadding(),
-            ) {
+    ) {
+        if (!credentialsStep) RescueAuthCard(
+            containerColor = CardTokens.elevatedContainerColor(),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                RescueAuthSectionHeader(
+                    title = stringResource(R.string.developer_form_details),
+                    subtitle = stringResource(R.string.developer_form_step, 1, 2),
+                )
+                RescueAuthTextField(
+                    value = form.title,
+                    onValueChange = onTitleChange,
+                    label = { Text(stringResource(R.string.developer_field_title)) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.md),
+                )
+                RescueAuthTextField(
+                    value = form.notes,
+                    onValueChange = onNotesChange,
+                    label = { Text(stringResource(R.string.developer_field_notes)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        if (credentialsStep) RescueAuthCard(containerColor = CardTokens.containerColor()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                RescueAuthSectionHeader(
+                    title = stringResource(R.string.developer_form_credentials),
+                    subtitle = stringResource(R.string.developer_form_step, 2, 2),
+                )
+                when (form.type) {
+            DeveloperFormType.API_CREDENTIAL -> {
+                RescueAuthTextField(
+                    value = form.serviceName,
+                    onValueChange = onServiceNameChange,
+                    label = { Text(stringResource(R.string.developer_field_service)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                RescueAuthTextField(
+                    value = form.accountName,
+                    onValueChange = onAccountNameChange,
+                    label = { Text(stringResource(R.string.developer_field_account)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SecretField(
+                    value = form.apiKey,
+                    onValueChange = onApiKeyChange,
+                    label = stringResource(R.string.developer_field_api_key),
+                )
+                SecretField(
+                    value = form.apiSecret,
+                    onValueChange = onApiSecretChange,
+                    label = stringResource(R.string.developer_field_api_secret),
+                )
+            }
+            DeveloperFormType.SSH_KEY -> {
+                RescueAuthTextField(
+                    value = form.keyName,
+                    onValueChange = onKeyNameChange,
+                    label = { Text(stringResource(R.string.developer_field_key_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SecretField(
+                    value = form.privateKey,
+                    onValueChange = onPrivateKeyChange,
+                    label = stringResource(R.string.developer_field_private_key),
+                    multiLine = true,
+                )
+                SecretField(
+                    value = form.passphrase,
+                    onValueChange = onPassphraseChange,
+                    label = stringResource(R.string.developer_field_passphrase),
+                )
+                RescueAuthTextField(
+                    value = form.publicKey,
+                    onValueChange = onPublicKeyChange,
+                    label = { Text(stringResource(R.string.developer_field_public_key)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            DeveloperFormType.GENERIC_SECRET -> {
+                form.fields.forEachIndexed { index, (label, value) ->
+                    if (index > 0) HorizontalDivider(
+                        modifier = Modifier.padding(vertical = Spacing.xs), color = CardTokens.outlineColor())
+                    Column(Modifier.fillMaxWidth().testTag("generic_field_group_$index"),
+                        verticalArrangement = Arrangement.spacedBy(CardTokens.formFieldSpacing)) {
+                        RescueAuthTextField(
+                            value = label, onValueChange = { onFieldLabelChange(index, it) },
+                            label = { Text(stringResource(R.string.developer_field_label)) }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("generic_field_name_$index"),
+                            trailingIcon = {
+                                IconButton(onClick = { onRemoveField(index) },
+                                    modifier = Modifier.testTag("generic_field_remove_$index")) {
+                                    Icon(Icons.Outlined.Delete, stringResource(R.string.developer_remove_field))
+                                }
+                            },
+                        )
+                        SecretField(value = value, onValueChange = { onFieldValueChange(index, it) },
+                            label = stringResource(R.string.developer_field_value),
+                            modifier = Modifier.testTag("generic_field_value_$index"))
+                    }
+                }
+                OutlinedButton(onClick = onAddField,
+                    modifier = Modifier.fillMaxWidth().testTag("generic_field_add")) {
+                    Icon(Icons.Filled.Add, null)
+                    Spacer(Modifier.width(Spacing.xs))
+                    Text(stringResource(R.string.developer_add_field))
+                }
+            }
+            DeveloperFormType.ANDROID_SIGNING_KEY -> {
+                RescueAuthTextField(
+                    value = form.projectName,
+                    onValueChange = onProjectNameChange,
+                    label = { Text(stringResource(R.string.developer_field_project_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                RescueAuthTextField(
+                    value = form.packageName,
+                    onValueChange = onPackageNameChange,
+                    label = { Text(stringResource(R.string.developer_field_package_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SecretField(
+                    value = form.storePassword,
+                    onValueChange = onStorePasswordChange,
+                    label = stringResource(R.string.developer_field_store_password),
+                )
+                RescueAuthTextField(
+                    value = form.keyAlias,
+                    onValueChange = onKeyAliasChange,
+                    label = { Text(stringResource(R.string.developer_field_key_alias)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SecretField(
+                    value = form.keyPassword,
+                    onValueChange = onKeyPasswordChange,
+                    label = stringResource(R.string.developer_field_key_password),
+                )
+
+                // Keystore file selection (opaque binary asset).
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    androidx.compose.material3.TextButton(
-                        onClick = goBack,
-                        enabled = !form.submitting,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("developer_form_previous"),
-                    ) {
-                        Text(
-                            stringResource(
-                                if (credentialsStep) R.string.developer_form_previous else R.string.common_cancel,
-                            ),
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            if (credentialsStep) onSubmit() else credentialsStep = true
-                        },
-                        enabled = !form.submitting && (credentialsStep || form.title.isNotBlank()),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag(if (credentialsStep) "developer_form_save" else "developer_form_next"),
-                    ) {
-                        Text(
-                            stringResource(
-                                if (credentialsStep) R.string.developer_save else R.string.developer_form_next,
-                            ),
-                        )
-                    }
-                }
-            }
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            if (!credentialsStep) RescueAuthCard(
-                containerColor = CardTokens.elevatedContainerColor(),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    RescueAuthSectionHeader(
-                        title = stringResource(R.string.developer_form_details),
-                        subtitle = stringResource(R.string.developer_form_step, 1, 2),
-                    )
-                    OutlinedTextField(
-                        value = form.title,
-                        onValueChange = onTitleChange,
-                        label = { Text(stringResource(R.string.developer_field_title)) },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Spacing.md),
-                    )
-                    OutlinedTextField(
-                        value = form.notes,
-                        onValueChange = onNotesChange,
-                        label = { Text(stringResource(R.string.developer_field_notes)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-
-            if (credentialsStep) RescueAuthCard(containerColor = CardTokens.containerColor()) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    RescueAuthSectionHeader(
-                        title = stringResource(R.string.developer_form_credentials),
-                        subtitle = stringResource(R.string.developer_form_step, 2, 2),
-                    )
-                    when (form.type) {
-                DeveloperFormType.API_CREDENTIAL -> {
-                    OutlinedTextField(
-                        value = form.serviceName,
-                        onValueChange = onServiceNameChange,
-                        label = { Text(stringResource(R.string.developer_field_service)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = form.accountName,
-                        onValueChange = onAccountNameChange,
-                        label = { Text(stringResource(R.string.developer_field_account)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    SecretField(
-                        value = form.apiKey,
-                        onValueChange = onApiKeyChange,
-                        label = stringResource(R.string.developer_field_api_key),
-                    )
-                    SecretField(
-                        value = form.apiSecret,
-                        onValueChange = onApiSecretChange,
-                        label = stringResource(R.string.developer_field_api_secret),
-                    )
-                }
-                DeveloperFormType.SSH_KEY -> {
-                    OutlinedTextField(
-                        value = form.keyName,
-                        onValueChange = onKeyNameChange,
-                        label = { Text(stringResource(R.string.developer_field_key_name)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    SecretField(
-                        value = form.privateKey,
-                        onValueChange = onPrivateKeyChange,
-                        label = stringResource(R.string.developer_field_private_key),
-                        multiLine = true,
-                    )
-                    SecretField(
-                        value = form.passphrase,
-                        onValueChange = onPassphraseChange,
-                        label = stringResource(R.string.developer_field_passphrase),
-                    )
-                    OutlinedTextField(
-                        value = form.publicKey,
-                        onValueChange = onPublicKeyChange,
-                        label = { Text(stringResource(R.string.developer_field_public_key)) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                DeveloperFormType.GENERIC_SECRET -> {
-                    form.fields.forEachIndexed { index, (label, value) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            OutlinedTextField(
-                                value = label,
-                                onValueChange = { onFieldLabelChange(index, it) },
-                                label = { Text(stringResource(R.string.developer_field_label)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { onRemoveField(index) }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = stringResource(R.string.developer_remove_field),
-                                )
-                            }
-                        }
-                        SecretField(
-                            value = value,
-                            onValueChange = { onFieldValueChange(index, it) },
-                            label = stringResource(R.string.developer_field_value),
-                        )
-                    }
-                    Button(
-                        onClick = onAddField,
-                        modifier = Modifier.fillMaxWidth(),
+                    OutlinedButton(
+                        onClick = { keystoreError = null; keystoreLauncher.launch(arrayOf("*/*")) },
+                        modifier = Modifier.weight(1f),
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Add,
+                            imageVector = Icons.Filled.FileUpload,
                             contentDescription = null,
                         )
-                        Spacer(modifier = Modifier.width(Spacing.xs))
-                        Text(stringResource(R.string.developer_add_field))
-                    }
-                }
-                DeveloperFormType.ANDROID_SIGNING_KEY -> {
-                    OutlinedTextField(
-                        value = form.projectName,
-                        onValueChange = onProjectNameChange,
-                        label = { Text(stringResource(R.string.developer_field_project_name)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = form.packageName,
-                        onValueChange = onPackageNameChange,
-                        label = { Text(stringResource(R.string.developer_field_package_name)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    SecretField(
-                        value = form.storePassword,
-                        onValueChange = onStorePasswordChange,
-                        label = stringResource(R.string.developer_field_store_password),
-                    )
-                    OutlinedTextField(
-                        value = form.keyAlias,
-                        onValueChange = onKeyAliasChange,
-                        label = { Text(stringResource(R.string.developer_field_key_alias)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    SecretField(
-                        value = form.keyPassword,
-                        onValueChange = onKeyPasswordChange,
-                        label = stringResource(R.string.developer_field_key_password),
-                    )
-
-                    // Keystore file selection (opaque binary asset).
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        OutlinedButton(
-                            onClick = { keystoreError = null; keystoreLauncher.launch(arrayOf("*/*")) },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FileUpload,
-                                contentDescription = null,
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                stringResource(
-                                    if (form.keystoreBytes != null || form.keystoreFileName.isNotEmpty()) {
-                                        R.string.developer_replace_keystore
-                                    } else {
-                                        R.string.developer_import_keystore
-                                    },
-                                ),
-                            )
-                        }
-                        if (form.keystoreBytes != null) {
-                            IconButton(onClick = { onClearKeystore() }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = stringResource(R.string.developer_clear_keystore),
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            stringResource(
+                                if (form.keystoreBytes != null || form.keystoreFileName.isNotEmpty()) {
+                                    R.string.developer_replace_keystore
+                                } else {
+                                    R.string.developer_import_keystore
+                                },
+                            ),
+                        )
                     }
                     if (form.keystoreBytes != null) {
-                        Text(
-                            text = form.keystoreFileName.ifEmpty { stringResource(R.string.developer_keystore_selected) },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        IconButton(onClick = { onClearKeystore() }) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.developer_clear_keystore),
+                            )
+                        }
                     }
-                    if (keystoreError != null) {
-                        Text(
-                            text = stringResource(R.string.developer_keystore_error),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    // UX hint only — the file is always saved as opaque bytes.
+                }
+                if (form.keystoreBytes != null) {
                     Text(
-                        text = stringResource(R.string.developer_keystore_hint),
+                        text = form.keystoreFileName.ifEmpty { stringResource(R.string.developer_keystore_selected) },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                DeveloperFormType.ENVIRONMENT_VARIABLE_SET -> {
-                    OutlinedTextField(
-                        value = form.projectName,
-                        onValueChange = onProjectNameChange,
-                        label = { Text(stringResource(R.string.developer_field_project_name)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    form.variables.forEachIndexed { index, (name, value) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { onVariableNameChange(index, it) },
-                                label = { Text(stringResource(R.string.developer_field_variable_name)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = { onRemoveVariable(index) }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = stringResource(R.string.developer_remove_variable),
-                                )
-                            }
-                        }
-                        SecretField(
-                            value = value,
-                            onValueChange = { onVariableValueChange(index, it) },
-                            label = stringResource(R.string.developer_field_variable_value),
-                        )
-                    }
-                    Button(
-                        onClick = onAddVariable,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = null,
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.xs))
-                        Text(stringResource(R.string.developer_add_variable))
-                    }
-                    }
-                }
-            }
-            }
-
-            // End of the type-specific fields card.
-
-            if (form.error != null) {
-                RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                if (keystoreError != null) {
                     Text(
-                        text = formErrorText(form.error),
+                        text = stringResource(R.string.developer_keystore_error),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
+                // UX hint only — the file is always saved as opaque bytes.
+                Text(
+                    text = stringResource(R.string.developer_keystore_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+            DeveloperFormType.ENVIRONMENT_VARIABLE_SET -> {
+                RescueAuthTextField(
+                    value = form.projectName,
+                    onValueChange = onProjectNameChange,
+                    label = { Text(stringResource(R.string.developer_field_project_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                HorizontalDivider(Modifier.padding(vertical = Spacing.xs), color = CardTokens.outlineColor())
+                form.variables.forEachIndexed { index, (name, value) ->
+                    if (index > 0) HorizontalDivider(
+                        modifier = Modifier.padding(vertical = Spacing.xs), color = CardTokens.outlineColor())
+                    Column(Modifier.fillMaxWidth().testTag("env_field_group_$index"),
+                        verticalArrangement = Arrangement.spacedBy(CardTokens.formFieldSpacing)) {
+                        RescueAuthTextField(
+                            value = name, onValueChange = { onVariableNameChange(index, it) },
+                            label = { Text(stringResource(R.string.developer_field_variable_name)) }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("env_field_name_$index"),
+                            trailingIcon = {
+                                IconButton(onClick = { onRemoveVariable(index) },
+                                    modifier = Modifier.testTag("env_field_remove_$index")) {
+                                    Icon(Icons.Outlined.Delete, stringResource(R.string.developer_remove_variable))
+                                }
+                            },
+                        )
+                        SecretField(value = value, onValueChange = { onVariableValueChange(index, it) },
+                            label = stringResource(R.string.developer_field_variable_value),
+                            modifier = Modifier.testTag("env_field_value_$index"))
+                    }
+                }
+                OutlinedButton(onClick = onAddVariable,
+                    modifier = Modifier.fillMaxWidth().testTag("env_field_add")) {
+                    Icon(Icons.Filled.Add, null)
+                    Spacer(Modifier.width(Spacing.xs))
+                    Text(stringResource(R.string.developer_add_variable))
+                }
 
-            Spacer(modifier = Modifier.height(Spacing.xl))
+                }
+            }
         }
+        }
+
+        // End of the type-specific fields card.
+
+        if (form.error != null) {
+            RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                Text(
+                    text = formErrorText(form.error),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.xl))
+
     }
 }
 
@@ -568,12 +507,13 @@ private fun SecretField(
     onValueChange: (String) -> Unit,
     label: String,
     multiLine: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     // Key visibility by the field identity so a removed/reordered dynamic row
     // can never inherit the previous row's reveal state.
     var visible by remember(label) { mutableStateOf(false) }
     val transformation = if (visible) VisualTransformation.None else PasswordVisualTransformation()
-    OutlinedTextField(
+    RescueAuthTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
@@ -585,9 +525,9 @@ private fun SecretField(
         },
         singleLine = !multiLine,
         minLines = if (multiLine) 3 else 1,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         trailingIcon = {
-            IconButton(onClick = { visible = !visible }) {
+            IconButton(onClick = { visible = !visible }, modifier = Modifier.testTag("secret_visibility")) {
                 Icon(
                     imageVector = if (visible) {
                         Icons.Filled.VisibilityOff

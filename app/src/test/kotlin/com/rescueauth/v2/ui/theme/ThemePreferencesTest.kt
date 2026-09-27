@@ -1,9 +1,14 @@
 package com.rescueauth.v2.ui.theme
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
+import java.nio.file.Files
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -13,86 +18,85 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/**
- * DataStore-backed theme-color preference tests (Robolectric).
- *
- * Verifies the persistence contract required by the theme-color feature:
- * default value, write → read round-trip (survives a re-created
- * [ThemePreferences] instance), and safe fallback to default for
- * unknown/corrupted stored values.
- */
+/** A separate real DataStore file per test; reopening proves disk persistence, not an in-memory cache. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class ThemePreferencesTest {
+    private lateinit var directory: File
+    private lateinit var scope: CoroutineScope
+    private lateinit var store: DataStore<Preferences>
 
-    private lateinit var context: Context
-
-    @Before
-    fun setUp() {
-        val app = ApplicationProvider.getApplicationContext<Context>()
-        // Isolate the DataStore file per test to avoid cross-test state.
-        context = object : android.content.ContextWrapper(app) {
-            override fun getFilesDir(): File {
-                val dir = File(super.getFilesDir(), "theme_prefs_test_${System.nanoTime()}")
-                dir.mkdirs()
-                return dir
-            }
-        }
+    @Before fun setUp() {
+        directory = Files.createTempDirectory("rescueauth-theme-test").toFile()
+        openStore()
     }
 
-    @After
-    fun tearDown() {
-        context.filesDir.deleteRecursively()
+    private fun openStore() {
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        store = PreferenceDataStoreFactory.create(scope = scope) { File(directory, "appearance.preferences_pb") }
     }
 
-    @Test
-    fun defaultIsShiyiOrange() = runTest {
-        val prefs = ThemePreferences(context)
-        assertEquals(ThemeColor.DEFAULT, prefs.themeColor.first())
+    private suspend fun reopen(): ThemePreferences {
+        scope.coroutineContext[Job]!!.cancelAndJoin()
+        openStore()
+        return ThemePreferences(store)
     }
 
-    @Test
-    fun selectedValuePersistsAcrossRecreation() = runTest {
-        val first = ThemePreferences(context)
-        first.setThemeColor(ThemeColor.VIOLET)
-
-        // A brand-new instance reading the same DataStore file must see VIOLET.
-        val second = ThemePreferences(context)
-        assertEquals(ThemeColor.VIOLET, second.themeColor.first())
+    @After fun tearDown() {
+        runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        directory.deleteRecursively()
     }
 
-    @Test
-    fun switchingBackToDefaultPersists() = runTest {
-        val first = ThemePreferences(context)
-        first.setThemeColor(ThemeColor.VIOLET)
-        first.setThemeColor(ThemeColor.SHIYI_ORANGE)
-
-        val second = ThemePreferences(context)
-        assertEquals(ThemeColor.SHIYI_ORANGE, second.themeColor.first())
+    @Test fun defaultIsShiyiOrange() = runTest {
+        assertEquals(ThemeColor.DEFAULT, ThemePreferences(store).themeColor.first())
     }
 
-    @Test
-    fun everyPresetRoundTrips() = runTest {
+    @Test fun selectedValuePersistsAcrossRecreation() = runTest {
+        ThemePreferences(store).setThemeColor(ThemeColor.VIOLET)
+        assertEquals(ThemeColor.VIOLET, reopen().themeColor.first())
+    }
+
+    @Test fun switchingBackToDefaultPersists() = runTest {
+        val prefs = ThemePreferences(store)
+        prefs.setThemeColor(ThemeColor.VIOLET)
+        prefs.setThemeColor(ThemeColor.SHIYI_ORANGE)
+        assertEquals(ThemeColor.SHIYI_ORANGE, reopen().themeColor.first())
+    }
+
+    @Test fun everyPresetRoundTrips() = runTest {
         for (color in ThemeColor.entries) {
-            val prefs = ThemePreferences(context)
-            prefs.setThemeColor(color)
-            val fresh = ThemePreferences(context)
-            assertEquals(color, fresh.themeColor.first())
+            ThemePreferences(store).setThemeColor(color)
+            assertEquals(color, reopen().themeColor.first())
         }
     }
 
-    @Test
-    fun unknownStoredValueFallsBackToDefault() = runTest {
-        val prefs = ThemePreferences(context)
-        prefs.setThemeColor(ThemeColor.DEFAULT)
+    @Test fun unknownStoredValueFallsBackToDefault() = runTest {
+        store.edit { it[stringPreferencesKey("theme_color")] = "unknown-color" }
+        assertEquals(ThemeColor.DEFAULT, reopen().themeColor.first())
+    }
 
-        // Corrupt the stored value directly and confirm the safe fallback.
-        val dataStoreFile = File(context.filesDir, "datastore/appearance_prefs.preferences_pb")
-        dataStoreFile.parentFile?.mkdirs()
-        dataStoreFile.writeText("garbage-not-a-valid-preferences-pb")
+    @Test fun newAndExistingColorPreferencesDefaultToSystemMode() = runTest {
+        val prefs = ThemePreferences(store)
+        assertEquals(ThemeMode.SYSTEM, prefs.themeMode.first())
+        prefs.setThemeColor(ThemeColor.VIOLET)
+        assertEquals(ThemeMode.SYSTEM, reopen().themeMode.first())
+    }
 
-        val reRead = ThemePreferences(context)
-        // DataStore treats an unreadable file as corrupt and recovers to default.
-        assertEquals(ThemeColor.DEFAULT, reRead.themeColor.first())
+    @Test fun modePersistsAcrossRecreationWithoutChangingTheAccent() = runTest {
+        ThemePreferences(store).setThemeColor(ThemeColor.VIOLET)
+        ThemeMode.entries.forEach { mode ->
+            ThemePreferences(store).setThemeMode(mode)
+            val recreated = reopen()
+            assertEquals(mode, recreated.themeMode.first())
+            assertEquals(ThemeColor.VIOLET, recreated.themeColor.first())
+        }
+    }
+
+    @Test fun unknownModeFallsBackToSystemWithoutResettingTheAccent() = runTest {
+        ThemePreferences(store).setThemeColor(ThemeColor.VIOLET)
+        store.edit { it[stringPreferencesKey("theme_mode")] = "unknown-mode" }
+        val prefs = reopen()
+        assertEquals(ThemeMode.SYSTEM, prefs.themeMode.first())
+        assertEquals(ThemeColor.VIOLET, prefs.themeColor.first())
     }
 }

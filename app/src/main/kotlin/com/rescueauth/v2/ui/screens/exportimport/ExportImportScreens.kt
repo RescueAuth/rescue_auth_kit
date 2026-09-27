@@ -4,22 +4,14 @@ import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Description
@@ -40,22 +32,27 @@ import com.rescueauth.v2.R
 import com.rescueauth.v2.export.SelectableDeveloperEntry
 import com.rescueauth.v2.export.SelectableItems
 import com.rescueauth.v2.export.SelectedItemSet
+import com.rescueauth.v2.export.SnapshotScope
 import com.rescueauth.v2.exportimport.ExportImportViewModel
 import com.rescueauth.v2.exportimport.ExportScopeSpec
 import com.rescueauth.v2.exportimport.ImportScopeSpec
 import com.rescueauth.v2.exportimport.PinPolicy
-import com.rescueauth.v2.ui.components.RescueAuthBackButton
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthFormPage
+import com.rescueauth.v2.ui.components.RescueAuthActionBar
+import com.rescueauth.v2.ui.components.RescueAuthBottomBar
+import com.rescueauth.v2.ui.components.RescueAuthSummaryCard
+import com.rescueauth.v2.ui.components.RescueAuthSummaryRow
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.rescueauth.v2.ui.components.RescueAuthDivider
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthPageHeader
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.theme.Spacing
-import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.CardTokens
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Lock
 
@@ -97,7 +94,6 @@ object ExportImportTestTags {
  * export → success/failure. The PIN is held in transient local state only;
  * it is never written to SavedStateHandle / Bundle / DataStore / logs.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportVaultScreen(
     state: ExportImportViewModel.ExportState,
@@ -111,126 +107,66 @@ fun ExportVaultScreen(
     onNavigate: (String) -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = stringResource(R.string.export_title),
-                subtitle = stringResource(R.string.settings_backup_transfer_section),
-                navigationIcon = { RescueAuthBackButton(onBack ?: onCancel) },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    val title = stringResource(R.string.export_title)
+    val back = onBack ?: onCancel
+    when (state) {
+        ExportImportViewModel.ExportState.AwaitingPin -> PinEntry(
+            mode = PinEntryMode.EXPORT, title = title, onBack = back, modifier = modifier,
+            onSubmit = { pin, confirm -> onSubmitPin(pin, confirm ?: CharArray(0)) }, onCancel = onCancel)
+        is ExportImportViewModel.ExportState.SelectingItems -> SelectionContent(
+            items = state.items, onConfirmSelection = onConfirmSelection, onCancel = onCancel,
+            title = title, onBack = back, modifier = modifier)
+        else -> RescueAuthFormPage(
+            title = title, subtitle = stringResource(R.string.settings_backup_transfer_section),
+            onBack = back, modifier = modifier,
+            bottomBar = {
+                when (state) {
+                    ExportImportViewModel.ExportState.Idle -> TransferFooter(stringResource(R.string.common_cancel), onCancel, outlined = true)
+                    ExportImportViewModel.ExportState.AwaitingDestination -> TransferFooter(stringResource(R.string.export_start), onChooseDestination)
+                    is ExportImportViewModel.ExportState.Success -> TransferFooter(stringResource(R.string.export_done), onDismissResult)
+                    is ExportImportViewModel.ExportState.Error -> TransferFooter(stringResource(R.string.common_close), onDismissResult)
+                    else -> Unit
+                }
+            },
         ) {
             when (state) {
-                is ExportImportViewModel.ExportState.Idle -> {
-                    RescueAuthCard(
-                        containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor(),
-                    ) {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.export_title),
-                            subtitle = stringResource(R.string.export_intro),
-                        )
+                ExportImportViewModel.ExportState.Idle -> {
+                    RescueAuthCard {
+                        RescueAuthSectionHeader(stringResource(R.string.export_title), stringResource(R.string.export_intro))
                     }
-                    ExportScopeChooser(onSelectScope = onSelectScope)
-                    Text(
-                        text = stringResource(R.string.export_scope_notice),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(
-                        onClick = onCancel,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.common_cancel))
-                    }
+                    ExportScopeChooser(onSelectScope)
+                    Text(stringResource(R.string.export_scope_notice), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                is ExportImportViewModel.ExportState.SelectingItems -> {
-                    SelectionContent(
-                        items = state.items,
-                        onConfirmSelection = onConfirmSelection,
-                        onCancel = onCancel,
-                    )
-                }
-                is ExportImportViewModel.ExportState.AwaitingReauth -> {
-                    // Fresh Biometric / Device Credential re-auth is in progress
-                    // (the system prompt is showing). This screen only renders a
-                    // safe waiting hint; no PIN is collected here yet.
-                    RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                            RescueAuthIconBadge(icon = Icons.Filled.Lock, size = 40.dp, iconSize = 20.dp)
-                            Column {
-                                Text(stringResource(R.string.reauth_title), style = MaterialTheme.typography.titleMedium)
-                                Text(stringResource(R.string.export_reauth_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                ExportImportViewModel.ExportState.AwaitingReauth -> RescueAuthCard {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        RescueAuthIconBadge(Icons.Filled.Lock)
+                        Column {
+                            Text(stringResource(R.string.reauth_title), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.export_reauth_hint), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                is ExportImportViewModel.ExportState.AwaitingPin -> {
-                    PinEntry(
-                        mode = PinEntryMode.EXPORT,
-                        onSubmit = { pin, confirm ->
-                            // Export policy check is delegated to the ViewModel
-                            // (single source of truth); the returned Reason (if any)
-                            // is surfaced by PinEntry. null → proceed.
-                            onSubmitPin(pin, confirm ?: CharArray(0))
-                        },
-                        onCancel = onCancel,
-                    )
+                ExportImportViewModel.ExportState.AwaitingDestination -> RescueAuthCard {
+                    RescueAuthSectionHeader(stringResource(R.string.export_pin_accepted), stringResource(R.string.export_choose_destination_hint))
                 }
-                is ExportImportViewModel.ExportState.AwaitingDestination -> {
-                    RescueAuthSectionHeader(
-                        title = stringResource(R.string.export_pin_accepted),
-                        subtitle = stringResource(R.string.export_choose_destination_hint),
-                    )
-                    Button(onClick = onChooseDestination, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.export_start))
-                    }
+                ExportImportViewModel.ExportState.Working -> RescueAuthCard {
+                    RescueAuthSectionHeader(stringResource(R.string.common_working))
                 }
-                is ExportImportViewModel.ExportState.Working -> {
-                    RescueAuthSectionHeader(title = stringResource(R.string.common_working))
+                is ExportImportViewModel.ExportState.Success -> RescueAuthCard {
+                    RescueAuthSectionHeader(stringResource(R.string.export_success), stringResource(R.string.export_success_detail))
                 }
-                is ExportImportViewModel.ExportState.Success -> {
-                    RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.export_success),
-                            subtitle = stringResource(R.string.export_success_detail),
-                        )
-                    }
-                    Button(onClick = onDismissResult, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.export_done))
-                    }
+                is ExportImportViewModel.ExportState.Error -> RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                    RescueAuthSectionHeader(stringResource(R.string.export_error_title), state.message)
                 }
-                is ExportImportViewModel.ExportState.Error -> {
-                    RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.export_error_title),
-                            subtitle = state.message,
-                        )
-                    }
-                    Button(onClick = onDismissResult, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.common_close))
-                    }
-                }
+                else -> Unit
             }
         }
     }
 }
 
-/**
- * Import Native Package screen (Phase 3D §28).
- *
- * Flow: Import Native Package → SAF file → PIN → decode → Preview → Confirm
- * Import → result. The PIN is transient local state only.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Native package state, PIN policy and callbacks remain separate from the legacy adapter. */
 @Composable
 fun ImportNativePackageScreen(
     state: ExportImportViewModel.ImportState,
@@ -246,97 +182,54 @@ fun ImportNativePackageScreen(
     onNavigate: (String) -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
-        topBar = {
-            RescueAuthPageHeader(
-                title = stringResource(R.string.import_title),
-                subtitle = stringResource(R.string.settings_backup_transfer_section),
-                navigationIcon = { RescueAuthBackButton(onBack ?: onCancel) },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    val title = stringResource(R.string.import_title)
+    val back = onBack ?: onCancel
+    when (state) {
+        ExportImportViewModel.ImportState.AwaitingPin -> PinEntry(
+            mode = PinEntryMode.IMPORT, title = title, onBack = back, modifier = modifier,
+            onSubmit = { pin, _ -> onDecode(pin); null }, onCancel = onCancelPin)
+        is ExportImportViewModel.ImportState.SelectingItems -> SelectionContent(
+            items = state.items, onConfirmSelection = onConfirmSelection, onCancel = onCancel,
+            title = title, onBack = back, modifier = modifier)
+        is ExportImportViewModel.ImportState.Preview -> ImportPreviewContent(
+            preview = state.preview, onConfirm = onConfirm, onCancel = onCancel,
+            title = title, onBack = back, modifier = modifier)
+        else -> RescueAuthFormPage(
+            title = title, subtitle = stringResource(R.string.settings_backup_transfer_section),
+            onBack = back, modifier = modifier,
+            bottomBar = {
+                when (state) {
+                    ExportImportViewModel.ImportState.Idle -> TransferFooter(stringResource(R.string.import_pick_file), onPickDocument)
+                    is ExportImportViewModel.ImportState.ChoosingScope -> TransferFooter(stringResource(R.string.common_cancel), onCancel, outlined = true)
+                    is ExportImportViewModel.ImportState.Result, is ExportImportViewModel.ImportState.Error ->
+                        TransferFooter(stringResource(R.string.common_close), onDismissResult)
+                    else -> Unit
+                }
+            },
         ) {
             when (state) {
-                is ExportImportViewModel.ImportState.Idle -> {
-                    RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.import_title),
-                            subtitle = stringResource(R.string.import_intro),
-                        )
-                    }
-                    Button(onClick = onPickDocument, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Filled.FileDownload, contentDescription = null)
-                        Spacer(modifier = Modifier.width(Spacing.xxs))
-                        Text(stringResource(R.string.import_pick_file))
-                    }
+                ExportImportViewModel.ImportState.Idle -> RescueAuthCard {
+                    RescueAuthSectionHeader(stringResource(R.string.import_title), stringResource(R.string.import_intro))
                 }
-                is ExportImportViewModel.ImportState.AwaitingPin -> {
-                    PinEntry(
-                        mode = PinEntryMode.IMPORT,
-                        onSubmit = { pin, _ ->
-                            // Import only requires a non-empty PIN (any codec-legal
-                            // package PIN must be decodable; Export's length/charset
-                            // rules are not package-format requirements).
-                            onDecode(pin)
-                            null
-                        },
-                        onCancel = onCancelPin,
-                    )
+                ExportImportViewModel.ImportState.Decoding, ExportImportViewModel.ImportState.Applying -> RescueAuthCard {
+                    RescueAuthSectionHeader(stringResource(R.string.common_working))
                 }
-                is ExportImportViewModel.ImportState.Decoding -> {
-                    RescueAuthSectionHeader(title = stringResource(R.string.common_working))
+                is ExportImportViewModel.ImportState.ChoosingScope -> ImportScopeChooser(state.preview, onChooseScope)
+                is ExportImportViewModel.ImportState.Result -> ImportResultContent(state)
+                is ExportImportViewModel.ImportState.Error -> RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+                    RescueAuthSectionHeader(stringResource(R.string.import_error_title), state.message)
                 }
-                is ExportImportViewModel.ImportState.ChoosingScope -> {
-                    ImportScopeChooser(
-                        preview = state.preview,
-                        onChooseScope = onChooseScope,
-                        onCancel = onCancel,
-                    )
-                }
-                is ExportImportViewModel.ImportState.SelectingItems -> {
-                    SelectionContent(
-                        items = state.items,
-                        onConfirmSelection = onConfirmSelection,
-                        onCancel = onCancel,
-                    )
-                }
-                is ExportImportViewModel.ImportState.Preview -> {
-                    ImportPreviewContent(
-                        preview = state.preview,
-                        onConfirm = onConfirm,
-                        onCancel = onCancel,
-                    )
-                }
-                is ExportImportViewModel.ImportState.Applying -> {
-                    RescueAuthSectionHeader(title = stringResource(R.string.common_working))
-                }
-                is ExportImportViewModel.ImportState.Result -> {
-                    ImportResultContent(
-                        result = state,
-                        onDismiss = onDismissResult,
-                    )
-                }
-                is ExportImportViewModel.ImportState.Error -> {
-                    RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                        RescueAuthSectionHeader(
-                            title = stringResource(R.string.import_error_title),
-                            subtitle = state.message,
-                        )
-                    }
-                    Button(onClick = onDismissResult, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.common_close))
-                    }
-                }
+                else -> Unit
             }
         }
+    }
+}
+
+@Composable
+private fun TransferFooter(label: String, onClick: () -> Unit, outlined: Boolean = false) {
+    RescueAuthBottomBar {
+        if (outlined) OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
+        else Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
     }
 }
 
@@ -391,7 +284,6 @@ private fun ExportScopeChooser(onSelectScope: (ExportScopeSpec) -> Unit) {
 private fun ImportScopeChooser(
     preview: com.rescueauth.v2.exportimport.ImportPreview,
     onChooseScope: (ImportScopeSpec) -> Unit,
-    onCancel: () -> Unit,
 ) {
     RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -400,10 +292,10 @@ private fun ImportScopeChooser(
                 subtitle = stringResource(R.string.import_scope_notice),
             )
 
-            PreviewRow(stringResource(R.string.preview_accounts), preview.accounts.toString())
-            PreviewRow(stringResource(R.string.preview_totp), preview.totpCredentials.toString())
-            PreviewRow(stringResource(R.string.preview_recovery_sets), preview.recoverySets.toString())
-            PreviewRow(stringResource(R.string.preview_developer), preview.developerSummary.total.toString())
+            RescueAuthSummaryRow(stringResource(R.string.preview_accounts), preview.accounts.toString())
+            RescueAuthSummaryRow(stringResource(R.string.preview_totp), preview.totpCredentials.toString())
+            RescueAuthSummaryRow(stringResource(R.string.preview_recovery_sets), preview.recoverySets.toString())
+            RescueAuthSummaryRow(stringResource(R.string.preview_developer), preview.developerSummary.total.toString())
 
             RescueAuthDivider()
 
@@ -429,9 +321,6 @@ private fun ImportScopeChooser(
                 tag = ExportImportTestTags.IMPORT_SCOPE_SELECTED,
             ) { onChooseScope(ImportScopeSpec.SelectedItems) }
 
-            OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.common_cancel))
-            }
         }
     }
 }
@@ -470,15 +359,33 @@ private fun SelectionContent(
     items: SelectableItems,
     onConfirmSelection: (SelectedItemSet) -> Unit,
     onCancel: () -> Unit,
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier,
 ) {
     var accounts by remember { mutableStateOf(setOf<String>()) }
     var totps by remember { mutableStateOf(setOf<String>()) }
     var sets by remember { mutableStateOf(setOf<String>()) }
     var developers by remember { mutableStateOf(setOf<String>()) }
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    val selected = SelectedItemSet(
+        selectedAccountStableIds = accounts,
+        selectedTotpStableIds = totps,
+        selectedRecoverySetStableIds = sets,
+        selectedDeveloperStableIds = developers,
+    )
+    RescueAuthFormPage(
+        title = title, subtitle = stringResource(R.string.settings_backup_transfer_section),
+        onBack = onBack, modifier = modifier,
+        bottomBar = {
+            RescueAuthActionBar(
+                secondaryLabel = stringResource(R.string.common_cancel), secondaryIcon = Icons.Filled.Close,
+                onSecondaryClick = onCancel,
+                primaryLabel = stringResource(R.string.select_continue), primaryIcon = Icons.AutoMirrored.Filled.ArrowForward,
+                onPrimaryClick = { onConfirmSelection(selected) }, primaryEnabled = !selected.isEmpty,
+                primaryTestTag = ExportImportTestTags.EXPORT_SELECT_CONTINUE,
+            )
+        },
     ) {
         RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -532,109 +439,76 @@ private fun SelectionContent(
             }
         }
 
-        val scrollState = rememberScrollState()
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            if (items.providers.isNotEmpty()) {
-                RescueAuthSectionHeader(title = stringResource(R.string.select_section_auth))
-                items.providers.forEach { provider ->
-                    val providerIds = provider.expandToStableIds()
-                    SelectionProviderHeader(
-                        serviceName = provider.serviceName,
-                        selected = providerIds.all { it in accounts },
+
+        if (items.providers.isNotEmpty()) {
+            RescueAuthSectionHeader(title = stringResource(R.string.select_section_auth))
+            items.providers.forEach { provider ->
+                val providerIds = provider.expandToStableIds()
+                SelectionProviderHeader(
+                    serviceName = provider.serviceName,
+                    selected = providerIds.all { it in accounts },
+                    onToggle = { checked ->
+                        accounts = if (checked) accounts + providerIds else accounts - providerIds
+                    },
+                )
+                provider.accounts.forEach { account ->
+                    SelectionAccountRow(
+                        serviceName = account.serviceName,
+                        accountName = account.accountName,
+                        selected = account.stableId in accounts,
                         onToggle = { checked ->
-                            accounts = if (checked) accounts + providerIds else accounts - providerIds
+                            accounts = if (checked) accounts + account.stableId else accounts - account.stableId
                         },
                     )
-                    provider.accounts.forEach { account ->
-                        SelectionAccountRow(
-                            serviceName = account.serviceName,
-                            accountName = account.accountName,
-                            selected = account.stableId in accounts,
+                    account.totpCredentials.forEach { totp ->
+                        SelectionLeafRow(
+                            label = totp.label,
+                            selected = totp.stableId in totps,
                             onToggle = { checked ->
-                                accounts = if (checked) accounts + account.stableId else accounts - account.stableId
+                                totps = if (checked) totps + totp.stableId else totps - totp.stableId
                             },
                         )
-                        account.totpCredentials.forEach { totp ->
-                            SelectionLeafRow(
-                                label = totp.label,
-                                selected = totp.stableId in totps,
-                                onToggle = { checked ->
-                                    totps = if (checked) totps + totp.stableId else totps - totp.stableId
-                                },
-                            )
-                        }
-                        account.recoveryCodeSets.forEach { set ->
-                            SelectionLeafRow(
-                                label = stringResource(
-                                    R.string.select_recovery_set_label,
-                                    set.title,
-                                    set.remainingCount,
-                                    set.codeCount,
-                                ),
-                                selected = set.stableId in sets,
-                                onToggle = { checked ->
-                                    sets = if (checked) sets + set.stableId else sets - set.stableId
-                                },
-                            )
-                        }
+                    }
+                    account.recoveryCodeSets.forEach { set ->
+                        SelectionLeafRow(
+                            label = stringResource(
+                                R.string.select_recovery_set_label,
+                                set.title,
+                                set.remainingCount,
+                                set.codeCount,
+                            ),
+                            selected = set.stableId in sets,
+                            onToggle = { checked ->
+                                sets = if (checked) sets + set.stableId else sets - set.stableId
+                            },
+                        )
                     }
                 }
             }
+        }
 
-            if (items.developerEntries.isNotEmpty()) {
-                RescueAuthSectionHeader(title = stringResource(R.string.select_section_dev))
-                items.developerEntries.forEach { entry ->
-                    SelectionLeafRow(
-                        label = developerSafeLabel(entry),
-                        icon = developerSafeIcon(entry.type),
-                        selected = entry.stableId in developers,
-                        onToggle = { checked ->
-                            developers = if (checked) developers + entry.stableId else developers - entry.stableId
-                        },
-                    )
-                }
-            }
-
-            if (items.isEmpty) {
-                Text(
-                    text = stringResource(R.string.select_nothing_available),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (items.developerEntries.isNotEmpty()) {
+            RescueAuthSectionHeader(title = stringResource(R.string.select_section_dev))
+            items.developerEntries.forEach { entry ->
+                SelectionLeafRow(
+                    label = developerSafeLabel(entry),
+                    icon = developerSafeIcon(entry.type),
+                    selected = entry.stableId in developers,
+                    onToggle = { checked ->
+                        developers = if (checked) developers + entry.stableId else developers - entry.stableId
+                    },
                 )
             }
         }
 
-        val selected = SelectedItemSet(
-            selectedAccountStableIds = accounts,
-            selectedTotpStableIds = totps,
-            selectedRecoverySetStableIds = sets,
-            selectedDeveloperStableIds = developers,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.common_cancel))
-            }
-            Button(
-                onClick = { onConfirmSelection(selected) },
-                enabled = !selected.isEmpty,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(ExportImportTestTags.EXPORT_SELECT_CONTINUE),
-            ) {
-                Text(stringResource(R.string.select_continue))
-            }
+        if (items.isEmpty) {
+            Text(
+                text = stringResource(R.string.select_nothing_available),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+
     }
 }
 
@@ -731,9 +605,10 @@ private fun pinPolicyMessage(context: Context, reason: PinPolicy.Reason): String
     }
 
 /**
- * PIN entry for Export (enter + confirm) and Import (enter once). The PIN is
- * a local CharArray, cleared after submit/cancel; fields are hidden by default
- * with a reveal toggle (Issue #1 §9).
+ * PIN entry for Export (enter + confirm) and Import (enter once). Input strings
+ * are local, non-saveable state removed with this step. Submission creates
+ * CharArrays: rejected arrays are cleared here; accepted arrays belong to the
+ * receiving ViewModel. Fields are hidden by default with a reveal toggle.
  *
  * All validation rules are evaluated by [PinPolicy] (single source of truth);
  * this composable only maps a returned [PinPolicy.Reason] to a string resource
@@ -744,6 +619,9 @@ private fun PinEntry(
     mode: PinEntryMode,
     onSubmit: (CharArray, CharArray?) -> PinPolicy.Reason?,
     onCancel: () -> Unit,
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier,
 ) {
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
@@ -753,7 +631,31 @@ private fun PinEntry(
 
     val transformation = if (revealed) VisualTransformation.None else PasswordVisualTransformation()
 
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    RescueAuthFormPage(
+        title = title, subtitle = stringResource(R.string.settings_backup_transfer_section),
+        onBack = onBack, modifier = modifier,
+        bottomBar = {
+            RescueAuthActionBar(
+                secondaryLabel = stringResource(R.string.common_cancel), secondaryIcon = Icons.Filled.Close,
+                onSecondaryClick = onCancel,
+                secondaryTestTag = if (mode == PinEntryMode.EXPORT) ExportImportTestTags.EXPORT_CANCEL else ExportImportTestTags.IMPORT_CANCEL,
+                primaryLabel = stringResource(R.string.pin_submit), primaryIcon = Icons.AutoMirrored.Filled.ArrowForward,
+                primaryEnabled = pin.isNotEmpty(),
+                primaryTestTag = if (mode == PinEntryMode.EXPORT) ExportImportTestTags.EXPORT_SUBMIT else ExportImportTestTags.IMPORT_SUBMIT,
+                onPrimaryClick = {
+                    val p = pin.toCharArray()
+                    val c = if (mode == PinEntryMode.EXPORT) confirm.toCharArray() else null
+                    val reason = onSubmit(p, c)
+                    if (reason != null) {
+                        pinError = pinPolicyMessage(context, reason)
+                        p.fill('\u0000')
+                        c?.fill('\u0000')
+                    }
+                    // The receiving native ViewModel owns accepted arrays and clears them.
+                },
+            )
+        },
+    ) {
         RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -777,7 +679,7 @@ private fun PinEntry(
         }
 
         RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
-            OutlinedTextField(
+            RescueAuthTextField(
                 value = pin,
                 onValueChange = { pin = it; pinError = null },
                 label = { Text(stringResource(R.string.pin_label)) },
@@ -797,7 +699,7 @@ private fun PinEntry(
                     ),
             )
             if (mode == PinEntryMode.EXPORT) {
-                OutlinedTextField(
+                RescueAuthTextField(
                     value = confirm,
                     onValueChange = { confirm = it; pinError = null },
                     label = { Text(stringResource(R.string.pin_confirm_label)) },
@@ -830,39 +732,6 @@ private fun PinEntry(
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.common_cancel))
-            }
-            Button(
-                onClick = {
-                    val p = pin.toCharArray()
-                    val c = if (mode == PinEntryMode.EXPORT) confirm.toCharArray() else null
-                    val reason = onSubmit(p, c)
-                    if (reason != null) {
-                        pinError = pinPolicyMessage(context, reason)
-                        p.fill('\u0000')
-                        c?.fill('\u0000')
-                    }
-                    // On success the ViewModel owns the arrays and zeroizes them.
-                },
-                enabled = pin.isNotEmpty(),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(
-                        if (mode == PinEntryMode.EXPORT) {
-                            ExportImportTestTags.EXPORT_SUBMIT
-                        } else {
-                            ExportImportTestTags.IMPORT_SUBMIT
-                        },
-                    ),
-            ) {
-                Text(stringResource(R.string.pin_submit))
-            }
-        }
     }
 }
 
@@ -871,111 +740,65 @@ private fun ImportPreviewContent(
     preview: com.rescueauth.v2.exportimport.ImportPreview,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        RescueAuthSectionHeader(
-            title = stringResource(R.string.preview_title),
-            subtitle = stringResource(R.string.preview_package_meta),
-        )
-
-        // Package metadata
-        RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
-            PreviewRow(stringResource(R.string.preview_scope), preview.scope.name)
-            PreviewRow(stringResource(R.string.preview_created), preview.createdAt.take(19))
-            PreviewRow(stringResource(R.string.preview_source), preview.sourceAppVersion)
-        }
-
-        RescueAuthSectionHeader(title = stringResource(R.string.preview_content_title))
-        RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
-            PreviewRow(stringResource(R.string.preview_accounts), preview.accounts.toString())
-            PreviewRow(stringResource(R.string.preview_totp), preview.totpCredentials.toString())
-            PreviewRow(stringResource(R.string.preview_recovery_sets), preview.recoverySets.toString())
-            PreviewRow(stringResource(R.string.preview_recovery_codes), preview.recoveryCodes.toString())
-            PreviewRow(stringResource(R.string.preview_developer), preview.developerSummary.total.toString())
-            PreviewRow(stringResource(R.string.preview_dev_signing), preview.developerSummary.signingKeys.toString())
-            PreviewRow(stringResource(R.string.preview_dev_api), preview.developerSummary.apiCredentials.toString())
-            PreviewRow(stringResource(R.string.preview_dev_ssh), preview.developerSummary.sshKeys.toString())
-            PreviewRow(stringResource(R.string.preview_dev_env), preview.developerSummary.envVarSets.toString())
-            PreviewRow(stringResource(R.string.preview_dev_generic), preview.developerSummary.genericSecrets.toString())
-        }
-
-        RescueAuthSectionHeader(title = stringResource(R.string.preview_merge_title))
-        RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
-            PreviewRow(stringResource(R.string.preview_inserts), preview.inserts.toString())
-            PreviewRow(stringResource(R.string.preview_duplicates), preview.duplicates.toString())
-            PreviewRow(stringResource(R.string.preview_conflicts), preview.conflicts.toString())
-            PreviewRow(stringResource(R.string.preview_unchanged), preview.unchanged.toString())
-            PreviewRow(stringResource(R.string.preview_divergences), preview.stateDivergences.toString())
-        }
-
-        if (preview.blocked) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Text(
-                text = stringResource(R.string.preview_blocked_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.error,
+    RescueAuthFormPage(
+        title = title, subtitle = stringResource(R.string.settings_backup_transfer_section), onBack = onBack,
+        modifier = modifier,
+        bottomBar = {
+            RescueAuthActionBar(
+                secondaryLabel = stringResource(R.string.common_cancel), secondaryIcon = Icons.Filled.Close,
+                onSecondaryClick = onCancel, secondaryTestTag = ExportImportTestTags.IMPORT_CANCEL,
+                primaryLabel = stringResource(R.string.preview_confirm_import), primaryIcon = Icons.Filled.Check,
+                onPrimaryClick = onConfirm, primaryEnabled = !preview.blocked, primaryTestTag = ExportImportTestTags.IMPORT_CONFIRM,
             )
-            Text(
-                text = stringResource(R.string.preview_blocked_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.common_cancel))
-            }
-            Button(
-                onClick = onConfirm,
-                enabled = !preview.blocked,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(ExportImportTestTags.IMPORT_CONFIRM),
-            ) {
-                Text(stringResource(R.string.preview_confirm_import))
-            }
-        }
-        if (preview.blocked) {
-            Text(
-                text = stringResource(R.string.preview_blocked_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PreviewRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        },
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(Spacing.sm))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-        )
+        RescueAuthSummaryCard(stringResource(R.string.preview_title), listOf(
+            stringResource(R.string.preview_scope) to stringResource(when (preview.scope) {
+                SnapshotScope.FULL_VAULT -> R.string.export_scope_full
+                SnapshotScope.AUTHENTICATOR_ONLY -> R.string.export_scope_auth
+                SnapshotScope.DEVELOPER_ONLY -> R.string.export_scope_dev
+                SnapshotScope.SELECTED_ITEMS -> R.string.preview_scope_selected
+            }),
+            stringResource(R.string.preview_created) to preview.createdAt.take(19),
+            stringResource(R.string.preview_source) to preview.sourceAppVersion,
+        ), icon = Icons.Filled.FileDownload)
+        RescueAuthSummaryCard(stringResource(R.string.preview_content_title), listOf(
+            stringResource(R.string.preview_accounts) to preview.accounts.toString(),
+            stringResource(R.string.preview_totp) to preview.totpCredentials.toString(),
+            stringResource(R.string.preview_recovery_sets) to preview.recoverySets.toString(),
+            stringResource(R.string.preview_recovery_codes) to preview.recoveryCodes.toString(),
+            stringResource(R.string.preview_developer) to preview.developerSummary.total.toString(),
+            stringResource(R.string.preview_dev_signing) to preview.developerSummary.signingKeys.toString(),
+            stringResource(R.string.preview_dev_api) to preview.developerSummary.apiCredentials.toString(),
+            stringResource(R.string.preview_dev_ssh) to preview.developerSummary.sshKeys.toString(),
+            stringResource(R.string.preview_dev_env) to preview.developerSummary.envVarSets.toString(),
+            stringResource(R.string.preview_dev_generic) to preview.developerSummary.genericSecrets.toString(),
+        ))
+        RescueAuthSummaryCard(stringResource(R.string.preview_merge_title), listOf(
+            stringResource(R.string.preview_inserts) to preview.inserts.toString(),
+            stringResource(R.string.preview_duplicates) to preview.duplicates.toString(),
+            stringResource(R.string.preview_conflicts) to preview.conflicts.toString(),
+            stringResource(R.string.preview_unchanged) to preview.unchanged.toString(),
+            stringResource(R.string.preview_divergences) to preview.stateDivergences.toString(),
+        ))
+        if (preview.blocked) RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
+            RescueAuthSectionHeader(stringResource(R.string.preview_blocked_title), stringResource(R.string.preview_blocked_body))
+            Text(stringResource(R.string.preview_blocked_hint), Modifier.padding(top = Spacing.sm),
+                style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
+
+
+
 
 @Composable
 private fun ImportResultContent(
     result: ExportImportViewModel.ImportState.Result,
-    onDismiss: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         RescueAuthCard(
@@ -1021,9 +844,6 @@ private fun ImportResultContent(
                 )
             }
         }
-        }
-        Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.common_close))
         }
     }
 }

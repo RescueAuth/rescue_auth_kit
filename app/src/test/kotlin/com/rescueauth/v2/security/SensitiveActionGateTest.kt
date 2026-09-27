@@ -35,6 +35,42 @@ import org.junit.Test
  */
 class SensitiveActionGateTest {
 
+    @Test fun `invalidation notifies the waiting action that authentication was cancelled`() {
+        val prompt = FakeSensitiveActionPrompt()
+        val g = gate(prompt)
+        var result: SensitiveActionResult? = null
+        g.authorize(revealApi()) { result = it }
+        g.onLifecyclePause()
+        assertEquals(SensitiveActionResult.Cancelled, result)
+    }
+
+    @Test fun `late callback from an invalidated prompt cannot authorize a retry of the same action`() {
+        val prompt = FakeSensitiveActionPrompt()
+        val g = gate(prompt)
+        val request = revealApi()
+        g.authorize(request) {}
+        val stale = prompt.lastCallback!!
+        g.invalidate()
+        var current: SensitiveActionResult? = null
+        g.authorize(request) { current = it }
+        stale(SensitiveActionResult.Success(request))
+        assertNull(current)
+        assertFalse(g.isAuthorizedFor(request))
+        assertEquals(request, g.pendingRequestOrNull())
+        prompt.deliver(SensitiveActionResult.Success(request))
+        assertTrue(current is SensitiveActionResult.Success)
+    }
+
+    @Test fun `success for a different target is denied at the gate`() {
+        val prompt = FakeSensitiveActionPrompt()
+        val g = gate(prompt)
+        var result: SensitiveActionResult? = null
+        g.authorize(revealApi(stableId = "entry-A")) { result = it }
+        prompt.deliver(SensitiveActionResult.Success(revealApi(stableId = "entry-B")))
+        assertEquals(SensitiveActionResult.Failed, result)
+        assertFalse(g.isAuthorizedFor(revealApi(stableId = "entry-B")))
+    }
+
     private fun unlockedSession(): SecureSessionStateMachine {
         val s = SecureSessionStateMachine()
         s.beginAuthentication()
