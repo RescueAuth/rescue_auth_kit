@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
 import com.rescueauth.v2.ui.components.RescueAuthTextField
+import com.rescueauth.v2.ui.components.RescueAuthVisibilityToggle
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Description
@@ -626,6 +627,7 @@ private fun PinEntry(
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var revealed by remember { mutableStateOf(false) }
+    var confirmRevealed by remember { mutableStateOf(false) }
     var pinError by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -684,6 +686,10 @@ private fun PinEntry(
                 onValueChange = { pin = it; pinError = null },
                 label = { Text(stringResource(R.string.pin_label)) },
                 visualTransformation = transformation,
+                trailingIcon = {
+                    RescueAuthVisibilityToggle(revealed, { revealed = !revealed },
+                        Modifier.testTag("pin_visibility"))
+                },
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
                 ),
@@ -703,7 +709,11 @@ private fun PinEntry(
                     value = confirm,
                     onValueChange = { confirm = it; pinError = null },
                     label = { Text(stringResource(R.string.pin_confirm_label)) },
-                    visualTransformation = transformation,
+                    visualTransformation = if (confirmRevealed) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        RescueAuthVisibilityToggle(confirmRevealed, { confirmRevealed = !confirmRevealed },
+                            Modifier.testTag("pin_confirm_visibility"))
+                    },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
                     ),
@@ -712,15 +722,6 @@ private fun PinEntry(
                         .fillMaxWidth()
                         .testTag(ExportImportTestTags.EXPORT_CONFIRM_FIELD),
                 )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                OutlinedButton(onClick = { revealed = !revealed }) {
-                    Text(
-                        stringResource(
-                            if (revealed) R.string.pin_hide else R.string.pin_show,
-                        ),
-                    )
-                }
             }
         }
 

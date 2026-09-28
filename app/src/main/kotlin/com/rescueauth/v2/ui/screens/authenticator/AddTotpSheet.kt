@@ -39,11 +39,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.rescueauth.v2.R
 import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.ui.authenticator.AddMode
 import com.rescueauth.v2.ui.authenticator.AddTotpFormState
 import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthVisibilityToggle
 import com.rescueauth.v2.ui.components.RescueAuthActionBar
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
@@ -77,6 +79,7 @@ fun AddTotpSheet(
         mutableStateOf<AddMode?>(form.mode.takeIf { it == AddMode.MANUAL })
     }
     val mode = selectedMode
+    var secretRevealed by remember(mode) { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
@@ -143,7 +146,12 @@ fun AddTotpSheet(
                                         singleLine = true, modifier = Modifier.fillMaxWidth().testTag("add_totp_account"))
                                     RescueAuthTextField(form.secret, onSecretChange,
                                         label = { Text(stringResource(R.string.add_totp_secret_label)) },
-                                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                                        singleLine = true,
+                                        visualTransformation = if (secretRevealed) VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            RescueAuthVisibilityToggle(secretRevealed, { secretRevealed = !secretRevealed },
+                                                Modifier.testTag("totp_secret_visibility"))
+                                        },
                                         modifier = Modifier.fillMaxWidth().testTag("add_totp_secret"))
                                     TextButton(onClick = { showAdvanced = !showAdvanced }) {
                                         Text(stringResource(R.string.add_totp_advanced))

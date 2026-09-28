@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +33,7 @@ import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.RescueAuthSummaryCard
 import com.rescueauth.v2.ui.components.RescueAuthTextField
+import com.rescueauth.v2.ui.components.RescueAuthVisibilityToggle
 import com.rescueauth.v2.ui.theme.Spacing
 
 object LegacyImportTestTags {
@@ -162,11 +162,12 @@ private fun LegacyPasswordEntry(onSubmit: (CharArray) -> Boolean, onCancel: () -
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
                 singleLine = true,
+                trailingIcon = {
+                    RescueAuthVisibilityToggle(revealed, { revealed = !revealed },
+                        Modifier.testTag("legacy_password_visibility"))
+                },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.md).testTag(LegacyImportTestTags.PASSWORD_FIELD),
             )
-            TextButton(onClick = { revealed = !revealed }) {
-                Text(stringResource(if (revealed) R.string.pin_hide else R.string.pin_show))
-            }
         }
     }
 }

@@ -203,6 +203,24 @@ ANDROID_SERIAL=<专用测试模拟器> ./gradlew --no-daemon --init-script <本�
   :app:assembleDebugAndroidTest :app:lintDebug :app:connectedDebugAndroidTest
 ```
 
+## 密码输入框内的显隐图标（2026-09-28）
+
+- 旧版 v1 导入密码和原生导入 / 导出 PIN 移除框外“显示 / 隐藏”文字按钮，
+  改用输入框尾部的眼睛图标。导出 PIN 和确认 PIN 各自控制，不联动显示另一框。
+- 手动 TOTP 密钥补充同样的图标，初始保持遮罩；更换录入方式后重新隐藏。
+  五类开发者表单已经使用框内眼睛按钮，保留现有实现及字段身份对应的显隐状态。
+- 新共用 `RescueAuthVisibilityToggle` 使用标准 IconButton 点击范围，沿用中英文
+  显示 / 隐藏读屏标签。输入框外观、浮动标签、输入值和提交回调保持原样；
+  未改变 PIN 策略、旧版密码兼容规则或已存机密的 fresh re-auth。
+- 回归检查覆盖默认遮罩、显隐反复切换、独立控制、输入值及提交保持、TOTP 切换方式
+  重新隐藏；原生布局检查覆盖框内对齐、至少 48 dp 的点击范围、深色和 1.5 倍字体。
+  原生截图只使用空输入框，不读取保险库或选择真实备份文件。
+- 最终验证：Core **420/420**、App JVM / Robolectric **793/793**、Android
+  instrumented **120/120**，无失败、错误或跳过；Debug / AndroidTest APK 构建成功，
+  lint **0 error、259 warning、1 information**。新增 4 项 JVM 和 4 项原生输入交互检查，
+  已审阅 6 张原生截图；保存在忽略的 `build/password-visibility/`，不进入版本库。
+  JVM 使用前述逐测试类进程隔离；真实设备的认证 / 发布候选包验收仍独立进行。
+
 ## 兼容性与边界
 
 数据库 schema、包格式、加密算法、签名公钥、applicationId 和版本号均未改变。
