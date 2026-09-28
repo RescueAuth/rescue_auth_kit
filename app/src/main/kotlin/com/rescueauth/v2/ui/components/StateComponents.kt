@@ -9,13 +9,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,9 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -49,13 +45,10 @@ fun EmptyState(
         verticalArrangement = Arrangement.Top,
     ) {
         RescueAuthCard(contentPadding = com.rescueauth.v2.ui.theme.CardTokens.heroPadding) {
-            RescueAuthIconBadge(icon = icon, size = 48.dp, iconSize = 24.dp,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
-            Spacer(Modifier.height(Spacing.lg))
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            if (body.isNotBlank()) Text(body, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.xs))
+            RescueAuthIconHeader(icon, title, body, Modifier.testTag("empty_state_header"),
+                titleStyle = MaterialTheme.typography.titleLarge,
+                iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                iconContentColor = MaterialTheme.colorScheme.onPrimaryContainer)
             if (actionLabel != null && onAction != null) StudioAction(actionLabel, onAction, Modifier.padding(top = Spacing.lg))
         }
     }
@@ -105,40 +98,15 @@ fun ErrorState(
     retryLabel: String? = null,
     onRetry: (() -> Unit)? = null,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(Spacing.xl),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        RescueAuthIconBadge(
-            icon = Icons.Filled.Warning,
-            size = 64.dp,
-            iconSize = 30.dp,
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        )
-        Spacer(modifier = Modifier.height(Spacing.md))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-        )
-        if (message != null) {
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-        if (onRetry != null && retryLabel != null) {
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            Button(onClick = onRetry) {
-                Text(text = retryLabel)
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg)) {
+        RescueAuthCard {
+            RescueAuthIconHeader(Icons.Filled.Warning, title, message, Modifier.testTag("error_state_header"),
+                iconContainerColor = MaterialTheme.colorScheme.errorContainer,
+                iconContentColor = MaterialTheme.colorScheme.onErrorContainer)
+            if (onRetry != null && retryLabel != null) {
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg)) {
+                    Text(retryLabel)
+                }
             }
         }
     }

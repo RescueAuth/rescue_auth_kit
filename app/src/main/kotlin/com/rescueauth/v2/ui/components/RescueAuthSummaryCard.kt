@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
@@ -22,8 +23,8 @@ import com.rescueauth.v2.ui.theme.Spacing
 fun RescueAuthSummaryCard(title: String, rows: List<Pair<String, String>>, icon: ImageVector? = null) {
     RescueAuthCard {
         Column(verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing)) {
-            if (icon != null) RescueAuthIconBadge(icon)
-            RescueAuthSectionHeader(title = title)
+            if (icon != null) RescueAuthIconHeader(icon, title, modifier = Modifier.testTag("summary_card_header"))
+            else RescueAuthSectionHeader(title = title)
             rows.forEach { (label, value) -> RescueAuthSummaryRow(label, value) }
         }
     }

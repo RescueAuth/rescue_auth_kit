@@ -104,6 +104,10 @@ object CardTokens {
 
     /** Standard card inner content padding — roomier for a calm, breathable feel. */
     val contentPadding = 16.dp
+    /** Icon and explanatory text form one horizontal card header. */
+    val headerBadgeSize = 52.dp
+    val headerIconSize = 26.dp
+    val headerGap = Spacing.md
 
     val borderWidth = 0.5.dp
 

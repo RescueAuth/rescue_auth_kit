@@ -21,6 +21,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -36,8 +37,7 @@ import com.rescueauth.v2.ui.components.ErrorState
 import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RecoveryCodeSetCard
 import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.components.RescueAuthIconHeader
 import com.rescueauth.v2.ui.model.RecoveryCodeSetUi
 import com.rescueauth.v2.ui.model.RecoveryCodeUi
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
@@ -127,15 +127,15 @@ fun RecoveryCodesScreen(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                                 contentPadding = Spacing.md,
                             ) {
-                                RescueAuthIconBadge(icon = Icons.Filled.Key, size = 40.dp, iconSize = 20.dp)
-                                RescueAuthSectionHeader(
+                                RescueAuthIconHeader(
+                                    icon = Icons.Filled.Key,
                                     title = stringResource(R.string.recovery_codes_title),
                                     subtitle = stringResource(
                                         R.string.recovery_codes_detail_subtitle,
                                         uiState.sets.sumOf { it.remainingCount },
                                         uiState.sets.sumOf { it.totalCount },
                                     ),
-                                    modifier = Modifier.padding(top = Spacing.xs),
+                                    modifier = Modifier.testTag("recovery_summary_header"),
                                 )
                             }
                         }

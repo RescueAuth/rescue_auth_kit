@@ -14,19 +14,20 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryFormState
 import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.components.RescueAuthIconHeader
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
@@ -48,7 +49,8 @@ fun RecoveryCodeEditorSheet(
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
+    ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -57,21 +59,11 @@ fun RecoveryCodeEditorSheet(
                 .padding(bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                RescueAuthIconBadge(icon = Icons.Filled.Key, size = 40.dp, iconSize = 20.dp)
-                RescueAuthSectionHeader(
-                    title = stringResource(
-                        if (form.isEditing) R.string.recovery_codes_edit_title
-                        else R.string.recovery_codes_add_title,
-                    ),
-                    subtitle = stringResource(R.string.recovery_codes_editor_subtitle),
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            RescueAuthIconHeader(
+                icon = Icons.Filled.Key,
+                title = stringResource(if (form.isEditing) R.string.recovery_codes_edit_title else R.string.recovery_codes_add_title),
+                modifier = Modifier.testTag("recovery_editor_header"),
+            )
 
             // Title + codes fields are grouped inside one card (project-wide
             // card UI constraint).

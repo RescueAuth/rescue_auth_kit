@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
@@ -39,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -51,7 +55,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthIconHeader
 import com.rescueauth.v2.ui.components.RescueAuthMetaPill
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
@@ -297,49 +301,24 @@ private fun CameraOverlay(
 }
 
 @Composable
-private fun PermissionDeniedContent(
+internal fun PermissionDeniedContent(
     needsSettings: Boolean,
     onDismiss: () -> Unit,
     onRequest: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center,
-    ) {
-        RescueAuthCard(
-            containerColor = CardTokens.containerColor(),
-            contentPadding = 20.dp,
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                RescueAuthIconBadge(
-                    icon = Icons.Filled.FlashlightOff,
-                    size = 44.dp,
-                    iconSize = 22.dp,
+    Box(modifier.background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState()),
+        contentAlignment = Alignment.Center) {
+        RescueAuthCard(contentPadding = CardTokens.contentPadding) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing)) {
+                RescueAuthIconHeader(
+                    icon = Icons.Filled.CameraAlt,
+                    title = stringResource(R.string.add_totp_mode_scan),
+                    subtitle = stringResource(if (needsSettings) R.string.scan_permission_denied_settings else R.string.scan_permission_denied),
+                    modifier = Modifier.testTag("camera_permission_header"),
                 )
-                if (needsSettings) {
-                    Text(
-                        text = stringResource(R.string.scan_permission_denied_settings),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                } else {
-                    Text(
-                        text = stringResource(R.string.scan_permission_denied),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
-                if (needsSettings) {
-                    Button(onClick = onDismiss) {
-                        Text(stringResource(R.string.common_cancel))
-                    }
-                } else {
-                    Button(onClick = onRequest ?: onDismiss) {
-                        Text(stringResource(R.string.scan_permission_request))
-                    }
+                Button(onClick = if (needsSettings) onDismiss else onRequest ?: onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(if (needsSettings) R.string.common_cancel else R.string.scan_permission_request))
                 }
             }
         }

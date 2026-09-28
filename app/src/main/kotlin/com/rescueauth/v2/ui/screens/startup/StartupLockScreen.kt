@@ -45,7 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthIconHeader
 import com.rescueauth.v2.ui.theme.Spacing
 
 object StartupLockTestTags {
@@ -217,46 +217,17 @@ fun StartupBlockedScreen(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(Spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.Center,
         ) {
-            RescueAuthIconBadge(
-                icon = Icons.Filled.Lock,
-                size = 64.dp,
-                iconSize = 30.dp,
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = Spacing.md),
-            )
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-            ) {
-                if (actions != null) {
-                    actions()
-                } else {
-                    OutlinedButton(
-                        onClick = onExit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag(StartupLockTestTags.EXIT_BUTTON),
-                    ) {
+            RescueAuthCard {
+                RescueAuthIconHeader(Icons.Filled.Lock, title, body, Modifier.testTag("startup_blocked_header"),
+                    titleStyle = MaterialTheme.typography.titleLarge,
+                    iconContainerColor = MaterialTheme.colorScheme.errorContainer,
+                    iconContentColor = MaterialTheme.colorScheme.onErrorContainer)
+                Column(Modifier.fillMaxWidth().padding(top = Spacing.lg)) {
+                    if (actions != null) actions()
+                    else OutlinedButton(onClick = onExit, modifier = Modifier.fillMaxWidth().testTag(StartupLockTestTags.EXIT_BUTTON)) {
                         Text(stringResource(R.string.startup_exit))
                     }
                 }

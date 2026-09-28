@@ -29,7 +29,7 @@ import com.rescueauth.v2.ui.components.RescueAuthBottomBar
 import com.rescueauth.v2.ui.components.RescueAuthButton
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthFormPage
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthExplainedCard
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.RescueAuthSummaryCard
 import com.rescueauth.v2.ui.components.RescueAuthTextField
@@ -152,9 +152,11 @@ private fun LegacyPasswordEntry(onSubmit: (CharArray) -> Boolean, onCancel: () -
             },
         )
     }) {
-        RescueAuthCard {
-            RescueAuthIconBadge(Icons.Filled.Lock)
-            RescueAuthSectionHeader(stringResource(R.string.legacy_password_title), stringResource(R.string.legacy_password_policy))
+        RescueAuthExplainedCard(
+            identityKey = "legacy-password", title = stringResource(R.string.legacy_password_title),
+            explanation = stringResource(R.string.legacy_password_policy), icon = Icons.Filled.Lock,
+            testTagPrefix = "legacy_password_help",
+        ) {
             RescueAuthTextField(
                 value = password, onValueChange = { password = it },
                 label = { Text(stringResource(R.string.legacy_password_label)) },
@@ -166,7 +168,7 @@ private fun LegacyPasswordEntry(onSubmit: (CharArray) -> Boolean, onCancel: () -
                     RescueAuthVisibilityToggle(revealed, { revealed = !revealed },
                         Modifier.testTag("legacy_password_visibility"))
                 },
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.md).testTag(LegacyImportTestTags.PASSWORD_FIELD),
+                modifier = Modifier.fillMaxWidth().testTag(LegacyImportTestTags.PASSWORD_FIELD),
             )
         }
     }

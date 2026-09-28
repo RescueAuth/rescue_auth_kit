@@ -206,7 +206,6 @@
     <string name="recovery_codes_marked_unused">已标记为未使用</string>
     <string name="recovery_codes_add_title">添加恢复码</string>
     <string name="recovery_codes_edit_title">编辑恢复码</string>
-    <string name="recovery_codes_editor_subtitle">集中管理并检查备用恢复码</string>
     <string name="recovery_codes_set_title_label">标题</string>
     <string name="recovery_codes_values_label">恢复码</string>
     <string name="recovery_codes_values_hint">每行一个恢复码，可一次粘贴多个。</string>
@@ -529,6 +528,7 @@
 
     <string name="common_working">处理中…</string>
     <string name="common_close">关闭</string>
+    <string name="a11y_card_information">查看说明：%1$s</string>
 
     <!-- Common states -->
     <string name="common_loading">正在加载…</string>

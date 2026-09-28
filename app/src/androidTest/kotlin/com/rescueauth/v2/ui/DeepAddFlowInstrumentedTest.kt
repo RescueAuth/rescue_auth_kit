@@ -21,7 +21,10 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.room.Room
 import androidx.core.view.WindowCompat
 import androidx.test.espresso.Espresso.pressBack
-import androidx.test.espresso.Espresso.closeSoftKeyboard
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.closeSoftKeyboard
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.rescueauth.v2.database.RescueAuthDatabase
@@ -126,7 +129,8 @@ class DeepAddFlowInstrumentedTest {
     }
     private fun click(tag: String) { visible(tag).performTouchInput { click() } }
     private fun expandRecoveryEditorForReview() {
-        closeSoftKeyboard()
+        // The recovery editor is hosted in a dialog, not the covered Activity window.
+        onView(isRoot()).inRoot(isDialog()).perform(closeSoftKeyboard())
         val expand = SemanticsMatcher.keyIsDefined(SemanticsActions.Expand)
         if (rule.onAllNodes(expand).fetchSemanticsNodes().isNotEmpty()) {
             rule.onNode(expand).performSemanticsAction(SemanticsActions.Expand) { it() }

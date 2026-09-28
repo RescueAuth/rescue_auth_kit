@@ -48,7 +48,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.rescueauth.v2.ui.components.RescueAuthDivider
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthIconHeader
+import com.rescueauth.v2.ui.components.RescueAuthExplainedCard
 import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.theme.Spacing
@@ -140,14 +141,8 @@ fun ExportVaultScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 ExportImportViewModel.ExportState.AwaitingReauth -> RescueAuthCard {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        RescueAuthIconBadge(Icons.Filled.Lock)
-                        Column {
-                            Text(stringResource(R.string.reauth_title), style = MaterialTheme.typography.titleMedium)
-                            Text(stringResource(R.string.export_reauth_hint), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    RescueAuthIconHeader(Icons.Filled.Lock, stringResource(R.string.reauth_title),
+                        stringResource(R.string.export_reauth_hint), Modifier.testTag("export_reauth_header"))
                 }
                 ExportImportViewModel.ExportState.AwaitingDestination -> RescueAuthCard {
                     RescueAuthSectionHeader(stringResource(R.string.export_pin_accepted), stringResource(R.string.export_choose_destination_hint))
@@ -658,29 +653,13 @@ private fun PinEntry(
             )
         },
     ) {
-        RescueAuthCard(containerColor = com.rescueauth.v2.ui.theme.CardTokens.containerColor()) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                RescueAuthIconBadge(icon = Icons.Filled.Lock, size = 40.dp, iconSize = 20.dp)
-                RescueAuthSectionHeader(
-                    title = if (mode == PinEntryMode.EXPORT) {
-                        stringResource(R.string.export_pin_title)
-                    } else {
-                        stringResource(R.string.import_pin_title)
-                    },
-                    subtitle = if (mode == PinEntryMode.EXPORT) {
-                        stringResource(R.string.export_pin_policy)
-                    } else {
-                        stringResource(R.string.import_pin_policy)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-        RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
+        RescueAuthExplainedCard(
+            identityKey = "pin-${mode.name}",
+            title = stringResource(if (mode == PinEntryMode.EXPORT) R.string.export_pin_title else R.string.import_pin_title),
+            explanation = stringResource(if (mode == PinEntryMode.EXPORT) R.string.export_pin_policy else R.string.import_pin_policy),
+            icon = Icons.Filled.Lock,
+            testTagPrefix = if (mode == PinEntryMode.EXPORT) "export_pin_help" else "import_pin_help",
+        ) {
             RescueAuthTextField(
                 value = pin,
                 onValueChange = { pin = it; pinError = null },

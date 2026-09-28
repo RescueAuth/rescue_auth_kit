@@ -206,7 +206,6 @@
     <string name="recovery_codes_marked_unused">Marked as unused</string>
     <string name="recovery_codes_add_title">Add Recovery Codes</string>
     <string name="recovery_codes_edit_title">Edit Recovery Codes</string>
-    <string name="recovery_codes_editor_subtitle">Keep backup codes organized and easy to audit</string>
     <string name="recovery_codes_set_title_label">Title</string>
     <string name="recovery_codes_values_label">Recovery codes</string>
     <string name="recovery_codes_values_hint">One code per line. You can paste multiple codes at once.</string>
@@ -531,6 +530,7 @@
 
     <string name="common_working">Working…</string>
     <string name="common_close">Close</string>
+    <string name="a11y_card_information">Show information: %1$s</string>
 
     <!-- Common states -->
     <string name="common_loading">Loading…</string>
