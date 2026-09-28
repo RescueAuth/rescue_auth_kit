@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.*
 import com.rescueauth.v2.ui.developer.DeveloperListUiState
@@ -39,44 +40,55 @@ fun DeveloperScreen(
     onOpenCategory: ((DeveloperEntryType) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     categoryType: DeveloperEntryType? = null,
+    contentBottomPadding: Dp = 0.dp,
+    floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
 ) {
     var selectedCategory by rememberSaveable { mutableStateOf(categoryType) }
     val visibleEntries = selectedCategory?.let { type -> uiState.entries.filter { it.type == type } } ?: uiState.entries
     val back = { if (onBack != null) onBack() else selectedCategory = null }
     BackHandler(enabled = selectedCategory != null && onBack == null) { selectedCategory = null }
-    RescueAuthPageScaffold(
-        modifier = modifier.fillMaxSize(),
-        title = selectedCategory?.let { typeLabel(it) } ?: stringResource(R.string.developer_title),
-        navigationIcon = if (selectedCategory != null) { { RescueAuthBackButton(back) } } else null,
-        actions = {
-            if (selectedCategory != null) StudioCountBadge(visibleEntries.size,
-                stringResource(R.string.developer_group_count, visibleEntries.size))
-            if (onAddClick != null) RescueAuthIconAction(Icons.Filled.Add,
-                stringResource(R.string.studio_add), onAddClick)
-        },
-        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-    ) { padding ->
-        when {
-            uiState.loading -> LoadingState(Modifier.fillMaxSize().padding(padding), stringResource(R.string.developer_loading))
-            uiState.error != null -> ErrorState(title = stringResource(R.string.common_error_title),
-                message = uiState.error, modifier = Modifier.fillMaxSize().padding(padding))
-            selectedCategory == null -> DeveloperDirectoryContent(uiState.entries,
-                onOpenCategory = { if (onOpenCategory != null) onOpenCategory(it) else selectedCategory = it },
-                modifier = Modifier.padding(padding))
-            visibleEntries.isEmpty() -> EmptyState(
-                title = typeLabel(selectedCategory!!), body = stringResource(R.string.studio_vault_empty_body),
-                actionLabel = onAddClick?.let { stringResource(R.string.developer_add_first) }, onAction = onAddClick,
-                icon = Icons.Outlined.Code, modifier = Modifier.fillMaxSize().padding(padding))
-            else -> LazyColumn(
-                Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
-            ) {
-                items(visibleEntries, key = { it.stableId }) { entry ->
-                    DeveloperEntryCard(entry, onClick = onEntryClick?.let { cb -> { cb(entry) } })
+    val hasFloatingAdd = selectedCategory != null && onAddClick != null && !uiState.loading && uiState.error == null
+    val clearance = if (hasFloatingAdd) maxOf(contentBottomPadding, AddActionTokens.contentClearance) else contentBottomPadding
+    Box(modifier.fillMaxSize()) {
+        RescueAuthPageScaffold(
+            modifier = Modifier.fillMaxSize(),
+            title = selectedCategory?.let { typeLabel(it) } ?: stringResource(R.string.developer_title),
+            navigationIcon = if (selectedCategory != null) { { RescueAuthBackButton(back) } } else null,
+            actions = {
+                if (selectedCategory != null) StudioCountBadge(visibleEntries.size,
+                    stringResource(R.string.developer_group_count, visibleEntries.size))
+                if (selectedCategory == null && onAddClick != null) RescueAuthIconAction(Icons.Filled.Add,
+                    stringResource(R.string.studio_add), onAddClick)
+            },
+            snackbarHost = { snackbarHostState?.let { SnackbarHost(it, Modifier.padding(bottom = clearance)) } },
+        ) { padding ->
+            when {
+                uiState.loading -> LoadingState(Modifier.fillMaxSize().padding(padding), stringResource(R.string.developer_loading))
+                uiState.error != null -> ErrorState(title = stringResource(R.string.common_error_title),
+                    message = uiState.error, modifier = Modifier.fillMaxSize().padding(padding))
+                selectedCategory == null -> DeveloperDirectoryContent(uiState.entries,
+                    contentBottomPadding = contentBottomPadding,
+                    onOpenCategory = { if (onOpenCategory != null) onOpenCategory(it) else selectedCategory = it },
+                    modifier = Modifier.padding(padding))
+                visibleEntries.isEmpty() -> EmptyState(
+                    title = typeLabel(selectedCategory!!), body = stringResource(R.string.studio_vault_empty_body),
+                    actionLabel = onAddClick?.let { stringResource(R.string.developer_add_first) }, onAction = onAddClick,
+                    icon = Icons.Outlined.Code, modifier = Modifier.fillMaxSize().padding(padding))
+                else -> LazyColumn(
+                    Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(start = ScreenTokens.horizontalPadding, end = ScreenTokens.horizontalPadding,
+                        top = Spacing.md, bottom = Spacing.md + clearance),
+                    verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
+                ) {
+                    items(visibleEntries, key = { it.stableId }) { entry ->
+                        DeveloperEntryCard(entry, onClick = onEntryClick?.let { cb -> { cb(entry) } })
+                    }
                 }
             }
         }
+        if (hasFloatingAdd) RescueAuthFloatingAddOverlay(
+            visible = true, enabled = true, position = floatingAddPosition,
+            onClick = { onAddClick?.invoke() }, modifier = Modifier.navigationBarsPadding())
     }
 }
 
@@ -84,6 +96,7 @@ fun DeveloperScreen(
 private fun DeveloperDirectoryContent(
     entries: List<DeveloperEntryUi>,
     onOpenCategory: (DeveloperEntryType) -> Unit,
+    contentBottomPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
     val groups = entries.groupingBy { it.type }.eachCount()
@@ -94,9 +107,10 @@ private fun DeveloperDirectoryContent(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val columns = if (maxWidth < 340.dp || fontScale > 1.3f) 1 else 2
         LazyVerticalGrid(
+            modifier = Modifier.testTag("developer_directory"),
             columns = GridCells.Fixed(columns),
             contentPadding = PaddingValues(start = ScreenTokens.horizontalPadding, end = ScreenTokens.horizontalPadding,
-                top = Spacing.xs, bottom = Spacing.lg),
+                top = Spacing.xs, bottom = Spacing.lg + contentBottomPadding),
             verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing),
             horizontalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing),
         ) {

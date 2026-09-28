@@ -415,6 +415,11 @@ class AuthenticatorViewModel(
     // Add flow
     // ------------------------------------------------------------------
 
+    /** A new add request never carries a dismissed secret/URI draft into another account. */
+    fun beginAdd(provider: String = "", accountName: String = "") {
+        _formState.value = AddTotpFormState(provider = provider, accountName = accountName)
+    }
+
     fun setMode(mode: AddMode) = _formState.update { it.copy(mode = mode, error = null) }
 
     fun onUriChange(value: String) = _formState.update { it.copy(uri = value, error = null) }
@@ -757,15 +762,16 @@ class AuthenticatorViewModel(
         }
     }
 
-    suspend fun createAccount(provider: String, accountName: String): Boolean {
-        val repo = managementRepositoryProvider() ?: return false
+    /** Returns the persisted account so an add flow can continue without waiting for Room's list emission. */
+    suspend fun createAccount(provider: String, accountName: String): AuthAccount? {
+        val repo = managementRepositoryProvider() ?: return null
         return runCatching {
-            repo.createAccount(provider, accountName)
+            val created = repo.createAccount(provider, accountName)
             _events.value = AuthenticatorEvent.ManagementMessage("Account added")
-            true
+            created
         }.getOrElse {
             _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to add account")
-            false
+            null
         }
     }
 

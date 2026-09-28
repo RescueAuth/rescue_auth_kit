@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.repository.AuthenticatorRepository
+import com.rescueauth.v2.repository.ProviderAccountRepository
 import com.rescueauth.v2.repository.VaultRepository
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -74,6 +76,7 @@ class AuthenticatorViewModelTest {
         activeScope = scope
         return AuthenticatorViewModel(
             repositoryProvider = { repo },
+            managementRepositoryProvider = { ProviderAccountRepository(VaultRepository(db, session), db, session) },
             sessionState = session.state,
             clock = AuthenticatorViewModel.Clock { currentTime },
             scope = scope,
@@ -100,6 +103,45 @@ class AuthenticatorViewModelTest {
         val vm = viewModel(newScope())
         awaitState(vm) { !it.loading }
         assertTrue(vm.uiState.value.isEmpty)
+    }
+
+    @Test
+    fun `account creation returns the persisted normalized account for continuation`() = runBlocking {
+        val vm = viewModel(newScope())
+        assertTrue(vm.createProvider("GitHub", "Personal"))
+        val created = checkNotNull(vm.createAccount(" GitHub ", " New owner "))
+        assertEquals("GitHub", created.serviceName)
+        assertEquals("New owner", created.accountName)
+        val persisted = db.authAccountDao().listAll().single { it.id == created.id }
+        assertEquals(created.stableId, persisted.stableId)
+        assertEquals("New owner", persisted.accountName)
+    }
+
+    @Test
+    fun `rejected account creation has no continuation target`() = runBlocking {
+        val vm = viewModel(newScope())
+        assertTrue(vm.createProvider("GitHub", "Personal"))
+        assertNull(vm.createAccount("GitHub", "Personal"))
+        assertNull(vm.createAccount("Missing service", "Other"))
+        assertEquals(1, db.authAccountDao().listAll().size)
+    }
+
+    @Test
+    fun `new contextual add clears the previous draft and uses the selected account`() = runBlocking {
+        val vm = viewModel(newScope())
+        awaitState(vm) { !it.loading }
+        vm.onUriChange("previous unsaved draft")
+        vm.onSecretChange("previous unsaved input")
+        vm.onProviderChange("Old service")
+        vm.onAccountNameChange("Old account")
+        vm.beginAdd("GitHub", "Work")
+        assertEquals("GitHub", vm.formState.value.provider)
+        assertEquals("Work", vm.formState.value.accountName)
+        assertTrue(vm.formState.value.uri.isEmpty())
+        assertTrue(vm.formState.value.secret.isEmpty())
+        vm.beginAdd()
+        assertTrue(vm.formState.value.provider.isEmpty())
+        assertTrue(vm.formState.value.accountName.isEmpty())
     }
 
     @Test

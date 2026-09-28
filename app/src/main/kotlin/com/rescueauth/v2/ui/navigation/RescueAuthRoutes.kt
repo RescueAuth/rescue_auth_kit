@@ -42,6 +42,8 @@ object RescueAuthRoutes {
     const val AUTHENTICATOR_PROVIDER = "authenticator/provider/{providerName}"
     const val AUTHENTICATOR_ACCOUNT_DETAIL = "authenticator/account-detail/{accountId}"
     const val AUTHENTICATOR_ACCOUNT_RECOVERY = "authenticator/account/{accountId}/recovery"
+    /** Separate entry keeps the existing recovery-list destination ID stable. */
+    const val AUTHENTICATOR_ACCOUNT_RECOVERY_ADD = "authenticator/account/{accountId}/recovery/add"
     const val AUTHENTICATOR_TOTP = "authenticator/totp/{credentialId}"
     const val AUTHENTICATOR_RECOVERY = "authenticator/recovery/{recoverySetId}"
 
@@ -65,7 +67,7 @@ object RescueAuthRoutes {
 
     /** Builds the Developer create route for a new entry of [type]. */
     fun developerAdd(type: String): String =
-        "developer/form?editStableId=&type=$type"
+        "developer/form?type=$type"
 
     /** Builds the Developer edit route for [stableId]. */
     fun developerEdit(stableId: String): String =

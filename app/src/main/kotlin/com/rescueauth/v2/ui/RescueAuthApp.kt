@@ -9,8 +9,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import com.rescueauth.v2.ui.theme.DockTokens
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -22,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +45,12 @@ import androidx.navigation.compose.rememberNavController
 import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import com.rescueauth.v2.ui.authenticator.AuthenticatorRoute
 import com.rescueauth.v2.ui.authenticator.AuthenticatorViewModel
+import com.rescueauth.v2.ui.authenticator.AuthenticatorAddState
+import com.rescueauth.v2.ui.components.RescueAuthFloatingAddOverlay
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
+import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorAddSheet
+import com.rescueauth.v2.ui.screens.developer.DeveloperAddSheet
+import com.rescueauth.v2.ui.theme.AddActionTokens
 import com.rescueauth.v2.ui.authenticator.RecoveryCodesRoute
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
@@ -134,7 +143,11 @@ fun RescueAuthApp(
     LaunchedEffect(startRoute) {
         val rootPage = TopLevelDestinations.all.indexOfFirst { it.route == startRoute }
         if (rootPage >= 0) homePagerState.scrollToPage(rootPage)
-        else if (startRoute != null) navController.navigate(startRoute) { launchSingleTop = true }
+        else if (startRoute != null) {
+            // Scaffold subcomposition can attach NavHost after this effect starts.
+            navController.currentBackStackEntryFlow.first()
+            navController.navigate(startRoute) { launchSingleTop = true }
+        }
     }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -143,6 +156,11 @@ fun RescueAuthApp(
     // back affordance; leaving the tab bar visible there makes secondary pages
     // feel like another root and competes with the task at hand.
     val showBottomBar = currentDestination?.route == RescueAuthRoutes.HOME
+    val authenticatorAddState = remember { AuthenticatorAddState() }
+    val addPosition = rememberFloatingAddPosition()
+    // Capture the destination when the button is tapped; a later page change cannot retarget an open sheet.
+    var addSheetPage by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(showBottomBar, homePagerState.targetPage) { addSheetPage = null }
     BackHandler(enabled = showBottomBar && homePagerState.targetPage != 0) { selectHomePage(0) }
 
     // The Authenticator ViewModel is held at the app-shell level (not inside
@@ -175,6 +193,7 @@ fun RescueAuthApp(
             scope = authenticatorScope,
         )
     }
+    val migrationUi by authenticatorViewModel.migrationState.collectAsState()
 
     Scaffold(
         modifier = modifier
@@ -209,6 +228,7 @@ fun RescueAuthApp(
         SideEffect {
             if (showBottomBar) retainedRootBottomPadding = rootBottomPadding
         }
+        Box(Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
             startDestination = RescueAuthRoutes.HOME,
@@ -232,6 +252,9 @@ fun RescueAuthApp(
                         0 -> {
                             AuthenticatorRoute(
                                 viewModel = authenticatorViewModel,
+                                addState = authenticatorAddState,
+                                showAddAction = false,
+                                contentBottomPadding = AddActionTokens.contentClearance,
                                 onOpenAccount = { accountId ->
                                     navController.navigate("authenticator/account-detail/$accountId")
                                 },
@@ -247,6 +270,8 @@ fun RescueAuthApp(
                         1 -> {
                             DeveloperRoute(
                                 viewModel = developerViewModel,
+                                showAddAction = false,
+                                contentBottomPadding = AddActionTokens.contentClearance,
                                 onOpenEntry = { entry ->
                                     navController.navigate(RescueAuthRoutes.developerEntry(entry.stableId))
                                 },
@@ -303,6 +328,8 @@ fun RescueAuthApp(
                 AuthenticatorRoute(
                     viewModel = authenticatorViewModel,
                     providerName = providerName,
+                    floatingAddPosition = addPosition,
+                    onAddRecovery = { id -> navController.navigate("authenticator/account/$id/recovery/add") },
                     onBack = { navController.popBackStack() },
                     onOpenAccount = { accountId ->
                         navController.navigate("authenticator/account-detail/$accountId")
@@ -324,24 +351,33 @@ fun RescueAuthApp(
                 AuthenticatorRoute(
                     viewModel = authenticatorViewModel,
                     accountId = accountId,
+                    floatingAddPosition = addPosition,
                     onBack = { navController.popBackStack() },
                     onOpenRecovery = { id -> navController.navigate("authenticator/account/$id/recovery") },
+                    onAddRecovery = { id -> navController.navigate("authenticator/account/$id/recovery/add") },
                 )
             }
-            composable(
-                route = RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY,
-                arguments = listOf(
-                    androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
-                        type = androidx.navigation.NavType.StringType
-                    },
-                ),
-            ) { entry ->
-                val accountId = entry.arguments?.getString(RescueAuthRoutes.ARG_ACCOUNT_ID).orEmpty()
-                RecoveryCodesRoute(
-                    accountId = accountId,
-                    onBack = { navController.popBackStack() },
-                    onNavigate = navigateFromWorkflow,
-                )
+            listOf(
+                RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY,
+                RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY_ADD,
+            ).forEach { recoveryRoute ->
+                composable(
+                    route = recoveryRoute,
+                    arguments = listOf(
+                        androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
+                            type = androidx.navigation.NavType.StringType
+                        },
+                    ),
+                ) { entry ->
+                    val accountId = entry.arguments?.getString(RescueAuthRoutes.ARG_ACCOUNT_ID).orEmpty()
+                    RecoveryCodesRoute(
+                        accountId = accountId,
+                        onBack = { navController.popBackStack() },
+                        onNavigate = navigateFromWorkflow,
+                        openCreateOnStart = recoveryRoute == RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY_ADD,
+                        floatingAddPosition = addPosition,
+                    )
+                }
             }
             composable(
                 route = "developer/category/{categoryType}",
@@ -356,6 +392,7 @@ fun RescueAuthApp(
                 DeveloperRoute(
                     viewModel = developerViewModel,
                     categoryType = type,
+                    floatingAddPosition = addPosition,
                     onBack = { navController.popBackStack() },
                     onOpenEntry = { item ->
                         navController.navigate(RescueAuthRoutes.developerEntry(item.stableId))
@@ -397,7 +434,8 @@ fun RescueAuthApp(
                     },
                 ),
             ) { entry ->
-                val editId = entry.arguments?.getString(RescueAuthRoutes.ARG_EDIT_STABLE_ID)
+                // Older create links encoded an empty edit id; they must not enter the guarded edit loader.
+                val editId = entry.arguments?.getString(RescueAuthRoutes.ARG_EDIT_STABLE_ID)?.takeIf { it.isNotBlank() }
                 val type = entry.arguments?.getString(RescueAuthRoutes.ARG_FORM_TYPE)
                     ?.let { runCatching { DeveloperFormType.valueOf(it) }.getOrNull() }
                     ?: DeveloperFormType.API_CREDENTIAL
@@ -451,5 +489,29 @@ fun RescueAuthApp(
                 )
             }
         }
+        // A single overlay outside NavHost/HorizontalPager, with position retained by the shell.
+        if (showBottomBar) RescueAuthFloatingAddOverlay(
+            visible = homePagerState.targetPage != 2 && !migrationUi.scannerVisible,
+            enabled = !homePagerState.isScrollInProgress && addSheetPage == null,
+            position = addPosition,
+            onClick = { addSheetPage = homePagerState.settledPage },
+            modifier = Modifier.padding(bottom = rootBottomPadding),
+        )
+        }
+    }
+
+    when (addSheetPage) {
+        0 -> AuthenticatorAddSheet(
+            onDismiss = { addSheetPage = null },
+            onAddCredential = {
+                authenticatorViewModel.beginAdd()
+                authenticatorAddState.credentialSheetVisible = true
+            },
+            onAddProvider = { authenticatorAddState.providerDialogVisible = true },
+        )
+        1 -> DeveloperAddSheet(
+            onDismiss = { addSheetPage = null },
+            onSelectType = { type -> navController.navigate(RescueAuthRoutes.developerAdd(type.name)) },
+        )
     }
 }

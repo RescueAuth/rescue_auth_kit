@@ -142,7 +142,7 @@ fun DeveloperFormScreen(
         subtitle = formTypeLabel(form.type),
         onBack = goBack,
         backEnabled = !form.submitting,
-        modifier = modifier,
+        modifier = modifier.testTag("developer_form_${form.type.name}"),
         bottomBar = {
             RescueAuthActionBar(
                 secondaryLabel = stringResource(if (credentialsStep) R.string.developer_form_previous else R.string.common_cancel),

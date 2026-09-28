@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="authenticator_add_sheet_title">添加到账户</string>
     <string name="app_name">拾遗坊</string>
 
     <!-- Startup brand name shown in the startup splash page (Issue #64). -->
@@ -590,4 +591,24 @@
     <string name="theme_mode_light">浅色</string>
     <string name="theme_mode_dark">深色</string>
     <string name="settings_appearance_save_error">外观设置保存失败，请重试。</string>
+    <string name="account_no_codes">暂无验证码</string>
+    <string name="account_no_recovery">尚未添加恢复码</string>
+    <string name="account_no_credentials">尚未添加安全信息</string>
+    <string name="account_verification_code">验证码</string>
+    <string name="totp_actions">验证码选项</string>
+    <string name="totp_refresh_countdown">%1$d 秒后更新验证码</string>
+    <string name="totp_unavailable">验证码暂不可用</string>
+    <plurals name="account_code_count">
+        <item quantity="one">%1$d 个验证码</item>
+        <item quantity="other">%1$d 个验证码</item>
+    </plurals>
+    <plurals name="account_recovery_group_count">
+        <item quantity="one">%1$d 组恢复码</item>
+        <item quantity="other">%1$d 组恢复码</item>
+    </plurals>
+    <plurals name="account_recovery_available">
+        <item quantity="one">%1$d 组 · %2$d 个可用</item>
+        <item quantity="other">%1$d 组 · %2$d 个可用</item>
+    </plurals>
+    <string name="add_select_account">选择账户</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui
 
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -40,9 +41,11 @@ class VisualLanguageTest {
             AuthenticatorScreen(uiState = state, onAddClick = { credentials++ }, onAddProviderClick = { providers++ })
         } }
         rule.onNodeWithContentDescription("Add").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick()
-        rule.onNodeWithText("Create a service").performClick()
+        rule.onNodeWithText("Create a service").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.waitUntil(5_000) { providers == 1 }
         rule.onNodeWithContentDescription("Add").performClick()
-        rule.onNodeWithText("Add authenticator").performClick()
+        rule.onNodeWithText("Add authenticator").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.waitUntil(5_000) { credentials == 1 }
         assertEquals(1, credentials)
         assertEquals(1, providers)
     }
@@ -52,12 +55,14 @@ class VisualLanguageTest {
         rule.onNodeWithTag("provider_row_Demo").assert(hasContentDescription("1 account(s)"))
     }
 
-    @Test fun copyIconHasAnActionLabelAndKeepsItsCredentialTarget() {
+    @Test fun copyActionHasAVisibleLabelAndKeepsItsCredentialTarget() {
         var copied: String? = null
+        val readyAccount = account.copy(totpCredentials = account.totpCredentials.map { it.copy(currentCode = "123456") })
+        val readyState = state.copy(providers = listOf(ProviderUi("demo-provider", "Demo", listOf(readyAccount))))
         rule.setContent { RescueAuthTheme {
-            AuthenticatorScreen(uiState = state, initialAccountId = account.id, onCopyClick = { copied = it.credentialId })
+            AuthenticatorScreen(uiState = readyState, initialAccountId = account.id, onCopyClick = { copied = it.credentialId })
         } }
-        rule.onNodeWithContentDescription("Copy code").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick()
+        rule.onNodeWithText("Copy code").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).assertIsEnabled().performClick()
         assertEquals("demo-code", copied)
     }
 

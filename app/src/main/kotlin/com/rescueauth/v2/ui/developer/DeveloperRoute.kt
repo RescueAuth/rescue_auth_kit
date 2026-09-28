@@ -18,7 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveAction
@@ -51,8 +55,11 @@ fun DeveloperRoute(
     onAddTypeSelected: ((DeveloperFormType) -> Unit)? = null,
     viewModel: DeveloperListViewModel? = null,
     categoryType: DeveloperEntryType? = null,
+    showAddAction: Boolean = true,
+    contentBottomPadding: Dp = 0.dp,
     onOpenCategory: ((DeveloperEntryType) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
+    floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -109,7 +116,12 @@ fun DeveloperRoute(
     DeveloperScreen(
         uiState = listState,
         snackbarHostState = snackbarHostState,
-        onAddClick = { showAddSheet = true },
+        onAddClick = if (showAddAction) { {
+            if (categoryType != null && onAddTypeSelected != null) onAddTypeSelected(DeveloperFormType.valueOf(categoryType.name))
+            else showAddSheet = true
+        } } else null,
+        contentBottomPadding = contentBottomPadding,
+        floatingAddPosition = floatingAddPosition,
         onEntryClick = onOpenEntry,
         onOpenCategory = onOpenCategory,
         onBack = onBack,

@@ -13,7 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
 import androidx.compose.ui.platform.LocalContext
 import com.rescueauth.v2.R
 import com.rescueauth.v2.repository.VaultAccess
@@ -40,11 +44,14 @@ fun RecoveryCodesRoute(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
+    openCreateOnStart: Boolean = false,
+    floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showEditor by remember { mutableStateOf(false) }
+    var initialCreateConsumed by rememberSaveable(accountId) { mutableStateOf(false) }
     var editingSetId by remember { mutableStateOf<String?>(null) }
     var moveSetId by remember { mutableStateOf<String?>(null) }
     var moveDestinations by remember { mutableStateOf<List<MoveDestination>>(emptyList()) }
@@ -71,6 +78,18 @@ fun RecoveryCodesRoute(
     val formState by viewModel.formState.collectAsState()
     val events by viewModel.events.collectAsState()
     val revealedIds by viewModel.revealedIds.collectAsState()
+
+    // The account-specific add entry opens a blank form once the owning account
+    // has loaded. Recomposition or restored state must not reopen a dismissed editor.
+    LaunchedEffect(openCreateOnStart, initialCreateConsumed, uiState) {
+        if (openCreateOnStart && !initialCreateConsumed && !uiState.loading && uiState.accountId == accountId) {
+            initialCreateConsumed = true
+            if (uiState.error == null && uiState.accountName.isNotBlank()) {
+                viewModel.beginCreate()
+                showEditor = true
+            }
+        }
+    }
 
     // When the user leaves the screen, clear all revealed secret state.
     DisposableEffect(Unit) {
@@ -147,11 +166,11 @@ fun RecoveryCodesRoute(
         snackbarHostState = snackbarHostState,
         revealedIds = revealedIds,
         onBack = onBack,
-        onAddClick = {
+        onAddClick = if (uiState.accountId == accountId && uiState.accountName.isNotBlank() && uiState.error == null) { {
             editingSetId = null
             viewModel.beginCreate()
             showEditor = true
-        },
+        } } else null,
         onRevealToggle = { viewModel.toggleReveal(it) },
         onCopyCode = { viewModel.copyCode(it) },
         onCopyAll = { viewModel.copyAll(it) },
@@ -169,7 +188,8 @@ fun RecoveryCodesRoute(
             appScope.launch { moveDestinations = viewModel.availableMoveDestinations() }
         },
         onNavigate = onNavigate,
-        modifier = modifier,
+        modifier = modifier.testTag("recovery_scope_$accountId"),
+        floatingAddPosition = floatingAddPosition,
     )
 
     val movingSet = moveSetId?.let { id -> uiState.sets.firstOrNull { it.id == id } }
@@ -192,6 +212,7 @@ fun RecoveryCodesRoute(
 
     if (showEditor) {
         RecoveryCodeEditorSheet(
+            modifier = Modifier.testTag("recovery_editor_sheet"),
             form = formState,
             onDismiss = {
                 showEditor = false

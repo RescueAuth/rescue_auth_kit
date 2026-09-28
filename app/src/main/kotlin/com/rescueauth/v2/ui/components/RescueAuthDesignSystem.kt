@@ -57,6 +57,7 @@ fun RescueAuthPageHeader(
     subtitle: String? = null,
     modifier: Modifier = Modifier,
     navigationIcon: (@Composable () -> Unit)? = null,
+    titleMaxLines: Int? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Surface(
@@ -71,7 +72,7 @@ fun RescueAuthPageHeader(
                     Text(title,
                         style = if (navigationIcon == null) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = if (navigationIcon == null) 2 else 1, overflow = TextOverflow.Ellipsis)
+                        maxLines = titleMaxLines ?: if (navigationIcon == null) 2 else 1, overflow = TextOverflow.Ellipsis)
                     if (!subtitle.isNullOrBlank()) {
                         Text(subtitle, modifier = Modifier.padding(top = Spacing.xxs),
                             style = MaterialTheme.typography.bodySmall,

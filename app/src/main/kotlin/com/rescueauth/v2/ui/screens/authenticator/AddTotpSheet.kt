@@ -140,7 +140,7 @@ fun AddTotpSheet(
                                         singleLine = true, modifier = Modifier.fillMaxWidth().testTag("add_totp_provider"))
                                     RescueAuthTextField(form.accountName, onAccountNameChange,
                                         label = { Text(stringResource(R.string.add_totp_account_label)) },
-                                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                                        singleLine = true, modifier = Modifier.fillMaxWidth().testTag("add_totp_account"))
                                     RescueAuthTextField(form.secret, onSecretChange,
                                         label = { Text(stringResource(R.string.add_totp_secret_label)) },
                                         singleLine = true, visualTransformation = PasswordVisualTransformation(),

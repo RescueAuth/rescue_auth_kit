@@ -35,13 +35,14 @@ fun RescueAuthPageScaffold(
     bottomBar: @Composable () -> Unit = {},
     snackbarHost: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
+    titleMaxLines: Int? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         // Header and footer own their respective system insets; the app shell adds neither twice.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { RescueAuthPageHeader(title, subtitle, navigationIcon = navigationIcon, actions = actions) },
+        topBar = { RescueAuthPageHeader(title, subtitle, navigationIcon = navigationIcon, actions = actions, titleMaxLines = titleMaxLines) },
         bottomBar = bottomBar,
         snackbarHost = snackbarHost,
         floatingActionButton = floatingActionButton,

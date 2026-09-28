@@ -91,6 +91,17 @@ object CardTokens {
      *  read as part of the same card family without bulking up the list. */
     val rowShape = RoundedCornerShape(CornerRadius.sm)
 
+    /** Joined account rows stay lazy while sharing one continuous card outline. */
+    val groupTopShape = RoundedCornerShape(topStart = CornerRadius.md, topEnd = CornerRadius.md)
+    val groupMiddleShape = RoundedCornerShape(0.dp)
+    val groupBottomShape = RoundedCornerShape(bottomStart = CornerRadius.md, bottomEnd = CornerRadius.md)
+    val accountRowPadding = 20.dp
+    val accountRowMinHeight = 80.dp
+    val accountAvatarSize = 36.dp
+    val credentialPadding = 20.dp
+    val credentialCountdownSize = 36.dp
+    val credentialCountdownStroke = 2.dp
+
     /** Standard card inner content padding — roomier for a calm, breathable feel. */
     val contentPadding = 16.dp
 
@@ -163,6 +174,22 @@ object CardTokens {
 
     /** Padding applied around the whole carded list from its container edges. */
     val listOuterPadding = Spacing.md
+}
+
+/** Geometry and one-shot motion of the shell's global add action. */
+object AddActionTokens {
+    val size = 56.dp
+    val iconSize = 28.dp
+    val elevation = 4.dp
+    // The overlay sits 16 dp above the dock; another 16 dp clears the last row/snackbar.
+    val contentClearance = size + Spacing.md * 2
+    const val exitMillis = 180
+    const val scaleDamping = 0.58f
+    const val rotationDamping = 0.42f
+    const val stiffness = 450f
+    const val hiddenRotation = -12f
+    const val sheetMinFraction = 0.40f
+    const val sheetMaxFraction = 0.78f
 }
 
 /** Floating navigation material; all fills resolve from the active light/dark scheme. */

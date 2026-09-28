@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -14,6 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -23,9 +26,12 @@ import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.screens.authenticator.AddTotpSheet
 import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen
+import com.rescueauth.v2.ui.screens.authenticator.AccountAddKind
 import com.rescueauth.v2.ui.screens.authenticator.CreateProviderDialog
 import com.rescueauth.v2.ui.screens.authenticator.ManagementDestructiveDialog
 import com.rescueauth.v2.ui.screens.authenticator.ManagementTextDialog
@@ -42,6 +48,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+/** Non-sensitive presentation state can be owned by the shell without moving form/domain logic. */
+@Stable
+class AuthenticatorAddState {
+    var credentialSheetVisible by mutableStateOf(false)
+    var providerDialogVisible by mutableStateOf(false)
+}
+
 /**
  * Authenticator route (Phase 4 P1) — wires the production ViewModel, the
  * shared 1s countdown tick, the Android clipboard and the Undo Snackbar into
@@ -57,6 +70,7 @@ fun AuthenticatorRoute(
     onOpenProvider: ((String) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     onOpenRecovery: ((String) -> Unit)? = null,
+    onAddRecovery: ((String) -> Unit)? = null,
     providerName: String? = null,
     accountId: String? = null,
     onOpenSearch: (() -> Unit)? = null,
@@ -65,17 +79,20 @@ fun AuthenticatorRoute(
     // (Issue #70 "每次进入认证器都要加载一段时间"). When null (tests / standalone
     // previews) the route falls back to creating its own instance.
     viewModel: AuthenticatorViewModel? = null,
+    addState: AuthenticatorAddState = remember { AuthenticatorAddState() },
+    showAddAction: Boolean = true,
+    contentBottomPadding: Dp = 0.dp,
+    floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showAddSheet by remember { mutableStateOf(false) }
 
     // ---- Provider & Account management dialog state (Phase 4) -----------
-    var showAddProvider by remember { mutableStateOf(false) }
     var providerToRename by remember { mutableStateOf<String?>(null) }
     var providerToDelete by remember { mutableStateOf<String?>(null) }
     var providerToAddAccount by remember { mutableStateOf<String?>(null) }
+    var addAfterCreatingAccount by remember { mutableStateOf<AccountAddKind?>(null) }
     var accountToRename by remember { mutableStateOf<AccountUi?>(null) }
     var accountToMove by remember { mutableStateOf<AccountUi?>(null) }
     var accountToMerge by remember { mutableStateOf<AccountUi?>(null) }
@@ -234,11 +251,16 @@ fun AuthenticatorRoute(
         uiState = uiState,
         snackbarHostState = snackbarHostState,
         onAddClick = {
-            uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == accountId }?.let { account ->
-                viewModel.onProviderChange(account.providerName)
-                viewModel.onAccountNameChange(account.accountName)
+            val account = uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == accountId }
+            viewModel.beginAdd(account?.providerName ?: providerName.orEmpty(), account?.accountName.orEmpty())
+            addState.credentialSheetVisible = true
+        },
+        onAddCredentialToAccount = { targetId ->
+            val target = uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == targetId }
+            if (target != null && (providerName == null || target.providerName == providerName)) {
+                viewModel.beginAdd(target.providerName, target.accountName)
+                addState.credentialSheetVisible = true
             }
-            showAddSheet = true
         },
         onCopyClick = { viewModel.copyCode(it) },
         onDeleteClick = { appScope.launch { viewModel.deleteCard(it) } },
@@ -246,14 +268,22 @@ fun AuthenticatorRoute(
         onOpenProvider = onOpenProvider,
         onBack = onBack,
         onOpenRecovery = onOpenRecovery,
+        onAddRecovery = onAddRecovery,
         initialProviderName = providerName,
         initialAccountId = accountId,
         onOpenSearch = onOpenSearch,
         onTogglePin = { account -> appScope.launch { viewModel.togglePin(account.id) } },
-        onAddProviderClick = { showAddProvider = true },
+        onAddProviderClick = { addState.providerDialogVisible = true },
         onRenameProvider = { provider -> providerToRename = provider },
         onDeleteProvider = { provider -> providerToDelete = provider },
-        onAddAccount = { provider -> providerToAddAccount = provider },
+        onAddAccount = { provider ->
+            addAfterCreatingAccount = null
+            providerToAddAccount = provider
+        },
+        onCreateAccountFor = { provider, kind ->
+            addAfterCreatingAccount = kind
+            providerToAddAccount = provider
+        },
         onRenameAccount = { account -> accountToRename = account },
         onMoveAccount = { account ->
             accountToMove = account
@@ -273,15 +303,18 @@ fun AuthenticatorRoute(
             appScope.launch { viewModel.setProviderIcon(provider, iconKey) }
         },
         modifier = modifier,
+        showAddAction = showAddAction && !migrationState.scannerVisible,
+        contentBottomPadding = contentBottomPadding,
+        floatingAddPosition = floatingAddPosition,
     )
 
-    if (showAddSheet) {
+    if (addState.credentialSheetVisible) {
         AddTotpSheet(
             form = formState,
-            onDismiss = { showAddSheet = false },
+            onDismiss = { addState.credentialSheetVisible = false },
             onModeChange = { viewModel.setMode(it) },
             onStartScan = {
-                showAddSheet = false
+                addState.credentialSheetVisible = false
                 viewModel.openScanner()
             },
             onUriChange = { viewModel.onUriChange(it) },
@@ -315,17 +348,17 @@ fun AuthenticatorRoute(
     }
 
     // ---- Provider & Account management dialogs (Phase 4) -----------------
-    if (showAddProvider) {
+    if (addState.providerDialogVisible) {
         CreateProviderDialog(
             onConfirm = { provider, accountName ->
-                showAddProvider = false
+                addState.providerDialogVisible = false
                 if (provider.isNotBlank() && accountName.isNotBlank()) {
                     // Current model requires a first Account to persist a
                     // Provider (no empty Provider support).
                     appScope.launch { viewModel.createProvider(provider, accountName) }
                 }
             },
-            onDismiss = { showAddProvider = false },
+            onDismiss = { addState.providerDialogVisible = false },
         )
     }
 
@@ -373,12 +406,28 @@ fun AuthenticatorRoute(
             fieldLabel = context.getString(R.string.account_name_label),
             confirmLabel = context.getString(R.string.management_confirm),
             onConfirm = { accountName ->
+                val next = addAfterCreatingAccount
                 providerToAddAccount = null
+                addAfterCreatingAccount = null
                 if (accountName.isNotBlank()) {
-                    appScope.launch { viewModel.createAccount(provider, accountName) }
+                    // The continuation can navigate; keep lifecycle changes on Android's main thread.
+                    appScope.launch(Dispatchers.Main.immediate) {
+                        val created = viewModel.createAccount(provider, accountName) ?: return@launch
+                        when (next) {
+                            AccountAddKind.CREDENTIAL -> {
+                                viewModel.beginAdd(created.serviceName, created.accountName)
+                                addState.credentialSheetVisible = true
+                            }
+                            AccountAddKind.RECOVERY -> onAddRecovery?.invoke(created.id)
+                            null -> Unit
+                        }
+                    }
                 }
             },
-            onDismiss = { providerToAddAccount = null },
+            onDismiss = {
+                providerToAddAccount = null
+                addAfterCreatingAccount = null
+            },
         )
     }
 

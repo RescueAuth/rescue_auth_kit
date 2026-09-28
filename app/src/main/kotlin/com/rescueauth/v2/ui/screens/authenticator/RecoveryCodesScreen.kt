@@ -1,5 +1,7 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryUiState
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
+import com.rescueauth.v2.ui.components.RescueAuthFloatingAddOverlay
+import com.rescueauth.v2.ui.theme.AddActionTokens
 import com.rescueauth.v2.ui.components.RescueAuthBackButton
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.ErrorState
@@ -66,102 +71,100 @@ fun RecoveryCodesScreen(
     onDelete: ((String) -> Unit)? = null,
     onMove: ((String) -> Unit)? = null,
     onNavigate: ((String) -> Unit)? = null,
+    floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
 ) {
-    RescueAuthPageScaffold(
-        modifier = modifier.fillMaxSize(),
-        title = uiState.accountName.ifBlank { stringResource(R.string.recovery_codes_title) },
-        subtitle = uiState.providerName.ifBlank { stringResource(R.string.authenticator_title) },
-        navigationIcon = onBack?.let { callback -> { RescueAuthBackButton(callback) } },
-        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-        floatingActionButton = {
-            if (onAddClick != null) {
-                FloatingActionButton(onClick = onAddClick) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.recovery_codes_add_title),
+    val hasAdd = onAddClick != null && !uiState.loading && uiState.error == null
+    val clearance = if (hasAdd) AddActionTokens.contentClearance else 0.dp
+    Box(modifier.fillMaxSize()) {
+        RescueAuthPageScaffold(
+            modifier = Modifier.fillMaxSize(),
+            title = uiState.accountName.ifBlank { stringResource(R.string.recovery_codes_title) },
+            subtitle = uiState.providerName.ifBlank { stringResource(R.string.authenticator_title) },
+            navigationIcon = onBack?.let { callback -> { RescueAuthBackButton(callback) } },
+            snackbarHost = { snackbarHostState?.let { SnackbarHost(it, Modifier.padding(bottom = clearance)) } },
+        ) { padding ->
+            when {
+                uiState.loading -> {
+                    LoadingState(
+                        modifier = Modifier
+                            .fillMaxSize()
+                        .padding(padding),
                     )
                 }
-            }
-        },
-    ) { padding ->
-        when {
-            uiState.loading -> {
-                LoadingState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                    .padding(padding),
-                )
-            }
-            uiState.error != null -> {
-                ErrorState(
-                    title = stringResource(R.string.common_error_title),
-                    message = uiState.error,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                )
-            }
-            uiState.isEmpty -> {
-                EmptyState(
-                    title = stringResource(R.string.recovery_codes_title),
-                    body = stringResource(R.string.recovery_codes_empty_state),
-                    actionLabel = onAddClick?.let { stringResource(R.string.recovery_codes_add_title) },
-                    onAction = onAddClick,
-                    modifier = Modifier.padding(padding),
-                )
-            }
-            else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentPadding = PaddingValues(
-                        start = ScreenTokens.horizontalPadding,
-                        end = ScreenTokens.horizontalPadding,
-                        top = Spacing.md,
-                        bottom = Spacing.xxl,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    item(key = "account-summary") {
-                        RescueAuthCard(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentPadding = Spacing.md,
-                        ) {
-                            RescueAuthIconBadge(icon = Icons.Filled.Key, size = 40.dp, iconSize = 20.dp)
-                            RescueAuthSectionHeader(
-                                title = stringResource(R.string.recovery_codes_title),
-                                subtitle = stringResource(
-                                    R.string.recovery_codes_detail_subtitle,
-                                    uiState.sets.sumOf { it.remainingCount },
-                                    uiState.sets.sumOf { it.totalCount },
-                                ),
-                                modifier = Modifier.padding(top = Spacing.xs),
+                uiState.error != null -> {
+                    ErrorState(
+                        title = stringResource(R.string.common_error_title),
+                        message = uiState.error,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                    )
+                }
+                uiState.isEmpty -> {
+                    EmptyState(
+                        title = stringResource(R.string.recovery_codes_title),
+                        body = stringResource(R.string.recovery_codes_empty_state),
+                        actionLabel = onAddClick?.let { stringResource(R.string.recovery_codes_add_title) },
+                        onAction = onAddClick,
+                        modifier = Modifier.padding(padding),
+                    )
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                        contentPadding = PaddingValues(
+                            start = ScreenTokens.horizontalPadding,
+                            end = ScreenTokens.horizontalPadding,
+                            top = Spacing.md,
+                            bottom = Spacing.xxl + clearance,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        item(key = "account-summary") {
+                            RescueAuthCard(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentPadding = Spacing.md,
+                            ) {
+                                RescueAuthIconBadge(icon = Icons.Filled.Key, size = 40.dp, iconSize = 20.dp)
+                                RescueAuthSectionHeader(
+                                    title = stringResource(R.string.recovery_codes_title),
+                                    subtitle = stringResource(
+                                        R.string.recovery_codes_detail_subtitle,
+                                        uiState.sets.sumOf { it.remainingCount },
+                                        uiState.sets.sumOf { it.totalCount },
+                                    ),
+                                    modifier = Modifier.padding(top = Spacing.xs),
+                                )
+                            }
+                        }
+                        items(
+                            count = uiState.sets.size,
+                            key = { index -> uiState.sets[index].id },
+                        ) { index ->
+                            val set = uiState.sets[index]
+                            RecoveryCodeSetCard(
+                                set = set,
+                                revealedIds = revealedIds,
+                                onRevealToggle = onRevealToggle,
+                                onCopyCode = onCopyCode,
+                                onCopyAll = onCopyAll?.let { { it(set.id) } },
+                                onCopyRemaining = onCopyRemaining?.let { { it(set.id) } },
+                                onMarkUsed = onMarkUsed,
+                                onMarkUnused = onMarkUnused,
+                                onEdit = onEdit?.let { { it(set.id) } },
+                                onDelete = onDelete?.let { { it(set.id) } },
+                                onMove = onMove?.let { { it(set.id) } },
                             )
                         }
-                    }
-                    items(
-                        count = uiState.sets.size,
-                        key = { index -> uiState.sets[index].id },
-                    ) { index ->
-                        val set = uiState.sets[index]
-                        RecoveryCodeSetCard(
-                            set = set,
-                            revealedIds = revealedIds,
-                            onRevealToggle = onRevealToggle,
-                            onCopyCode = onCopyCode,
-                            onCopyAll = onCopyAll?.let { { it(set.id) } },
-                            onCopyRemaining = onCopyRemaining?.let { { it(set.id) } },
-                            onMarkUsed = onMarkUsed,
-                            onMarkUnused = onMarkUnused,
-                            onEdit = onEdit?.let { { it(set.id) } },
-                            onDelete = onDelete?.let { { it(set.id) } },
-                            onMove = onMove?.let { { it(set.id) } },
-                        )
                     }
                 }
             }
         }
+        if (hasAdd) RescueAuthFloatingAddOverlay(
+            visible = true, enabled = true, position = floatingAddPosition,
+            onClick = { onAddClick?.invoke() }, modifier = Modifier.navigationBarsPadding())
     }
 }
 

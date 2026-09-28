@@ -7,32 +7,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.PeopleOutline
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +33,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,41 +46,39 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.AuthenticatorUiState
 import com.rescueauth.v2.ui.authenticator.TotpCardUi
 import com.rescueauth.v2.ui.components.BrandIcons
-import com.rescueauth.v2.ui.components.CountdownIndicator
 import com.rescueauth.v2.ui.components.EmptyState
 import com.rescueauth.v2.ui.components.ErrorState
 import com.rescueauth.v2.ui.components.LoadingState
 import com.rescueauth.v2.ui.components.RescueAuthAutoBadge
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthChevron
-import com.rescueauth.v2.ui.components.RescueAuthDivider
-import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
-import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
 import com.rescueauth.v2.ui.components.StudioVaultHero
 import com.rescueauth.v2.ui.components.StudioAction
-import com.rescueauth.v2.ui.components.StudioColors
-import com.rescueauth.v2.ui.components.RescueAuthButton
 import com.rescueauth.v2.ui.components.RescueAuthIconAction
 import com.rescueauth.v2.ui.components.StudioIconCount
-import com.rescueauth.v2.ui.components.StudioCountBadge
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.RescueAuthFloatingAddOverlay
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
 import com.rescueauth.v2.ui.model.TotpCredentialUi
 import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.theme.AddActionTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
+
+enum class AccountAddKind { CREDENTIAL, RECOVERY }
 
 /** Modern, task-focused Authenticator home. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,18 +88,21 @@ fun AuthenticatorScreen(
     uiState: AuthenticatorUiState = AuthenticatorUiState(),
     snackbarHostState: SnackbarHostState? = null,
     onAddClick: (() -> Unit)? = null,
+    onAddCredentialToAccount: ((String) -> Unit)? = null,
     onCopyClick: ((TotpCardUi) -> Unit)? = null,
     onDeleteClick: ((TotpCardUi) -> Unit)? = null,
     onOpenAccount: ((String) -> Unit)? = null,
     onOpenProvider: ((String) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     onOpenRecovery: ((String) -> Unit)? = null,
+    onAddRecovery: ((String) -> Unit)? = null,
     onOpenSearch: (() -> Unit)? = null,
     onTogglePin: ((AccountUi) -> Unit)? = null,
     onAddProviderClick: (() -> Unit)? = null,
     onRenameProvider: ((String) -> Unit)? = null,
     onDeleteProvider: ((String) -> Unit)? = null,
     onAddAccount: ((String) -> Unit)? = null,
+    onCreateAccountFor: ((String, AccountAddKind) -> Unit)? = null,
     onRenameAccount: ((AccountUi) -> Unit)? = null,
     onMoveAccount: ((AccountUi) -> Unit)? = null,
     onMergeAccount: ((AccountUi) -> Unit)? = null,
@@ -117,6 +111,9 @@ fun AuthenticatorScreen(
     onSetProviderIcon: ((String, String?) -> Unit)? = null,
     initialProviderName: String? = null,
     initialAccountId: String? = null,
+    showAddAction: Boolean = true,
+    contentBottomPadding: Dp = 0.dp,
+    floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
 ) {
     var selectedProviderName by rememberSaveable { mutableStateOf(initialProviderName) }
     var selectedAccountId by rememberSaveable { mutableStateOf(initialAccountId) }
@@ -163,127 +160,171 @@ fun AuthenticatorScreen(
     }
     BackHandler(enabled = isDetailRequested && onBack == null, onBack = returnToParent)
 
-    RescueAuthPageScaffold(
-        modifier = modifier.fillMaxSize(),
-        title = if (selectionUnavailable) {
-            stringResource(R.string.vault_item_unavailable_title)
-        } else if (atAccountLevel) {
-            selectedAccount?.accountName.orEmpty()
-        } else if (atProviderLevel) {
-            selectedProvider?.serviceName.orEmpty()
-        } else {
-            stringResource(R.string.authenticator_title)
-        },
-        navigationIcon = if (isDetailRequested) {
-            {
-                IconButton(onClick = returnToParent, modifier = Modifier.testTag("authenticator_back")) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.a11y_back),
-                    )
-                }
+    var choosingAccountFor by remember(selectedProviderName, selectedAccountId) { mutableStateOf<AccountAddKind?>(null) }
+    val addToAccount: (AccountUi, AccountAddKind) -> Unit = { account, kind ->
+        when (kind) {
+            AccountAddKind.CREDENTIAL -> if (onAddCredentialToAccount != null) onAddCredentialToAccount(account.id) else onAddClick?.invoke()
+            AccountAddKind.RECOVERY -> onAddRecovery?.invoke(account.id)
+        }
+    }
+    val requestAccountAdd: (AccountAddKind) -> Unit = { kind ->
+        val account = selectedAccount
+        if (account != null) addToAccount(account, kind)
+        else selectedProvider?.let { provider ->
+            when (provider.accounts.size) {
+                0 -> if (onCreateAccountFor != null) onCreateAccountFor(provider.serviceName, kind)
+                    else onAddAccount?.invoke(provider.serviceName)
+                1 -> addToAccount(provider.accounts.single(), kind)
+                else -> choosingAccountFor = kind
             }
-        } else {
-            null
-        },
-        actions = {
-            if (onAddClick != null && !uiState.loading && (!isDetailRequested || selectionExists)) {
-                Box {
+        }
+    }
+    val credentialAction: (() -> Unit)? = if (onAddClick == null && onAddCredentialToAccount == null) null
+        else if (isDetailRequested) { { requestAccountAdd(AccountAddKind.CREDENTIAL) } } else onAddClick
+    val recoveryAction: (() -> Unit)? = if (isDetailRequested && onAddRecovery != null) { { requestAccountAdd(AccountAddKind.RECOVERY) } } else null
+    val accountAction: (() -> Unit)? = if (atProviderLevel && onAddAccount != null) { { onAddAccount(selectedProvider!!.serviceName) } } else null
+    val detailActions = listOfNotNull(accountAction, credentialAction, recoveryAction)
+    val hasDetailAdd = showAddAction && isDetailRequested && selectionExists && detailActions.isNotEmpty()
+    val contentClearance = if (hasDetailAdd) maxOf(contentBottomPadding, AddActionTokens.contentClearance) else contentBottomPadding
+    LaunchedEffect(isDetailRequested, selectionExists, uiState.loading) {
+        if (isDetailRequested && !selectionExists && !uiState.loading) {
+            addMenuOpen = false
+            choosingAccountFor = null
+        }
+    }
+
+    Box(modifier.fillMaxSize()) {
+        RescueAuthPageScaffold(
+            modifier = Modifier.fillMaxSize(),
+            titleMaxLines = if (isDetailRequested) 2 else null,
+            title = if (selectionUnavailable) {
+                stringResource(R.string.vault_item_unavailable_title)
+            } else if (atAccountLevel) {
+                selectedAccount?.accountName.orEmpty()
+            } else if (atProviderLevel) {
+                selectedProvider?.serviceName.orEmpty()
+            } else {
+                stringResource(R.string.authenticator_title)
+            },
+            navigationIcon = if (isDetailRequested) {
+                {
+                    IconButton(onClick = returnToParent, modifier = Modifier.testTag("authenticator_back")) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.a11y_back),
+                        )
+                    }
+                }
+            } else {
+                null
+            },
+            actions = {
+                if (atAccountLevel && !uiState.loading) {
+                    AccountActionsMenu(selectedAccount!!, onTogglePin, onRenameAccount, onMoveAccount, onMergeAccount, onDeleteAccount)
+                }
+                if (showAddAction && !isDetailRequested && onAddClick != null && !uiState.loading) {
                     RescueAuthIconAction(
                         icon = Icons.Filled.Add,
                         label = stringResource(R.string.studio_add),
                         onClick = { if (!atAccountLevel && !atProviderLevel) addMenuOpen = true else onAddClick() },
                         modifier = Modifier.testTag("vault_add_menu"),
                     )
-                    DropdownMenu(expanded = addMenuOpen, onDismissRequest = { addMenuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.studio_add_credential)) },
-                            leadingIcon = { Icon(Icons.Outlined.Timer, null) },
-                            onClick = { addMenuOpen = false; onAddClick() },
-                        )
-                        if (onAddProviderClick != null) DropdownMenuItem(
-                            text = { Text(stringResource(R.string.studio_new_service)) },
-                            leadingIcon = { Icon(Icons.Outlined.GridView, null) },
-                            onClick = { addMenuOpen = false; onAddProviderClick() },
-                        )
-                    }
+                }
+            },
+            snackbarHost = { snackbarHostState?.let { SnackbarHost(it, Modifier.padding(bottom = contentClearance)) } },
+        ) { padding ->
+            when {
+                uiState.loading -> LoadingState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    label = stringResource(R.string.authenticator_loading),
+                )
+                uiState.error != null -> ErrorState(
+                    title = stringResource(R.string.common_error_title),
+                    message = uiState.error,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                )
+                selectionUnavailable -> EmptyState(
+                    title = stringResource(R.string.vault_item_unavailable_title),
+                    body = stringResource(R.string.vault_item_unavailable_body),
+                    actionLabel = stringResource(R.string.a11y_back),
+                    onAction = returnToParent,
+                    modifier = Modifier.fillMaxSize().padding(padding).testTag("vault_item_unavailable"),
+                )
+                atAccountLevel -> AccountDetailContent(
+                    account = selectedAccount!!,
+                    onCopyClick = onCopyClick,
+                    onDeleteClick = onDeleteClick,
+                    onOpenRecovery = onOpenRecovery,
+                    contentBottomPadding = contentClearance,
+                    modifier = Modifier.padding(padding),
+                )
+                atProviderLevel -> ProviderAccountsContent(
+                    provider = selectedProvider!!,
+                    onOpenAccount = { accountId ->
+                        if (onOpenAccount != null) onOpenAccount(accountId) else selectedAccountId = accountId
+                    },
+                    contentBottomPadding = contentClearance,
+                    modifier = Modifier.padding(padding),
+                )
+                else -> {
+                    val homeProviders = if (pinnedOnly) {
+                        displayProviders.filter { provider -> provider.accounts.any { it.isPinned } }
+                    } else displayProviders
+                    ProviderHomeContent(
+                    providers = homeProviders,
+                    onAddClick = onAddClick,
+                    onOpenSearch = onOpenSearch,
+                    accountCount = displayProviders.sumOf { it.accounts.size },
+                    hasPinnedAccounts = displayProviders.any { provider -> provider.accounts.any { it.isPinned } },
+                    pinnedOnly = pinnedOnly,
+                    onPinnedOnlyChange = { pinnedOnly = it },
+                    onProviderClick = { providerName ->
+                        if (onOpenProvider != null) onOpenProvider(providerName) else selectedProviderName = providerName
+                    },
+                    onRenameProvider = onRenameProvider,
+                    onAddAccount = onAddAccount,
+                    onDeleteProvider = onDeleteProvider,
+                    contentBottomPadding = contentBottomPadding,
+                    onEditIcon = if (onSetProviderIcon != null) {
+                        { provider -> iconPickerProvider = provider }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.padding(padding),
+                    )
                 }
             }
-        },
-        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
-    ) { padding ->
-        when {
-            uiState.loading -> LoadingState(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                label = stringResource(R.string.authenticator_loading),
-            )
-            uiState.error != null -> ErrorState(
-                title = stringResource(R.string.common_error_title),
-                message = uiState.error,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-            )
-            selectionUnavailable -> EmptyState(
-                title = stringResource(R.string.vault_item_unavailable_title),
-                body = stringResource(R.string.vault_item_unavailable_body),
-                actionLabel = stringResource(R.string.a11y_back),
-                onAction = returnToParent,
-                modifier = Modifier.fillMaxSize().padding(padding).testTag("vault_item_unavailable"),
-            )
-            atAccountLevel -> AccountDetailContent(
-                account = selectedAccount!!,
-                onCopyClick = onCopyClick,
-                onDeleteClick = onDeleteClick,
-                onTogglePin = onTogglePin,
-                onRename = onRenameAccount,
-                onMove = onMoveAccount,
-                onMerge = onMergeAccount,
-                onDelete = onDeleteAccount,
-                onOpenRecovery = onOpenRecovery,
-                modifier = Modifier.padding(padding),
-            )
-            atProviderLevel -> ProviderAccountsContent(
-                provider = selectedProvider!!,
-                onOpenAccount = { accountId ->
-                    if (onOpenAccount != null) onOpenAccount(accountId) else selectedAccountId = accountId
-                },
-                onAddAccount = onAddAccount?.let { callback ->
-                    { callback(selectedProvider.serviceName) }
-                },
-                modifier = Modifier.padding(padding),
-            )
-            else -> {
-                val homeProviders = if (pinnedOnly) {
-                    displayProviders.filter { provider -> provider.accounts.any { it.isPinned } }
-                } else displayProviders
-                ProviderHomeContent(
-                providers = homeProviders,
-                onAddClick = onAddClick,
-                onOpenSearch = onOpenSearch,
-                accountCount = displayProviders.sumOf { it.accounts.size },
-                hasPinnedAccounts = displayProviders.any { provider -> provider.accounts.any { it.isPinned } },
-                pinnedOnly = pinnedOnly,
-                onPinnedOnlyChange = { pinnedOnly = it },
-                onProviderClick = { providerName ->
-                    if (onOpenProvider != null) onOpenProvider(providerName) else selectedProviderName = providerName
-                },
-                onRenameProvider = onRenameProvider,
-                onAddAccount = onAddAccount,
-                onDeleteProvider = onDeleteProvider,
-                onEditIcon = if (onSetProviderIcon != null) {
-                    { provider -> iconPickerProvider = provider }
-                } else {
-                    null
-                },
-                modifier = Modifier.padding(padding),
-                )
-            }
         }
+        if (hasDetailAdd) RescueAuthFloatingAddOverlay(
+            visible = !uiState.loading && uiState.error == null,
+            enabled = !uiState.loading && uiState.error == null && !addMenuOpen && choosingAccountFor == null,
+            position = floatingAddPosition,
+            onClick = { if (detailActions.size == 1) detailActions.single()() else addMenuOpen = true },
+            modifier = Modifier.navigationBarsPadding(),
+        )
     }
 
+    if (addMenuOpen && (!isDetailRequested || selectionExists)) {
+        AuthenticatorAddSheet(
+            onDismiss = { addMenuOpen = false },
+            onAddCredential = credentialAction,
+            onAddProvider = if (!isDetailRequested) onAddProviderClick else null,
+            onAddAccount = accountAction,
+            onAddRecovery = recoveryAction,
+            contextName = if (atAccountLevel) selectedAccount!!.accountName else if (atProviderLevel) selectedProvider!!.serviceName else null,
+        )
+    }
+    val requestedKind = choosingAccountFor
+    if (requestedKind != null && atProviderLevel && selectionExists) {
+        AccountAddTargetSheet(selectedProvider!!.serviceName, selectedProvider.accounts,
+            onDismiss = { choosingAccountFor = null },
+            onCreateAccount = onCreateAccountFor?.let { create -> { create(selectedProvider.serviceName, requestedKind) } },
+            onSelect = { id -> selectedProvider.accounts.firstOrNull { it.id == id }?.let { addToAccount(it, requestedKind) } })
+    }
     if (iconPickerProvider != null) {
         ProviderIconPickerSheet(
             provider = iconPickerProvider!!,
@@ -310,15 +351,16 @@ private fun ProviderHomeContent(
     onAddAccount: ((String) -> Unit)?,
     onDeleteProvider: ((String) -> Unit)?,
     onEditIcon: ((ProviderUi) -> Unit)?,
+    contentBottomPadding: Dp,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().testTag("provider_directory"),
         contentPadding = PaddingValues(
             start = ScreenTokens.horizontalPadding,
             end = ScreenTokens.horizontalPadding,
             top = Spacing.xs,
-            bottom = Spacing.xxl,
+            bottom = Spacing.xxl + contentBottomPadding,
         ),
         verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
     ) {
@@ -371,201 +413,6 @@ private fun ProviderHomeContent(
         }
     }
 }
-
-@Composable
-private fun ProviderAccountsContent(
-    provider: ProviderUi,
-    onOpenAccount: (String) -> Unit,
-    onAddAccount: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            horizontal = ScreenTokens.horizontalPadding,
-            vertical = Spacing.md,
-        ),
-        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
-    ) {
-        items(provider.accounts, key = { it.id }) { account ->
-            AccountDirectoryRow(
-                account = account,
-                onClick = { onOpenAccount(account.id) },
-            )
-        }
-        if (onAddAccount != null) {
-            item(key = "add-account") {
-                RescueAuthRowCard(
-                    onClick = onAddAccount,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.padding(top = Spacing.xs),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        text = stringResource(R.string.provider_add_account),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    RescueAuthChevron()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AccountDirectoryRow(
-    account: AccountUi,
-    onClick: () -> Unit,
-) {
-    RescueAuthRowCard(
-        onClick = onClick,
-        containerColor = CardTokens.elevatedContainerColor(),
-        modifier = Modifier
-            .testTag("account_row_${account.id}")
-            .semantics { role = Role.Button },
-    ) {
-        RescueAuthAutoBadge(label = account.accountName, colorSeed = account.providerName)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = account.accountName,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            AccountMetadata(account)
-        }
-        if (account.isPinned) {
-            Icon(
-                imageVector = Icons.Filled.PushPin,
-                contentDescription = stringResource(R.string.account_pinned_label),
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-        RescueAuthChevron()
-    }
-}
-
-@Composable
-private fun AccountMetadata(account: AccountUi) {
-    val credentialCount = account.totpCredentials.size
-    val recoveryCount = account.recoverySets.size
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        StudioIconCount(Icons.Outlined.Timer, credentialCount, stringResource(R.string.compact_totp_count, credentialCount))
-        if (recoveryCount > 0) StudioIconCount(Icons.Filled.Shield, recoveryCount,
-            stringResource(R.string.compact_recovery_sets_count, recoveryCount))
-    }
-}
-
-@Composable
-private fun AccountDetailContent(
-    account: AccountUi,
-    onCopyClick: ((TotpCardUi) -> Unit)?,
-    onDeleteClick: ((TotpCardUi) -> Unit)?,
-    onTogglePin: ((AccountUi) -> Unit)?,
-    onRename: ((AccountUi) -> Unit)?,
-    onMove: ((AccountUi) -> Unit)?,
-    onMerge: ((AccountUi) -> Unit)?,
-    onDelete: ((AccountUi) -> Unit)?,
-    onOpenRecovery: ((String) -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
-    ) {
-        item(key = "account-context") {
-            RescueAuthRowCard {
-                RescueAuthAutoBadge(label = account.providerName,
-                    iconRes = BrandIcons.effectiveDrawableRes(null, account.providerName))
-                Column(Modifier.weight(1f)) {
-                    Text(account.providerName, style = MaterialTheme.typography.titleMedium)
-                    AccountMetadata(account)
-                }
-                AccountActionsMenu(account, onTogglePin, onRename, onMove, onMerge, onDelete)
-            }
-        }
-        items(account.totpCredentials, key = { it.id }) { totp ->
-            CredentialPanel(totp,
-                onCopyClick = onCopyClick?.let { cb -> { cb(totp.toTotpCardUi(account)) } },
-                onDeleteClick = onDeleteClick?.let { cb -> { cb(totp.toTotpCardUi(account)) } })
-        }
-        if (onOpenRecovery != null || account.recoverySets.isNotEmpty()) {
-            item(key = "recovery-link") {
-                RescueAuthRowCard(
-                    onClick = onOpenRecovery?.let { callback -> { callback(account.id) } },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ) {
-                    RescueAuthIconBadge(icon = Icons.Filled.Shield, size = 36.dp, iconSize = 18.dp)
-                    Text(
-                        text = stringResource(R.string.recovery_codes_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StudioCountBadge(account.remainingRecoveryCount,
-                        stringResource(R.string.recovery_codes_account_summary, account.remainingRecoveryCount))
-                    RescueAuthChevron()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CredentialPanel(totp: TotpCredentialUi, onCopyClick: (() -> Unit)?, onDeleteClick: (() -> Unit)?) {
-    var menuOpen by remember { mutableStateOf(false) }
-    RescueAuthCard(contentPadding = CardTokens.heroPadding) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.authenticator_code_metadata, totp.algorithm, totp.digits),
-                Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (onCopyClick != null) RescueAuthIconAction(Icons.Filled.ContentCopy,
-                stringResource(R.string.totp_copy_code), onCopyClick)
-            if (onDeleteClick != null) Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.MoreVert, stringResource(R.string.account_actions_label))
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.totp_delete)) },
-                        onClick = { menuOpen = false; onDeleteClick() })
-                }
-            }
-        }
-        Spacer(Modifier.height(Spacing.sm))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text(totp.currentCode ?: "••••••", modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.onSurface)
-            CountdownIndicator(progressFraction = totp.progressFraction, remainingSeconds = totp.remainingSeconds,
-                modifier = Modifier.width(56.dp))
-        }
-    }
-}
-
-private fun TotpCredentialUi.toTotpCardUi(account: AccountUi): TotpCardUi = TotpCardUi(
-    credentialId = id,
-    stableId = stableId,
-    accountId = account.id,
-    issuer = account.providerName,
-    accountName = account.accountName,
-    algorithm = algorithm,
-    digits = digits,
-    periodSeconds = periodSeconds,
-    currentCode = currentCode ?: "••••••",
-    remainingSeconds = remainingSeconds,
-    progressFraction = progressFraction,
-)
 
 @Composable
 private fun ProviderListItem(

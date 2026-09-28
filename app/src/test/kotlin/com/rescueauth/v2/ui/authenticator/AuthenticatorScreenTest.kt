@@ -8,6 +8,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.model.ProviderUi
@@ -89,7 +91,7 @@ class AuthenticatorScreenTest {
         // Level 1: only the Provider name is shown, not the TOTP code.
         composeRule.onNodeWithText("GitHub").assertIsDisplayed()
         composeRule.onNodeWithText("alice@example.com").assertDoesNotExist()
-        composeRule.onNodeWithText("996554").assertDoesNotExist()
+        composeRule.onNodeWithText("996 554").assertDoesNotExist()
     }
 
     @Test
@@ -134,9 +136,9 @@ class AuthenticatorScreenTest {
         // Drill into the provider's account list.
         composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         composeRule.onNodeWithText("alice@example.com").assertIsDisplayed()
-        composeRule.onNodeWithText("996554").assertDoesNotExist()
+        composeRule.onNodeWithText("996 554").assertDoesNotExist()
         composeRule.onNodeWithTag("account_row_a1").performClick()
-        composeRule.onNodeWithText("996554").assertIsDisplayed()
+        composeRule.onNodeWithText("996 554").assertIsDisplayed()
         composeRule.onNodeWithText("24").assertIsDisplayed()
     }
 
@@ -194,8 +196,8 @@ class AuthenticatorScreenTest {
         composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         composeRule.onNodeWithTag("account_row_a1").performClick()
         // Every code remains reachable on its owning account page.
-        composeRule.onNodeWithText("111111").assertIsDisplayed()
-        composeRule.onNodeWithText("22222222").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("111 111").assertIsDisplayed()
+        composeRule.onNodeWithText("2222 2222").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -265,16 +267,16 @@ class AuthenticatorScreenTest {
         // Home lists both providers as entry points (codes are not shown yet).
         composeRule.onNodeWithText("GitHub").assertIsDisplayed()
         composeRule.onNodeWithText("Google").assertExists()
-        composeRule.onNodeWithText("111111").assertDoesNotExist()
-        composeRule.onNodeWithText("222222").assertDoesNotExist()
+        composeRule.onNodeWithText("111 111").assertDoesNotExist()
+        composeRule.onNodeWithText("222 222").assertDoesNotExist()
 
         // Drilling into GitHub shows its account + code.
         composeRule.onNodeWithTag("provider_row_GitHub").performClick()
         composeRule.onNodeWithText("alice@example.com").assertIsDisplayed()
-        composeRule.onNodeWithText("111111").assertDoesNotExist()
+        composeRule.onNodeWithText("111 111").assertDoesNotExist()
         composeRule.onNodeWithTag("account_row_a1").performClick()
-        composeRule.onNodeWithText("111111").assertIsDisplayed()
-        composeRule.onNodeWithText("222222").assertDoesNotExist()
+        composeRule.onNodeWithText("111 111").assertIsDisplayed()
+        composeRule.onNodeWithText("222 222").assertDoesNotExist()
     }
 
     @Test
@@ -318,11 +320,13 @@ class AuthenticatorScreenTest {
             }
         }
         composeRule.onNodeWithTag("vault_add_menu").performClick()
-        composeRule.onNodeWithText("Add authenticator").performClick()
+        composeRule.onNodeWithText("Add authenticator").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.waitUntil(5_000) { added }
         org.junit.Assert.assertTrue(added)
         org.junit.Assert.assertFalse(created)
         composeRule.onNodeWithTag("vault_add_menu").performClick()
-        composeRule.onNodeWithText("Create a service").performClick()
+        composeRule.onNodeWithText("Create a service").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.waitUntil(5_000) { created }
         org.junit.Assert.assertTrue(created)
     }
 

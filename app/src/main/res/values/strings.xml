@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="authenticator_add_sheet_title">Add to accounts</string>
     <string name="app_name">RescueAuth</string>
 
     <!-- Startup brand name shown in the startup splash page (Issue #64). -->
@@ -592,4 +593,24 @@
     <string name="theme_mode_light">Light</string>
     <string name="theme_mode_dark">Dark</string>
     <string name="settings_appearance_save_error">Could not save appearance. Please try again.</string>
+    <string name="account_no_codes">No verification codes</string>
+    <string name="account_no_recovery">No recovery codes yet</string>
+    <string name="account_no_credentials">Nothing saved yet</string>
+    <string name="account_verification_code">One-time code</string>
+    <string name="totp_actions">Code options</string>
+    <string name="totp_refresh_countdown">New code in %1$d seconds</string>
+    <string name="totp_unavailable">Code unavailable</string>
+    <plurals name="account_code_count">
+        <item quantity="one">%1$d code</item>
+        <item quantity="other">%1$d codes</item>
+    </plurals>
+    <plurals name="account_recovery_group_count">
+        <item quantity="one">%1$d recovery set</item>
+        <item quantity="other">%1$d recovery sets</item>
+    </plurals>
+    <plurals name="account_recovery_available">
+        <item quantity="one">%1$d set · %2$d available</item>
+        <item quantity="other">%1$d sets · %2$d available</item>
+    </plurals>
+    <string name="add_select_account">Select an account</string>
 </resources>
