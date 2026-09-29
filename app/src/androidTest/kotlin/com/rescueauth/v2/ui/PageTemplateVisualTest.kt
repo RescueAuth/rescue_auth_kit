@@ -91,7 +91,7 @@ class PageTemplateVisualTest {
         if (fullWindow) automation.waitForIdle(500, 5_000)
         val bitmap = if (fullWindow) checkNotNull(automation.takeScreenshot())
             else rule.onNodeWithTag("template_test_viewport").captureToImage().asAndroidBitmap()
-        val dir = File(rule.activity.getExternalFilesDir(null), "page-template-review").apply { mkdirs() }
+        val dir = File(checkNotNull(InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")), "page-template-review").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
@@ -106,6 +106,7 @@ class PageTemplateVisualTest {
         content { legacy(LegacyImportViewModel.State.Preview(legacyPreview)) }
         val before = rule.onNodeWithTag(LegacyImportTestTags.CONFIRM).getUnclippedBoundsInRoot()
         capture("02-legacy-preview")
+        rule.onNodeWithTag("import_details_toggle").performScrollTo().performClick()
         rule.onNodeWithText("恢复码状态差异").performScrollTo().assertIsDisplayed()
         assertEquals(before, rule.onNodeWithTag(LegacyImportTestTags.CONFIRM).getUnclippedBoundsInRoot())
         capture("03-legacy-preview-scrolled")
@@ -126,9 +127,8 @@ class PageTemplateVisualTest {
         rule.onNodeWithText("确认导入", useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertFalse(layouts.single().hasVisualOverflow)
-        rule.onNodeWithText("恢复码状态差异").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("您可以返回并选择其他文件。").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("无法自动应用导入").assertIsDisplayed()
+        rule.onNodeWithTag("import_blocked_reason").assertIsDisplayed()
+        rule.onNodeWithText("暂时无法导入").assertIsDisplayed()
         capture("05-narrow-large-preview")
     }
 

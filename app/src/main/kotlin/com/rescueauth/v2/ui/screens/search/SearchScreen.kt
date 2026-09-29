@@ -38,6 +38,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -71,10 +73,14 @@ fun SearchScreen(
     onQueryChange: (String) -> Unit = {},
     onClearQuery: () -> Unit = {},
     onResultClick: (SearchResult) -> Unit = {},
+    searchFieldModifier: Modifier = Modifier,
+    autoFocus: Boolean = true,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     var inputReady by remember { mutableStateOf(false) }
-    LaunchedEffect(inputReady) { if (inputReady) focusRequester.requestFocus() }
+    LaunchedEffect(inputReady, autoFocus) { if (inputReady && autoFocus) focusRequester.requestFocus() }
     RescueAuthPageScaffold(
         modifier = modifier
             .fillMaxSize()
@@ -82,7 +88,7 @@ fun SearchScreen(
         title = stringResource(R.string.search_title),
         subtitle = stringResource(R.string.search_subtitle),
         navigationIcon = {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = { keyboard?.hide(); focusManager.clearFocus(); onBack() }) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = stringResource(R.string.common_close),
@@ -104,6 +110,7 @@ fun SearchScreen(
                         horizontal = ScreenTokens.horizontalPadding,
                         vertical = Spacing.sm,
                     )
+                    .then(searchFieldModifier)
                     .focusRequester(focusRequester)
                     .onGloballyPositioned { inputReady = true }
                     .testTag(SearchTestTags.SEARCH_INPUT)

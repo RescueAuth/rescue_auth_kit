@@ -3,6 +3,7 @@ package com.rescueauth.v2.ui
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -39,10 +40,16 @@ import com.rescueauth.v2.ui.screens.startup.*
 import com.rescueauth.v2.ui.search.SearchUiState
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.update.UpdateUiState
+import com.rescueauth.v2.update.UpdateManifest
+import com.rescueauth.v2.update.Severity
 import java.io.File
 import java.util.Locale
 import org.json.JSONObject
+import org.junit.After
 import org.junit.Rule
+import org.junit.Assert.assertTrue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,15 +63,30 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CompleteVisualReviewTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+    private var originalConfiguration: Configuration? = null
+
+    @After @Suppress("DEPRECATION") fun restoreActivityLocale() {
+        originalConfiguration?.let { original -> InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val resources = rule.activity.resources
+            resources.updateConfiguration(original, resources.displayMetrics)
+        } }
+    }
+
     private data class Scene(
         val id: String, val title: String, val section: String,
         val body: @Composable () -> Unit,
         val action: (() -> Unit)? = null,
     )
 
+    @Suppress("DEPRECATION")
     private fun tour(scenes: List<Scene>, fontScale: Float = 1f, after: ((Scene) -> Unit)? = null) {
         val current = mutableStateOf<Scene?>(null)
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val resources = rule.activity.resources
+            originalConfiguration = Configuration(resources.configuration)
+            resources.updateConfiguration(Configuration(resources.configuration).apply {
+                setLocales(LocaleList(Locale.SIMPLIFIED_CHINESE)); this.fontScale = fontScale
+            }, resources.displayMetrics)
             rule.activity.enableEdgeToEdge()
             WindowCompat.getInsetsController(rule.activity.window, rule.activity.window.decorView).apply {
                 isAppearanceLightStatusBars = true
@@ -102,7 +124,19 @@ class CompleteVisualReviewTest {
         rule.waitForIdle()
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         automation.waitForIdle(350, 5_000)
-        val directory = File(rule.activity.getExternalFilesDir(null), "complete-ui-review").apply { mkdirs() }
+        // Compose idleness does not guarantee that Android has presented the latest window buffer.
+        // Commit a real frame before reading the display; otherwise sequential scenes can lag a frame.
+        if (Build.VERSION.SDK_INT >= 29) {
+            val committed = CountDownLatch(1)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                rule.activity.window.decorView.apply {
+                    viewTreeObserver.registerFrameCommitCallback { committed.countDown() }
+                    invalidate()
+                }
+            }
+            assertTrue("Latest review frame was not committed", committed.await(5, TimeUnit.SECONDS))
+        }
+        val directory = File(checkNotNull(InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")), "complete-ui-review").apply { mkdirs() }
         val image = checkNotNull(automation.takeScreenshot())
         try {
             File(directory, "${scene.id}.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -289,6 +323,61 @@ class CompleteVisualReviewTest {
         Scene("194-about-error", "关于 · 更新未配置", "备份与设置", { AboutScreen("1.0.0", 10000,
             UpdateUiState.Error(UpdateUiState.ErrorType.NOT_CONFIGURED), {}, {}, onBack = {}) }),
     ))
+
+    private fun assertSheetActionRatio(primaryLabel: String) {
+        val secondary = rule.onNodeWithText("取消").getUnclippedBoundsInRoot()
+        val primary = rule.onNodeWithText(primaryLabel).getUnclippedBoundsInRoot()
+        assertEquals((primary.right - primary.left).value * 2f / 3f,
+            (secondary.right - secondary.left).value, 1f)
+    }
+
+    @Test fun recoveryFooterKeepsTwoToThreeRatio() = tour(listOf(
+        Scene("320-recovery-actions", "恢复码 · 双按钮比例", "账户", {
+            RecoveryCodeEditorSheet(RecoveryFormState(), {}, {}, {}, {})
+        }, { assertSheetActionRatio("保存") }),
+    ))
+
+    @Test fun migrationFooterKeepsTwoToThreeRatio() = tour(listOf(
+        Scene("321-migration-actions", "认证器迁移 · 双按钮比例", "账户", {
+            MigrationImportSheet(MigrationImportUiState(batchProgress = 1 to 1,
+                candidates = listOf(MigrationTotpCandidate(MigrationEntryStatus.IMPORTABLE,
+                    name = "Review account", issuer = "Review service", algorithm = "SHA1", digits = 6, periodSeconds = 30))), {}, {})
+        }, { assertSheetActionRatio("导入 1") }),
+    ))
+
+    @Test fun migrationLargeTextReview() = tour(listOf(
+        Scene("322-migration-large", "认证器迁移 · 大字体", "账户", {
+            MigrationImportSheet(MigrationImportUiState(batchProgress = 2 to 2,
+                candidates = (1..8).map { MigrationTotpCandidate(MigrationEntryStatus.IMPORTABLE,
+                    name = "Review account $it", issuer = "Review service", algorithm = "SHA1", digits = 6, periodSeconds = 30) }), {}, {})
+        }),
+    ), fontScale = 1.5f)
+
+    @Test fun supplementaryTransferStates() = tour(listOf(
+        Scene("300-export-working", "导出 · 处理中", "备份与设置", { export(ExportImportViewModel.ExportState.Working) }),
+        Scene("301-import-decoding", "导入 · 解密中", "备份与设置", { nativeImport(ExportImportViewModel.ImportState.Decoding) }),
+        Scene("302-import-applying", "导入 · 写入中", "备份与设置", { nativeImport(ExportImportViewModel.ImportState.Applying) }),
+        Scene("303-import-conflict", "导入 · 冲突预览", "备份与设置", { nativeImport(ExportImportViewModel.ImportState.Preview(preview.copy(conflicts = 2))) }),
+        Scene("304-legacy-decrypting", "旧版迁移 · 解密中", "备份与设置", { legacy(LegacyImportViewModel.State.Decrypting) }),
+        Scene("305-legacy-applying", "旧版迁移 · 写入中", "备份与设置", { legacy(LegacyImportViewModel.State.Applying) }),
+        Scene("306-legacy-blocked", "旧版迁移 · 冲突", "备份与设置", { legacy(LegacyImportViewModel.State.Error("存在冲突，当前内容未被覆盖。", LegacyImportViewModel.ErrorAction.BLOCKED)) }),
+    ))
+
+    @Test fun updateStatusVariants() {
+        val latest = UpdateManifest(1, "stable", "1.1.0", 10100, 10000,
+            "2026-09-29T08:00:00Z", "https://example.com/review.apk", 1, "0".repeat(64),
+            "https://example.com/review", Severity.NORMAL)
+        tour(listOf(
+            Scene("310-update-available", "关于 · 新版本", "备份与设置", { AboutScreen("1.0.0", 10000,
+                UpdateUiState.UpdateAvailable(UpdateUiState.AppVersion("1.0.0", 10000), latest, Severity.NORMAL, false), {}, {}, {}) },
+                { rule.onNodeWithTag("about_open_release_page").performScrollTo() }),
+            Scene("311-update-security", "关于 · 安全更新", "备份与设置", { AboutScreen("1.0.0", 10000,
+                UpdateUiState.UpdateAvailable(UpdateUiState.AppVersion("1.0.0", 10000), latest.copy(severity = Severity.SECURITY), Severity.SECURITY, true), {}, {}, {}) },
+                { rule.onNodeWithTag("about_open_release_page").performScrollTo() }),
+            Scene("312-update-network-error", "关于 · 网络错误", "备份与设置", { AboutScreen("1.0.0", 10000,
+                UpdateUiState.Error(UpdateUiState.ErrorType.NETWORK), {}, {}, {}) }),
+        ))
+    }
 
     @Test fun qrScanner() = tour(listOf(Scene("195-qr-scanner", "二维码扫描", "账户", { QrScannerScreen({}, {}) })))
 }

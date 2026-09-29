@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +37,7 @@ import com.rescueauth.v2.ui.components.RescueAuthSummaryCard
 import com.rescueauth.v2.ui.components.RescueAuthTextField
 import com.rescueauth.v2.ui.components.RescueAuthVisibilityToggle
 import com.rescueauth.v2.ui.theme.Spacing
+import com.rescueauth.v2.ui.components.*
 
 object LegacyImportTestTags {
     const val SCREEN = "screen_legacy_import"
@@ -64,50 +67,36 @@ fun LegacyImportScreen(
     when (state) {
         LegacyImportViewModel.State.AwaitingPassword -> LegacyPasswordEntry(onSubmitPassword, onCancelPassword, onBack, modifier)
         is LegacyImportViewModel.State.Preview -> LegacyPreviewContent(state.preview, onConfirm, onCancel, onBack, modifier)
-        else -> LegacyPage(onBack, modifier, bottomBar = {
+        else -> LegacyPage(onBack, modifier, stage = when (state) {
+            LegacyImportViewModel.State.Decrypting, is LegacyImportViewModel.State.FileSelected -> R.string.import_stage_unlock
+            LegacyImportViewModel.State.Applying -> R.string.import_stage_applying
+            is LegacyImportViewModel.State.Success, is LegacyImportViewModel.State.Error -> R.string.import_stage_result
+            else -> R.string.import_stage_file
+        }, bottomBar = {
             when (state) {
                 LegacyImportViewModel.State.Idle -> LegacyFooterAction(
                     stringResource(R.string.legacy_import_pick_file), onPickFile, LegacyImportTestTags.PICK_FILE)
                 is LegacyImportViewModel.State.Success -> LegacyFooterAction(stringResource(R.string.common_close), onDismissResult)
                 is LegacyImportViewModel.State.Error -> if (state.action == LegacyImportViewModel.ErrorAction.RETRY_PASSWORD) {
-                    LegacyFooterAction(stringResource(R.string.common_retry), onRetryPassword)
+                    LegacyFooterAction(stringResource(R.string.common_retry), onRetryPassword, icon = Icons.Filled.Refresh)
                 } else LegacyFooterAction(stringResource(R.string.common_close), onDismissResult)
                 else -> Unit
             }
         }) {
             when (state) {
-                LegacyImportViewModel.State.Idle -> {
-                    RescueAuthCard {
-                        RescueAuthSectionHeader(stringResource(R.string.legacy_import_title),
-                            stringResource(R.string.legacy_import_intro))
-                    }
-                    Text(stringResource(R.string.legacy_import_notice), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                is LegacyImportViewModel.State.FileSelected -> RescueAuthCard {
-                    RescueAuthSectionHeader(stringResource(R.string.legacy_import_file_selected),
-                        state.fileName ?: stringResource(R.string.common_unknown))
-                    Text(stringResource(R.string.common_working), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                LegacyImportViewModel.State.Decrypting, LegacyImportViewModel.State.Applying -> RescueAuthCard {
-                    RescueAuthSectionHeader(stringResource(R.string.common_working))
-                }
-                is LegacyImportViewModel.State.Success -> RescueAuthCard(
-                    containerColor = if (state.blocked) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    RescueAuthSectionHeader(
-                        title = stringResource(if (state.blocked) R.string.import_result_blocked_title else R.string.import_result_title),
-                        subtitle = when {
-                            state.blocked -> stringResource(R.string.import_result_blocked_body, state.conflicts, state.stateDivergences)
-                            state.imported == 0 && state.duplicates > 0 -> stringResource(R.string.import_result_nothing_new)
-                            else -> stringResource(R.string.import_result_summary, state.imported, state.duplicates, state.developerImported)
-                        },
-                    )
-                }
-                is LegacyImportViewModel.State.Error -> RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                    RescueAuthSectionHeader(stringResource(R.string.legacy_import_error_title), state.message)
-                }
+                LegacyImportViewModel.State.Idle -> ImportFileIntro(legacy = true)
+                is LegacyImportViewModel.State.FileSelected -> ImportMessageCard(stringResource(R.string.legacy_import_file_selected), state.fileName ?: stringResource(R.string.common_unknown))
+                LegacyImportViewModel.State.Decrypting -> ImportProgressCard(false)
+                LegacyImportViewModel.State.Applying -> ImportProgressCard(true)
+                is LegacyImportViewModel.State.Success -> ImportMessageCard(
+                    stringResource(if (state.blocked) R.string.import_result_blocked_title else R.string.import_result_title),
+                    when {
+                        state.blocked -> stringResource(R.string.import_result_blocked_body, state.conflicts, state.stateDivergences)
+                        state.imported == 0 && state.duplicates > 0 -> stringResource(R.string.import_result_nothing_new)
+                        else -> stringResource(R.string.import_result_summary, state.imported, state.duplicates, state.developerImported)
+                    }, error = state.blocked)
+                is LegacyImportViewModel.State.Error -> ImportMessageCard(
+                    stringResource(R.string.legacy_import_error_title), state.message, error = true)
                 else -> Unit
             }
         }
@@ -115,11 +104,12 @@ fun LegacyImportScreen(
 }
 
 @Composable
-private fun LegacyPage(onBack: () -> Unit, modifier: Modifier, bottomBar: @Composable () -> Unit,
+private fun LegacyPage(onBack: () -> Unit, modifier: Modifier, stage: Int = R.string.import_stage_file, bottomBar: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit) {
     RescueAuthFormPage(
         title = stringResource(R.string.legacy_import_title),
-        subtitle = stringResource(R.string.settings_backup_transfer_section),
+        subtitle = stringResource(stage),
+        titleMaxLines = 2,
         onBack = onBack,
         modifier = modifier.testTag(LegacyImportTestTags.SCREEN),
         bottomBar = bottomBar,
@@ -128,10 +118,9 @@ private fun LegacyPage(onBack: () -> Unit, modifier: Modifier, bottomBar: @Compo
 }
 
 @Composable
-private fun LegacyFooterAction(label: String, onClick: () -> Unit, tag: String = "legacy_result_close") {
-    RescueAuthBottomBar {
-        RescueAuthButton(onClick = onClick, modifier = Modifier.fillMaxWidth().testTag(tag)) { Text(label) }
-    }
+private fun LegacyFooterAction(label: String, onClick: () -> Unit, tag: String = "legacy_result_close", icon: ImageVector = Icons.Filled.Close) {
+    RescueAuthSingleActionBar(label, if (tag == LegacyImportTestTags.PICK_FILE) Icons.Filled.History else icon,
+        onClick, tag)
 }
 
 /** Local-only password state; a rejected array is cleared, an accepted array belongs to the VM. */
@@ -140,7 +129,7 @@ private fun LegacyPasswordEntry(onSubmit: (CharArray) -> Boolean, onCancel: () -
     onBack: () -> Unit, modifier: Modifier) {
     var password by remember { mutableStateOf("") }
     var revealed by remember { mutableStateOf(false) }
-    LegacyPage(onBack, modifier, bottomBar = {
+    LegacyPage(onBack, modifier, stage = R.string.import_stage_unlock, bottomBar = {
         RescueAuthActionBar(
             secondaryLabel = stringResource(R.string.common_cancel), secondaryIcon = Icons.Filled.Close,
             onSecondaryClick = onCancel, secondaryTestTag = LegacyImportTestTags.PASSWORD_CANCEL,
@@ -177,7 +166,7 @@ private fun LegacyPasswordEntry(onSubmit: (CharArray) -> Boolean, onCancel: () -
 @Composable
 private fun LegacyPreviewContent(preview: LegacyImportPreview, onConfirm: () -> Unit, onCancel: () -> Unit,
     onBack: () -> Unit, modifier: Modifier) {
-    LegacyPage(onBack, modifier, bottomBar = {
+    LegacyPage(onBack, modifier, stage = R.string.import_stage_review, bottomBar = {
         RescueAuthActionBar(
             secondaryLabel = stringResource(R.string.common_cancel), secondaryIcon = Icons.Filled.Close,
             onSecondaryClick = onCancel, secondaryTestTag = LegacyImportTestTags.CANCEL,
@@ -185,32 +174,19 @@ private fun LegacyPreviewContent(preview: LegacyImportPreview, onConfirm: () -> 
             onPrimaryClick = onConfirm, primaryEnabled = !preview.blocked, primaryTestTag = LegacyImportTestTags.CONFIRM,
         )
     }) {
-        RescueAuthSummaryCard(stringResource(R.string.legacy_preview_title), listOf(
-            stringResource(R.string.legacy_preview_schema) to preview.schemaVersion.toString(),
-        ), icon = Icons.Filled.History)
-        RescueAuthSummaryCard(stringResource(R.string.preview_content_title), listOf(
-            stringResource(R.string.preview_accounts) to preview.accounts.toString(),
-            stringResource(R.string.preview_totp) to preview.totpCredentials.toString(),
-            stringResource(R.string.preview_recovery_sets) to preview.recoverySets.toString(),
-            stringResource(R.string.preview_recovery_codes) to preview.recoveryCodes.toString(),
-            stringResource(R.string.preview_developer) to preview.developerSummary.total.toString(),
-            stringResource(R.string.preview_dev_signing) to preview.developerSummary.signingKeys.toString(),
-            stringResource(R.string.preview_dev_api) to preview.developerSummary.apiCredentials.toString(),
-            stringResource(R.string.preview_dev_ssh) to preview.developerSummary.sshKeys.toString(),
-            stringResource(R.string.preview_dev_env) to preview.developerSummary.envVarSets.toString(),
-            stringResource(R.string.preview_dev_generic) to preview.developerSummary.genericSecrets.toString(),
-        ))
-        RescueAuthSummaryCard(stringResource(R.string.preview_merge_title), listOf(
-            stringResource(R.string.preview_inserts) to preview.inserts.toString(),
-            stringResource(R.string.preview_duplicates) to preview.duplicates.toString(),
-            stringResource(R.string.preview_conflicts) to preview.conflicts.toString(),
-            stringResource(R.string.preview_unchanged) to preview.unchanged.toString(),
-            stringResource(R.string.preview_divergences) to preview.stateDivergences.toString(),
-        ))
-        if (preview.blocked) RescueAuthCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
-            RescueAuthSectionHeader(stringResource(R.string.legacy_preview_blocked_title), stringResource(R.string.legacy_preview_blocked_body))
-            Text(stringResource(R.string.legacy_preview_blocked_hint), Modifier.padding(top = Spacing.sm),
-                style = MaterialTheme.typography.bodySmall)
-        }
+        ImportReviewContent(
+            title = stringResource(R.string.legacy_preview_title),
+            counts = ImportContentCounts(preview.accounts, preview.totpCredentials, preview.recoverySets,
+                preview.recoveryCodes, preview.developerSummary.total),
+            plan = ImportPlanCounts(preview.inserts, preview.duplicates, preview.conflicts, preview.unchanged, preview.stateDivergences),
+            metadata = listOf(stringResource(R.string.legacy_preview_schema) to preview.schemaVersion.toString()),
+            developerDetails = listOf(
+                stringResource(R.string.preview_dev_signing) to preview.developerSummary.signingKeys.toString(),
+                stringResource(R.string.preview_dev_api) to preview.developerSummary.apiCredentials.toString(),
+                stringResource(R.string.preview_dev_ssh) to preview.developerSummary.sshKeys.toString(),
+                stringResource(R.string.preview_dev_env) to preview.developerSummary.envVarSets.toString(),
+                stringResource(R.string.preview_dev_generic) to preview.developerSummary.genericSecrets.toString(),
+            ),
+        )
     }
 }

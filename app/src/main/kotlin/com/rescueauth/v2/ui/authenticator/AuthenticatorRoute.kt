@@ -74,6 +74,7 @@ fun AuthenticatorRoute(
     providerName: String? = null,
     accountId: String? = null,
     onOpenSearch: (() -> Unit)? = null,
+    searchFieldModifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     // Injected by the app shell (RescueAuthApp) so the ViewModel + Room
     // collection survive bottom-tab switches and render instantly on re-entry
     // (Issue #70 "每次进入认证器都要加载一段时间"). When null (tests / standalone
@@ -272,6 +273,7 @@ fun AuthenticatorRoute(
         initialProviderName = providerName,
         initialAccountId = accountId,
         onOpenSearch = onOpenSearch,
+        searchFieldModifier = searchFieldModifier,
         onTogglePin = { account -> appScope.launch { viewModel.togglePin(account.id) } },
         onAddProviderClick = { addState.providerDialogVisible = true },
         onRenameProvider = { provider -> providerToRename = provider },

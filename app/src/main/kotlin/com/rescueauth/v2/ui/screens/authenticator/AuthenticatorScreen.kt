@@ -97,6 +97,7 @@ fun AuthenticatorScreen(
     onOpenRecovery: ((String) -> Unit)? = null,
     onAddRecovery: ((String) -> Unit)? = null,
     onOpenSearch: (() -> Unit)? = null,
+    searchFieldModifier: Modifier = Modifier,
     onTogglePin: ((AccountUi) -> Unit)? = null,
     onAddProviderClick: (() -> Unit)? = null,
     onRenameProvider: ((String) -> Unit)? = null,
@@ -278,6 +279,7 @@ fun AuthenticatorScreen(
                     providers = homeProviders,
                     onAddClick = onAddClick,
                     onOpenSearch = onOpenSearch,
+                    searchFieldModifier = searchFieldModifier,
                     accountCount = displayProviders.sumOf { it.accounts.size },
                     hasPinnedAccounts = displayProviders.any { provider -> provider.accounts.any { it.isPinned } },
                     pinnedOnly = pinnedOnly,
@@ -342,6 +344,7 @@ private fun ProviderHomeContent(
     providers: List<ProviderUi>,
     onAddClick: (() -> Unit)?,
     onOpenSearch: (() -> Unit)?,
+    searchFieldModifier: Modifier,
     accountCount: Int,
     hasPinnedAccounts: Boolean,
     pinnedOnly: Boolean,
@@ -368,7 +371,7 @@ private fun ProviderHomeContent(
             StudioVaultHero(accountCount = accountCount)
         }
         if (onOpenSearch != null) item(key = "search-entry") {
-            RescueAuthRowCard(onClick = onOpenSearch, modifier = Modifier.padding(top = Spacing.xs)) {
+            RescueAuthRowCard(onClick = onOpenSearch, modifier = Modifier.padding(top = Spacing.xs).then(searchFieldModifier).testTag("home_search_entry")) {
                 Icon(Icons.Filled.Search, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.studio_search_prompt), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))

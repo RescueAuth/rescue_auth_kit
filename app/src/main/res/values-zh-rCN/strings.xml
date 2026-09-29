@@ -611,4 +611,40 @@
         <item quantity="other">%1$d 组 · %2$d 个可用</item>
     </plurals>
     <string name="add_select_account">选择账户</string>
+
+    <!-- Import presentation: safe summaries and explicit workflow states. -->
+    <string name="import_native_file_heading">.rakpkg 数据包</string>
+    <string name="import_legacy_file_heading">.rakvault 旧版保险库</string>
+    <string name="import_native_file_description">选择之前导出的拾遗坊数据包，随后输入导出时设置的 PIN。</string>
+    <string name="import_legacy_file_description">选择 Rescue Auth v1 的备份文件，随后输入旧版主密码。</string>
+    <string name="import_merge_reassurance">先预览，再合并。本机已有内容会保留。</string>
+    <string name="import_progress_applying">正在合并到保险库</string>
+    <string name="import_progress_decoding">正在解密文件</string>
+    <string name="import_progress_hint">请稍候，完成后会显示结果。</string>
+    <string name="import_review_blocked">暂时无法导入</string>
+    <string name="import_review_merge_hint">确认本次将合并到保险库的内容。</string>
+    <string name="import_conflict_count">%1$d 项内容与本机冲突</string>
+    <string name="import_divergence_count">%1$d 项恢复码使用状态不同</string>
+    <string name="import_review_blocked_hint">本次不会写入任何内容。请返回选择其他文件，或先处理这些差异。</string>
+    <string name="import_duplicates_short">重复跳过</string>
+    <string name="import_details_title">文件与合并明细</string>
+    <string name="import_codes_label">验证码</string>
+    <string name="import_content_heading">本次导入内容</string>
+    <string name="import_recovery_code_count">共 %1$d 个恢复码</string>
+    <string name="import_stage_file">选择文件</string>
+    <string name="import_stage_unlock">解锁文件</string>
+    <string name="import_stage_choose">选择导入内容</string>
+    <string name="import_stage_review">确认导入内容</string>
+    <string name="import_stage_result">导入结果</string>
+    <string name="import_scope_all_short">文件中的全部内容</string>
+    <string name="import_scope_auth_short">账户与恢复码</string>
+    <string name="import_scope_dev_short">开发者条目</string>
+    <string name="import_scope_custom_short">手动选择条目</string>
+    <string name="import_scope_empty_auth">文件中没有账户内容</string>
+    <string name="import_scope_empty_dev">文件中没有开发者条目</string>
+    <string name="import_scope_pick_hint">选择后会先预览，不会立即写入。</string>
+    <string name="import_preview_accounts_label">账户</string>
+    <string name="import_scope_account_count">%1$d 个账户</string>
+    <string name="import_scope_entry_count">%1$d 个条目</string>
+    <string name="import_stage_applying">正在导入</string>
 </resources>

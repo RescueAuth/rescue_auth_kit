@@ -3,7 +3,9 @@ package com.rescueauth.v2.ui.screens.authenticator
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -126,15 +128,15 @@ fun RecoveryCodeEditorSheet(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = onDismiss) {
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(CardTokens.actionSecondaryWeight).fillMaxHeight()) {
                     Text(stringResource(R.string.common_cancel))
                 }
-                Button(onClick = onSubmit, enabled = !form.submitting) {
+                Button(onClick = onSubmit, enabled = !form.submitting,
+                    modifier = Modifier.weight(CardTokens.actionPrimaryWeight).fillMaxHeight()) {
                     Text(stringResource(R.string.recovery_codes_save))
                 }
             }

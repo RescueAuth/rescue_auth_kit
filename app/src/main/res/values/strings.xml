@@ -613,4 +613,40 @@
         <item quantity="other">%1$d sets · %2$d available</item>
     </plurals>
     <string name="add_select_account">Select an account</string>
+
+    <!-- Import presentation: safe summaries and explicit workflow states. -->
+    <string name="import_native_file_heading">RescueAuth package</string>
+    <string name="import_legacy_file_heading">Legacy vault</string>
+    <string name="import_native_file_description">Choose a package previously exported from RescueAuth. You will need its export PIN.</string>
+    <string name="import_legacy_file_description">Choose a backup from Rescue Auth v1. You will need its old master password.</string>
+    <string name="import_merge_reassurance">Review the contents before merging. Your current vault stays in place.</string>
+    <string name="import_progress_applying">Merging into your vault</string>
+    <string name="import_progress_decoding">Unlocking the file</string>
+    <string name="import_progress_hint">Please wait. You can review the result when this finishes.</string>
+    <string name="import_review_blocked">Import needs attention</string>
+    <string name="import_review_merge_hint">Review the changes to your current vault.</string>
+    <string name="import_conflict_count">Conflicting items: %1$d</string>
+    <string name="import_divergence_count">Recovery-code state differences: %1$d</string>
+    <string name="import_review_blocked_hint">Nothing will be imported. Go back and choose another file or resolve the differences first.</string>
+    <string name="import_duplicates_short">Skip duplicates</string>
+    <string name="import_details_title">File and merge details</string>
+    <string name="import_codes_label">One-time codes</string>
+    <string name="import_content_heading">Included in this import</string>
+    <string name="import_recovery_code_count">%1$d codes in total</string>
+    <string name="import_stage_file">Choose a file</string>
+    <string name="import_stage_unlock">Unlock the file</string>
+    <string name="import_stage_choose">Choose what to import</string>
+    <string name="import_stage_review">Review before importing</string>
+    <string name="import_stage_result">Import result</string>
+    <string name="import_scope_all_short">Everything in this file</string>
+    <string name="import_scope_auth_short">Accounts and recovery codes</string>
+    <string name="import_scope_dev_short">Developer entries</string>
+    <string name="import_scope_custom_short">Choose individual items</string>
+    <string name="import_scope_empty_auth">No accounts in this file</string>
+    <string name="import_scope_empty_dev">No developer entries in this file</string>
+    <string name="import_scope_pick_hint">Preview the selected contents before importing.</string>
+    <string name="import_preview_accounts_label">Accounts</string>
+    <string name="import_scope_account_count">Accounts: %1$d</string>
+    <string name="import_scope_entry_count">Entries: %1$d</string>
+    <string name="import_stage_applying">Importing</string>
 </resources>

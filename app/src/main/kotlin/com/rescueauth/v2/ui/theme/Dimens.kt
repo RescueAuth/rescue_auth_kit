@@ -123,6 +123,8 @@ object CardTokens {
     val actionButtonShape = RoundedCornerShape(15.dp)
     val actionBarPadding = 5.dp
     val actionBarGap = 6.dp
+    val actionSecondaryWeight = 2f
+    val actionPrimaryWeight = 3f
     val actionBarBorderWidth = 1.dp
     val actionButtonHeight = 52.dp
     val actionIconSize = 20.dp

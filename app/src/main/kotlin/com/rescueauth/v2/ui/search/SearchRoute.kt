@@ -26,6 +26,8 @@ fun SearchRoute(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onResultClick: (SearchResult) -> Unit,
+    searchFieldModifier: Modifier = Modifier,
+    autoFocus: Boolean = true,
 ) {
     val scope = remember { CoroutineScope(SupervisorJob()) }
 
@@ -50,6 +52,8 @@ fun SearchRoute(
 
     SearchScreen(
         uiState = uiState,
+        searchFieldModifier = searchFieldModifier,
+        autoFocus = autoFocus,
         onBack = onBack,
         onQueryChange = viewModel::onQueryChange,
         onClearQuery = viewModel::clearQuery,

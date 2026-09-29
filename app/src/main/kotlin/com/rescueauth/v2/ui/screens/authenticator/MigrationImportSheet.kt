@@ -2,6 +2,8 @@ package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -118,16 +120,17 @@ fun MigrationImportSheet(
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    TextButton(onClick = onDismiss, enabled = !state.importing, modifier = Modifier.weight(1f)) {
+                    TextButton(onClick = onDismiss, enabled = !state.importing,
+                        modifier = Modifier.weight(CardTokens.actionSecondaryWeight).fillMaxHeight()) {
                         Text(stringResource(R.string.common_cancel))
                     }
                     Button(
                         onClick = onConfirm,
                         enabled = !state.importing && importable > 0,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(CardTokens.actionPrimaryWeight).fillMaxHeight(),
                     ) {
                         Text(stringResource(R.string.migration_confirm_import, importable))
                     }

@@ -93,7 +93,7 @@ class SecondaryVisualReviewTest {
         rule.waitForIdle()
         // Dialog window transitions run on Android's real clock, outside the Compose test clock.
         if (dialog) InstrumentationRegistry.getInstrumentation().uiAutomation.waitForIdle(500, 5_000)
-        val directory = File(rule.activity.getExternalFilesDir(null), "secondary-ui-review").apply { mkdirs() }
+        val directory = File(checkNotNull(InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")), "secondary-ui-review").apply { mkdirs() }
         val bitmap = if (dialog) checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
             else rule.onRoot().captureToImage().asAndroidBitmap()
         try {
@@ -116,6 +116,11 @@ class SecondaryVisualReviewTest {
         }
         rule.onNodeWithText("GitHub recovery").assertIsDisplayed()
         capture("24-recovery-codes")
+        rule.onNodeWithTag("recovery_expand_review-set").performClick()
+        rule.onAllNodesWithText("••••••••").assertCountEquals(4)
+        capture("24b-recovery-expanded")
+        rule.onNodeWithContentDescription("操作").performClick()
+        capture("24c-recovery-menu", dialog = true)
     }
 
     private fun detailScreen(detail: DeveloperDetailUi, dark: Boolean = false, fontScale: Float = 1f, chinese: Boolean = true) {

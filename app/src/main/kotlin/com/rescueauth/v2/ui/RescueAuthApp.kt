@@ -2,6 +2,11 @@ package com.rescueauth.v2.ui
 
 import com.rescueauth.v2.BuildConfig
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.EnterExitState
+import com.rescueauth.v2.ui.navigation.SearchFieldMotion
+import com.rescueauth.v2.ui.navigation.searchFieldMotion
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.HorizontalPager
@@ -96,6 +101,7 @@ object RescueAuthTestTags {
  * state and callbacks from the host so it can be unit-tested without a real
  * Vault backend, and it never reads Room entities.
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun RescueAuthApp(
     modifier: Modifier = Modifier,
@@ -228,19 +234,22 @@ fun RescueAuthApp(
         SideEffect {
             if (showBottomBar) retainedRootBottomPadding = rootBottomPadding
         }
-        Box(Modifier.fillMaxSize()) {
+        SharedTransitionLayout(Modifier.fillMaxSize()) {
+        val searchSharedScope = this
         NavHost(
             navController = navController,
             startDestination = RescueAuthRoutes.HOME,
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
-            enterTransition = { motion.enter(isPop = false) },
-            exitTransition = { motion.exit(isPop = false) },
-            popEnterTransition = { motion.enter(isPop = true) },
-            popExitTransition = { motion.exit(isPop = true) },
+            enterTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.enter() else motion.enter(isPop = false) },
+            exitTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.exit() else motion.exit(isPop = false) },
+            popEnterTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.enter() else motion.enter(isPop = true) },
+            popExitTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.exit() else motion.exit(isPop = true) },
         ) {
             composable(RescueAuthRoutes.HOME) {
+                val visibility = this
+                val searchFieldModifier = with(searchSharedScope) { searchFieldMotion(visibility) }
                 HorizontalPager(
                     state = homePagerState,
                     // Navigation remains button-driven; the pager supplies one shared motion clock.
@@ -262,8 +271,9 @@ fun RescueAuthApp(
                                     navController.navigate("authenticator/provider/${Uri.encode(providerName)}")
                                 },
                                 onOpenSearch = {
-                                    navController.navigate(RescueAuthRoutes.SEARCH)
+                                    navController.navigate(RescueAuthRoutes.SEARCH) { launchSingleTop = true }
                                 },
+                                searchFieldModifier = searchFieldModifier,
                                 modifier = Modifier.testTag(RescueAuthTestTags.SCREEN_AUTHENTICATOR),
                             )
                         }
@@ -310,7 +320,13 @@ fun RescueAuthApp(
                 }
             }
             composable(RescueAuthRoutes.SEARCH) {
+                val visibility = this
+                val searchFieldModifier = with(searchSharedScope) { searchFieldMotion(visibility) }
+                val settled = transition.currentState == EnterExitState.Visible &&
+                    transition.targetState == EnterExitState.Visible && !searchSharedScope.isTransitionActive
                 SearchRoute(
+                    searchFieldModifier = searchFieldModifier,
+                    autoFocus = settled,
                     onBack = { navController.popBackStack() },
                     onResultClick = { result -> navController.navigate(result.vaultDestination()) },
                     modifier = Modifier.testTag("screen_search"),

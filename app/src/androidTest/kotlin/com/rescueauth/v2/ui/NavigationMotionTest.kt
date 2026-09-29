@@ -3,6 +3,11 @@ package com.rescueauth.v2.ui
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
+import android.os.Build
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -82,9 +87,95 @@ class NavigationMotionTest {
         // Gradle collects this ignored build output; no gallery or image fixture is committed.
         val output = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir") ?: return
         val directory = File(output, "navigation-motion").apply { mkdirs() }
-        File(directory, "$name.png").outputStream().use {
-            rule.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+        // A semantics/clock update may precede presentation of the new Android window buffer.
+        if (Build.VERSION.SDK_INT >= 29) {
+            val committed = CountDownLatch(1)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).single()
+                    .window.decorView.apply {
+                        viewTreeObserver.registerFrameCommitCallback { committed.countDown() }
+                        invalidate()
+                    }
+            }
+            assertTrue("Navigation frame was not committed", committed.await(5, TimeUnit.SECONDS))
+            val presented = CountDownLatch(1)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                val view = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).single().window.decorView
+                view.postOnAnimation { view.postOnAnimation { presented.countDown() } }
+            }
+            assertTrue("Navigation frame was not presented", presented.await(5, TimeUnit.SECONDS))
         }
+        File(directory, "$name.png").outputStream().use {
+            checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+                .let { bitmap -> try { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } finally { bitmap.recycle() } }
+        }
+    }
+
+    @Test fun searchFieldMovesUpWhileThePageStaysStillAndFocusWaits() {
+        show()
+        val start = bounds("home_search_entry")
+        capture("search-lift-000")
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("home_search_entry").performClick()
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(32)
+        rule.waitForIdle()
+        capture("search-lift-032")
+        rule.mainClock.advanceTimeBy(32)
+        rule.waitForIdle()
+        rule.onNodeWithTag("search_input").assertIsNotFocused()
+        val middle = bounds("search_input")
+        val page = bounds("screen_search")
+        assertEquals(0f, page.left.value, 1f)
+        capture("search-lift-middle")
+        capture("search-lift-064")
+        for (millis in listOf(96, 128, 160, 192, 224)) {
+            rule.mainClock.advanceTimeBy(32)
+            rule.waitForIdle()
+            capture("search-lift-${millis.toString().padStart(3, '0')}")
+        }
+        rule.mainClock.advanceTimeBy(400)
+        rule.waitForIdle()
+        val end = bounds("search_input")
+        assertTrue("The field must travel upward", end.top < start.top)
+        assertTrue("A real intermediate position must exist: start=$start, middle=$middle, end=$end",
+            middle.top > end.top && middle.top < start.top)
+        rule.onNodeWithTag("search_input").assertIsFocused()
+        capture("search-lift-complete")
+        capture("search-return-000")
+        rule.onNodeWithContentDescription("Close").performClick()
+        rule.mainClock.advanceTimeByFrame()
+        for (millis in listOf(32, 64, 96, 128, 160, 192, 224)) {
+            rule.mainClock.advanceTimeBy(32)
+            rule.waitForIdle()
+            capture("search-return-${millis.toString().padStart(3, '0')}")
+            if (millis == 96) capture("search-return-middle")
+        }
+        rule.mainClock.advanceTimeBy(400)
+        rule.waitForIdle()
+        rule.onNodeWithTag("home_search_entry").assertIsDisplayed()
+    }
+
+    @Test fun searchCanBeClosedBeforeTheLiftFinishes() {
+        show()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("home_search_entry").performClick()
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(32)
+        rule.onNodeWithContentDescription("Close").performClick()
+        rule.mainClock.advanceTimeBy(500)
+        rule.waitForIdle()
+        rule.onNodeWithTag("home_search_entry").assertIsDisplayed()
+        rule.onAllNodesWithTag("search_input").assertCountEquals(0)
+    }
+
+    @Test fun searchRemainsUsableWithSystemAnimationsDisabled() {
+        motionScale.scaleFactor = 0f
+        show()
+        rule.onNodeWithTag("home_search_entry").performClick()
+        rule.mainClock.advanceTimeBy(400)
+        rule.waitForIdle()
+        rule.onNodeWithTag("search_input").assertIsDisplayed().assertIsFocused()
     }
 
     @Test fun tabsPushHorizontallyWhileDockStaysFixed() {

@@ -53,16 +53,15 @@ fun RescueAuthActionBar(
             contentPadding = CardTokens.actionBarPadding,
         ) {
             BoxWithConstraints {
-                // Give both labels room on narrow screens / enlarged text. Labels may wrap;
-                // intrinsic row height keeps both touch targets equally tall.
-                val balanced = maxWidth < CardTokens.actionBarBalancedWidth || LocalDensity.current.fontScale > 1.2f
+                // Keep the available button widths at 2:3 in every configuration.
+                // Narrow / enlarged labels may stack and wrap; both targets grow equally tall.
                 val stackedLabels = maxWidth < CardTokens.actionBarBalancedWidth && LocalDensity.current.fontScale > 1.2f
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(CardTokens.actionBarGap)) {
                     RescueAuthButton(
                         onClick = onSecondaryClick,
                         enabled = secondaryEnabled,
-                        modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = CardTokens.actionButtonHeight)
+                        modifier = Modifier.weight(CardTokens.actionSecondaryWeight).fillMaxHeight().heightIn(min = CardTokens.actionButtonHeight)
                             .testTag(secondaryTestTag),
                         shape = CardTokens.actionButtonShape,
                         colors = ButtonDefaults.buttonColors(
@@ -78,7 +77,7 @@ fun RescueAuthActionBar(
                     RescueAuthButton(
                         onClick = onPrimaryClick,
                         enabled = primaryEnabled,
-                        modifier = Modifier.weight(if (balanced) 1f else 2f).fillMaxHeight()
+                        modifier = Modifier.weight(CardTokens.actionPrimaryWeight).fillMaxHeight()
                             .heightIn(min = CardTokens.actionButtonHeight).testTag(primaryTestTag),
                         shape = CardTokens.actionButtonShape,
                         colors = ButtonDefaults.buttonColors(
@@ -105,5 +104,24 @@ private fun RowScope.ActionLabel(label: String, icon: ImageVector, stacked: Bool
     } else {
         Icon(icon, contentDescription = null, modifier = Modifier.size(CardTokens.actionIconSize))
         Text(label, Modifier.padding(start = Spacing.xs).weight(1f, fill = false))
+    }
+}
+
+/** Single-action steps use the same footer geometry as paired import actions. */
+@Composable
+fun RescueAuthSingleActionBar(label: String, icon: ImageVector, onClick: () -> Unit,
+    testTag: String = "import_single_action") {
+    RescueAuthBottomBar {
+        RescueAuthCard(shape = CardTokens.actionBarShape, contentPadding = CardTokens.actionBarPadding,
+            modifier = Modifier.border(CardTokens.actionBarBorderWidth, CardTokens.outlineColor(), CardTokens.actionBarShape)) {
+            RescueAuthButton(onClick = onClick,
+                modifier = Modifier.fillMaxWidth().heightIn(min = CardTokens.actionButtonHeight).testTag(testTag),
+                shape = CardTokens.actionButtonShape,
+                colors = ButtonDefaults.buttonColors(containerColor = CardTokens.actionPrimaryContainerColor(),
+                    contentColor = CardTokens.actionPrimaryContentColor())) {
+                Icon(icon, null, Modifier.size(CardTokens.actionIconSize))
+                Text(label, Modifier.padding(start = Spacing.xs).weight(1f, fill = false), textAlign = TextAlign.Center)
+            }
+        }
     }
 }

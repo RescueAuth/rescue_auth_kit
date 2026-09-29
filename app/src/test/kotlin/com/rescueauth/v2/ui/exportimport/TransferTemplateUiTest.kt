@@ -68,6 +68,8 @@ class TransferTemplateUiTest {
             }
         }
         rule.onNodeWithTag("page_action_bar").assertIsDisplayed()
+        rule.onNodeWithTag("import_blocked_reason").assertIsDisplayed()
+        rule.onNodeWithTag("import_details_toggle").performScrollTo().performClick()
         rule.onNodeWithText("Entire Vault").assertExists()
         rule.onNodeWithText("FULL_VAULT").assertDoesNotExist()
         rule.onNodeWithTag(ExportImportTestTags.IMPORT_CONFIRM).assertIsNotEnabled().performClick()

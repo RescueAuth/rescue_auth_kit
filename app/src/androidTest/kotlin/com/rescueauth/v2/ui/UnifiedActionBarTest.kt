@@ -1,5 +1,6 @@
 package com.rescueauth.v2.ui
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
@@ -8,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -20,12 +22,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.rescueauth.v2.ui.components.RescueAuthActionBar
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /** Use actual Android font metrics for the shared footer's large-text and RTL contract. */
 @RunWith(AndroidJUnit4::class)
@@ -55,7 +59,23 @@ class UnifiedActionBarTest {
         }
     }
 
-    @Test fun regularBarKeepsBothCallbacksAndGivesPrimaryMoreSpace() {
+    private fun assertTwoToThreeRatio() {
+        val secondary = rule.onNodeWithTag("page_action_secondary").getUnclippedBoundsInRoot()
+        val primary = rule.onNodeWithTag("page_action_primary").getUnclippedBoundsInRoot()
+        // Compare rendered widths, excluding the shared container's padding and gap.
+        val expectedSecondaryWidth = (primary.right - primary.left).value * 2f / 3f
+        assertEquals(expectedSecondaryWidth, (secondary.right - secondary.left).value, 1f)
+    }
+
+    private fun capture(name: String) {
+        val output = checkNotNull(InstrumentationRegistry.getArguments().getString("additionalTestOutputDir"))
+        val file = File(output, "action-bar-ratio/$name.png").apply { parentFile!!.mkdirs() }
+        val bitmap = rule.onNodeWithTag("page_action_bar").captureToImage().asAndroidBitmap()
+        try { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        finally { bitmap.recycle() }
+    }
+
+    @Test fun regularBarKeepsBothCallbacksAndTwoToThreeRatio() {
         show()
         val secondary = rule.onNodeWithTag("page_action_secondary")
         val primary = rule.onNodeWithTag("page_action_primary")
@@ -68,6 +88,8 @@ class UnifiedActionBarTest {
         assertTrue(left.right <= right.left)
         assertTrue(right.right - right.left > left.right - left.left)
         assertEquals(left.bottom - left.top, right.bottom - right.top)
+        assertTwoToThreeRatio()
+        capture("regular")
     }
 
     @Test fun largeEnglishTextFitsANarrowViewport() {
@@ -87,6 +109,8 @@ class UnifiedActionBarTest {
         assertEquals(secondary.bottom - secondary.top, primary.bottom - primary.top)
         assertTrue(secondary.right <= primary.left)
         assertTrue(primary.right <= viewport.right)
+        assertTwoToThreeRatio()
+        capture("narrow-large")
     }
 
     @Test fun rtlMirrorsActionOrderWithoutChangingCallbacks() {
@@ -97,6 +121,8 @@ class UnifiedActionBarTest {
         rule.onNodeWithTag("page_action_primary").performClick()
         assertEquals(1, submitted)
         assertEquals(0, previous)
+        assertTwoToThreeRatio()
+        capture("rtl")
     }
 
     @Test fun submittingCannotDispatchEitherAction() {
@@ -105,5 +131,7 @@ class UnifiedActionBarTest {
         rule.onNodeWithTag("page_action_primary").assertIsNotEnabled().performClick()
         assertEquals(0, previous)
         assertEquals(0, submitted)
+        assertTwoToThreeRatio()
+        capture("disabled")
     }
 }

@@ -58,6 +58,7 @@ fun RescueAuthFormPage(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     backEnabled: Boolean = true,
+    titleMaxLines: Int? = null,
     bottomBar: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -66,6 +67,7 @@ fun RescueAuthFormPage(
         subtitle = subtitle,
         modifier = modifier,
         navigationIcon = { RescueAuthBackButton(onBack, enabled = backEnabled) },
+        titleMaxLines = titleMaxLines,
         bottomBar = bottomBar,
     ) { padding ->
         Column(
