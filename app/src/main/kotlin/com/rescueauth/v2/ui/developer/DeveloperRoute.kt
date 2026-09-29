@@ -60,6 +60,7 @@ fun DeveloperRoute(
     onOpenCategory: ((DeveloperEntryType) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
+    isActive: Boolean = true,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -87,7 +88,8 @@ fun DeveloperRoute(
     // a pending Undo token in the shared store. The list route (which survives
     // the detail pop) shows the Undo Snackbar here so it lives beyond the
     // post-navigation lifecycle.
-    LaunchedEffect(DeveloperUndoStore.pending) {
+    LaunchedEffect(DeveloperUndoStore.pending, isActive) {
+        if (!isActive) return@LaunchedEffect
         val pending = DeveloperUndoStore.pending ?: return@LaunchedEffect
         val message = context.getString(R.string.developer_entry_deleted_message)
         val actionLabel = context.getString(R.string.undo_snackbar_action)
@@ -129,7 +131,7 @@ fun DeveloperRoute(
         modifier = modifier,
     )
 
-    if (showAddSheet) {
+    if (showAddSheet && isActive) {
         DeveloperAddSheet(
             onDismiss = { showAddSheet = false },
             onSelectType = { type ->

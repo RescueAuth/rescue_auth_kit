@@ -84,6 +84,7 @@ fun AuthenticatorRoute(
     showAddAction: Boolean = true,
     contentBottomPadding: Dp = 0.dp,
     floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
+    isActive: Boolean = true,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -130,8 +131,10 @@ fun AuthenticatorRoute(
     // or the route leaves composition), and the ViewModel corrects from the
     // real wall clock on every tick — a missed/paused tick never drifts.
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
-    val tickScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, viewModel, isActive) {
+        // Cached offscreen roots retain layout/state, not active tickers or one-shot effects.
+        if (!isActive) return@DisposableEffect onDispose { }
+        val tickScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         var tickJob: Job? = null
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -162,7 +165,8 @@ fun AuthenticatorRoute(
     }
 
     // One-shot event handling (clipboard + snackbar).
-    LaunchedEffect(events) {
+    LaunchedEffect(events, isActive) {
+        if (!isActive) return@LaunchedEffect
         val event = events ?: return@LaunchedEffect
         when (event) {
             is AuthenticatorEvent.CopyCode -> {
@@ -309,6 +313,9 @@ fun AuthenticatorRoute(
         contentBottomPadding = contentBottomPadding,
         floatingAddPosition = floatingAddPosition,
     )
+
+    // Keep only the ordinary page cached. Offscreen tabs must release camera/overlay resources.
+    if (!isActive) return
 
     if (addState.credentialSheetVisible) {
         AddTotpSheet(

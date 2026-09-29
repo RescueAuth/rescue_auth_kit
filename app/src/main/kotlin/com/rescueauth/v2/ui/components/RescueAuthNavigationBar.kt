@@ -67,7 +67,7 @@ fun RescueAuthNavigationBar(
                     val pill = measurables.single().measure(Constraints.fixed(cellWidth.roundToInt(), constraints.maxHeight))
                     layout(constraints.maxWidth, constraints.maxHeight) {
                         // Relative placement mirrors both the slide and the resting position in RTL.
-                        // Read the shared pager position only during placement; scrolling
+                        // Read the shared home transition position only during placement; scrolling
                         // must not recompose the app shell or run a second indicator clock.
                         pill.placeRelative(((cellWidth + gap) * indicatorPosition()).roundToInt(), 0)
                     }

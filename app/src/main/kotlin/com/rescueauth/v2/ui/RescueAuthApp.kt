@@ -7,12 +7,8 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.EnterExitState
 import com.rescueauth.v2.ui.navigation.SearchFieldMotion
 import com.rescueauth.v2.ui.navigation.searchFieldMotion
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import com.rescueauth.v2.ui.theme.DockTokens
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.background
@@ -69,6 +65,8 @@ import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.navigation.RescueAuthNavigationMotion
 import com.rescueauth.v2.ui.navigation.vaultDestination
 import com.rescueauth.v2.ui.navigation.TopLevelDestinations
+import com.rescueauth.v2.ui.navigation.HomePages
+import com.rescueauth.v2.ui.navigation.rememberHomePageMotionState
 import com.rescueauth.v2.ui.screens.about.AboutRoute
 import com.rescueauth.v2.ui.screens.about.AboutTestTags
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
@@ -115,18 +113,19 @@ fun RescueAuthApp(
     val layoutDirection = LocalLayoutDirection.current
     val motion = remember(layoutDirection) { RescueAuthNavigationMotion(layoutDirection) }
     var retainedRootBottomPadding by remember { mutableStateOf(0.dp) }
-    val homePagerState = rememberPagerState(
+    val homePageState = rememberHomePageMotionState(
         initialPage = TopLevelDestinations.all.indexOfFirst { it.route == startRoute }.coerceAtLeast(0),
-        pageCount = { TopLevelDestinations.all.size },
+        pageCount = TopLevelDestinations.all.size,
     )
     val navigationScope = rememberCoroutineScope()
     var homeScrollJob by remember { mutableStateOf<Job?>(null) }
     val selectHomePage: (Int) -> Unit = { page ->
-        // Cancel first, including a return to the still-current page before its first frame.
-        homeScrollJob?.cancel()
-        homeScrollJob = navigationScope.launch {
-            homePagerState.animateScrollToPage(page,
-                animationSpec = tween(DockTokens.slideDurationMillis, easing = FastOutSlowInEasing))
+        if (page != homePageState.targetPage) {
+            homeScrollJob?.cancel()
+            // Capture the visible offsets in this input event, before the next frame can run.
+            homeScrollJob = navigationScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                homePageState.animateTo(page)
+            }
         }
     }
     val navigateFromWorkflow: (String) -> Unit = { route ->
@@ -134,7 +133,7 @@ fun RescueAuthApp(
         if (rootPage >= 0) {
             homeScrollJob?.cancel()
             navController.popBackStack(RescueAuthRoutes.HOME, inclusive = false)
-            homeScrollJob = navigationScope.launch { homePagerState.scrollToPage(rootPage) }
+            homeScrollJob = navigationScope.launch { homePageState.snapTo(rootPage) }
         } else {
             navController.navigate(route) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -148,7 +147,7 @@ fun RescueAuthApp(
     // from the Intro screen lands here straight inside the legacy importer).
     LaunchedEffect(startRoute) {
         val rootPage = TopLevelDestinations.all.indexOfFirst { it.route == startRoute }
-        if (rootPage >= 0) homePagerState.scrollToPage(rootPage)
+        if (rootPage >= 0) homePageState.snapTo(rootPage)
         else if (startRoute != null) {
             // Scaffold subcomposition can attach NavHost after this effect starts.
             navController.currentBackStackEntryFlow.first()
@@ -166,12 +165,11 @@ fun RescueAuthApp(
     val addPosition = rememberFloatingAddPosition()
     // Capture the destination when the button is tapped; a later page change cannot retarget an open sheet.
     var addSheetPage by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(showBottomBar, homePagerState.targetPage) { addSheetPage = null }
-    BackHandler(enabled = showBottomBar && homePagerState.targetPage != 0) { selectHomePage(0) }
+    LaunchedEffect(showBottomBar, homePageState.targetPage) { addSheetPage = null }
+    BackHandler(enabled = showBottomBar && homePageState.targetPage != 0) { selectHomePage(0) }
 
     // The Authenticator ViewModel is held at the app-shell level (not inside
-    // the per-tab route) so switching bottom tabs — which disposes the route's
-    // composition and would otherwise destroy a `remember { }` ViewModel — does
+    // the per-tab route) so entering details and returning to a home page does
     // NOT tear down the Room collection job nor force a full reload + TOTP
     // recompute on every return to the Authenticator tab. The shell survives
     // tab switches and nested-navigation pushes, so the loaded card state is
@@ -218,9 +216,9 @@ fun RescueAuthApp(
             {
                 com.rescueauth.v2.ui.components.RescueAuthNavigationBar(
                     isSelected = { destination ->
-                        TopLevelDestinations.all[homePagerState.targetPage] == destination
+                        TopLevelDestinations.all[homePageState.targetPage] == destination
                     },
-                    pagePosition = { homePagerState.currentPage + homePagerState.currentPageOffsetFraction },
+                    pagePosition = { homePageState.dockPosition },
                     onNavigate = { destination -> selectHomePage(TopLevelDestinations.all.indexOf(destination)) },
                 )
             }
@@ -250,17 +248,15 @@ fun RescueAuthApp(
             composable(RescueAuthRoutes.HOME) {
                 val visibility = this
                 val searchFieldModifier = with(searchSharedScope) { searchFieldMotion(visibility) }
-                HorizontalPager(
-                    state = homePagerState,
-                    // Navigation remains button-driven; the pager supplies one shared motion clock.
-                    userScrollEnabled = false,
-                    key = { TopLevelDestinations.all[it].route },
+                HomePages(
+                    state = homePageState,
                     modifier = Modifier.padding(bottom = rootBottomPadding).fillMaxSize().testTag("home_pager"),
                 ) { page ->
                     when (page) {
                         0 -> {
                             AuthenticatorRoute(
                                 viewModel = authenticatorViewModel,
+                                isActive = homePageState.settledPage == 0,
                                 addState = authenticatorAddState,
                                 showAddAction = false,
                                 contentBottomPadding = AddActionTokens.contentClearance,
@@ -280,6 +276,7 @@ fun RescueAuthApp(
                         1 -> {
                             DeveloperRoute(
                                 viewModel = developerViewModel,
+                                isActive = homePageState.settledPage == 1,
                                 showAddAction = false,
                                 contentBottomPadding = AddActionTokens.contentClearance,
                                 onOpenEntry = { entry ->
@@ -507,10 +504,10 @@ fun RescueAuthApp(
         }
         // A single overlay outside NavHost/HorizontalPager, with position retained by the shell.
         if (showBottomBar) RescueAuthFloatingAddOverlay(
-            visible = homePagerState.targetPage != 2 && !migrationUi.scannerVisible,
-            enabled = !homePagerState.isScrollInProgress && addSheetPage == null,
+            visible = homePageState.targetPage != 2 && !migrationUi.scannerVisible,
+            enabled = !homePageState.isScrollInProgress && addSheetPage == null,
             position = addPosition,
-            onClick = { addSheetPage = homePagerState.settledPage },
+            onClick = { addSheetPage = homePageState.settledPage },
             modifier = Modifier.padding(bottom = rootBottomPadding),
         )
         }

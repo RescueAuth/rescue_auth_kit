@@ -248,12 +248,15 @@ class DeveloperDetailViewModelTest {
     fun `reveal authorization cannot authorize copy in the ViewModel`() = runBlocking {
         val stableId = createApi()
         val (vm, prompt) = vm(stableId)
-        kotlinx.coroutines.delay(50)
+        kotlinx.coroutines.withTimeout(5_000) { vm.uiState.first { !it.loading } }
 
         // Reveal request is pending; the prompt succeeds for reveal.
         vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
         prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
-        kotlinx.coroutines.delay(50)
+        // Room completes on its query executor; a fixed 50 ms sleep races under build load.
+        kotlinx.coroutines.withTimeout(5_000) {
+            while (vm.revealedValue("apiSecret") == null) kotlinx.coroutines.delay(10)
+        }
         assertEquals("secret-abc", vm.revealedValue("apiSecret"))
 
         // A copy request issued while the reveal prompt was pending was never
