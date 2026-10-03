@@ -6,14 +6,19 @@ import com.rescueauth.v2.database.PROVIDER_ICON_LETTER
 import com.rescueauth.v2.database.ProviderMetaDao
 import com.rescueauth.v2.database.ProviderMetaEntity
 import com.rescueauth.v2.database.RecoveryCodeDao
+import com.rescueauth.v2.database.RecoveryCodeEntity
+import com.rescueauth.v2.database.RecoveryCodeSetEntity
 import com.rescueauth.v2.database.RecoveryCodeSetDao
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.database.TotpCredentialDao
+import com.rescueauth.v2.database.TotpCredentialEntity
 import com.rescueauth.v2.domain.AuthAccount
 import com.rescueauth.v2.domain.DeletedAccountSnapshot
 import com.rescueauth.v2.domain.TotpCredential
 import com.rescueauth.v2.domain.UndoRestoreOutcome
+import com.rescueauth.v2.domain.nextRecoverySetTitle
 import com.rescueauth.v2.export.Canonicalization
+import com.rescueauth.v2.export.TotpParameters
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -48,7 +53,8 @@ import java.util.UUID
  * Management operations move/relink entities by FK only. They never read or
  * expose TOTP secrets or recovery-code values to the UI. Counts (TOTP /
  * Recovery Set) are computed for confirmation dialogs but secrets never
- * leave the repository.
+ * leave the repository. The manual add operation also accepts an in-memory
+ * initial-content draft and writes it together with the account atomically.
  */
 class ProviderAccountRepository(
     private val vault: VaultRepository,
@@ -169,22 +175,54 @@ class ProviderAccountRepository(
      * with [ConflictException] — never silently merged.
      */
     suspend fun createAccount(serviceName: String, accountName: String): AuthAccount {
+        return saveAccountAddition(serviceName, accountName)
+    }
+
+    /** One Save creates the owner and initial content atomically, or appends to an explicitly selected owner. */
+    suspend fun saveAccountAddition(
+        serviceName: String,
+        accountName: String,
+        existingAccountId: String? = null,
+        content: AccountAdditionContent = AccountAdditionContent.Empty,
+        allowNewProvider: Boolean = false,
+        reuseMatchingAccount: Boolean = false,
+    ): AuthAccount {
         val provider = normalizeProviderName(serviceName)
         if (provider.isEmpty()) throw ValidationException("Provider name is required")
         val account = normalizeAccountName(accountName)
         if (account.isEmpty()) throw ValidationException("Account name is required")
 
+        when (content) {
+            is AccountAdditionContent.Totp -> {
+                if (!TotpParameters.isValidBase32(content.secret) || content.secret.isBlank()) throw ValidationException("Invalid secret")
+                if (content.algorithm !in TotpParameters.SUPPORTED_ALGORITHMS ||
+                    content.digits !in TotpParameters.SUPPORTED_DIGITS ||
+                    content.periodSeconds !in TotpParameters.MIN_PERIOD_SECONDS..TotpParameters.MAX_PERIOD_SECONDS) {
+                    throw ValidationException("Invalid TOTP parameters")
+                }
+            }
+            is AccountAdditionContent.Recovery -> {
+                val values = content.values.map { it.trim() }.filter { it.isNotEmpty() }
+                if (values.isEmpty() || values.toSet().size != values.size) throw ValidationException("Invalid recovery codes")
+            }
+            AccountAdditionContent.Empty -> if (existingAccountId != null) throw ValidationException("Content is required")
+        }
+
         return vault.mutate {
-            if (accountDao.countByServiceName(provider) == 0) {
+            if (!allowNewProvider && accountDao.countByServiceName(provider) == 0) {
                 throw NotFoundException("Provider not found: $provider")
             }
-            if (accountDao.findByServiceAndAccount(provider, account) != null) {
+            val matching = if (existingAccountId == null) accountDao.findByServiceAndAccount(provider, account) else null
+            if (matching != null && (!reuseMatchingAccount || content == AccountAdditionContent.Empty)) {
                 throw ConflictException("Account already exists: $provider / $account")
             }
             val now = java.time.Instant.now().toString()
-            val id = UUID.randomUUID().toString()
-            val entity = AuthAccountEntity(
-                id = id,
+            val entity = if (existingAccountId != null) {
+                val existing = accountDao.getById(existingAccountId) ?: throw NotFoundException("Account not found")
+                if (existing.serviceName != provider) throw NotFoundException("Account moved")
+                existing
+            } else if (matching != null) matching else AuthAccountEntity(
+                id = UUID.randomUUID().toString(),
                 stableId = UUID.randomUUID().toString(),
                 serviceName = provider,
                 accountName = account,
@@ -194,7 +232,28 @@ class ProviderAccountRepository(
                 createdAt = now,
                 updatedAt = now,
             )
-            accountDao.upsert(entity)
+            if (existingAccountId == null && matching == null) accountDao.upsert(entity)
+            when (content) {
+                is AccountAdditionContent.Totp -> {
+                    val credentialId = UUID.randomUUID().toString()
+                    totpDao.upsert(TotpCredentialEntity(id = credentialId, stableId = credentialId, accountId = entity.id,
+                        secretBase32 = content.secret, algorithm = content.algorithm, digits = content.digits,
+                        periodSeconds = content.periodSeconds, createdAt = now))
+                }
+                is AccountAdditionContent.Recovery -> {
+                    val setId = UUID.randomUUID().toString()
+                    val title = content.title.trim().ifEmpty {
+                        nextRecoverySetTitle(content.defaultTitle, recoverySetDao.listByAccount(entity.id).map { it.title })
+                    }
+                    recoverySetDao.upsert(RecoveryCodeSetEntity(id = setId, stableId = UUID.randomUUID().toString(),
+                        accountId = entity.id, title = title, createdAt = now))
+                    recoveryCodeDao.insertAll(content.values.map { it.trim() }.filter { it.isNotEmpty() }.mapIndexed { index, value ->
+                        RecoveryCodeEntity(id = UUID.randomUUID().toString(), stableId = UUID.randomUUID().toString(),
+                            setId = setId, value = value, status = "UNUSED", usedAt = null, sortOrder = index)
+                    })
+                }
+                AccountAdditionContent.Empty -> Unit
+            }
             AuthMappers.toDomain(entity)
         }
     }

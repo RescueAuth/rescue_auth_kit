@@ -104,6 +104,8 @@ fun AuthenticatorScreen(
     onDeleteProvider: ((String) -> Unit)? = null,
     onAddAccount: ((String) -> Unit)? = null,
     onCreateAccountFor: ((String, AccountAddKind) -> Unit)? = null,
+    /** Production entry: one editor owns recipient, content choice and fields. */
+    onOpenAdd: ((provider: String, accountId: String?) -> Unit)? = null,
     onRenameAccount: ((AccountUi) -> Unit)? = null,
     onMoveAccount: ((AccountUi) -> Unit)? = null,
     onMergeAccount: ((AccountUi) -> Unit)? = null,
@@ -185,7 +187,10 @@ fun AuthenticatorScreen(
     val recoveryAction: (() -> Unit)? = if (isDetailRequested && onAddRecovery != null) { { requestAccountAdd(AccountAddKind.RECOVERY) } } else null
     val accountAction: (() -> Unit)? = if (atProviderLevel && onAddAccount != null) { { onAddAccount(selectedProvider!!.serviceName) } } else null
     val detailActions = listOfNotNull(accountAction, credentialAction, recoveryAction)
-    val hasDetailAdd = showAddAction && isDetailRequested && selectionExists && detailActions.isNotEmpty()
+    val flatAddAction: (() -> Unit)? = onOpenAdd?.takeIf { isDetailRequested && selectionExists }?.let { open ->
+        { open(selectedAccount?.providerName ?: selectedProvider!!.serviceName, selectedAccount?.id) }
+    }
+    val hasDetailAdd = showAddAction && isDetailRequested && selectionExists && (flatAddAction != null || detailActions.isNotEmpty())
     val contentClearance = if (hasDetailAdd) maxOf(contentBottomPadding, AddActionTokens.contentClearance) else contentBottomPadding
     LaunchedEffect(isDetailRequested, selectionExists, uiState.loading) {
         if (isDetailRequested && !selectionExists && !uiState.loading) {
@@ -305,7 +310,7 @@ fun AuthenticatorScreen(
             visible = !uiState.loading && uiState.error == null,
             enabled = !uiState.loading && uiState.error == null && !addMenuOpen && choosingAccountFor == null,
             position = floatingAddPosition,
-            onClick = { if (detailActions.size == 1) detailActions.single()() else addMenuOpen = true },
+            onClick = { if (flatAddAction != null) flatAddAction() else if (detailActions.size == 1) detailActions.single()() else addMenuOpen = true },
             modifier = Modifier.navigationBarsPadding(),
         )
     }

@@ -1,145 +1,67 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import com.rescueauth.v2.ui.components.RescueAuthButton as Button
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import com.rescueauth.v2.ui.components.RescueAuthTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.RecoveryFormState
-import com.rescueauth.v2.ui.components.RescueAuthCard
-import com.rescueauth.v2.ui.components.RescueAuthIconHeader
+import com.rescueauth.v2.ui.components.*
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
-/**
- * Add / Edit Recovery Codes bottom sheet (Phase 4 P3).
- *
- * - Title field + multiline code input (one code per line).
- * - Live parsed count preview (never echoes the codes as a secret list).
- * - Duplicate / empty validation errors are surfaced through [formState.error]
- *   (error code string, mapped by the caller to a user-facing message).
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Recovery add/edit retains its controller and shares the account editor's fields and footer. */
 @Composable
-fun RecoveryCodeEditorSheet(
-    form: RecoveryFormState,
-    onDismiss: () -> Unit,
-    onTitleChange: (String) -> Unit,
-    onValuesChange: (String) -> Unit,
-    onSubmit: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.lg)
-                .padding(bottom = Spacing.xl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            RescueAuthIconHeader(
-                icon = Icons.Filled.Key,
-                title = stringResource(if (form.isEditing) R.string.recovery_codes_edit_title else R.string.recovery_codes_add_title),
-                modifier = Modifier.testTag("recovery_editor_header"),
-            )
+fun RecoveryCodeEditorSheet(form: RecoveryFormState, onDismiss: () -> Unit, onTitleChange: (String) -> Unit,
+    onValuesChange: (String) -> Unit, onSubmit: () -> Unit, modifier: Modifier = Modifier) {
+    var namePage by remember { mutableStateOf(false) }
+    val back = { namePage = false }
+    RescueAuthSheet(stringResource(if (namePage) R.string.recovery_codes_custom_name else if (form.isEditing) R.string.recovery_codes_edit_title else R.string.recovery_codes_add_title),
+        Icons.Filled.Shield, onDismiss, modifier, headerModifier = Modifier.testTag("recovery_editor_header"),
+        dismissEnabled = !form.submitting, onBack = if (namePage) back else null,
+        footer = { dismiss -> if (namePage) RescueAuthSheetPageActions(back) else RescueAuthActionBar(stringResource(R.string.common_cancel), Icons.Filled.Close, dismiss,
+            stringResource(R.string.recovery_codes_save), Icons.Filled.Check, onSubmit,
+            secondaryEnabled = !form.submitting, primaryEnabled = !form.submitting,
+            secondaryTestTag = "recovery_editor_cancel", primaryTestTag = "recovery_editor_save") }) {
+        RescueAuthCard {
+            if (namePage) RecoveryNameField(form, onTitleChange, !form.submitting)
+            else RecoveryCodeFields(form, onTitleChange, onValuesChange, enabled = !form.submitting, onEditName = { namePage = true })
+        }
+        form.error?.let { code -> Text(stringResource(when {
+            code == "empty_values" -> R.string.recovery_codes_empty_error
+            code.startsWith("duplicate:") -> R.string.account_add_duplicate_codes_error
+            else -> R.string.common_error_title
+        }), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+    }
+}
 
-            // Title + codes fields are grouped inside one card (project-wide
-            // card UI constraint).
-            RescueAuthCard(
-                containerColor = CardTokens.containerColor(),
-                contentPadding = Spacing.md,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    RescueAuthTextField(
-                        value = form.title,
-                        onValueChange = onTitleChange,
-                        label = { Text(stringResource(R.string.recovery_codes_set_title_label)) },
-                        placeholder = { Text(stringResource(R.string.recovery_codes_title_hint)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-
-                    RescueAuthTextField(
-                        value = form.valuesText,
-                        onValueChange = onValuesChange,
-                        label = { Text(stringResource(R.string.recovery_codes_values_label)) },
-                        placeholder = { Text(stringResource(R.string.recovery_codes_values_placeholder)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = false,
-                        minLines = 6,
-                    )
-
-                    Text(
-                        text = stringResource(R.string.recovery_codes_values_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
-                    val parsed = form.parsedValues().size
-                    if (parsed > 0) {
-                        Text(
-                            text = stringResource(R.string.recovery_codes_preview, parsed),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-
-            val errorText = form.error?.let { errorCode ->
-                when {
-                    errorCode == "title_required" -> stringResource(R.string.recovery_codes_title_error)
-                    errorCode == "empty_values" -> stringResource(R.string.recovery_codes_empty_error)
-                    errorCode.startsWith("duplicate:") ->
-                        stringResource(R.string.recovery_codes_duplicate_error, errorCode.removePrefix("duplicate:"))
-                    else -> stringResource(R.string.common_error_title)
-                }
-            }
-            if (errorText != null) {
-                Text(
-                    text = errorText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.weight(CardTokens.actionSecondaryWeight).fillMaxHeight()) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-                Button(onClick = onSubmit, enabled = !form.submitting,
-                    modifier = Modifier.weight(CardTokens.actionPrimaryWeight).fillMaxHeight()) {
-                    Text(stringResource(R.string.recovery_codes_save))
-                }
-            }
+/** Primary recovery fields shared by add and edit; optional naming is a secondary page. */
+@Composable
+internal fun RecoveryCodeFields(form: RecoveryFormState, onTitleChange: (String) -> Unit,
+    onValuesChange: (String) -> Unit, enabled: Boolean = true, onEditName: () -> Unit = {}) {
+    val count = form.parsedValues().size
+    Column(verticalArrangement = Arrangement.spacedBy(CardTokens.formFieldSpacing)) {
+        RescueAuthTextField(form.valuesText, onValuesChange,
+            modifier = Modifier.fillMaxWidth().testTag("recovery_values"), enabled = enabled,
+            label = { Text(stringResource(R.string.recovery_codes_values_label)) }, minLines = 4,
+            supportingText = { Text(stringResource(if (count == 0) R.string.recovery_codes_values_hint else R.string.recovery_codes_preview, count)) })
+        TextButton(onClick = onEditName, enabled = enabled, modifier = Modifier.fillMaxWidth().testTag("recovery_custom_name")) {
+            Text(stringResource(R.string.recovery_codes_custom_name))
+            Spacer(Modifier.weight(1f))
+            Text(form.title.ifBlank { stringResource(if (form.isEditing) R.string.recovery_codes_keep_name else R.string.recovery_codes_auto_name) },
+                style = MaterialTheme.typography.bodySmall)
+            Icon(Icons.Filled.ChevronRight, null)
         }
     }
+}
+
+@Composable
+internal fun RecoveryNameField(form: RecoveryFormState, onTitleChange: (String) -> Unit, enabled: Boolean = true) {
+    RescueAuthTextField(form.title, onTitleChange, modifier = Modifier.fillMaxWidth().testTag("recovery_name"),
+        enabled = enabled, singleLine = true, label = { Text(stringResource(R.string.recovery_codes_optional_name)) },
+        supportingText = { Text(stringResource(if (form.isEditing) R.string.recovery_codes_keep_name else R.string.recovery_codes_auto_name)) })
 }

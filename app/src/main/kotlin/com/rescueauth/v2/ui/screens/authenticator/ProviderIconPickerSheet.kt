@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
+import com.rescueauth.v2.ui.components.RescueAuthSheet
+import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.BrandIcons
 import com.rescueauth.v2.ui.components.RescueAuthAutoBadge
@@ -44,22 +47,14 @@ internal fun ProviderIconPickerSheet(
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.lg),
-        ) {
-            Text(
-                text = stringResource(R.string.provider_icon_picker_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
+    RescueAuthSheet(stringResource(R.string.provider_icon_picker_title), Icons.Filled.GridView, onDismiss) {
             Text(
                 text = stringResource(R.string.provider_icon_picker_subtitle, provider.serviceName),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.xxs),
             )
+            RescueAuthCard {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 72.dp),
                 modifier = Modifier
@@ -109,7 +104,7 @@ internal fun ProviderIconPickerSheet(
                     }
                 }
             }
-        }
+            }
     }
 }
 

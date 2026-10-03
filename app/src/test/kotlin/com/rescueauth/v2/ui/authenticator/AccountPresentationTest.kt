@@ -46,12 +46,12 @@ class AccountPresentationTest {
         val copies = mutableListOf<TotpCardUi>()
         rule.setContent { RescueAuthTheme { AuthenticatorScreen(uiState = current.value, initialAccountId = account.id,
             onCopyClick = { copies += it }) } }
-        rule.onNodeWithText("123 456").assertIsDisplayed()
+        rule.onNodeWithText("123 456").assertIsDisplayed().performClick()
         rule.onNodeWithTag("totp_copy_otp").performClick()
         rule.runOnIdle { current.value = state(account.copy(totpCredentials = listOf(credential.copy(currentCode = "87654321", digits = 8)))) }
         rule.onNodeWithText("8765 4321").assertIsDisplayed()
         rule.onNodeWithTag("totp_copy_otp").performClick()
-        assertEquals(listOf("123456", "87654321"), copies.map { it.currentCode })
+        assertEquals(listOf("123456", "123456", "87654321"), copies.map { it.currentCode })
         assertTrue(copies.all { it.credentialId == "otp" && it.stableId == "stable-otp" && it.accountId == "personal" })
     }
 
@@ -69,9 +69,34 @@ class AccountPresentationTest {
         var opened: String? = null
         rule.setContent { RescueAuthTheme { AuthenticatorScreen(uiState = state(), initialAccountId = account.id,
             onOpenRecovery = { opened = it }) } }
-        rule.onNodeWithText("2 sets · 17 available").assertIsDisplayed()
+        rule.onNodeWithText("17 available").assertIsDisplayed()
+        rule.onNodeWithContentDescription("2 sets · 17 available").assertExists()
         rule.onNodeWithTag("account_recovery").performClick()
         assertEquals("personal", opened)
+    }
+
+    @Test fun technicalParametersLiveInTheMenuAndCopyUsesAnIcon() {
+        rule.setContent { RescueAuthTheme { AuthenticatorScreen(uiState = state(), initialAccountId = account.id,
+            onCopyClick = {}, onDeleteClick = {}) } }
+        rule.onNodeWithText("Copy code").assertDoesNotExist()
+        rule.onNodeWithText("SHA1 · 6 digits · 30 s").assertDoesNotExist()
+        rule.onNodeWithTag("totp_actions_otp").performClick()
+        rule.onNodeWithText("SHA1 · 6 digits · 30 s").assertIsDisplayed()
+        rule.onNodeWithText("Delete").assertIsDisplayed()
+    }
+
+    @Test fun multipleCodesKeepDistinctCopyTargetsAndLabels() {
+        val second = credential.copy(id = "second", stableId = "stable-second", currentCode = "87654321", digits = 8)
+        var copied: TotpCardUi? = null
+        rule.setContent { RescueAuthTheme { AuthenticatorScreen(
+            uiState = state(account.copy(totpCredentials = listOf(credential, second))), initialAccountId = account.id,
+            onCopyClick = { copied = it }) } }
+        rule.onNodeWithText("Code 1").assertIsDisplayed()
+        rule.onNodeWithText("Code 2").assertIsDisplayed()
+        rule.onNodeWithTag("totp_copy_second").performClick()
+        assertEquals("second", copied?.credentialId)
+        assertEquals("stable-second", copied?.stableId)
+        assertEquals("87654321", copied?.currentCode)
     }
 
     @Test fun providerDirectoryKeepsAccountAndCreateCallbacks() {

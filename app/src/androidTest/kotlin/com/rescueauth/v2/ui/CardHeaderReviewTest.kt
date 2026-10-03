@@ -134,7 +134,7 @@ class CardHeaderReviewTest {
         capture("legacy-dark-large", narrow = true)
         rule.onNodeWithTag("legacy_password_help_info").performScrollTo().performTouchInput { click() }
         rule.onNodeWithTag("legacy_password_help_explanation").assertIsDisplayed()
-        rule.onNodeWithTag("legacy_password_help_close").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("legacy_password_help_close").assertIsDisplayed()
         capture("legacy-dark-explanation")
     }
 

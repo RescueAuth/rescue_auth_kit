@@ -38,6 +38,8 @@ fun RescueAuthNavigationBar(
     isSelected: (TopLevelDestination) -> Boolean,
     pagePosition: (() -> Float)? = null,
     onNavigate: (TopLevelDestination) -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     val destinations = TopLevelDestinations.all
     val selectedIndex = destinations.indexOfFirst(isSelected)
@@ -49,7 +51,7 @@ fun RescueAuthNavigationBar(
         )
         return@run { position.value }
     }
-    Box(Modifier.navigationBarsPadding().padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.xs)) {
+    Box(modifier.navigationBarsPadding().padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.xs)) {
         Surface(modifier = Modifier.testTag("navigation_dock"),
             color = DockTokens.containerColor(), shape = CardTokens.dockShape,
             border = BorderStroke(DockTokens.borderWidth, DockTokens.borderColor()),
@@ -91,6 +93,7 @@ fun RescueAuthNavigationBar(
                                     MaterialTheme.colorScheme.primary, DockTokens.selectionShape) else Modifier)
                                 .selectable(
                                     selected = selected,
+                                    enabled = enabled,
                                     interactionSource = interactions,
                                     indication = null, // The sliding pill is the only touch-selection background.
                                     role = Role.Tab,

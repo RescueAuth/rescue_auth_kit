@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * RescueAuth v2 spacing scale (design tokens).
@@ -31,6 +32,12 @@ object ScreenTokens {
     val sectionGap = 24.dp
     val headerGap = 6.dp
     val controlMinHeight = 48.dp
+}
+
+/** Shared bottom-sheet geometry; forms and menus retain separate domain controllers. */
+object SheetTokens {
+    const val maxHeightFraction = .92f
+    val choiceListMaxHeight = 200.dp
 }
 
 /** Corner radius scale (design tokens). */
@@ -99,7 +106,8 @@ object CardTokens {
     val accountRowMinHeight = 80.dp
     val accountAvatarSize = 36.dp
     val credentialPadding = 20.dp
-    val credentialCountdownSize = 36.dp
+    val credentialCountdownSize = 28.dp
+    val credentialCodeSize = 40.sp
     val credentialCountdownStroke = 2.dp
 
     /** Standard card inner content padding — roomier for a calm, breathable feel. */

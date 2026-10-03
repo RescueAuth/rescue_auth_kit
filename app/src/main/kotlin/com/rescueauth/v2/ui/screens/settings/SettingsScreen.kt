@@ -36,7 +36,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.ModalBottomSheet
+import com.rescueauth.v2.ui.components.RescueAuthSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -137,11 +137,7 @@ fun SettingsScreen(
         }
     }
     if (appearanceOpen && onThemeModeChange != null) {
-        ModalBottomSheet(onDismissRequest = { appearanceOpen = false }) {
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing)) {
-                Text(appearanceTitle, style = MaterialTheme.typography.titleLarge)
+        RescueAuthSheet(appearanceTitle, themeMode.icon(), { appearanceOpen = false }) {
                 ThemeMode.entries.forEach { mode ->
                     RescueAuthRowCard(
                         onClick = { onThemeModeChange(mode); appearanceOpen = false },
@@ -156,7 +152,6 @@ fun SettingsScreen(
                         if (mode == themeMode) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-            }
         }
     }
 }

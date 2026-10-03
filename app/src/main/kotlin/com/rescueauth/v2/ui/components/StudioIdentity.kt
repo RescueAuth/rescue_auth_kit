@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -127,8 +128,7 @@ fun StudioVaultHero(
     val motifAlpha = CardTokens.bannerMotifAlpha()
     val washColor = CardTokens.bannerWashColor()
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val reveal = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { reveal.animateTo(1f, tween(CardTokens.bannerEnterDurationMillis)) }
+    val reveal = rememberBrandEntrance()
     RescueAuthCard(
         modifier = modifier.testTag("vault_brand_banner").heightIn(min = bannerHeight),
         containerColor = CardTokens.containerColor(),
@@ -171,6 +171,18 @@ fun StudioVaultHero(
             }
         }
     }
+}
+
+/** Navigation saves this with the page: returning must not replay decorative work under a slide. */
+@Composable
+internal fun rememberBrandEntrance(): State<Float> {
+    var appeared by rememberSaveable { mutableStateOf(false) }
+    val alpha = remember { Animatable(if (appeared) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        appeared = true
+        if (alpha.value < 1f) alpha.animateTo(1f, tween(CardTokens.bannerEnterDurationMillis))
+    }
+    return alpha.asState()
 }
 
 /** Compact visual metadata, with the complete localized meaning retained for TalkBack. */

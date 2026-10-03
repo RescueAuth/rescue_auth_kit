@@ -7,6 +7,10 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.enableEdgeToEdge
 import android.content.res.Configuration
 import android.os.LocaleList
+import android.os.Build
+import android.view.inspector.WindowInspector
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
@@ -135,13 +139,25 @@ class DeepAddFlowInstrumentedTest {
         if (rule.onAllNodes(expand).fetchSemanticsNodes().isNotEmpty()) {
             rule.onNode(expand).performSemanticsAction(SemanticsActions.Expand) { it() }
         }
-        rule.onNodeWithText("保存").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("保存").assertIsDisplayed()
     }
     private fun capture(name: String) {
         rule.mainClock.advanceTimeBy(600)
         rule.waitForIdle()
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         automation.waitForIdle(300, 5_000)
+        // Dialog state can settle before its latest buffer is presented. Commit the modal's
+        // actual window, rather than the covered Activity, before exporting a screenshot.
+        if (Build.VERSION.SDK_INT >= 29) {
+            val committed = CountDownLatch(1)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                WindowInspector.getGlobalWindowViews().lastOrNull { it.isAttachedToWindow && it.isShown }?.let { window ->
+                    window.viewTreeObserver.registerFrameCommitCallback { committed.countDown() }
+                    window.invalidate()
+                } ?: committed.countDown()
+            }
+            assertTrue("Latest modal frame was not committed", committed.await(5, TimeUnit.SECONDS))
+        }
         val image = checkNotNull(automation.takeScreenshot())
         val output = checkNotNull(InstrumentationRegistry.getArguments().getString("additionalTestOutputDir"))
         val file = File(output, "deep-add-real/$name.png").apply { parentFile!!.mkdirs() }
@@ -155,13 +171,11 @@ class DeepAddFlowInstrumentedTest {
         rule.onNodeWithTag("vault_add_menu").assertDoesNotExist()
         capture("01-provider")
         click("global_add")
-        visible("add_account"); visible("add_authenticator"); visible("add_recovery")
-        capture("02-provider-options")
-        click("add_account")
-        rule.onNodeWithText("账户名称").assertIsDisplayed()
+        visible("account_add_sheet")
+        rule.onNodeWithTag("authenticator_add_sheet").assertDoesNotExist()
         capture("03-account-form")
-        rule.onNodeWithText("账户名称").performTextInput("Review account")
-        rule.onNodeWithText("确认").performTouchInput { click() }
+        visible("account_add_name").performTextInput("Review account")
+        visible("account_add_submit").performSemanticsAction(SemanticsActions.OnClick) { it() }
         rule.waitUntil(10_000) { runBlocking {
             manager.databaseOrNull()!!.authAccountDao().listAll().any { it.serviceName == "GitHub" && it.accountName == "Review account" }
         } }
@@ -169,77 +183,124 @@ class DeepAddFlowInstrumentedTest {
         capture("04-account-created")
     }
 
+    @Test fun homeFloatingActionDirectlyCreatesServiceAccountAndCode() {
+        show()
+        visible("provider_row_GitHub")
+        click("global_add")
+        visible("account_add_sheet")
+        rule.onNodeWithTag("authenticator_add_sheet").assertDoesNotExist()
+        rule.onNodeWithTag("account_add_provider").assertExists()
+        rule.onNodeWithTag("account_add_secret").assertExists()
+        capture("20-home-direct-code")
+        rule.onNodeWithTag("account_add_provider").performScrollTo().performTextInput("Review new service")
+        rule.onNodeWithTag("account_add_name").performScrollTo().performTextInput("Review account")
+        rule.onNodeWithTag("account_add_secret").performScrollTo().performTextInput("JBSWY3DPEHPK3PXP")
+        visible("account_add_submit").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.waitUntil(10_000) { runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().any { it.serviceName == "Review new service" } } }
+        val account = runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().single { it.serviceName == "Review new service" } }
+        assertEquals(1, runBlocking { manager.databaseOrNull()!!.totpCredentialDao().listByAccount(account.id).size })
+    }
+
+    @Test fun secondLevelChoicesAndOptionsReturnToTheSameSheet() {
+        show("authenticator/provider/GitHub")
+        visible("account_row_$workId")
+        click("global_add"); click("account_add_recipient")
+        visible("account_add_choices")
+        val search = visible("account_add_search").getUnclippedBoundsInRoot()
+        val choices = visible("account_add_choices").getUnclippedBoundsInRoot()
+        assertEquals(search.left, choices.left); assertEquals(search.right, choices.right)
+        capture("21-account-picker-page")
+        pressBack()
+        visible("account_add_name")
+        click("account_add_kind_TOTP"); click("account_add_advanced")
+        visible("sheet_page_title")
+        rule.onNodeWithTag("account_add_secret").assertDoesNotExist()
+        capture("22-advanced-page")
+        pressBack()
+        visible("account_add_secret")
+        click("account_add_kind_RECOVERY"); click("recovery_custom_name")
+        visible("recovery_name")
+        rule.onNodeWithTag("recovery_values").assertDoesNotExist()
+        capture("23-recovery-name-page")
+        click("sheet_page_done")
+        visible("recovery_values")
+        rule.onAllNodesWithTag("account_add_sheet").assertCountEquals(1)
+        assertEquals(2, runBlocking { manager.databaseOrNull()!!.authAccountDao().listByServiceName("GitHub").size })
+    }
+
     @Test fun serviceRecoveryTargetsChosenAccountAndDoesNotReopenAfterDismissal() {
         show()
         click("provider_row_GitHub")
         visible("account_row_$workId")
-        click("global_add"); click("add_recovery")
-        visible("add_target_$personalId"); visible("add_target_$workId")
-        capture("05-select-account")
-        click("add_target_$workId")
-        visible("recovery_editor_sheet")
-        rule.onNodeWithTag("recovery_scope_$workId").assertExists()
-        rule.onNodeWithTag("recovery_scope_$personalId").assertDoesNotExist()
-        expandRecoveryEditorForReview()
+        click("global_add"); click("account_add_recipient")
+        visible("account_add_target_$personalId"); visible("account_add_target_$workId")
+        capture("05-inline-select-account")
+        click("account_add_target_$workId"); click("account_add_kind_RECOVERY")
+        visible("recovery_values")
+        rule.onNodeWithTag("recovery_name").assertDoesNotExist()
+        rule.onNodeWithTag("recovery_editor_sheet").assertDoesNotExist()
+        rule.onNodeWithTag("add_target_sheet").assertDoesNotExist()
         capture("06-recovery-create")
-        rule.onNodeWithText("取消").performScrollTo().performTouchInput { click() }
-        rule.onNodeWithTag("recovery_editor_sheet").assertDoesNotExist()
+        click("account_add_cancel")
+        rule.onNodeWithTag("account_add_sheet").assertDoesNotExist()
         restoration.emulateSavedInstanceStateRestore()
-        visible("recovery_scope_$workId")
-        rule.onNodeWithTag("recovery_editor_sheet").assertDoesNotExist()
-        capture("07-recovery-page")
+        visible("account_row_$workId")
+        rule.onNodeWithTag("account_add_sheet").assertDoesNotExist()
         click("global_add")
-        visible("recovery_editor_sheet")
+        visible("account_add_sheet")
         rule.onNodeWithTag("authenticator_add_sheet").assertDoesNotExist()
     }
 
     @Test fun singleAccountRecoverySkipsTheRecipientPicker() {
         show("authenticator/provider/Solo%20service")
         visible("account_row_$soloId")
-        click("global_add"); click("add_recovery")
-        visible("recovery_editor_sheet")
+        click("global_add"); click("account_add_recipient"); click("account_add_target_$soloId")
+        click("account_add_kind_RECOVERY")
+        visible("recovery_values")
         rule.onNodeWithTag("add_target_sheet").assertDoesNotExist()
-        rule.onNodeWithTag("recovery_scope_$soloId").assertExists()
+        visible("account_add_name").assertTextContains("Only account")
     }
 
     @Test fun recoveryAccountPickerCanCreateItsOwnerWithoutLosingTheRequestedAction() {
         show("authenticator/provider/GitHub")
         visible("account_row_$personalId")
-        click("global_add"); click("add_recovery"); click("add_target_create_account")
-        rule.onNodeWithText("取消").performTouchInput { click() }
-        rule.onNodeWithTag("recovery_editor_sheet").assertDoesNotExist()
+        click("global_add"); click("account_add_kind_RECOVERY")
+        click("account_add_cancel")
+        rule.onNodeWithTag("account_add_sheet").assertDoesNotExist()
         assertEquals(2, runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().count { it.serviceName == "GitHub" } })
 
-        click("global_add"); click("add_recovery"); click("add_target_create_account")
-        rule.onNodeWithText("账户名称").performTextInput("Work")
-        rule.onNodeWithText("确认").performTouchInput { click() }
-        rule.waitUntil(10_000) { rule.onAllNodes(hasText("Account already exists", substring = true)).fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("recovery_editor_sheet").assertDoesNotExist()
+        click("global_add")
+        visible("account_add_name").performTextInput("Work")
+        visible("account_add_submit").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        visible("account_add_error").assertTextContains("此账户已存在", substring = true)
+        visible("account_add_sheet")
         assertEquals(2, runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().count { it.serviceName == "GitHub" } })
 
-        click("global_add"); click("add_recovery"); click("add_target_create_account")
+        visible("account_add_name").performTextClearance()
+        click("account_add_kind_RECOVERY")
+        onView(isRoot()).inRoot(isDialog()).perform(closeSoftKeyboard())
         capture("12-create-owner")
-        rule.onNodeWithText("账户名称").performTextInput("Recovery owner")
-        rule.onNodeWithText("确认").performTouchInput { click() }
-        visible("recovery_editor_sheet")
+        visible("account_add_name").performTextInput("Recovery owner")
+        rule.onNodeWithTag("recovery_values").performScrollTo().performTextInput("sample-one\nsample-two")
+        visible("account_add_submit").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.waitUntil(10_000) { runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().any { it.accountName == "Recovery owner" } } }
         val created = runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().single { it.accountName == "Recovery owner" } }
         assertEquals("GitHub", created.serviceName)
-        rule.onNodeWithTag("recovery_scope_${created.id}").assertExists()
-        expandRecoveryEditorForReview()
-        capture("13-new-owner-recovery")
+        assertEquals("恢复码", runBlocking { manager.databaseOrNull()!!.recoveryCodeSetDao().listByAccount(created.id).single().title })
+        visible("account_row_${created.id}")
     }
 
     @Test fun codeAccountPickerContinuesWithTheNewlyCreatedAccount() {
         show("authenticator/provider/GitHub")
         visible("account_row_$personalId")
-        click("global_add"); click("add_authenticator"); click("add_target_create_account")
-        rule.onNodeWithText("账户名称").performTextInput("Code owner")
-        rule.onNodeWithText("确认").performTouchInput { click() }
-        click("totp_method_MANUAL")
-        visible("add_totp_provider").assertTextContains("GitHub")
-        visible("add_totp_account").assertTextContains("Code owner")
+        click("global_add"); click("account_add_kind_TOTP")
+        visible("account_add_name").performTextInput("Code owner")
+        rule.onNodeWithTag("account_add_secret").performScrollTo().performTextInput("JBSWY3DPEHPK3PXP")
+        visible("account_add_submit").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.waitUntil(10_000) { runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().any { it.accountName == "Code owner" } } }
         val created = runBlocking { manager.databaseOrNull()!!.authAccountDao().listAll().single { it.accountName == "Code owner" } }
         assertEquals("GitHub", created.serviceName)
+        assertEquals(1, runBlocking { manager.databaseOrNull()!!.totpCredentialDao().listByAccount(created.id).size })
     }
 
     @Test fun accountFloatingActionOpensItsCodeAndRecoveryForms() {
@@ -248,24 +309,24 @@ class DeepAddFlowInstrumentedTest {
         rule.onNodeWithTag("vault_add_menu").assertDoesNotExist()
         click("global_add")
         rule.onNodeWithTag("add_account").assertDoesNotExist()
-        capture("08-account-options")
-        click("add_authenticator"); click("totp_method_MANUAL")
-        visible("add_totp_provider").assertTextContains("GitHub")
-        visible("add_totp_account").assertTextContains("Work")
+        rule.onNodeWithTag("authenticator_add_sheet").assertDoesNotExist()
+        visible("account_add_secret")
+        rule.onNodeWithTag("account_add_name").assertDoesNotExist()
         capture("09-code-context")
-        pressBack()
-        click("global_add"); click("add_recovery")
-        visible("recovery_editor_sheet")
-        rule.onNodeWithTag("recovery_scope_$workId").assertExists()
+        click("account_add_kind_RECOVERY")
+        visible("recovery_values")
+        capture("08-account-recovery")
+        click("account_add_cancel")
+        visible("account_recovery")
     }
 
     @Test fun providerCodeFormUsesTheSelectedAccount() {
         show("authenticator/provider/GitHub")
         visible("account_row_$personalId")
-        click("global_add"); click("add_authenticator"); click("add_target_$personalId")
-        click("totp_method_MANUAL")
-        visible("add_totp_provider").assertTextContains("GitHub")
-        visible("add_totp_account").assertTextContains("Personal")
+        click("global_add"); click("account_add_recipient"); click("account_add_target_$personalId")
+        visible("account_add_name").assertTextContains("Personal")
+        visible("account_add_secret")
+        rule.onNodeWithTag("add_totp_provider").assertDoesNotExist()
     }
 
     @Test fun allDeveloperCategoriesGoStraightToTheCorrectForm() {
@@ -301,11 +362,11 @@ class DeepAddFlowInstrumentedTest {
     @Test fun deletedProviderCannotLeaveAStaleAddTargetOpen() {
         show("authenticator/provider/GitHub")
         visible("account_row_$personalId")
-        click("global_add"); click("add_recovery")
-        visible("add_target_sheet")
+        click("global_add"); click("account_add_kind_RECOVERY")
+        visible("account_add_sheet")
         runBlocking { VaultAccess.providerAccountRepository()!!.deleteProvider("GitHub") }
         visible("vault_item_unavailable")
-        rule.onNodeWithTag("add_target_sheet").assertDoesNotExist()
+        rule.onNodeWithTag("account_add_sheet").assertDoesNotExist()
         rule.onNodeWithTag("global_add").assertDoesNotExist()
     }
 
@@ -313,10 +374,12 @@ class DeepAddFlowInstrumentedTest {
         show("authenticator/provider/GitHub", dark = true, large = true)
         visible("account_row_$workId")
         click("global_add")
-        visible("add_recovery").performScrollTo().assertIsDisplayed()
-        capture("11-dark-large-provider-options")
-        click("add_recovery"); click("add_target_$workId")
-        visible("recovery_editor_sheet")
-        rule.onNodeWithTag("recovery_scope_$workId").assertExists()
+        rule.onNodeWithTag("account_add_kind_RECOVERY").performScrollTo().performTouchInput { click() }
+        visible("account_add_submit")
+        capture("11-dark-large-provider-recovery")
+        rule.onNodeWithTag("account_add_name").performScrollTo().performTextInput("Large text account")
+        visible("account_add_submit").assertIsDisplayed()
+        // No recovery values are entered in screenshot cases.
+        capture("14-dark-large-keyboard")
     }
 }

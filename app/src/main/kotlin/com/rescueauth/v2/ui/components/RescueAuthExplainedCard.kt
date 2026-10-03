@@ -5,19 +5,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.core.view.WindowCompat
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.ScreenTokens
@@ -62,25 +59,11 @@ fun RescueAuthExplainedCard(
         Column(Modifier.padding(CardTokens.contentPadding)) { content() }
     }
     if (open) {
-        ModalBottomSheet(onDismissRequest = { open = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            val view = LocalView.current
-            val window = (view.parent as? DialogWindowProvider)?.window
-            val lightBars = MaterialTheme.colorScheme.background.luminance() > 0.5f
-            SideEffect { window?.let { WindowCompat.getInsetsController(it, view).apply {
-                isAppearanceLightStatusBars = lightBars; isAppearanceLightNavigationBars = lightBars
-            } } }
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing)) {
-                RescueAuthIconHeader(icon, explanationTitle, titleStyle = MaterialTheme.typography.titleLarge)
+        RescueAuthSheet(explanationTitle, icon, { open = false },
+            footer = { dismiss -> RescueAuthSingleActionBar(closeLabel, Icons.Filled.Check, dismiss, testTag = "${testTagPrefix}_close") }) {
                 RescueAuthCard {
                     Text(explanation, Modifier.testTag("${testTagPrefix}_explanation"), style = MaterialTheme.typography.bodyMedium)
                 }
-                RescueAuthButton(onClick = { open = false }, modifier = Modifier.fillMaxWidth().testTag("${testTagPrefix}_close")) {
-                    Text(closeLabel)
-                }
-            }
         }
     }
 }

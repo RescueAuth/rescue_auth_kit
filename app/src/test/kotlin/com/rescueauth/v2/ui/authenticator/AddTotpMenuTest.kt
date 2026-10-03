@@ -53,13 +53,15 @@ class AddTotpMenuTest {
     }
 
     @Test
-    fun `scan mode shows open camera action`() {
+    fun `scan goes directly to the camera callback`() {
+        var scanned = 0
         composeRule.setContent {
             RescueAuthTheme {
                 AddTotpSheet(
                     form = AddTotpFormState(mode = AddMode.SCAN),
                     onDismiss = {},
                     onModeChange = {},
+                    onStartScan = { scanned++ },
                     onUriChange = {},
                     onProviderChange = {},
                     onAccountNameChange = {},
@@ -72,7 +74,8 @@ class AddTotpMenuTest {
             }
         }
         composeRule.onNodeWithTag("totp_method_SCAN").performSemanticsAction(SemanticsActions.OnClick) { it() }
-        composeRule.onNodeWithText("Open camera").assertExists()
+        org.junit.Assert.assertEquals(1, scanned)
+        composeRule.onNodeWithText("Open camera").assertDoesNotExist()
     }
 
     @Test
@@ -103,11 +106,11 @@ class AddTotpMenuTest {
     }
 
     @Test
-    fun `method chooser opens manual form only after selection`() {
+    fun `input methods replace fields in place without a directory page`() {
         composeRule.setContent {
             RescueAuthTheme {
                 AddTotpSheet(
-                    form = AddTotpFormState(),
+                    form = AddTotpFormState(mode = AddMode.MANUAL),
                     onDismiss = {},
                     onModeChange = {},
                     onUriChange = {},
@@ -121,11 +124,13 @@ class AddTotpMenuTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Provider / issuer").assertDoesNotExist()
-        composeRule.onNodeWithTag("totp_method_MANUAL").performSemanticsAction(SemanticsActions.OnClick) { it() }
         composeRule.onNodeWithText("Provider / issuer").assertExists()
         composeRule.onNodeWithText("Choose how to add a one-time password").assertDoesNotExist()
-        composeRule.onNodeWithTag("totp_change_method").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.onNodeWithTag("totp_method_PASTE").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.onNodeWithTag("add_totp_uri").assertExists()
+        composeRule.onNodeWithTag("totp_method_MANUAL").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        composeRule.onNodeWithText("Provider / issuer").assertExists()
+        composeRule.onNodeWithTag("totp_change_method").assertDoesNotExist()
         composeRule.onNodeWithTag("totp_method_SCAN").assertExists()
         composeRule.onNodeWithTag("totp_method_PASTE").assertExists()
     }

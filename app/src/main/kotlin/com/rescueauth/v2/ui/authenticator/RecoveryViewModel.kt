@@ -81,6 +81,7 @@ class RecoveryViewModel(
     sessionState: StateFlow<SecureSessionStateMachine.State>,
     private val accountId: String,
     private val scope: CoroutineScope,
+    private val defaultTitleProvider: () -> String = { "Recovery codes" },
 ) {
 
     private val _uiState = MutableStateFlow(RecoveryUiState())
@@ -203,10 +204,6 @@ class RecoveryViewModel(
         val repo = recoveryRepositoryProvider() ?: return false
 
         val title = form.title.trim()
-        if (title.isEmpty()) {
-            _formState.update { it.copy(error = "title_required") }
-            return false
-        }
         val values = form.parsedValues()
         if (values.isEmpty()) {
             _formState.update { it.copy(error = "empty_values") }
@@ -221,11 +218,16 @@ class RecoveryViewModel(
         _formState.update { it.copy(submitting = true, error = null) }
         return try {
             if (form.isEditing) {
-                repo.editSet(form.editingSetId!!, title, values)
-                _events.value = RecoveryEvent.Edited(title)
+                val resolvedTitle = title.ifEmpty {
+                    _uiState.value.sets.firstOrNull { it.id == form.editingSetId }?.title
+                        ?: throw RecoveryCodeRepository.NotFoundException("set not found")
+                }
+                repo.editSet(form.editingSetId!!, resolvedTitle, values)
+                _events.value = RecoveryEvent.Edited(resolvedTitle)
             } else {
-                repo.createSet(accountId, title, values)
-                _events.value = RecoveryEvent.Added(title)
+                val created = if (title.isEmpty()) repo.createSetWithAutomaticTitle(accountId, defaultTitleProvider(), values)
+                    else repo.createSet(accountId, title, values)
+                _events.value = RecoveryEvent.Added(created.title)
             }
             _formState.value = RecoveryFormState()
             true

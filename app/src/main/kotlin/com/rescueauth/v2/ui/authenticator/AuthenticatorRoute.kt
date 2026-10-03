@@ -29,10 +29,9 @@ import com.rescueauth.v2.ui.components.UndoSnackbarContract
 import com.rescueauth.v2.ui.components.FloatingAddPosition
 import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
 import com.rescueauth.v2.ui.model.AccountUi
-import com.rescueauth.v2.ui.screens.authenticator.AddTotpSheet
+import com.rescueauth.v2.ui.screens.authenticator.AccountAddSheet
 import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen
 import com.rescueauth.v2.ui.screens.authenticator.AccountAddKind
-import com.rescueauth.v2.ui.screens.authenticator.CreateProviderDialog
 import com.rescueauth.v2.ui.screens.authenticator.ManagementDestructiveDialog
 import com.rescueauth.v2.ui.screens.authenticator.ManagementTextDialog
 import com.rescueauth.v2.ui.screens.authenticator.MergeAccountDialog
@@ -85,6 +84,7 @@ fun AuthenticatorRoute(
     contentBottomPadding: Dp = 0.dp,
     floatingAddPosition: FloatingAddPosition = rememberFloatingAddPosition(),
     isActive: Boolean = true,
+    addViewModel: AccountAddViewModel? = null,
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
@@ -93,8 +93,6 @@ fun AuthenticatorRoute(
     // ---- Provider & Account management dialog state (Phase 4) -----------
     var providerToRename by remember { mutableStateOf<String?>(null) }
     var providerToDelete by remember { mutableStateOf<String?>(null) }
-    var providerToAddAccount by remember { mutableStateOf<String?>(null) }
-    var addAfterCreatingAccount by remember { mutableStateOf<AccountAddKind?>(null) }
     var accountToRename by remember { mutableStateOf<AccountUi?>(null) }
     var accountToMove by remember { mutableStateOf<AccountUi?>(null) }
     var accountToMerge by remember { mutableStateOf<AccountUi?>(null) }
@@ -121,9 +119,38 @@ fun AuthenticatorRoute(
     }
 
     val uiState by viewModel.uiState.collectAsState()
-    val formState by viewModel.formState.collectAsState()
     val events by viewModel.events.collectAsState()
     val migrationState by viewModel.migrationState.collectAsState()
+    val accountAddViewModel = addViewModel ?: remember(sessionState) {
+        AccountAddViewModel({ VaultAccess.providerAccountRepository() }, sessionState, appScope,
+            defaultRecoveryTitleProvider = { context.getString(R.string.recovery_codes_title) })
+    }
+    val accountAddForm by accountAddViewModel.formState.collectAsState()
+    var accountScannerVisible by remember { mutableStateOf(false) }
+    // Generated countdown values are excluded from selector metadata, so ticks do not rebuild choices.
+    val targets = uiState.accounts.map { it.copy(totpCredentials = emptyList(), recoverySets = emptyList()) }
+    LaunchedEffect(targets) { accountAddViewModel.setAccounts(targets) }
+    DisposableEffect(isActive) {
+        if (!isActive) { accountAddViewModel.dismiss(); accountScannerVisible = false }
+        onDispose { accountAddViewModel.dismiss() }
+    }
+    LaunchedEffect(isActive, addState.credentialSheetVisible, addState.providerDialogVisible) {
+        if (isActive) {
+            if (addState.providerDialogVisible) accountAddViewModel.beginAtHome(AccountAddContentKind.NONE)
+            else if (addState.credentialSheetVisible) accountAddViewModel.beginAtHome()
+        }
+        addState.providerDialogVisible = false
+        addState.credentialSheetVisible = false
+    }
+    LaunchedEffect(uiState.accounts, accountAddForm.visible, accountAddForm.selectedAccountId) {
+        if (accountAddForm.visible && accountAddForm.scope != AccountAddScope.VAULT && !uiState.loading) {
+            val candidates = uiState.accounts.filter { it.providerName == accountAddForm.provider }
+            if (candidates.isEmpty() || (accountAddForm.selectedAccountId != null && candidates.none { it.id == accountAddForm.selectedAccountId })) {
+                accountAddViewModel.dismiss()
+                accountScannerVisible = false
+            }
+        }
+    }
 
     // Shared 1s tick: wall-clock based, driven from a background scope so it
     // never holds the main-looper / compose idling system busy. It only runs
@@ -257,14 +284,14 @@ fun AuthenticatorRoute(
         snackbarHostState = snackbarHostState,
         onAddClick = {
             val account = uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == accountId }
-            viewModel.beginAdd(account?.providerName ?: providerName.orEmpty(), account?.accountName.orEmpty())
-            addState.credentialSheetVisible = true
+            if (account != null) accountAddViewModel.begin(account.providerName, account, AccountAddContentKind.TOTP)
+            else if (providerName != null) accountAddViewModel.begin(providerName, kind = AccountAddContentKind.TOTP)
+            else accountAddViewModel.beginAtHome()
         },
         onAddCredentialToAccount = { targetId ->
             val target = uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == targetId }
             if (target != null && (providerName == null || target.providerName == providerName)) {
-                viewModel.beginAdd(target.providerName, target.accountName)
-                addState.credentialSheetVisible = true
+                accountAddViewModel.begin(target.providerName, target, AccountAddContentKind.TOTP)
             }
         },
         onCopyClick = { viewModel.copyCode(it) },
@@ -283,12 +310,13 @@ fun AuthenticatorRoute(
         onRenameProvider = { provider -> providerToRename = provider },
         onDeleteProvider = { provider -> providerToDelete = provider },
         onAddAccount = { provider ->
-            addAfterCreatingAccount = null
-            providerToAddAccount = provider
+            accountAddViewModel.begin(provider)
         },
         onCreateAccountFor = { provider, kind ->
-            addAfterCreatingAccount = kind
-            providerToAddAccount = provider
+            accountAddViewModel.begin(provider, kind = if (kind == AccountAddKind.RECOVERY) AccountAddContentKind.RECOVERY else AccountAddContentKind.TOTP)
+        },
+        onOpenAdd = { provider, selectedId ->
+            accountAddViewModel.begin(provider, uiState.accounts.firstOrNull { it.id == selectedId })
         },
         onRenameAccount = { account -> accountToRename = account },
         onMoveAccount = { account ->
@@ -309,7 +337,7 @@ fun AuthenticatorRoute(
             appScope.launch { viewModel.setProviderIcon(provider, iconKey) }
         },
         modifier = modifier,
-        showAddAction = showAddAction && !migrationState.scannerVisible,
+        showAddAction = showAddAction && !migrationState.scannerVisible && !accountScannerVisible,
         contentBottomPadding = contentBottomPadding,
         floatingAddPosition = floatingAddPosition,
     )
@@ -317,25 +345,29 @@ fun AuthenticatorRoute(
     // Keep only the ordinary page cached. Offscreen tabs must release camera/overlay resources.
     if (!isActive) return
 
-    if (addState.credentialSheetVisible) {
-        AddTotpSheet(
-            form = formState,
-            onDismiss = { addState.credentialSheetVisible = false },
-            onModeChange = { viewModel.setMode(it) },
-            onStartScan = {
-                addState.credentialSheetVisible = false
-                viewModel.openScanner()
-            },
-            onUriChange = { viewModel.onUriChange(it) },
-            onProviderChange = { viewModel.onProviderChange(it) },
-            onAccountNameChange = { viewModel.onAccountNameChange(it) },
-            onSecretChange = { viewModel.onSecretChange(it) },
-            onAlgorithmChange = { viewModel.onAlgorithmChange(it) },
-            onDigitsChange = { viewModel.onDigitsChange(it) },
-            onPeriodChange = { viewModel.onPeriodChange(it) },
-            onSubmit = { appScope.launch { viewModel.submitAdd() } },
-        )
-    }
+    if (accountAddForm.visible && !accountScannerVisible) AccountAddSheet(
+        form = accountAddForm,
+        accounts = targets,
+        allowAccountSelection = accountId == null,
+        onDismiss = { accountAddViewModel.dismiss() },
+        onAccountSelected = accountAddViewModel::selectAccount,
+        onAccountNameChange = accountAddViewModel::onAccountNameChange,
+        onProviderChange = accountAddViewModel::onProviderChange,
+        onKindChange = accountAddViewModel::selectKind,
+        onTotpChange = accountAddViewModel::updateTotp,
+        onRecoveryTitleChange = accountAddViewModel::onRecoveryTitleChange,
+        onRecoveryValuesChange = accountAddViewModel::onRecoveryValuesChange,
+        onStartScan = { accountScannerVisible = true },
+        onSubmit = { appScope.launch {
+            if (accountAddViewModel.submit()) snackbarHostState.showSnackbar(context.getString(R.string.account_add_saved))
+        } },
+    )
+    if (accountScannerVisible && accountAddForm.visible) QrScannerScreen(
+        onQrDetected = { raw ->
+            handleAccountAddScan(raw, accountAddViewModel, viewModel) { accountScannerVisible = false }
+        },
+        onDismiss = { accountScannerVisible = false },
+    )
 
     // Full-screen camera QR scanner (Phase 4 P2).
     if (migrationState.scannerVisible) {
@@ -357,20 +389,6 @@ fun AuthenticatorRoute(
     }
 
     // ---- Provider & Account management dialogs (Phase 4) -----------------
-    if (addState.providerDialogVisible) {
-        CreateProviderDialog(
-            onConfirm = { provider, accountName ->
-                addState.providerDialogVisible = false
-                if (provider.isNotBlank() && accountName.isNotBlank()) {
-                    // Current model requires a first Account to persist a
-                    // Provider (no empty Provider support).
-                    appScope.launch { viewModel.createProvider(provider, accountName) }
-                }
-            },
-            onDismiss = { addState.providerDialogVisible = false },
-        )
-    }
-
     providerToRename?.let { provider ->
         ManagementTextDialog(
             title = context.getString(R.string.provider_rename_title),
@@ -406,37 +424,6 @@ fun AuthenticatorRoute(
                 if (p != null) appScope.launch { viewModel.deleteProvider(p) }
             },
             onDismiss = { providerToDelete = null },
-        )
-    }
-
-    providerToAddAccount?.let { provider ->
-        ManagementTextDialog(
-            title = context.getString(R.string.account_add_title),
-            fieldLabel = context.getString(R.string.account_name_label),
-            confirmLabel = context.getString(R.string.management_confirm),
-            onConfirm = { accountName ->
-                val next = addAfterCreatingAccount
-                providerToAddAccount = null
-                addAfterCreatingAccount = null
-                if (accountName.isNotBlank()) {
-                    // The continuation can navigate; keep lifecycle changes on Android's main thread.
-                    appScope.launch(Dispatchers.Main.immediate) {
-                        val created = viewModel.createAccount(provider, accountName) ?: return@launch
-                        when (next) {
-                            AccountAddKind.CREDENTIAL -> {
-                                viewModel.beginAdd(created.serviceName, created.accountName)
-                                addState.credentialSheetVisible = true
-                            }
-                            AccountAddKind.RECOVERY -> onAddRecovery?.invoke(created.id)
-                            null -> Unit
-                        }
-                    }
-                }
-            },
-            onDismiss = {
-                providerToAddAccount = null
-                addAfterCreatingAccount = null
-            },
         )
     }
 

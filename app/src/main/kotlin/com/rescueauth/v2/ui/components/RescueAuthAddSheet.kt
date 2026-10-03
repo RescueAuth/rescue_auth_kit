@@ -12,9 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,29 +38,10 @@ fun RescueAuthAddSheet(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
 ) {
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selecting by remember { mutableStateOf(false) }
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, modifier = modifier) {
-        Column(
-            Modifier.fillMaxWidth()
-                .heightIn(min = screenHeight * AddActionTokens.sheetMinFraction,
-                    max = screenHeight * AddActionTokens.sheetMaxFraction)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = ScreenTokens.horizontalPadding)
-                .padding(bottom = Spacing.xl),
-            verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing),
-        ) {
-            Row(Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                RescueAuthIconBadge(Icons.Filled.Add, size = 40.dp, iconSize = 20.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+    RescueAuthSheet(title, Icons.Filled.Add, onDismiss, modifier, subtitle,
+        minimumBodyHeight = screenHeight * AddActionTokens.sheetMinFraction) {
             actions.forEach { action ->
                 RescueAuthRowCard(
                     modifier = Modifier.testTag(action.id),
@@ -83,6 +62,5 @@ fun RescueAuthAddSheet(
                     RescueAuthChevron()
                 }
             }
-        }
     }
 }

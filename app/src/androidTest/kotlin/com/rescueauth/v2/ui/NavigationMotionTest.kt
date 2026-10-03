@@ -46,10 +46,10 @@ class NavigationMotionTest {
     private val motionScale = object : MotionDurationScale { override var scaleFactor = 1f }
     @get:Rule val rule = createComposeRule(effectContext = motionScale)
 
-    private fun show(rtl: Boolean = false) {
+    private fun show(rtl: Boolean = false, locale: Locale = Locale.ENGLISH) {
         rule.setContent {
             val base = LocalContext.current
-            val config = Configuration(base.resources.configuration).apply { setLocales(LocaleList(Locale.ENGLISH)) }
+            val config = Configuration(base.resources.configuration).apply { setLocales(LocaleList(locale)) }
             CompositionLocalProvider(
                 LocalContext provides base.createConfigurationContext(config),
                 LocalConfiguration provides config,
@@ -347,6 +347,128 @@ class NavigationMotionTest {
         rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
         assertEquals(root, bounds(RescueAuthTestTags.SCREEN_SETTINGS))
         rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertIsSelected()
+    }
+
+    @Test fun reversingAPartlyEnteredDetailDoesNotSweepItAcrossTheScreen() {
+        show()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        about()
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(48)
+        rule.waitForIdle()
+        val before = bounds(AboutTestTags.SCREEN).left.value
+        rule.runOnUiThread {
+            (ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).single()
+                as androidx.activity.ComponentActivity).onBackPressedDispatcher.onBackPressed()
+        }
+        rule.mainClock.advanceTimeByFrame()
+        rule.mainClock.advanceTimeBy(32)
+        rule.waitForIdle()
+        assertTrue("A cancelled push must retreat toward its entry edge", bounds(AboutTestTags.SCREEN).left.value >= before - 1f)
+        rule.mainClock.advanceTimeBy(500)
+        rule.waitForIdle()
+        rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+    }
+
+    @Test fun dockStaysBehindTheDetailAndOnlyBecomesInteractiveAfterReturning() {
+        show()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        about(); midFrame()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertExists().assertIsNotEnabled()
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertDoesNotExist()
+        back(); midFrame()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertExists().assertIsNotEnabled()
+        capture("dock-behind-returning-detail")
+        finish()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).assertIsEnabled().assertIsSelected()
+    }
+
+    @Test fun chineseSecondaryPageFrames() {
+        show(locale = Locale.SIMPLIFIED_CHINESE)
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        rule.waitForIdle()
+        capture("detail-open-000")
+        rule.mainClock.autoAdvance = false
+        about()
+        rule.mainClock.advanceTimeByFrame()
+        for (millis in listOf(32, 64, 96, 128, 160, 192, 224)) {
+            rule.mainClock.advanceTimeBy(32)
+            rule.waitForIdle()
+            capture("detail-open-${millis.toString().padStart(3, '0')}")
+        }
+        finish()
+        capture("detail-close-000")
+        rule.onNodeWithContentDescription("返回").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.mainClock.advanceTimeByFrame()
+        for (millis in listOf(32, 64, 96, 128, 160, 192, 224)) {
+            rule.mainClock.advanceTimeBy(32)
+            rule.waitForIdle()
+            capture("detail-close-${millis.toString().padStart(3, '0')}")
+        }
+        finish()
+        rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
+        rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+    }
+
+    private fun predictiveBack(commit: Boolean) {
+        show()
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        about()
+        val width = bounds(AboutTestTags.SCREEN).let { (it.right - it.left).value }
+        rule.mainClock.autoAdvance = false
+        lateinit var dispatcher: androidx.activity.OnBackPressedDispatcher
+        rule.runOnUiThread {
+            dispatcher = (ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).single()
+                as androidx.activity.ComponentActivity).onBackPressedDispatcher
+            dispatcher.dispatchOnBackStarted(androidx.activity.BackEventCompat(0f, 200f, 0f, androidx.activity.BackEventCompat.EDGE_LEFT))
+        }
+        repeat(2) { rule.mainClock.advanceTimeByFrame() }
+        rule.runOnUiThread {
+            dispatcher.dispatchOnBackProgressed(androidx.activity.BackEventCompat(width / 2, 200f, .5f, androidx.activity.BackEventCompat.EDGE_LEFT))
+        }
+        repeat(3) { rule.mainClock.advanceTimeByFrame() }
+        rule.waitForIdle()
+        assertTrue("Predictive back must move the foreground toward the right", bounds(AboutTestTags.SCREEN).left.value > 0f)
+        assertTrue("Predictive back must reveal the root from the left", bounds(RescueAuthTestTags.SCREEN_SETTINGS).left.value < 0f)
+        capture(if (commit) "predictive-back-commit-middle" else "predictive-back-cancel-middle")
+        rule.runOnUiThread {
+            if (commit) dispatcher.onBackPressed() else dispatcher.dispatchOnBackCancelled()
+        }
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        if (commit) {
+            rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
+            rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertIsDisplayed()
+        } else {
+            rule.onNodeWithTag(AboutTestTags.SCREEN).assertIsDisplayed()
+            rule.onNodeWithTag(RescueAuthTestTags.SCREEN_SETTINGS).assertDoesNotExist()
+            assertEquals(0f, bounds(AboutTestTags.SCREEN).left.value, .5f)
+        }
+    }
+
+    @Test fun predictiveBackCanBeCancelledWithoutLeavingTheDetail() = predictiveBack(commit = false)
+    @Test fun predictiveBackCanFinishAtTheSelectedHome() = predictiveBack(commit = true)
+
+    @Test fun detailPushAndPopRespectRtl() {
+        show(rtl = true)
+        rule.onNodeWithTag(RescueAuthTestTags.NAV_SETTINGS).performClick()
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        about(); midFrame()
+        assertTrue(bounds(AboutTestTags.SCREEN).left.value < 0f)
+        assertTrue(bounds(RescueAuthTestTags.SCREEN_SETTINGS).left.value > 0f)
+        finish()
+        back(); midFrame()
+        assertTrue(bounds(AboutTestTags.SCREEN).left.value < 0f)
+        assertTrue(bounds(RescueAuthTestTags.SCREEN_SETTINGS).left.value > 0f)
+        finish()
+        rule.onNodeWithTag(AboutTestTags.SCREEN).assertDoesNotExist()
     }
 
     @Test fun rapidTabSwitchesSettleOnTheLastTap() {

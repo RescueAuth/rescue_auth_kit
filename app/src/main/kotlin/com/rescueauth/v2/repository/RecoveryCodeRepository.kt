@@ -7,6 +7,7 @@ import com.rescueauth.v2.database.RecoveryCodeSetEntity
 import com.rescueauth.v2.database.RescueAuthDatabase
 import com.rescueauth.v2.domain.RecoveryCode
 import com.rescueauth.v2.domain.RecoveryCodeSet
+import com.rescueauth.v2.domain.nextRecoverySetTitle
 import com.rescueauth.v2.session.SecureSessionStateMachine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -90,6 +91,14 @@ class RecoveryCodeRepository(
     suspend fun createSet(accountId: String, title: String, values: List<String>): RecoveryCodeSet {
         val trimmedTitle = title.trim()
         if (trimmedTitle.isEmpty()) throw ValidationException("title is required")
+        return persistSet(accountId, values) { trimmedTitle }
+    }
+
+    /** Optional UI naming; persisted titles remain non-blank and numbering is account-scoped. */
+    suspend fun createSetWithAutomaticTitle(accountId: String, baseTitle: String, values: List<String>): RecoveryCodeSet =
+        persistSet(accountId, values) { titles -> nextRecoverySetTitle(baseTitle, titles) }
+
+    private suspend fun persistSet(accountId: String, values: List<String>, title: (List<String>) -> String): RecoveryCodeSet {
 
         // Leading/trailing whitespace and blank lines are handled here
         // (defensive — the ViewModel already filters them). Codes are opaque
@@ -106,11 +115,12 @@ class RecoveryCodeRepository(
         val setId = UUID.randomUUID().toString()
         val setStableId = UUID.randomUUID().toString()
         return vault.mutate {
+            val resolvedTitle = title(setDao.listByAccount(accountId).map { it.title })
             val set = RecoveryCodeSetEntity(
                 id = setId,
                 stableId = setStableId,
                 accountId = accountId,
-                title = trimmedTitle,
+                title = resolvedTitle,
                 createdAt = now,
             )
             setDao.upsert(set)

@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
@@ -31,12 +33,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.authenticator.TotpCardUi
-import com.rescueauth.v2.ui.components.RescueAuthButton
+import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthInitialBadge
@@ -115,6 +118,7 @@ internal fun ProviderAccountsContent(
 }
 
 /** The account itself is named in the page header; no duplicate provider summary. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AccountDetailContent(
     account: AccountUi,
@@ -135,22 +139,30 @@ internal fun AccountDetailContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        items(account.totpCredentials, key = { it.id }) { totp ->
-            CredentialPanel(totp,
+        itemsIndexed(account.totpCredentials, key = { _, item -> item.id }) { index, totp ->
+            val title = if (account.totpCredentials.size > 1)
+                stringResource(R.string.account_verification_code_number, index + 1)
+                else stringResource(R.string.account_verification_code)
+            CredentialPanel(totp, title,
                 onCopyClick = onCopyClick?.let { callback -> { callback(totp.toTotpCardUi(account)) } },
                 onDeleteClick = onDeleteClick?.let { callback -> { callback(totp.toTotpCardUi(account)) } })
         }
         if (onOpenRecovery != null || account.recoverySets.isNotEmpty()) item(key = "recovery-link") {
+            val recoveryDescription = if (account.recoverySets.isEmpty()) stringResource(R.string.account_no_recovery)
+                else pluralStringResource(R.plurals.account_recovery_available, account.recoverySets.size,
+                    account.recoverySets.size, account.remainingRecoveryCount)
             RescueAuthRowCard(onClick = onOpenRecovery?.let { callback -> { callback(account.id) } },
-                modifier = Modifier.testTag("account_recovery"),
-                horizontalPadding = CardTokens.accountRowPadding, verticalPadding = Spacing.md) {
-                Icon(Icons.Outlined.Shield, null, Modifier.size(Spacing.lg), tint = CardTokens.actionPrimaryContentColor())
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                    Text(stringResource(R.string.recovery_codes_title), style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold)
-                    Text(if (account.recoverySets.isEmpty()) stringResource(R.string.account_no_recovery)
-                        else pluralStringResource(R.plurals.account_recovery_available, account.recoverySets.size,
-                            account.recoverySets.size, account.remainingRecoveryCount),
+                modifier = Modifier.testTag("account_recovery").semantics { contentDescription = recoveryDescription },
+                horizontalPadding = CardTokens.accountRowPadding, verticalPadding = Spacing.sm) {
+                RescueAuthIconBadge(Icons.Outlined.Shield, size = CardTokens.accountAvatarSize, iconSize = Spacing.lg,
+                    containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .055f),
+                    contentColor = CardTokens.actionPrimaryContentColor())
+                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                    Text(stringResource(R.string.recovery_codes_title), Modifier.padding(end = Spacing.sm),
+                        style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                    Text(if (account.recoverySets.isEmpty()) stringResource(R.string.account_recovery_empty_status)
+                        else pluralStringResource(R.plurals.recovery_available_count, account.remainingRecoveryCount, account.remainingRecoveryCount),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (onOpenRecovery != null) RescueAuthChevron()
@@ -160,23 +172,29 @@ internal fun AccountDetailContent(
 }
 
 @Composable
-private fun CredentialPanel(totp: TotpCredentialUi, onCopyClick: (() -> Unit)?, onDeleteClick: (() -> Unit)?) {
+private fun CredentialPanel(totp: TotpCredentialUi, title: String, onCopyClick: (() -> Unit)?, onDeleteClick: (() -> Unit)?) {
     var menuOpen by remember { mutableStateOf(false) }
     val available = !totp.currentCode.isNullOrBlank()
+    val copyLabel = stringResource(R.string.totp_copy_code_description)
     RescueAuthCard(contentPadding = CardTokens.credentialPadding, modifier = Modifier.testTag("credential_${totp.id}")) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Icon(Icons.Outlined.Timer, null, Modifier.size(Spacing.md), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.account_verification_code), Modifier.weight(1f),
-                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             CredentialCountdown(totp, available)
-            if (onDeleteClick != null) Box {
+            Box {
                 IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("totp_actions_${totp.id}")) {
                     Icon(Icons.Filled.MoreVert, stringResource(R.string.totp_actions), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.totp_delete)) },
-                        onClick = { menuOpen = false; onDeleteClick() })
+                    Text(stringResource(R.string.totp_parameters_summary, totp.algorithm, totp.digits, totp.periodSeconds),
+                        Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (onDeleteClick != null) {
+                        HorizontalDivider(color = CardTokens.outlineColor(), thickness = CardTokens.borderWidth)
+                        DropdownMenuItem(text = { Text(stringResource(R.string.totp_delete)) },
+                            onClick = { menuOpen = false; onDeleteClick() })
+                    }
                 }
             }
         }
@@ -185,28 +203,26 @@ private fun CredentialPanel(totp: TotpCredentialUi, onCopyClick: (() -> Unit)?, 
         val measurer = rememberTextMeasurer()
         val density = LocalDensity.current
         val style = MaterialTheme.typography.displayMedium.copy(fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Medium, fontSize = 46.sp, letterSpacing = 1.sp, fontFeatureSettings = "tnum")
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = Spacing.md, bottom = Spacing.lg), contentAlignment = Alignment.Center) {
-            // Keep a complete code on one line at narrow widths and large font settings.
-            // Only this fixed-length numeric display adapts; surrounding text still scales normally.
-            val naturalWidth = measurer.measure(AnnotatedString(displayed), style = style, maxLines = 1).size.width
-            val scale = (with(density) { maxWidth.toPx() } / naturalWidth.coerceAtLeast(1)).coerceAtMost(1f)
-            Text(displayed, Modifier.testTag("totp_value_${totp.id}"), maxLines = 1, softWrap = false,
-                style = style.copy(fontSize = style.fontSize * scale, letterSpacing = style.letterSpacing * scale),
-                color = MaterialTheme.colorScheme.onSurface)
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(stringResource(R.string.authenticator_code_metadata, totp.algorithm, totp.digits),
-                Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (onCopyClick != null) RescueAuthButton(onClick = onCopyClick, enabled = available,
-                modifier = Modifier.testTag("totp_copy_${totp.id}"), shape = CardTokens.actionButtonShape,
-                colors = ButtonDefaults.buttonColors(containerColor = CardTokens.actionPrimaryContainerColor(),
-                    contentColor = CardTokens.actionPrimaryContentColor()),
-                contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs)) {
-                Icon(Icons.Filled.ContentCopy, null, Modifier.size(Spacing.md))
-                Spacer(Modifier.width(Spacing.xs))
-                Text(stringResource(R.string.totp_copy_code), style = MaterialTheme.typography.labelLarge)
+            fontWeight = FontWeight.Medium, fontSize = CardTokens.credentialCodeSize,
+            letterSpacing = 1.sp, fontFeatureSettings = "tnum", textDirection = TextDirection.Ltr)
+        val copyAction = if (onCopyClick != null) Modifier.clip(CardTokens.rowShape).clickable(
+            enabled = available, role = Role.Button, onClickLabel = copyLabel, onClick = onCopyClick,
+        ).semantics { contentDescription = copyLabel } else Modifier
+        // One generous copy target includes both the numeric value and its quiet trailing icon.
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs).then(copyAction)
+            .heightIn(min = ScreenTokens.controlMinHeight).testTag("totp_copy_${totp.id}"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            BoxWithConstraints(Modifier.weight(1f).padding(vertical = Spacing.xxs)) {
+                val naturalWidth = measurer.measure(AnnotatedString(displayed), style = style, maxLines = 1).size.width
+                val scale = (with(density) { maxWidth.toPx() } / naturalWidth.coerceAtLeast(1)).coerceAtMost(1f)
+                Text(displayed, Modifier.testTag("totp_value_${totp.id}"), maxLines = 1, softWrap = false,
+                    style = style.copy(fontSize = style.fontSize * scale, letterSpacing = style.letterSpacing * scale),
+                    color = MaterialTheme.colorScheme.onSurface)
+            }
+            if (onCopyClick != null) Box(Modifier.size(ScreenTokens.controlMinHeight), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.ContentCopy, null, Modifier.size(CardTokens.actionIconSize),
+                    tint = if (available) CardTokens.actionPrimaryContentColor()
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .38f))
             }
         }
     }
@@ -219,7 +235,7 @@ private fun CredentialCountdown(totp: TotpCredentialUi, available: Boolean) {
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = .10f)
     val description = if (available) stringResource(R.string.totp_refresh_countdown, totp.remainingSeconds)
         else stringResource(R.string.totp_unavailable)
-    Box(Modifier.size(CardTokens.credentialCountdownSize).semantics(mergeDescendants = true) { contentDescription = description },
+    Box(Modifier.size(CardTokens.credentialCountdownSize * LocalDensity.current.fontScale.coerceAtLeast(1f)).semantics(mergeDescendants = true) { contentDescription = description },
         contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val width = CardTokens.credentialCountdownStroke.toPx()

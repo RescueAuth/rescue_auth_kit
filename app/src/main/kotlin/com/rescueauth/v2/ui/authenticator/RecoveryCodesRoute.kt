@@ -71,6 +71,7 @@ fun RecoveryCodesRoute(
             sessionState = sessionState,
             accountId = accountId,
             scope = appScope,
+            defaultTitleProvider = { context.getString(R.string.recovery_codes_title) },
         )
     }
 

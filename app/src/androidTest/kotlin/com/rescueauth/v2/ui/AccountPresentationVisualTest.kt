@@ -25,6 +25,7 @@ import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import java.io.File
 import java.util.Locale
 import org.junit.Assert.*
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,13 +37,37 @@ class AccountPresentationVisualTest {
     private var opened: String? = null
     private var added = 0
     private var copied = 0
+    private var originalConfiguration: Configuration? = null
+    private val mounted = mutableStateOf(true)
 
-    private fun show(detail: Boolean, dark: Boolean = false, large: Boolean = false, empty: Boolean = false) {
-        rule.activity.enableEdgeToEdge()
+    @After @Suppress("DEPRECATION")
+    fun restoreConfiguration() {
+        rule.runOnIdle { mounted.value = false }
+        rule.waitForIdle()
+        originalConfiguration?.let { original ->
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                rule.activity.resources.updateConfiguration(original, rule.activity.resources.displayMetrics)
+            }
+        }
+    }
+
+    private fun show(detail: Boolean, dark: Boolean = false, large: Boolean = false, empty: Boolean = false, multiple: Boolean = false) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val resources = rule.activity.resources
+            originalConfiguration = Configuration(resources.configuration)
+            @Suppress("DEPRECATION")
+            resources.updateConfiguration(Configuration(resources.configuration).apply {
+                setLocales(LocaleList(if (large) Locale.ENGLISH else Locale.SIMPLIFIED_CHINESE))
+                fontScale = if (large) 1.5f else 1f
+            }, resources.displayMetrics)
+            rule.activity.enableEdgeToEdge()
+        }
         val accounts = if (empty) emptyList() else listOf(
             AccountUi("personal", "GitHub", if (large) "personal.account@example.test" else "个人账户", isPinned = true,
                 totpCredentials = listOf(TotpCredentialUi("otp", "otp", "GitHub", "Demo", digits = if (large) 8 else 6,
-                    currentCode = if (large) "12345678" else "123456", remainingSeconds = 21, progressFraction = .7f)),
+                    currentCode = if (large) "12345678" else "123456", remainingSeconds = 21, progressFraction = .7f)) +
+                    if (multiple) listOf(TotpCredentialUi("otp-extra", "otp-extra", "GitHub", "Demo", algorithm = "SHA256", digits = 8,
+                        currentCode = "87654321", remainingSeconds = 5, progressFraction = .083f, periodSeconds = 60)) else emptyList(),
                 recoverySets = listOf(RecoveryCodeSetUi("first", "Demo A", 0, 16), RecoveryCodeSetUi("second", "Demo B", 0, 16))),
             AccountUi("work", "GitHub", if (large) "work@example.test" else "工作账户",
                 totpCredentials = listOf(TotpCredentialUi("work-otp", "work-otp", "GitHub", "Demo")),
@@ -53,7 +78,7 @@ class AccountPresentationVisualTest {
             val config = Configuration(base.resources.configuration).apply { setLocales(LocaleList(if (large) Locale.ENGLISH else Locale.SIMPLIFIED_CHINESE)) }
             CompositionLocalProvider(LocalContext provides base.createConfigurationContext(config), LocalConfiguration provides config,
                 LocalDensity provides Density(LocalDensity.current.density, if (large) 1.5f else 1f)) {
-                RescueAuthTheme(darkTheme = dark) {
+                if (mounted.value) RescueAuthTheme(darkTheme = dark) {
                     Box(if (large) Modifier.width(320.dp).fillMaxHeight() else Modifier.fillMaxSize()) {
                         AuthenticatorScreen(uiState = AuthenticatorUiState(loading = false, providers = listOf(ProviderUi("github", "GitHub", accounts))),
                             initialAccountId = if (detail) "personal" else null, initialProviderName = if (detail) null else "GitHub",
@@ -66,11 +91,16 @@ class AccountPresentationVisualTest {
         }
     }
 
-    private fun capture(name: String) {
+    private fun capture(name: String, popup: Boolean = false) {
         rule.waitForIdle()
         val output = checkNotNull(InstrumentationRegistry.getArguments().getString("additionalTestOutputDir"))
         val file = File(output, "account-review/$name.png").apply { parentFile!!.mkdirs() }
-        val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = if (popup) {
+            rule.mainClock.advanceTimeBy(250)
+            rule.waitForIdle()
+            InstrumentationRegistry.getInstrumentation().uiAutomation.waitForIdle(100, 5_000)
+            checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        } else rule.onRoot().captureToImage().asAndroidBitmap()
         try { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } } finally { bitmap.recycle() }
     }
 
@@ -90,12 +120,26 @@ class AccountPresentationVisualTest {
         show(detail = true)
         rule.onNodeWithText("GitHub").assertDoesNotExist()
         rule.onNodeWithText("123 456").assertIsDisplayed()
-        rule.onNodeWithText("2 组 · 32 个可用").assertIsDisplayed()
+        rule.onNodeWithText("32 个可用").assertIsDisplayed()
+        val card = rule.onNodeWithTag("credential_otp").getUnclippedBoundsInRoot()
+        assertTrue("The code card should be compact at normal text size", card.bottom - card.top <= 180.dp)
         capture("account-light")
         rule.onNodeWithTag("totp_copy_otp").performTouchInput { click() }
         rule.runOnIdle { assertEquals(1, copied) }
         rule.onNodeWithTag("account_recovery").performTouchInput { click() }
         rule.runOnIdle { assertEquals("personal", opened) }
+    }
+
+    @Test fun multipleCodesKeepTheirOwnCopyAndOptionsTargets() {
+        show(detail = true, multiple = true)
+        rule.onNodeWithText("验证码 1").assertIsDisplayed()
+        rule.onNodeWithText("验证码 2").assertIsDisplayed()
+        rule.onNodeWithTag("totp_copy_otp-extra").performTouchInput { click() }
+        rule.runOnIdle { assertEquals(1, copied) }
+        capture("account-multiple")
+        rule.onNodeWithTag("totp_actions_otp-extra").performClick()
+        capture("account-code-options", popup = true)
+        rule.onNodeWithText("SHA256 · 8 位 · 60 秒").assertIsDisplayed()
     }
 
     @Test fun accountDarkKeepsCodeAndActionsLegible() {
@@ -121,7 +165,7 @@ class AccountPresentationVisualTest {
     @Test fun narrowLargeAccountKeepsEightDigitsAndControlsWithinCard() {
         show(detail = true, large = true)
         val card = rule.onNodeWithTag("credential_otp").getUnclippedBoundsInRoot()
-        val code = rule.onNodeWithTag("totp_value_otp").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val code = rule.onNodeWithTag("totp_value_otp", useUnmergedTree = true).assertIsDisplayed().getUnclippedBoundsInRoot()
         assertTrue(code.left >= card.left && code.right <= card.right)
         rule.onNodeWithTag("totp_copy_otp").assertIsDisplayed()
         rule.onNodeWithTag("account_recovery").performScrollTo().assertIsDisplayed()

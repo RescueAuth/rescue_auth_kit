@@ -9,6 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.room.Room
+import com.rescueauth.v2.database.RescueAuthDatabase
+import com.rescueauth.v2.repository.VaultAccess
+import com.rescueauth.v2.session.SessionManager
+import com.rescueauth.v2.session.SecureSessionStateMachine
+import kotlinx.coroutines.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.geometry.Offset
@@ -39,6 +46,8 @@ import java.io.File
 import java.util.Locale
 import org.junit.Assert.*
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -48,6 +57,28 @@ import org.junit.runner.RunWith
 class GlobalAddMotionTest {
     private val motionScale = object : MotionDurationScale { override var scaleFactor = 1f }
     @get:Rule val rule = createComposeRule(effectContext = motionScale)
+    private lateinit var session: SessionManager
+    private lateinit var scope: CoroutineScope
+    private var previous: SessionManager? = null
+    private val mounted = mutableStateOf(true)
+    @Before fun openEmptyTestVault() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        previous = VaultAccess.sessionManager
+        VaultAccess.clear()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        session = SessionManager(context, SecureSessionStateMachine(), scope,
+            databaseFactory = { ctx, _ -> Room.inMemoryDatabaseBuilder(ctx, RescueAuthDatabase::class.java).allowMainThreadQueries().build() })
+        val key = ByteArray(32) { it.toByte() }
+        try { check(session.unlockWithFreshKey(key)) } finally { key.fill(0) }
+        VaultAccess.sessionManager = session
+    }
+    @After fun closeTestVault() {
+        rule.runOnIdle { mounted.value = false }
+        rule.waitForIdle()
+        runBlocking { scope.coroutineContext[Job]?.cancelAndJoin() }
+        session.lock()
+        VaultAccess.clear(); VaultAccess.sessionManager = previous
+    }
 
     private fun show(dark: Boolean = false, large: Boolean = false, rtl: Boolean = false) {
         rule.setContent {
@@ -64,7 +95,7 @@ class GlobalAddMotionTest {
                 LocalOnBackPressedDispatcherOwner provides backDispatcher,
                 LocalDensity provides Density(LocalDensity.current.density, if (large) 1.5f else 1f),
                 LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
-            ) { RescueAuthTheme(darkTheme = dark) { RescueAuthApp() } }
+            ) { if (mounted.value) RescueAuthTheme(darkTheme = dark) { RescueAuthApp() } }
         }
         rule.waitForIdle()
     }
@@ -151,10 +182,11 @@ class GlobalAddMotionTest {
         rule.onNodeWithTag("developer_add_sheet").assertDoesNotExist()
         rule.onNodeWithTag(RescueAuthTestTags.NAV_AUTHENTICATOR).performClick()
         rule.onNodeWithTag("global_add").performClick()
-        rule.onNodeWithTag("authenticator_add_sheet").assertIsDisplayed()
+        rule.onNodeWithTag("account_add_sheet").assertIsDisplayed()
+        rule.onNodeWithTag("account_add_provider").assertExists()
+        rule.onNodeWithTag("account_add_secret").assertExists()
         capture("06-accounts-sheet")
-        rule.onNodeWithTag("add_authenticator").performClick()
-        rule.onNodeWithTag("add_totp_sheet").assertIsDisplayed()
+        rule.onNodeWithTag("authenticator_add_sheet").assertDoesNotExist()
     }
 
     @Test fun largeEnglishDarkSheetKeepsEveryTypeReachable() {
@@ -168,7 +200,8 @@ class GlobalAddMotionTest {
         rule.onNodeWithContentDescription("Back").performClick()
         rule.onNodeWithTag(RescueAuthTestTags.NAV_AUTHENTICATOR).performClick()
         rule.onNodeWithTag("global_add").performClick()
-        rule.onNodeWithText("Create a service").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("account_add_provider").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("account_add_submit").assertIsDisplayed()
         capture("08-dark-large-accounts-sheet")
     }
 
@@ -213,7 +246,7 @@ class GlobalAddMotionTest {
         assertTrue(clamped.top > rootBounds().top)
         assertTrue(clamped.left >= rootBounds().left)
         rule.onNodeWithTag("global_add").performClick()
-        rule.onNodeWithTag("authenticator_add_sheet").assertIsDisplayed()
+        rule.onNodeWithTag("account_add_sheet").assertIsDisplayed()
     }
 
     private fun rootBounds() = rule.onRoot().getUnclippedBoundsInRoot()

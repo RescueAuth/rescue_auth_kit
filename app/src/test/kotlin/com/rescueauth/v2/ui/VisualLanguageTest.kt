@@ -55,14 +55,16 @@ class VisualLanguageTest {
         rule.onNodeWithTag("provider_row_Demo").assert(hasContentDescription("1 account(s)"))
     }
 
-    @Test fun copyActionHasAVisibleLabelAndKeepsItsCredentialTarget() {
+    @Test fun copyIconKeepsItsSpokenLabelTouchAreaAndCredentialTarget() {
         var copied: String? = null
         val readyAccount = account.copy(totpCredentials = account.totpCredentials.map { it.copy(currentCode = "123456") })
         val readyState = state.copy(providers = listOf(ProviderUi("demo-provider", "Demo", listOf(readyAccount))))
         rule.setContent { RescueAuthTheme {
             AuthenticatorScreen(uiState = readyState, initialAccountId = account.id, onCopyClick = { copied = it.credentialId })
         } }
-        rule.onNodeWithText("Copy code").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).assertIsEnabled().performClick()
+        rule.onNodeWithText("Copy code").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Copy the current one-time password")
+            .assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).assertIsEnabled().performClick()
         assertEquals("demo-code", copied)
     }
 

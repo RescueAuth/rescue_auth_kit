@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
 import android.os.Build
+import android.view.inspector.WindowInspector
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -129,7 +130,8 @@ class CompleteVisualReviewTest {
         if (Build.VERSION.SDK_INT >= 29) {
             val committed = CountDownLatch(1)
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
-                rule.activity.window.decorView.apply {
+                (WindowInspector.getGlobalWindowViews().lastOrNull { it.isAttachedToWindow && it.isShown }
+                    ?: rule.activity.window.decorView).apply {
                     viewTreeObserver.registerFrameCommitCallback { committed.countDown() }
                     invalidate()
                 }
@@ -149,30 +151,34 @@ class CompleteVisualReviewTest {
     @Composable private fun accountBackground() {
         AuthenticatorScreen(uiState = AuthenticatorUiState(loading = false,
             providers = listOf(ProviderUi("demo", "GitHub", listOf(AccountUi("demo", "GitHub", "Personal account"))))),
-            onAddClick = {})
+            onAddClick = {}, showAddAction = false)
     }
 
-    @Composable private fun addTotp(form: AddTotpFormState = AddTotpFormState()) {
+    @Composable private fun addTotp(form: AddTotpFormState = AddTotpFormState(mode = AddMode.MANUAL)) {
         accountBackground()
-        AddTotpSheet(form, onDismiss = {}, onModeChange = {}, onStartScan = {}, onUriChange = {},
-            onProviderChange = {}, onAccountNameChange = {}, onSecretChange = {}, onAlgorithmChange = {},
-            onDigitsChange = {}, onPeriodChange = {}, onSubmit = {})
+        var draft by remember { mutableStateOf(AccountAddFormState(visible = true, scope = AccountAddScope.VAULT,
+            kind = AccountAddContentKind.TOTP, totp = form)) }
+        AccountAddSheet(draft, listOf(AccountUi("demo", "GitHub", "Personal account")), {}, {},
+            onAccountNameChange = { draft = draft.copy(accountName = it) }, onKindChange = { draft = draft.copy(kind = it) },
+            onTotpChange = { change -> draft = draft.copy(totp = change(draft.totp)) },
+            onRecoveryTitleChange = {}, onRecoveryValuesChange = {}, onStartScan = {}, onSubmit = {},
+            onProviderChange = { draft = draft.copy(provider = it) })
     }
 
     @Test fun accountFormsAndSheets() = tour(listOf(
-        Scene("100-totp-methods", "添加验证码 · 选择方式", "账户", { addTotp() }),
+        Scene("100-totp-methods", "首页添加 · 一级验证码", "账户", { addTotp() }),
         Scene("101-totp-paste", "添加验证码 · 粘贴", "账户", { addTotp() },
-            { rule.onNodeWithTag("totp_method_PASTE").performClick() }),
+            { rule.onNodeWithTag("account_add_method_PASTE").performClick() }),
         Scene("102-totp-manual", "添加验证码 · 手动输入", "账户", { addTotp(AddTotpFormState(mode = AddMode.MANUAL)) }),
-        Scene("103-totp-scan-choice", "添加验证码 · 扫码入口", "账户", { addTotp() },
-            { rule.onNodeWithTag("totp_method_SCAN").performClick() }),
-        Scene("104-provider-create", "创建服务与账户", "账户", { accountBackground(); CreateProviderDialog({ _, _ -> }, {}) }),
+        Scene("103-totp-scan-choice", "添加验证码 · 二级高级参数", "账户", { addTotp() },
+            { rule.onNodeWithTag("account_add_advanced").performScrollTo().performClick() }),
+        Scene("104-provider-create", "创建服务与账户", "账户", { addTotp() },
+            { rule.onNodeWithTag("account_add_kind_NONE").performClick() }),
         Scene("105-provider-rename", "重命名服务", "账户", { accountBackground(); ManagementTextDialog(
             stringResource(R.string.provider_rename_title), stringResource(R.string.provider_new_name_label), "GitHub",
             stringResource(R.string.management_confirm), {}, {}) }),
-        Scene("106-account-create", "添加账户", "账户", { accountBackground(); ManagementTextDialog(
-            stringResource(R.string.account_add_title), stringResource(R.string.account_name_label), "",
-            stringResource(R.string.management_confirm), {}, {}) }),
+        Scene("106-account-create", "账户添加 · 复用表单", "账户", { accountBackground();
+            AccountAddSheet(AccountAddFormState(visible = true, provider = "GitHub"), emptyList(), {}, {}, {}, {}, {}, {}, {}, {}, {}) }),
         Scene("107-account-rename", "重命名账户", "账户", { accountBackground(); ManagementTextDialog(
             stringResource(R.string.account_rename_title), stringResource(R.string.account_name_label), "Personal account",
             stringResource(R.string.management_confirm), {}, {}) }),

@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -75,7 +76,7 @@ class RecoveryViewModelTest {
     private fun newScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private fun viewModel(scope: CoroutineScope = newScope()): RecoveryViewModel {
+    private fun viewModel(scope: CoroutineScope = newScope(), defaultTitle: String = "Recovery codes"): RecoveryViewModel {
         activeScope = scope
         return RecoveryViewModel(
             authRepositoryProvider = { auth },
@@ -83,6 +84,7 @@ class RecoveryViewModelTest {
             sessionState = session.state,
             accountId = accountId,
             scope = scope,
+            defaultTitleProvider = { defaultTitle },
         )
     }
 
@@ -119,6 +121,78 @@ class RecoveryViewModelTest {
         assertEquals("Backup codes", vm.uiState.value.sets[0].title)
         assertEquals(3, vm.uiState.value.sets[0].totalCount)
         assertEquals(3, vm.uiState.value.sets[0].remainingCount)
+    }
+
+    @Test
+    fun `pasting codes without a title creates an automatically named set`() = runBlocking {
+        val vm = viewModel(defaultTitle = "恢复码")
+        vm.beginCreate()
+        vm.onValuesChange("sample-one\nsample-two")
+        assertTrue(vm.submitForm())
+        awaitSets(vm) { it.sets.size == 1 }
+        assertEquals("恢复码", vm.uiState.value.sets.single().title)
+        assertEquals(2, vm.uiState.value.remainingCount)
+    }
+
+    @Test
+    fun `automatic names use fresh account data and avoid existing names`() = runBlocking {
+        recovery.createSet(accountId, "恢复码", listOf("sample-existing"))
+        recovery.createSet(accountId, "恢复码 2", listOf("sample-other"))
+        val vm = viewModel(defaultTitle = "恢复码")
+        vm.beginCreate()
+        vm.onTitleChange("  ")
+        vm.onValuesChange("sample-new")
+        assertTrue(vm.submitForm())
+        awaitSets(vm) { it.sets.size == 3 }
+        assertTrue(vm.uiState.value.sets.any { it.title == "恢复码 3" })
+    }
+
+    @Test
+    fun `automatic numbering is scoped to the current account`() = runBlocking {
+        val other = auth.findOrCreateAccount("GitHub", "Other")
+        recovery.createSet(other.id, "Recovery codes", listOf("sample-other"))
+        val vm = viewModel()
+        vm.beginCreate()
+        vm.onValuesChange("sample-new")
+        assertTrue(vm.submitForm())
+        awaitSets(vm) { it.sets.size == 1 }
+        assertEquals("Recovery codes", vm.uiState.value.sets.single().title)
+    }
+
+    @Test
+    fun `concurrent automatic naming happens inside the serialized write`() = runBlocking {
+        val first = async(Dispatchers.Default) { recovery.createSetWithAutomaticTitle(accountId, "恢复码", listOf("sample-one")) }
+        val second = async(Dispatchers.Default) { recovery.createSetWithAutomaticTitle(accountId, "恢复码", listOf("sample-two")) }
+        assertEquals(setOf("恢复码", "恢复码 2"), setOf(first.await().title, second.await().title))
+    }
+
+    @Test
+    fun `clearing the optional name while editing preserves the original name and used state`() = runBlocking {
+        val set = recovery.createSet(accountId, "My backup", listOf("sample-one", "sample-two"))
+        recovery.markUsed(set.codes.first().id)
+        val vm = viewModel()
+        awaitSets(vm) { it.sets.size == 1 && it.sets.single().usedCount == 1 }
+        vm.beginEdit(set.id)
+        vm.onTitleChange(" ")
+        vm.onValuesChange("sample-one\nsample-three")
+        assertTrue(vm.submitForm())
+        awaitSets(vm) { it.sets.single().codes.any { code -> code.value == "sample-three" } }
+        val edited = vm.uiState.value.sets.single()
+        assertEquals("My backup", edited.title)
+        assertEquals(set.codes.first().id, edited.codes.first { it.value == "sample-one" }.id)
+        assertTrue(edited.codes.first { it.value == "sample-one" }.isUsed)
+    }
+
+    @Test
+    fun `titleless create still rejects empty and duplicate values`() = runBlocking {
+        val vm = viewModel()
+        vm.beginCreate()
+        assertFalse(vm.submitForm())
+        assertEquals("empty_values", vm.formState.value.error)
+        vm.onValuesChange("sample-one\nsample-one")
+        assertFalse(vm.submitForm())
+        assertTrue(vm.formState.value.error!!.startsWith("duplicate:"))
+        assertTrue(db.recoveryCodeSetDao().listByAccount(accountId).isEmpty())
     }
 
     @Test

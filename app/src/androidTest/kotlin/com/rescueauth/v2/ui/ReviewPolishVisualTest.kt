@@ -178,10 +178,12 @@ class ReviewPolishVisualTest {
         rule.onNodeWithText("密钥（Base32）").performScrollTo().assertIsDisplayed()
         capture("220-totp-expanded", "添加验证码 · 完整展开", "账户")
         rule.onNodeWithText("高级设置").performScrollTo().performClick()
-        rule.onNodeWithTag("add_totp_fields").performTouchInput { swipeUp() }
+        rule.onNodeWithTag("add_totp_secret").assertDoesNotExist()
+        rule.onNodeWithTag("sheet_page_done").assertIsDisplayed()
+        capture("221-totp-advanced", "添加验证码 · 二级高级设置", "账户")
+        rule.onNodeWithTag("sheet_page_done").performClick()
         action.assertIsDisplayed()
         assertEquals(before, action.getUnclippedBoundsInRoot())
-        capture("221-totp-advanced", "添加验证码 · 高级设置", "账户")
         action.performClick(); rule.runOnIdle { assertEquals(1, submitted) }
     }
 

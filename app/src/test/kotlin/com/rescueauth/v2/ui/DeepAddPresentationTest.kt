@@ -32,6 +32,22 @@ class DeepAddPresentationTest {
         providers = listOf(ProviderUi("github", "GitHub", accounts)))
     private fun click(tag: String) = rule.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.OnClick) { it() }
 
+    @Test fun productionEntryOpensTheCurrentScopeDirectlyWithoutAMenuOrRecipientSheet() {
+        val requests = mutableListOf<Pair<String, String?>>()
+        val selected = mutableStateOf<String?>(null)
+        rule.setContent { RescueAuthTheme { key(selected.value) {
+            AuthenticatorScreen(uiState = state(listOf(personal, work)),
+                initialProviderName = if (selected.value == null) "GitHub" else null, initialAccountId = selected.value,
+                onOpenAdd = { provider, account -> requests += provider to account })
+        } } }
+        click("global_add")
+        rule.onNodeWithTag("authenticator_add_sheet").assertDoesNotExist()
+        rule.onNodeWithTag("add_target_sheet").assertDoesNotExist()
+        rule.runOnIdle { selected.value = "work" }
+        click("global_add")
+        rule.runOnIdle { assertEquals(listOf("GitHub" to null, "GitHub" to "work"), requests) }
+    }
+
     @Test fun providerMenuTargetsTheSelectedAccountAndKeepsCreateAccount() {
         var created: String? = null; var recovery: String? = null; var credential: String? = null
         rule.setContent { RescueAuthTheme { AuthenticatorScreen(uiState = state(listOf(personal, work)), initialProviderName = "GitHub",

@@ -28,19 +28,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
+import com.rescueauth.v2.ui.navigation.motionDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rescueauth.v2.ui.components.UndoSnackbarHost
@@ -49,7 +52,6 @@ import com.rescueauth.v2.ui.authenticator.AuthenticatorViewModel
 import com.rescueauth.v2.ui.authenticator.AuthenticatorAddState
 import com.rescueauth.v2.ui.components.RescueAuthFloatingAddOverlay
 import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
-import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorAddSheet
 import com.rescueauth.v2.ui.screens.developer.DeveloperAddSheet
 import com.rescueauth.v2.ui.theme.AddActionTokens
 import com.rescueauth.v2.ui.authenticator.RecoveryCodesRoute
@@ -161,6 +163,8 @@ fun RescueAuthApp(
     // back affordance; leaving the tab bar visible there makes secondary pages
     // feel like another root and competes with the task at hand.
     val showBottomBar = currentDestination?.route == RescueAuthRoutes.HOME
+    var composedHomes by remember { mutableIntStateOf(0) }
+    var homeNavigationSettled by remember { mutableStateOf(false) }
     val authenticatorAddState = remember { AuthenticatorAddState() }
     val addPosition = rememberFloatingAddPosition()
     // Capture the destination when the button is tapped; a later page change cannot retarget an open sheet.
@@ -212,13 +216,16 @@ fun RescueAuthApp(
         // Bottom insets are still handled by the NavigationBar itself.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { UndoSnackbarHost(snackbarHostState) },
-        bottomBar = if (showBottomBar) {
+        bottomBar = if (showBottomBar || composedHomes > 0) {
             {
                 com.rescueauth.v2.ui.components.RescueAuthNavigationBar(
                     isSelected = { destination ->
                         TopLevelDestinations.all[homePageState.targetPage] == destination
                     },
                     pagePosition = { homePageState.dockPosition },
+                    // The root Dock is uncovered by the departing opaque detail, never above its footer.
+                    modifier = Modifier.zIndex(-1f),
+                    enabled = showBottomBar && homeNavigationSettled,
                     onNavigate = { destination -> selectHomePage(TopLevelDestinations.all.indexOf(destination)) },
                 )
             }
@@ -237,16 +244,21 @@ fun RescueAuthApp(
         NavHost(
             navController = navController,
             startDestination = RescueAuthRoutes.HOME,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            enterTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.enter() else motion.enter(isPop = false) },
-            exitTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.exit() else motion.exit(isPop = false) },
-            popEnterTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.enter() else motion.enter(isPop = true) },
-            popExitTransition = { if (SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) SearchFieldMotion.exit() else motion.exit(isPop = true) },
+            modifier = Modifier.fillMaxSize(),
+            enterTransition = { motion.enter(isPop = false, sharedSearch = SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) },
+            exitTransition = { motion.exit(isPop = false, sharedSearch = SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) },
+            popEnterTransition = { motion.enter(isPop = true, sharedSearch = SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) },
+            popExitTransition = { motion.exit(isPop = true, sharedSearch = SearchFieldMotion.matches(initialState.destination.route, targetState.destination.route)) },
         ) {
-            composable(RescueAuthRoutes.HOME) {
+            motionDestination(motion, RescueAuthRoutes.HOME) {
                 val visibility = this
+                DisposableEffect(Unit) {
+                    composedHomes++
+                    onDispose { composedHomes--; homeNavigationSettled = false }
+                }
+                val settled = transition.currentState == EnterExitState.Visible &&
+                    transition.targetState == EnterExitState.Visible && !transition.isRunning
+                SideEffect { homeNavigationSettled = settled }
                 val searchFieldModifier = with(searchSharedScope) { searchFieldMotion(visibility) }
                 HomePages(
                     state = homePageState,
@@ -256,7 +268,7 @@ fun RescueAuthApp(
                         0 -> {
                             AuthenticatorRoute(
                                 viewModel = authenticatorViewModel,
-                                isActive = homePageState.settledPage == 0,
+                                isActive = showBottomBar && homePageState.settledPage == 0,
                                 addState = authenticatorAddState,
                                 showAddAction = false,
                                 contentBottomPadding = AddActionTokens.contentClearance,
@@ -276,7 +288,7 @@ fun RescueAuthApp(
                         1 -> {
                             DeveloperRoute(
                                 viewModel = developerViewModel,
-                                isActive = homePageState.settledPage == 1,
+                                isActive = showBottomBar && homePageState.settledPage == 1,
                                 showAddAction = false,
                                 contentBottomPadding = AddActionTokens.contentClearance,
                                 onOpenEntry = { entry ->
@@ -308,15 +320,26 @@ fun RescueAuthApp(
                         }
                     }
                 }
+                // Fixed across the three homes, but covered together with its root on detail navigation.
+                RescueAuthFloatingAddOverlay(
+                    visible = homePageState.targetPage != 2 && !migrationUi.scannerVisible,
+                    enabled = showBottomBar && settled && !homePageState.isScrollInProgress && addSheetPage == null,
+                    position = addPosition,
+                    onClick = {
+                        if (homePageState.settledPage == 0) authenticatorAddState.credentialSheetVisible = true
+                        else addSheetPage = homePageState.settledPage
+                    },
+                    modifier = Modifier.padding(bottom = rootBottomPadding),
+                )
             }
             // Older saved back stacks may still contain these root destinations. Keep their
             // IDs resolvable, then fold them into the matching page of the retained home entry.
             listOf(RescueAuthRoutes.DEVELOPER, RescueAuthRoutes.SETTINGS).forEach { route ->
-                composable(route) {
+                motionDestination(motion, route) {
                     LaunchedEffect(route) { navigateFromWorkflow(route) }
                 }
             }
-            composable(RescueAuthRoutes.SEARCH) {
+            motionDestination(motion, RescueAuthRoutes.SEARCH) {
                 val visibility = this
                 val searchFieldModifier = with(searchSharedScope) { searchFieldMotion(visibility) }
                 val settled = transition.currentState == EnterExitState.Visible &&
@@ -329,7 +352,7 @@ fun RescueAuthApp(
                     modifier = Modifier.testTag("screen_search"),
                 )
             }
-            composable(
+            motionDestination(motion,
                 route = RescueAuthRoutes.AUTHENTICATOR_PROVIDER,
                 arguments = listOf(
                     androidx.navigation.navArgument("providerName") {
@@ -341,6 +364,7 @@ fun RescueAuthApp(
                 AuthenticatorRoute(
                     viewModel = authenticatorViewModel,
                     providerName = providerName,
+                    isActive = backStackEntry?.id == entry.id,
                     floatingAddPosition = addPosition,
                     onAddRecovery = { id -> navController.navigate("authenticator/account/$id/recovery/add") },
                     onBack = { navController.popBackStack() },
@@ -352,7 +376,7 @@ fun RescueAuthApp(
                     },
                 )
             }
-            composable(
+            motionDestination(motion,
                 route = RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_DETAIL,
                 arguments = listOf(
                     androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
@@ -364,6 +388,7 @@ fun RescueAuthApp(
                 AuthenticatorRoute(
                     viewModel = authenticatorViewModel,
                     accountId = accountId,
+                    isActive = backStackEntry?.id == entry.id,
                     floatingAddPosition = addPosition,
                     onBack = { navController.popBackStack() },
                     onOpenRecovery = { id -> navController.navigate("authenticator/account/$id/recovery") },
@@ -374,7 +399,7 @@ fun RescueAuthApp(
                 RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY,
                 RescueAuthRoutes.AUTHENTICATOR_ACCOUNT_RECOVERY_ADD,
             ).forEach { recoveryRoute ->
-                composable(
+                motionDestination(motion,
                     route = recoveryRoute,
                     arguments = listOf(
                         androidx.navigation.navArgument(RescueAuthRoutes.ARG_ACCOUNT_ID) {
@@ -392,7 +417,7 @@ fun RescueAuthApp(
                     )
                 }
             }
-            composable(
+            motionDestination(motion,
                 route = "developer/category/{categoryType}",
                 arguments = listOf(
                     androidx.navigation.navArgument("categoryType") {
@@ -405,6 +430,7 @@ fun RescueAuthApp(
                 DeveloperRoute(
                     viewModel = developerViewModel,
                     categoryType = type,
+                    isActive = backStackEntry?.id == entry.id,
                     floatingAddPosition = addPosition,
                     onBack = { navController.popBackStack() },
                     onOpenEntry = { item ->
@@ -415,7 +441,7 @@ fun RescueAuthApp(
                     },
                 )
             }
-            composable(
+            motionDestination(motion,
                 route = RescueAuthRoutes.DEVELOPER_ENTRY,
                 arguments = listOf(
                     androidx.navigation.navArgument(RescueAuthRoutes.ARG_ENTRY_ID) {
@@ -433,7 +459,7 @@ fun RescueAuthApp(
                     onNavigate = navigateFromWorkflow,
                 )
             }
-            composable(
+            motionDestination(motion,
                 route = RescueAuthRoutes.DEVELOPER_FORM,
                 arguments = listOf(
                     androidx.navigation.navArgument(RescueAuthRoutes.ARG_EDIT_STABLE_ID) {
@@ -460,7 +486,7 @@ fun RescueAuthApp(
                     onNavigate = navigateFromWorkflow,
                 )
             }
-            composable(RescueAuthRoutes.SETTINGS_TRANSFER) {
+            motionDestination(motion, RescueAuthRoutes.SETTINGS_TRANSFER) {
                 SettingsTransferScreen(
                     onBack = { navController.popBackStack() },
                     onExportClick = { navController.navigate(RescueAuthRoutes.EXPORT) },
@@ -468,7 +494,7 @@ fun RescueAuthApp(
                     onLegacyImportClick = { navController.navigate(RescueAuthRoutes.LEGACY_IMPORT) },
                 )
             }
-            composable(RescueAuthRoutes.ABOUT) {
+            motionDestination(motion, RescueAuthRoutes.ABOUT) {
                 AboutRoute(
                     versionName = versionName ?: "",
                     versionCode = BuildConfig.VERSION_CODE.toLong(),
@@ -478,7 +504,7 @@ fun RescueAuthApp(
                     onNavigate = navigateFromWorkflow,
                 )
             }
-            composable(RescueAuthRoutes.EXPORT) {
+            motionDestination(motion, RescueAuthRoutes.EXPORT) {
                 ExportImportRoute(
                     mode = ExportImportMode.EXPORT,
                     onBack = { navController.popBackStack() },
@@ -486,7 +512,7 @@ fun RescueAuthApp(
                     onNavigate = navigateFromWorkflow,
                 )
             }
-            composable(RescueAuthRoutes.IMPORT) {
+            motionDestination(motion, RescueAuthRoutes.IMPORT) {
                 ExportImportRoute(
                     mode = ExportImportMode.IMPORT,
                     onBack = { navController.popBackStack() },
@@ -494,7 +520,7 @@ fun RescueAuthApp(
                     onNavigate = navigateFromWorkflow,
                 )
             }
-            composable(RescueAuthRoutes.LEGACY_IMPORT) {
+            motionDestination(motion, RescueAuthRoutes.LEGACY_IMPORT) {
                 LegacyImportRoute(
                     onBack = { navController.popBackStack() },
                     modifier = Modifier.testTag("screen_legacy_import"),
@@ -502,26 +528,11 @@ fun RescueAuthApp(
                 )
             }
         }
-        // A single overlay outside NavHost/HorizontalPager, with position retained by the shell.
-        if (showBottomBar) RescueAuthFloatingAddOverlay(
-            visible = homePageState.targetPage != 2 && !migrationUi.scannerVisible,
-            enabled = !homePageState.isScrollInProgress && addSheetPage == null,
-            position = addPosition,
-            onClick = { addSheetPage = homePageState.settledPage },
-            modifier = Modifier.padding(bottom = rootBottomPadding),
-        )
+
         }
     }
 
     when (addSheetPage) {
-        0 -> AuthenticatorAddSheet(
-            onDismiss = { addSheetPage = null },
-            onAddCredential = {
-                authenticatorViewModel.beginAdd()
-                authenticatorAddState.credentialSheetVisible = true
-            },
-            onAddProvider = { authenticatorAddState.providerDialogVisible = true },
-        )
         1 -> DeveloperAddSheet(
             onDismiss = { addSheetPage = null },
             onSelectType = { type -> navController.navigate(RescueAuthRoutes.developerAdd(type.name)) },

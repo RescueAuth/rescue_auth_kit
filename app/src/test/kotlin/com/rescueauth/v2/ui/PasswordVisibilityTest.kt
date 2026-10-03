@@ -98,7 +98,7 @@ class PasswordVisibilityTest {
         field.performTextInput("SYNTHETIC")
         field.assert(masked); toggle("totp_secret_visibility"); field.assert(masked.not())
         assertEquals("SYNTHETIC", form.value.secret)
-        rule.onNodeWithTag("totp_change_method").performSemanticsAction(SemanticsActions.OnClick) { it() }
+        rule.onNodeWithTag("totp_method_PASTE").performSemanticsAction(SemanticsActions.OnClick) { it() }
         rule.onNodeWithTag("totp_method_MANUAL").performSemanticsAction(SemanticsActions.OnClick) { it() }
         field.assert(masked)
         assertEquals("SYNTHETIC", form.value.secret)

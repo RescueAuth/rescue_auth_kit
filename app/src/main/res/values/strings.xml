@@ -207,6 +207,32 @@
     <string name="recovery_codes_add_title">Add Recovery Codes</string>
     <string name="recovery_codes_edit_title">Edit Recovery Codes</string>
     <string name="recovery_codes_set_title_label">Title</string>
+    <string name="recovery_codes_optional_name">Name (optional)</string>
+    <string name="recovery_codes_custom_name">Custom name (optional)</string>
+    <string name="account_add_content_title">Add security information</string>
+    <string name="account_add_name_hint">Enter a new name or choose an account</string>
+    <string name="account_add_new">New account</string>
+    <string name="account_add_later">Add later</string>
+    <string name="account_add_saved">Saved</string>
+    <string name="account_add_home_title">Add to accounts</string>
+    <string name="account_add_empty_label">Only account</string>
+    <string name="account_add_code_label">Codes</string>
+    <string name="account_add_provider_new">New service</string>
+    <string name="account_add_provider_error">Enter a service name.</string>
+    <string name="input_choice_options">Choose %1$s</string>
+    <string name="sheet_done">Done</string>
+    <string name="common_back">Back</string>
+    <string name="sheet_choose_service">Choose a service</string>
+    <string name="sheet_search_choices">Search</string>
+    <string name="recovery_codes_keep_name">Keep current name</string>
+    <string name="recovery_codes_auto_name">Automatic name</string>
+    <string name="account_add_name_error">Enter an account name.</string>
+    <string name="account_add_duplicate_error">This account already exists. Choose it from the list or enter another name.</string>
+    <string name="account_add_target_error">This account or service is no longer available. Close this form and choose again.</string>
+    <string name="account_add_secret_error">Enter a valid Base32 secret.</string>
+    <string name="account_add_uri_error">Enter a valid otpauth:// link. Use the home import flow for a migration QR code.</string>
+    <string name="account_add_duplicate_codes_error">There are duplicate recovery codes. Remove the repeated lines.</string>
+    <string name="account_add_save_error">Unable to save. Check your input and try again.</string>
     <string name="recovery_codes_values_label">Recovery codes</string>
     <string name="recovery_codes_values_hint">One code per line. You can paste multiple codes at once.</string>
     <string name="recovery_codes_title_hint">Backup codes</string>
@@ -649,4 +675,11 @@
     <string name="import_scope_account_count">Accounts: %1$d</string>
     <string name="import_scope_entry_count">Entries: %1$d</string>
     <string name="import_stage_applying">Importing</string>
+    <string name="account_verification_code_number">Code %1$d</string>
+    <string name="totp_parameters_summary">%1$s · %2$d digits · %3$d s</string>
+    <string name="account_recovery_empty_status">Not added</string>
+    <plurals name="recovery_available_count">
+        <item quantity="one">%1$d available</item>
+        <item quantity="other">%1$d available</item>
+    </plurals>
 </resources>
