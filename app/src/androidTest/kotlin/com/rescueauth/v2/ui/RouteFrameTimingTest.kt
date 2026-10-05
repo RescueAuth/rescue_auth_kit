@@ -57,7 +57,14 @@ class RouteFrameTimingTest {
     private fun labelResource(resource: Int): String = localizedContext.getString(resource)
 
     private fun node(tag: String? = null, label: String? = null): AccessibilityNodeInfo? {
-        if (android.os.Build.VERSION.SDK_INT >= 34) instrumentation.uiAutomation.clearCache()
+        val automation = instrumentation.uiAutomation
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            automation.clearCache()
+        } else {
+            // setServiceInfo clears UiAutomation's accessibility cache on older
+            // Android versions. Reapply the exact existing configuration.
+            automation.serviceInfo = checkNotNull(automation.serviceInfo)
+        }
         val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
         val queue = ArrayDeque<AccessibilityNodeInfo>(); queue.add(root)
         while (queue.isNotEmpty()) {
