@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -74,7 +75,13 @@ class PasswordVisibilityInstrumentedTest {
     private fun checkButton(fieldTag: String, buttonTag: String) {
         val button = rule.onNodeWithTag(buttonTag).performScrollTo().assertIsDisplayed().getUnclippedBoundsInRoot()
         val field = rule.onNodeWithTag(fieldTag).getUnclippedBoundsInRoot()
-        assertTrue("Eye button bounds: $button", (button.right - button.left).value >= 48f && (button.bottom - button.top).value >= 48f)
+        // Compare physical pixels: subtracting dp coordinates at density 2.625 can
+        // represent an exact 48 dp touch target as 47.99999 dp.
+        with(rule.density) {
+            val minimum = 48.dp.roundToPx()
+            assertTrue("Eye button bounds: $button", (button.right - button.left).roundToPx() >= minimum &&
+                (button.bottom - button.top).roundToPx() >= minimum)
+        }
         assertTrue(button.left >= field.left && button.right <= field.right)
         assertTrue(button.top >= field.top && button.bottom <= field.bottom)
     }
