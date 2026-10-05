@@ -270,8 +270,8 @@ assert_eq "$RUNNER_RC" "0" "runner exit 0"
 assert_contains "$RUNNER_OUT" "FTL_EXIT_CODE=0" "raw exit code"
 assert_contains "$RUNNER_OUT" "TEST_PASSED" "TEST PASSED classification"
 assert_contains "$RUNNER_OUT" "FTL_MATRIX_ID=" "matrix id logged"
-assert_contains "$(cat "$FAKE_GCLOUD_LOG")" "--environment-variables=additionalTestOutputDir=/sdcard/Android/data/com.rescueauth.v2/files/test-output" "instrumentation screenshot output directory configured"
-assert_contains "$(cat "$FAKE_GCLOUD_LOG")" "--directories-to-pull=/sdcard/Android/data/com.rescueauth.v2/files/test-output" "screenshot evidence collected from same directory"
+assert_contains "$(cat "$FAKE_GCLOUD_LOG")" "--environment-variables=additionalTestOutputDir=/sdcard/Download/rescueauth-test-output,no-isolated-storage=true" "instrumentation screenshot output directory configured"
+assert_contains "$(cat "$FAKE_GCLOUD_LOG")" "--directories-to-pull=/sdcard/Download/rescueauth-test-output" "screenshot evidence collected from same directory"
 unset FAKE_GCLOUD_LOG
 
 echo

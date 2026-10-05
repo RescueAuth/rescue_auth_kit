@@ -490,8 +490,8 @@ main() {
         --test="$TEST_APK" \
         --device=model="$FTL_DEVICE_MODEL",version="$FTL_DEVICE_VERSION",locale="$FTL_DEVICE_LOCALE",orientation="$FTL_DEVICE_ORIENTATION" \
         --timeout="$FTL_TEST_TIMEOUT" \
-        --environment-variables=additionalTestOutputDir=/sdcard/Android/data/com.rescueauth.v2/files/test-output \
-        --directories-to-pull=/sdcard/Android/data/com.rescueauth.v2/files/test-output \
+        --environment-variables=additionalTestOutputDir=/sdcard/Download/rescueauth-test-output,no-isolated-storage=true \
+        --directories-to-pull=/sdcard/Download/rescueauth-test-output \
         --results-dir="ftl-${CNB_COMMIT}" \
         --no-auto-google-login \
         --no-performance-metrics \
