@@ -182,6 +182,17 @@ got5=$(parse_signer_fingerprint "$F5")
 assert_eq "$got5" "" "missing fingerprint yields empty (fail closed)"
 
 echo
+echo "== SDK 35 signer fingerprint format and fail-closed cases =="
+SDK35="$TEST_WORKSPACE/sdk35.txt"
+printf '%s\n' 'Number of signers: 1' 'Signer #1 certificate SHA-256 digest: 2c56e6b764f5664dfd34ea7bfb38f07f1b991055093754e4104714c527584944' > "$SDK35"
+assert_eq "$(parse_signer_fingerprint "$SDK35")" "2C56E6B764F5664DFD34EA7BFB38F07F1B991055093754E4104714C527584944" "SDK 35 Signer #1 supported"
+printf '%s\n' 'Signer #2 certificate SHA-256 digest: 2c56e6b764f5664dfd34ea7bfb38f07f1b991055093754e4104714c527584944' > "$SDK35"
+assert_eq "$(parse_signer_fingerprint "$SDK35")" "" "second signer never substitutes first signer"
+printf '%s\n' 'Signer #1 certificate SHA-256 digest: not-a-fingerprint' > "$SDK35"
+assert_eq "$(parse_signer_fingerprint "$SDK35")" "" "malformed digest rejected"
+printf '%s\n' 'Signer #1 certificate SHA-256 digest: 2c56e6b764f5664dfd34ea7bfb38f07f1b991055093754e4104714c527584944' 'V2 Signer: certificate SHA-256 digest: 2c56e6b764f5664dfd34ea7bfb38f07f1b991055093754e4104714c527584944' > "$SDK35"
+assert_eq "$(parse_signer_fingerprint "$SDK35")" "" "ambiguous fingerprint lines rejected"
+
 echo "== summary =="
 echo "  PASS: $PASS  FAIL: $FAIL"
 rm -rf "$TEST_WORKSPACE"

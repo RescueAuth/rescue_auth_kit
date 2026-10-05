@@ -55,12 +55,14 @@ done
 
 [[ "$RESCUEAUTH_KEY_ALIAS" == "$EXPECTED_ALIAS" ]] || die "Production key alias does not match the pinned release identity."
 
-readonly repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly repo_root
 readonly v2_root="$repo_root"
 
 # Load the release-tag parsing helpers (tag format validation + version
 # extraction). This enforces the long-term release contract: production is
 # built ONLY from a valid namespaced `rescueauth-vX.Y.Z` tag.
+# shellcheck disable=SC1091 # helper validated separately by release-version tests
 source "$repo_root/scripts/release-version.sh"
 
 # ---------------------------------------------------------------------------
@@ -77,7 +79,8 @@ fi
 if ! release_tag_is_valid "$release_tag"; then
   die "Invalid production release tag '$release_tag': must match ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$ (legacy tags and non-release branches are not accepted)."
 fi
-readonly expected_version_name="$(release_version_from_tag "$release_tag")"
+expected_version_name="$(release_version_from_tag "$release_tag")"
+readonly expected_version_name
 [[ -n "$expected_version_name" ]] || die "Could not derive release version from tag '$release_tag'."
 
 readonly certificate_metadata="$v2_root/release/android-signing-certificate.txt"
@@ -161,17 +164,16 @@ parse_signer_count() { # verification-file
   grep -oE '[0-9]+$' <<<"$line"
 }
 
-# Extract the first signer's certificate SHA-256 digest from apksigner's
-# verbose `--print-certs` output. The digest line is `V2 Signer: certificate
-# SHA-256 digest: <hex>`; we normalize it to the canonical uppercase form the
-# pinned fingerprint comparison expects. Returns the normalized digest, or
-# nothing when the line is absent.
+# Support the SDK 35 "Signer #1" format and historical "V2 Signer" output.
+# Reject missing, duplicate, or malformed digest lines rather than choosing one.
 parse_signer_fingerprint() { # verification-file
   local file="$1"
-  local line
-  line=$(grep -E '^V2 Signer: certificate SHA-256 digest:' "$file" 2>/dev/null | head -n 1 || true)
-  [[ -n "$line" ]] || return 0
-  sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' <<<"$line" | normalize_fingerprint
+  local lines fingerprint
+  lines=$(grep -E '^(Signer #1 certificate|V2 Signer: certificate) SHA-256 digest:' "$file" 2>/dev/null || true)
+  [[ -n "$lines" && "$lines" != *$'\n'* ]] || return 0
+  fingerprint=$(sed -E 's/^(Signer #1 certificate|V2 Signer: certificate) SHA-256 digest: *//' <<<"$lines" | normalize_fingerprint)
+  [[ "$fingerprint" =~ ^[0-9A-F]{64}$ ]] || return 0
+  printf '%s\n' "$fingerprint"
 }
 
 "$apksigner_bin" verify --verbose --print-certs "$apk_path" | tee "$verification_file"
