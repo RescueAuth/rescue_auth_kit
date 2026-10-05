@@ -436,3 +436,17 @@ now reapply the unchanged UiAutomation service info, whose setter clears that
 cache in AOSP. The test still requires ACTION_CLICK success and frame reports;
 no coordinate-click fallback or assertion skip is added. Full rerun required.
 AOSP reference: https://android.googlesource.com/platform/frameworks/base/+/eec68e55cc6661837030c8ecb4386d05b1d31685/core/java/android/app/UiAutomation.java
+
+### Accepted GitHub matrix — 2026-10-05
+
+Source: `a685304739705bde21798e42a61711c1451423f8`.
+GitHub run: https://github.com/RescueAuth/rescue_auth_kit/actions/runs/37277312320
+Firebase matrix: `4872339796755753964`, MediumPhone.arm / API 33 / en / portrait.
+Result: **157 test cases passed**, `FTL_FINAL=TEST_PASSED`, workflow success.
+All cases remain enabled, including screenshot and route frame timing cases.
+Earlier 67/157, 100/157, 138/157 and 156/157 runs remain failed historical
+results; they were not converted to passes or excluded from coverage.
+
+This accepts the current Debug instrumentation regression and GitHub Firebase
+credential/approval path. It does not accept a production-signed APK, physical
+biometrics/Keystore behavior, or the hosted stable update channel.

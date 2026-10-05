@@ -645,3 +645,26 @@ The stable pointer release must not be marked latest; the versioned native
 release should be marked latest only after acceptance. Verify hosted signatures
 and the Android update-check flow. GitHub cannot replace two assets atomically;
 a transient pair mismatch must fail closed.
+
+## 19. GitHub regression acceptance — 2026-10-05
+
+- Main repository: RescueAuth/rescue_auth_kit; main requires PR changes and
+  prohibits force pushes/deletion. Owner explicitly authorized agent review and
+  merge; zero external approvals are required by the GitHub branch rule.
+- Full GitHub regression at `859aca5`: 420 core + 844 app tests, no failures,
+  errors or skips; lint and Debug/AndroidTest builds passed. Downloaded debug
+  APK SHA-256 matches CI: `5c5a9170aef88c35e00e77ca68f4ee3e439191bf4c38aee5a2f303653143ec2a`.
+  Run: https://github.com/RescueAuth/rescue_auth_kit/actions/runs/37271060897
+- Full FTL at `a685304739705bde21798e42a61711c1451423f8`: **157/157 passed**,
+  matrix `4872339796755753964`, MediumPhone.arm/API 33.
+  Run: https://github.com/RescueAuth/rescue_auth_kit/actions/runs/37277312320
+- Firebase credentials are now configured in the isolated GitHub environment;
+  its owner approval path executed successfully. Local/CI signing material is
+  provisioned, but independent recoverable offline backup remains unconfirmed.
+- Still pending: production tag/candidate generation, exact signed-APK identity
+  and alignment verification, physical-device signed-candidate smoke, hosted
+  APK/hash/manifest/signature verification and stable-channel publication.
+
+The §15 physical-device, offline-backup and publication gates remain unchecked.
+Native 1.0.0 is not released; MCP/Bridge development remains scheduled for 1.1.0
+after 1.0.0 publication.
