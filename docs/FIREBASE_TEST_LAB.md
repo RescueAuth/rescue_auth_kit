@@ -428,3 +428,11 @@ UiAutomation.clearCache method on API 33. Fix test setup on the UI thread,
 compare the same 48 dp minimum in rounded physical pixels, and gate clearCache
 at API 34. Keep all rendering/interaction assertions and all 157 cases. A new
 complete FTL matrix is required; these changes are not themselves acceptance.
+
+Fourth matrix (`matrix-2kaeh3uyucxnj`, source `0eedfdc`) reached 156/157
+passed. Only RouteFrameTimingTest remained: an accessibility Back action was
+rejected. API 34+ already clears the node cache before lookup; older platforms
+now reapply the unchanged UiAutomation service info, whose setter clears that
+cache in AOSP. The test still requires ACTION_CLICK success and frame reports;
+no coordinate-click fallback or assertion skip is added. Full rerun required.
+AOSP reference: https://android.googlesource.com/platform/frameworks/base/+/eec68e55cc6661837030c8ecb4386d05b1d31685/core/java/android/app/UiAutomation.java
