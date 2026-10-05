@@ -571,3 +571,40 @@ against the new candidate revision.
 Cloud execution, secret provisioning and production publication have not been
 performed by this documentation update. Clipboard auto-clear and further
 accessibility / animation polish remain deferred under `ROADMAP.md §18`.
+
+## 16. GitHub migration — 2026-10-05
+
+The primary repository is now https://github.com/RescueAuth/rescue_auth_kit.
+Existing GitHub releases/tags were retained; four `legacy-v*` tags were added
+without moving or deleting historical tags. Local `origin` points at GitHub;
+`cnb` remains the historical remote.
+
+The owner explicitly authorized replacing the Android signing identity before
+the first native stable release. The current public certificate is recorded in
+`release/android-signing-certificate.txt`; August evidence above is historical
+and does not validate the replacement. Four signing secrets are provisioned in
+the GitHub `production` environment with `rescueauth-v*` tag restrictions and
+owner review. The old CNB signing material is retained and no longer matches
+the current certificate pin; the old production pipeline will fail closed.
+
+GitHub workflows: `android-manual.yml` provides owner-only manual debug/full
+regression; no push/PR full-test trigger. `android-release.yml` validates release
+tags against versionName and current main, runs full regression without signing
+secrets, then uses the approved production environment to sign and verify an APK
+and check 16 KiB alignment. It uploads a candidate artifact only. No stable
+release or latest.json is published automatically. FTL migration and update
+manifest provisioning remain outstanding. CNB update endpoints stay unchanged.
+
+The owner reported Debug-device verification on 2026-10-05. Device/OS details,
+independent new-key backup, final FTL, and exact production-candidate device
+verification remain unconfirmed. Do not mark the §15 gates passed based on this
+report or secret configuration alone. MCP is scheduled for 1.1.0 after 1.0.0.
+
+Local validation of this migration: required Gradle core/app tests and Debug /
+AndroidTest builds passed; reports contain core 420 and app 842 tests, zero
+failures/errors/skips. Lint completed with zero errors, 299 warnings and one
+information item. `actionlint` passed. No device was attached, so connected
+instrumentation was not run. Release parser regression passed 11 assertions
+(with its optional shellcheck skipped before installation), tag validation
+passed 14 assertions. GitHub execution is still unverified until a recorded run
+completes. These results do not constitute production artifact acceptance.

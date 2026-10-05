@@ -131,3 +131,25 @@ CRUD/UI，不是补 migration capability。
   （详见 `docs/UPDATE_PROTOCOL.md`）；不做 self-update 安装。
 - Portable Package format 保持 platform-neutral（不依赖 Android API /
   Room 表示），但当前 Roadmap 不为其他平台安排客户端开发。
+
+## 2026-10-05：GitHub 迁移与版本边界
+
+代码主仓库已迁至 `RescueAuth/rescue_auth_kit`，主分支迁移基线为
+`01f007040b705c80f79a5a7f4a2caa77ea04a043`；legacy 标签完整保留。
+`1.0.0` 仅发布现有 Android 功能，不包含 MCP。用户已报告 Debug 真机验证，
+设备信息与生产签名候选包验收尚未记录，不能据此宣布正式发布。
+
+`1.1.0` 在 `1.0.0` 发布后开发 Android 审批端与独立桌面 Bridge：
+配对客户端及账户授权、单次 TOTP 请求与手机 fresh re-auth、当前验证码
+及有效期返回；另支持 Agent 提交新增内容，手机预览确认后按现有校验、
+去重规则写入（账户、TOTP、恢复码、五类 Developer 条目）。默认不开放
+修改、删除、批量导出或无人值守授权。请求中的凭据不写日志；MCP 客户端
+可能保留工具输入输出，必须在产品设计中明确此边界。
+Bridge 不复制完整保险库，不构成桌面保险库客户端或云同步。
+此前 Android-only / 不安排 companion 开发的描述限定于 `1.0.0`；
+本节是已批准的 `1.1.0` 后续范围，尚未实现。
+
+用户于 2026-10-05 明确批准更换首次原生发布的 Android 生产签名密钥。
+新公开指纹见 `release/android-signing-certificate.txt`，私钥仅保存在
+仓库外及 GitHub `production` 环境 Secrets。应用 ID、版本、加密与备份格式
+保持不变；历史签名包不保证覆盖升级，旧私钥保留。
