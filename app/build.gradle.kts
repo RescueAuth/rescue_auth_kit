@@ -82,11 +82,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Phase 6 L2: Ed25519 update-manifest public key (Base64-encoded raw
-        // 32-byte key). This is a RELEASE PROVISIONING boundary — not set by
-        // default. When unset the update check returns NOT_CONFIGURED and the
-        // Vault keeps working (fail open). The PRIVATE key is a CI secret only
+        // 32-byte key). The reviewed public pin is committed; an override must
+        // match it. The PRIVATE key is a production CI secret only
         // and is never committed here.
-        val updatePublicKey = (project.findProperty("UPDATE_PUBLIC_KEY") as? String)?.trim().orEmpty()
+        val pinnedUpdatePublicKey = rootProject.file("release/update-public-key.txt").readText().trim()
+        val updatePublicKey = (project.findProperty("UPDATE_PUBLIC_KEY") as? String)?.trim()
+            ?: pinnedUpdatePublicKey
+        require(updatePublicKey == pinnedUpdatePublicKey) { "UPDATE_PUBLIC_KEY must match the reviewed production pin" }
         buildConfigField(
             "String",
             "UPDATE_PUBLIC_KEY",

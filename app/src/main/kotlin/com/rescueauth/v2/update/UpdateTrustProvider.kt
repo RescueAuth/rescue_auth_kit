@@ -4,7 +4,7 @@ package com.rescueauth.v2.update
  * Build-time trust configuration for the update protocol.
  *
  * The production Ed25519 **public** key is provisioned via the Gradle
- * `UPDATE_PUBLIC_KEY` property (BuildConfig). When it is not provisioned, the
+ * reviewed public-key file through BuildConfig. For unconfigured inputs, the
  * update check returns NOT_CONFIGURED and the Vault keeps working.
  *
  * This is a RELEASE PROVISIONING boundary: the private key is a CI secret only

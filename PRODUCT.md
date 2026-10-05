@@ -127,7 +127,7 @@ CRUD/UI，不是补 migration capability。
 ## 非目标（技术约束）
 
 - 不自建服务器、不用自有域名/DNS/CDN。
-- 更新源固定为公开 CNB 仓库 `xincy22/rescueauth-updates` 的原始文件地址
+- 更新源固定为 GitHub `RescueAuth/rescue_auth_kit` 的 `android-stable` Release assets
   （详见 `docs/UPDATE_PROTOCOL.md`）；不做 self-update 安装。
 - Portable Package format 保持 platform-neutral（不依赖 Android API /
   Room 表示），但当前 Roadmap 不为其他平台安排客户端开发。
@@ -153,3 +153,10 @@ Bridge 不复制完整保险库，不构成桌面保险库客户端或云同步�
 新公开指纹见 `release/android-signing-certificate.txt`，私钥仅保存在
 仓库外及 GitHub `production` 环境 Secrets。应用 ID、版本、加密与备份格式
 保持不变；历史签名包不保证覆盖升级，旧私钥保留。
+
+2026-10-05 补充授权：更新源迁至 GitHub `RescueAuth/rescue_auth_kit` 的
+`android-stable` Release assets，APK/说明使用 `rescueauth-vX.Y.Z` Release。
+独立 Ed25519 更新密钥已 provision；公开 pin 在 `release/update-public-key.txt`。
+该状态表示配置完成，端点上线、签名包和更新端到端验收仍未完成；旧 CNB
+资源保留。用户同时授权本任务后续 PR 由 Agent 自行审查、测试并合并，
+覆盖此前工作流人工审阅约束，不豁免发布验收与凭据保护。

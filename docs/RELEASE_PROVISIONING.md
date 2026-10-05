@@ -610,3 +610,18 @@ instrumentation was not run. Release parser regression passed 11 assertions
 (with its optional shellcheck skipped before installation), tag validation
 passed 14 assertions. GitHub execution is still unverified until a recorded run
 completes. These results do not constitute production artifact acceptance.
+
+## 17. Update trust configuration — 2026-10-05
+
+Owner authorized moving update hosting to GitHub Releases and provisioning a
+separate Ed25519 key. The production environment now contains
+`UPDATE_SIGNING_KEY_PEM`; its reviewed public pin is
+`release/update-public-key.txt`. Gradle compiles this pin and rejects a
+conflicting override. The app's fixed manifest/signature URLs now reference
+`android-stable` release assets in RescueAuth/rescue_auth_kit. Existing CNB
+resources were not deleted or altered. APK signing remains separate.
+
+Key configuration is complete, but §15 update gates remain unchecked until
+publication and hosted verification. No native release or android-stable assets
+have been published by this change. The provisioning test signs a deliberately
+non-manifest proof, validates the compiled key, and rejects altered bytes.
