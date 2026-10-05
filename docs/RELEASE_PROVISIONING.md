@@ -592,7 +592,9 @@ regression; no push/PR full-test trigger. `android-release.yml` validates releas
 tags against versionName and current main, runs full regression without signing
 secrets, then uses the approved production environment to sign and verify an APK
 and check 16 KiB alignment. It uploads a candidate artifact only. No stable
-release or latest.json is published automatically. FTL migration and update
+release or latest.json is published automatically. The manual main-only `android-firebase.yml` builds APKs without credentials,
+then runs the existing single-device FTL script in a separate
+`firebase-test-lab` environment. Firebase credentials and update
 manifest provisioning remain outstanding. CNB update endpoints stay unchanged.
 
 The owner reported Debug-device verification on 2026-10-05. Device/OS details,
