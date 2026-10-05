@@ -410,3 +410,12 @@ command did not. Pass an app-specific external test-output directory explicitly
 and collect the same directory with `--directories-to-pull`. Tests and assertions
 remain enabled; a corrected matrix must pass before claiming device acceptance.
 Only existing synthetic, secret-free visual test data may be captured.
+
+The second matrix (`matrix-29rymw9whn4uj`, source `68e1aed`) improved to
+100 passed / 57 failed. The inspected failure was ENOENT writing to the
+app-specific external directory. Use `/sdcard/Download/rescueauth-test-output`
+with instrumentation-only `no-isolated-storage=true`, following the Android
+performance-samples FTL configuration. Pull that same narrow directory.
+This affects the disposable cloud instrumentation invocation only; no manifest
+permission, production storage policy, or test assertion is changed.
+Reference: https://github.com/android/performance-samples/blob/main/.github/workflows/firebase_test_lab.yml
