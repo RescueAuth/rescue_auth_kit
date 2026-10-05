@@ -63,7 +63,7 @@ class StudioVisualReviewTest {
     }
 
     private fun content(dark: Boolean? = false, fontScale: Float = 1f, chinese: Boolean = true, body: @Composable () -> Unit) {
-        rule.activity.enableEdgeToEdge()
+        rule.runOnUiThread { rule.activity.enableEdgeToEdge() }
         rule.setContent {
             val base = LocalContext.current
             val config = Configuration(base.resources.configuration).apply {

@@ -419,3 +419,12 @@ performance-samples FTL configuration. Pull that same narrow directory.
 This affects the disposable cloud instrumentation invocation only; no manifest
 permission, production storage policy, or test assertion is changed.
 Reference: https://github.com/android/performance-samples/blob/main/.github/workflows/firebase_test_lab.yml
+
+Third matrix (`matrix-29e1hi1ofc3wa`, source `25fe0ac`) reached 138/157
+passed. Remaining failures match 16 StudioVisualReviewTest methods calling
+enableEdgeToEdge off the main thread, two 48 dp eye-button comparisons affected
+by fractional-density subtraction, and RouteFrameTimingTest calling the API 34
+UiAutomation.clearCache method on API 33. Fix test setup on the UI thread,
+compare the same 48 dp minimum in rounded physical pixels, and gate clearCache
+at API 34. Keep all rendering/interaction assertions and all 157 cases. A new
+complete FTL matrix is required; these changes are not themselves acceptance.
