@@ -399,3 +399,14 @@ are not available to either job. Set `GCP_SERVICE_ACCOUNT_JSON_BASE64` and
 The existing script's `CNB_COMMIT` input receives the GitHub source SHA; it is
 only a results label, not a CNB authorization bypass. Same single virtual device
 and timeout are retained. No cloud matrix has been executed by this migration.
+
+### Screenshot output in FTL
+
+The first GitHub matrix (`matrix-3jrax66wiy2st`, source `2043b87`) ran 157
+tests: 67 passed, 90 failed. The inspected screenshot failure was
+`SecondaryVisualReviewTest.capture:96`: missing `additionalTestOutputDir`.
+Gradle connected tests inject that argument, whereas the standalone gcloud
+command did not. Pass an app-specific external test-output directory explicitly
+and collect the same directory with `--directories-to-pull`. Tests and assertions
+remain enabled; a corrected matrix must pass before claiming device acceptance.
+Only existing synthetic, secret-free visual test data may be captured.
