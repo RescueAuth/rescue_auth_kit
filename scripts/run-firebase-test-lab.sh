@@ -74,7 +74,7 @@ declare -a CLEANUP_PATHS=()
 GCLOUD_AUTH_ACTIVE=0
 PINNED_GCLOUD_BIN=""
 
-# shellcheck disable=SC2317 # cleanup() is reached indirectly via the trap below.
+# shellcheck disable=SC2317,SC2329 # cleanup() is reached indirectly via the trap below.
 cleanup() {
     # 1) De-authorize the service account (idempotent). Uses the same pinned
     #    gcloud binary the runner installed, so revocation never depends on a

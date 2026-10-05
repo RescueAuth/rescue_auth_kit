@@ -387,3 +387,15 @@ version catalog、CI/runner 自变更等所有必触发路径,以及 `docs/**`�
 `README*` 等纯文档跳过分支,并用 PR #13 的真实路径
 (`app/src/androidTest/.../RescueAuthDatabaseInstrumentedTest.kt`)
 作为回归样例。fake 仅存在于测试目录,绝不进入生产执行路径。
+
+## GitHub migration (2026-10-05)
+
+The GitHub entry is `.github/workflows/android-firebase.yml`: manual dispatch,
+main only, owner actor and triggering actor only. APK build and validation run
+in a credential-free job; the separate device-test job receives only Firebase
+credentials from environment `firebase-test-lab`. Production signing secrets
+are not available to either job. Set `GCP_SERVICE_ACCOUNT_JSON_BASE64` and
+`FIREBASE_PROJECT_ID` there; restrict deployment to main and require owner review.
+The existing script's `CNB_COMMIT` input receives the GitHub source SHA; it is
+only a results label, not a CNB authorization bypass. Same single virtual device
+and timeout are retained. No cloud matrix has been executed by this migration.

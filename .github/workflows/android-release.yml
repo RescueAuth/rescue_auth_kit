@@ -1,0 +1,70 @@
+name: Android production candidate
+on:
+  push:
+    tags: ['rescueauth-v*']
+permissions:
+  contents: read
+concurrency:
+  group: rescueauth-production-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'RescueAuth/rescue_auth_kit' && github.actor == 'xincy22' && github.triggering_actor == 'xincy22'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Validate tag and main ancestry
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash scripts/validate-release-tag.sh "$RELEASE_TAG"
+          gh api repos/RescueAuth/rescue_auth_kit/commits/main --jq .sha > "$RUNNER_TEMP/main-sha"
+          test "$(cat "$RUNNER_TEMP/main-sha")" = "$(git rev-parse HEAD)"
+      - name: Full source regression
+        run: ./gradlew --no-daemon :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+  sign:
+    needs: validate
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Sign and verify production candidate
+        env:
+          RESCUEAUTH_RELEASE_TAG: ${{ github.ref_name }}
+          RESCUEAUTH_KEYSTORE_BASE64: ${{ secrets.RESCUEAUTH_KEYSTORE_BASE64 }}
+          RESCUEAUTH_STORE_PASSWORD: ${{ secrets.RESCUEAUTH_STORE_PASSWORD }}
+          RESCUEAUTH_KEY_PASSWORD: ${{ secrets.RESCUEAUTH_KEY_PASSWORD }}
+          RESCUEAUTH_KEY_ALIAS: ${{ secrets.RESCUEAUTH_KEY_ALIAS }}
+        run: bash scripts/build-production-apk.sh
+      - name: Verify 16 KiB alignment
+        run: |
+          for apk in app/build/outputs/production/RescueAuth-*.apk; do
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$apk"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-${{ github.ref_name }}
+          path: app/build/outputs/production/RescueAuth-*.apk
+          if-no-files-found: error
+          retention-days: 30
+# A candidate artifact is not a stable publication. Publish only after the
+# signed-device and update-channel gates in RELEASE_PROVISIONING.md pass.

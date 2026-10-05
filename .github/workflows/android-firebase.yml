@@ -1,0 +1,58 @@
+name: Android Firebase device tests
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.repository == 'RescueAuth/rescue_auth_kit' && github.ref == 'refs/heads/main' && github.actor == 'xincy22' && github.triggering_actor == 'xincy22'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Build and validate APKs without credentials
+        run: |
+          ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: firebase-input-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          if-no-files-found: error
+          retention-days: 7
+  device-test:
+    needs: build
+    environment: firebase-test-lab
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: firebase-input-${{ github.sha }}
+          path: ftl-input
+      - name: Run single virtual-device matrix
+        env:
+          GCP_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_BASE64 }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          APP_APK: ${{ github.workspace }}/ftl-input/debug/app-debug.apk
+          TEST_APK: ${{ github.workspace }}/ftl-input/androidTest/debug/app-debug-androidTest.apk
+          CNB_COMMIT: ${{ github.sha }}
+          FTL_DEVICE_MODEL: MediumPhone.arm
+          FTL_DEVICE_VERSION: '33'
+          FTL_DEVICE_LOCALE: en
+          FTL_DEVICE_ORIENTATION: portrait
+          FTL_TEST_TIMEOUT: 5m
+        run: bash scripts/run-firebase-test-lab.sh
