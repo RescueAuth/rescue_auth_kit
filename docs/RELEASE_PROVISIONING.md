@@ -625,3 +625,23 @@ Key configuration is complete, but §15 update gates remain unchecked until
 publication and hosted verification. No native release or android-stable assets
 have been published by this change. The provisioning test signs a deliberately
 non-manifest proof, validates the compiled key, and rejects altered bytes.
+
+## 18. Signed update candidate tooling
+
+The tag-only production workflow signs an exact-byte update manifest after APK
+signature/identity and 16 KiB alignment checks. `scripts/update-manifest.py`
+checks the independent key against the reviewed public pin, reads APK size/hash,
+derives versioned GitHub release URLs, signs schema v1 bytes and verifies its
+own output. It creates a new output directory and never replaces an existing
+one. No script output contains key material. APK, JSON and Base64 signature
+are uploaded together as a candidate artifact (repository artifact access
+rules still apply); this does not publish the stable channel.
+
+Before publication, download and verify the CI artifact, record FTL/device
+evidence, upload the APK to its versioned release, download that hosted APK and
+compare SHA-256, then publish the exact JSON/signature as `android-stable` release
+assets. Never overwrite historical APKs or repoint a production release tag.
+The stable pointer release must not be marked latest; the versioned native
+release should be marked latest only after acceptance. Verify hosted signatures
+and the Android update-check flow. GitHub cannot replace two assets atomically;
+a transient pair mismatch must fail closed.

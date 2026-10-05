@@ -72,10 +72,25 @@ jobs:
           for apk in app/build/outputs/production/RescueAuth-*.apk; do
             "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$apk"
           done
+      - name: Sign exact update manifest bytes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          UPDATE_SIGNING_KEY_PEM: ${{ secrets.UPDATE_SIGNING_KEY_PEM }}
+        run: |
+          version="${RELEASE_TAG#rescueauth-v}"
+          apk="app/build/outputs/production/RescueAuth-${version}.apk"
+          apkanalyzer_bin=$(find "$ANDROID_HOME/cmdline-tools" -type f -name apkanalyzer | sort | tail -n 1)
+          test -n "$apkanalyzer_bin"
+          version_code=$("$apkanalyzer_bin" manifest version-code "$apk")
+          python3 scripts/update-manifest.py --apk "$apk" --tag "$RELEASE_TAG" \
+            --version-code "$version_code" --output app/build/outputs/update
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: production-${{ github.ref_name }}
-          path: app/build/outputs/production/RescueAuth-*.apk
+          path: |
+            app/build/outputs/production/RescueAuth-*.apk
+            app/build/outputs/update/latest.json
+            app/build/outputs/update/latest.json.sig
           if-no-files-found: error
           retention-days: 30
 # A candidate artifact is not a stable publication. Publish only after the
