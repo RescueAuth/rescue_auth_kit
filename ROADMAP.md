@@ -296,7 +296,7 @@ P5 完成，继续复用同一 Merge Engine。
 > **L2 当前状态**：已实现并合并。About 页
 > （runtime versionName/versionCode、product description、Check for Updates、
 > update 状态机、severity、minSupported 更强警告、Open Release Page）已接入
-> Settings → About；固定 CNB 清单 + Ed25519 验签（BouncyCastle）已实现，
+> Settings → About；固定 HTTPS 清单（现迁至 GitHub） + Ed25519 验签（BouncyCastle）已实现，
 > 签名覆盖 exact raw bytes，`.sig` 为 Base64 原始 64-byte；schema v1 strict
 > validation；manual only（无 WorkManager/后台）；update data fail closed /
 > app fail open；INTERNET 权限显式声明；UI 状态机 + error taxonomy 冻结。
@@ -310,7 +310,7 @@ P5 完成，继续复用同一 Merge Engine。
 也不将 L3 的剩余项改为已完成。
 
 > Update Check 具体实现可复用旧版 UpdateChecker 语义 + 新
-> UPDATE_PROTOCOL.md（CNB 固定清单 + Ed25519 验签）。**不做** self
+> UPDATE_PROTOCOL.md（GitHub 固定清单 + Ed25519 验签）。**不做** self
 > update installer / APK 静默安装 / 自动下载。
 
 ### 5.6 Sensitive Action Re-authentication（正式能力）
@@ -545,7 +545,7 @@ Vault 开始替代旧版作为日常 Authenticator + 个人安全库使用。
 > v2.0 正式产品能力已实现并有测试覆盖）。
 >
 > **V2.0 RELEASED = NO**：当前为 **1.0.0 发布准备**。Android production
-> signing identity 已 provision；仍待 production Update Ed25519 provisioning、
+> signing identity 已 provision；仍待 production Update Ed25519 托管验收、
 > `rescueauth-updates` 更新渠道验收、签名密钥独立备份确认、signed release real-device smoke、
 > FTL / final device regression。执行顺序和验收证据见
 > [RELEASE_PROVISIONING.md §15](docs/RELEASE_PROVISIONING.md#release-readiness)。
@@ -747,3 +747,10 @@ Bridge 不复制完整保险库，不构成桌面保险库客户端或云同步�
 新公开指纹见 `release/android-signing-certificate.txt`，私钥仅保存在
 仓库外及 GitHub `production` 环境 Secrets。应用 ID、版本、加密与备份格式
 保持不变；历史签名包不保证覆盖升级，旧私钥保留。
+
+2026-10-05 补充授权：更新源迁至 GitHub `RescueAuth/rescue_auth_kit` 的
+`android-stable` Release assets，APK/说明使用 `rescueauth-vX.Y.Z` Release。
+独立 Ed25519 更新密钥已 provision；公开 pin 在 `release/update-public-key.txt`。
+该状态表示配置完成，端点上线、签名包和更新端到端验收仍未完成；旧 CNB
+资源保留。用户同时授权本任务后续 PR 由 Agent 自行审查、测试并合并，
+覆盖此前工作流人工审阅约束，不豁免发布验收与凭据保护。

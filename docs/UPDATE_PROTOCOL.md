@@ -9,10 +9,10 @@
 ## 1. 结论
 
 - 应用运行时**不访问** GitHub/CNB Release API，不搜索 release，不抓取 HTML。
-- 更新源为公开 CNB 仓库 `xincy22/rescueauth-updates`（main 分支）的原始文件：
-  `https://cnb.cool/xincy22/rescueauth-updates/-/git/raw/main/android/stable/latest.json`
+- 更新源为 GitHub `RescueAuth/rescue_auth_kit` 的固定 `android-stable` Release assets：
+  `https://github.com/RescueAuth/rescue_auth_kit/releases/download/android-stable/latest.json`
 - 签名：同目录 `latest.json.sig`。
-- 组织名 / 仓库名 / 默认分支 / 路径属于更新信任契约的一部分，不得删除、改名
+- 组织名 / 仓库名 / 固定发布标签 / 路径属于更新信任契约的一部分，不得删除、改名
   或转私有。
 - 应用**只读取**固定 update manifest + signature；固定源必须 HTTPS；不允许用户
   输入 update URL。
@@ -282,3 +282,19 @@ manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
 
 `UPDATE_PUBLIC_KEY` 的构建默认值为空；未配置时更新检查返回 `NOT_CONFIGURED`，
 本地保险库继续可用。该行为是未配置状态处理，不能记为生产更新渠道验收通过。
+
+## GitHub update trust provisioning (2026-10-05)
+
+Owner-approved migration: APKs and release notes use versioned
+`rescueauth-vX.Y.Z` GitHub Releases; the stable manifest and signature use the
+fixed `android-stable` release assets listed above. The app continues to fetch
+only HTTPS files, never release APIs. Old CNB resources are retained.
+The independent production Ed25519 private key is in GitHub production
+`UPDATE_SIGNING_KEY_PEM` and protected local storage; only its raw Base64 public
+key is committed in `release/update-public-key.txt`. Gradle uses that pin by
+default. Existing cryptography, schema v1 and exact-byte signatures are unchanged.
+A public non-manifest provisioning proof tests the compiled pin and tampering
+rejection. No private production material is included in tests.
+Hosting and stable publication remain pending actual signed APK/device acceptance.
+A manifest/signature asset replacement may briefly mismatch; clients fail closed
+and can retry. Do not claim an atomic two-file GitHub Release upload.
