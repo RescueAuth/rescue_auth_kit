@@ -116,6 +116,7 @@ if [[ "${1:-}" == "firebase" && "${2:-}" == "test" && "${3:-}" == "android" && "
     exit 1
 fi
 if [[ "${1:-}" == "firebase" && "${2:-}" == "test" && "${3:-}" == "android" && "${4:-}" == "run" ]]; then
+    if [[ -n "${FAKE_GCLOUD_LOG:-}" ]]; then printf 'run %s\n' "$*" >> "$FAKE_GCLOUD_LOG"; fi
     rc="${FAKE_GCLOUD_EXIT:-0}"
     printf 'Uploading [test.apk] to Firebase Test Lab...\n'
     printf 'Test [matrix id: 1234567890123456789] has completed.\n'
@@ -263,11 +264,15 @@ echo
 echo "== 7. gcloud exit code 0 -> TEST PASSED, runner exits 0 =="
 common_env
 FAKE_GCLOUD_EXIT=0
+export FAKE_GCLOUD_LOG="$TEST_WORKSPACE/output-dir-args.log"
 run_runner
 assert_eq "$RUNNER_RC" "0" "runner exit 0"
 assert_contains "$RUNNER_OUT" "FTL_EXIT_CODE=0" "raw exit code"
 assert_contains "$RUNNER_OUT" "TEST_PASSED" "TEST PASSED classification"
 assert_contains "$RUNNER_OUT" "FTL_MATRIX_ID=" "matrix id logged"
+assert_contains "$(cat "$FAKE_GCLOUD_LOG")" "--environment-variables=additionalTestOutputDir=/sdcard/Android/data/com.rescueauth.v2/files/test-output" "instrumentation screenshot output directory configured"
+assert_contains "$(cat "$FAKE_GCLOUD_LOG")" "--directories-to-pull=/sdcard/Android/data/com.rescueauth.v2/files/test-output" "screenshot evidence collected from same directory"
+unset FAKE_GCLOUD_LOG
 
 echo
 echo "== 8. gcloud exit code 10 -> TEST_FAILED, runner exits 10 =="
