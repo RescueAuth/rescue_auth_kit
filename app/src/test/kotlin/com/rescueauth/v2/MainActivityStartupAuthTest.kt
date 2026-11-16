@@ -636,4 +636,55 @@ class MainActivityStartupAuthTest {
         assertTrue("shell still composed", activity.isShellComposed())
         teardown(controller)
     }
+
+    // ---- Test G — unlocked state survives activity recreation ----
+
+    @Test
+    fun `unlocked shell state survives activity recreation`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        )
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup(); idle()
+        prompt.deliver(StartupAuthResult.Success); idle()
+        assertTrue("initial unlock", activity.sessionManager.sessionState.isUnlocked())
+        assertTrue("shell composed", activity.isShellComposed())
+        // The root ComposeView must have a stable id, otherwise Compose cannot
+        // attach a SaveableStateRegistry and navigation state is lost.
+        val composeRoot = activity.findViewById<android.view.View>(com.rescueauth.v2.R.id.main_compose_host)
+        assertNotNull("root ComposeView must have the stable saveable id", composeRoot)
+
+        // Capture the saved state as Android does before recreation.
+        val savedState = android.os.Bundle()
+        activity.saveShellStateForTest(savedState)
+        assertTrue("shell flag must be saved", savedState.getBoolean("shell_unlocked"))
+        teardown(controller)
+
+        // Restore into a fresh Activity instance. No keystore crypto in onCreate;
+        // the restored flag makes the shell come back (empty, under the overlay)
+        // instead of a first-run startup host.
+        val controller2 = Robolectric.buildActivity(MainActivity::class.java)
+        val activity2 = controller2.get()
+        activity2.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt2 = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        )
+        activity2.startupAuthPromptFactory = { prompt2 }
+        controller2.setup(); idle()
+        // Simulate Android restoring our saved state into the recreated Activity.
+        activity2.restoreShellStateForTest(savedState); idle()
+        assertTrue("shell must be restored on recreation", activity2.isShellComposed())
+        assertTrue(
+            "overlay must cover restored shell while locked",
+            activity2.isLockOverlayVisible(),
+        )
+        teardown(controller2)
+    }
 }

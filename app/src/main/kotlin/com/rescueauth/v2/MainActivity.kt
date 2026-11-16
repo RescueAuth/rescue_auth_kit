@@ -215,6 +215,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             StartupMode.UNLOCK
         }
+        // Restore the shell flag on Activity recreation: a previously unlocked
+        // session must come back to the (empty) shell under the lock overlay,
+        // never to a first-run startup host.
+        restoreShellStateForTest(savedInstanceState)
 
         // Startup unlock prompt (auth-first — never crypto-first, Issue #50).
         startupAuthPrompt = startupAuthPromptFactory?.invoke(this)
@@ -245,6 +249,7 @@ class MainActivity : AppCompatActivity() {
         // the gate/lock screens and the app shell apply the saved theme.
         val themePreferences = ThemePreferences(this)
         val composeView = ComposeView(this).apply {
+            id = R.id.main_compose_host
             setContent {
                 RescueAuthAppearance(themePreferences) { themeMode, onThemeModeChange ->
                     val ui by uiState.collectAsState()
@@ -399,6 +404,11 @@ class MainActivity : AppCompatActivity() {
         sessionManager.onAppBackgrounded(lockAfterMillis = 30_000L)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        saveShellStateForTest(outState)
+    }
+
     override fun onDestroy() {
         if (::sensitiveActionGate.isInitialized) {
             sensitiveActionGate.onLifecycleDestroy()
@@ -492,6 +502,19 @@ class MainActivity : AppCompatActivity() {
 
     /** Test seam: whether the app shell is composed (read-only). */
     internal fun isShellComposed(): Boolean = _uiState.value == StartupUiState.UNLOCKED
+
+    /** Test seam: persist the shell state (production path uses onSaveInstanceState). */
+    internal fun saveShellStateForTest(outState: android.os.Bundle) {
+        outState.putBoolean("shell_unlocked", hasUnlockedOnce)
+    }
+
+    /** Test seam: restore the shell state without re-running full onCreate. */
+    internal fun restoreShellStateForTest(savedInstanceState: android.os.Bundle?) {
+        if (savedInstanceState?.getBoolean("shell_unlocked") == true) {
+            hasUnlockedOnce = true
+            _uiState.value = StartupUiState.UNLOCKED
+        }
+    }
 
     /**
      * True when the app shell is composed but the session is not UNLOCKED, i.e.
