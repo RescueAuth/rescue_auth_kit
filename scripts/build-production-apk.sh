@@ -8,11 +8,11 @@ readonly EXPECTED_APPLICATION_ID="com.rescueauth.v2"
 readonly EXPECTED_ALIAS="rescueauth-v2"
 
 # The production release tag (e.g. `rescueauth-v1.0.0`) that this pipeline
-# builds from. On a tag_push event CNB_BRANCH is the tag name. A caller may
+# builds from. On a tag push GITHUB_REF_NAME is the tag name. A caller may
 # override via RESCUEAUTH_RELEASE_TAG for testing. There is deliberately NO
 # hardcoded version here: the release version is derived from the tag so the
 # same script works for every future rescueauth-vX.Y.Z release.
-readonly release_tag="${RESCUEAUTH_RELEASE_TAG:-${CNB_BRANCH:-}}"
+readonly release_tag="${RESCUEAUTH_RELEASE_TAG:-${GITHUB_REF_NAME:-}}"
 
 die() {
   echo "ERROR: $*" >&2
@@ -74,7 +74,7 @@ source "$repo_root/scripts/release-version.sh"
 # This rejects legacy tags (legacy-vX.Y.Z), `main`, feature branches,
 # and arbitrary strings.
 if [[ -z "$release_tag" ]]; then
-  die "No release tag provided: production release must be built from a rescueauth-vX.Y.Z tag (got empty CNB_BRANCH / RESCUEAUTH_RELEASE_TAG)."
+  die "No release tag provided: production release must be built from a rescueauth-vX.Y.Z tag (got empty GITHUB_REF_NAME / RESCUEAUTH_RELEASE_TAG)."
 fi
 if ! release_tag_is_valid "$release_tag"; then
   die "Invalid production release tag '$release_tag': must match ^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$ (legacy tags and non-release branches are not accepted)."

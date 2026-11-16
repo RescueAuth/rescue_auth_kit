@@ -13,7 +13,6 @@
 #
 # Requirements:
 #   * scripts/run-firebase-test-lab.sh exists and passes `bash -n` + shellcheck
-#   * scripts/check-test-lab-gate.sh exists and passes `bash -n` + shellcheck
 #   * Python 3 available (runner parses JSON catalog responses)
 #   * unzip available (runner validates APK zip structure)
 #
@@ -26,7 +25,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNNER="$ROOT/scripts/run-firebase-test-lab.sh"
-GATE_SCRIPT="$ROOT/scripts/check-test-lab-gate.sh"
 TEST_WORKSPACE="$(mktemp -d)"
 FAKE_BIN="$TEST_WORKSPACE/fake-bin"
 export PATH="$FAKE_BIN:$PATH"
@@ -178,7 +176,7 @@ common_env() {
     export FTL_DEVICE_LOCALE="en"
     export FTL_DEVICE_ORIENTATION="portrait"
     export FTL_TEST_TIMEOUT="5m"
-    export CNB_COMMIT="deadbeefcafe0123456789abcdef0123456789abcd"
+    export FTL_COMMIT="deadbeefcafe0123456789abcdef0123456789abcd"
     export FAKE_GCLOUD_EXIT=0
     unset FAKE_GCLOUD_QUOTA_TEXT
     mkfake_apk "$APP_APK"
@@ -201,8 +199,6 @@ echo "== static checks =="
 
 if bash -n "$RUNNER"; then ok "runner bash -n"; else bad "runner bash -n"; fi
 if shellcheck "$RUNNER" >/dev/null 2>&1; then ok "runner shellcheck"; else bad "runner shellcheck"; fi
-if bash -n "$GATE_SCRIPT"; then ok "gate bash -n"; else bad "gate bash -n"; fi
-if shellcheck "$GATE_SCRIPT" >/dev/null 2>&1; then ok "gate shellcheck"; else bad "gate shellcheck"; fi
 
 echo
 echo "== 1. missing FIREBASE_PROJECT_ID fails fast =="
@@ -408,107 +404,7 @@ else
 fi
 
 echo
-echo "== 19. gate: documentation-only diff -> SKIP =="
-(
-    cd "$TEST_WORKSPACE"
-    git init -q -b main repo_doc && cd repo_doc
-    git config user.email t@t && git config user.name t
-    echo x > README.md && git add -A && git commit -qm c1
-    git checkout -qb doc
-    mkdir -p docs
-    echo y >> README.md
-    echo z > docs/NOTES.md
-    git add -A && git commit -qm "docs: update"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"
-    export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=skip" "gate skips docs-only"
-    assert_contains "$out" "TEST LAB NOT EXECUTED: documentation-only change" "explicit skip reason"
-)
-
-echo
-echo "== 20. gate: app/main build-related diff -> RUN =="
-(
-    cd "$TEST_WORKSPACE/repo_doc"
-    git checkout -qb appchange
-    mkdir -p app/src/main && echo k > app/src/main/K.kt
-    git add -A && git commit -qm "feat: app change"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"
-    export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=run" "gate runs for app/main change"
-    assert_contains "$out" "TEST LAB GATE: run" "run reason logged"
-)
-
-# docs/ must NOT trigger Test Lab.
-(
-    cd "$TEST_WORKSPACE/repo_doc"
-    git checkout -qb rootdocschange
-    mkdir -p docs && echo k > docs/NOTES.md
-    git add -A && git commit -qm "feat: docs change"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"
-    export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=skip" "gate skips docs change"
-)
-
-echo
-echo "== 21. gate: empty CNB_BEFORE_SHA -> RUN (conservative) =="
-(
-    cd "$TEST_WORKSPACE/repo_doc"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    unset CNB_BEFORE_SHA
-    export CNB_COMMIT="$(git rev-parse HEAD)"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=run" "gate runs when before sha empty"
-)
-
-echo
-echo "== 22. gate: all-zero CNB_BEFORE_SHA -> RUN =="
-(
-    cd "$TEST_WORKSPACE/repo_doc"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    export CNB_BEFORE_SHA="0000000000000000000000000000000000000000"
-    export CNB_COMMIT="$(git rev-parse HEAD)"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=run" "gate runs when before sha all-zero"
-)
-
-echo
-echo "== 23. gate: full range with multiple commits -> RUN =="
-(
-    cd "$TEST_WORKSPACE/repo_doc"
-    git checkout -qb multi
-    echo a > gradle.properties && git add -A && git commit -qm "c1 gradle"
-    echo b >> gradle.properties && git add -A && git commit -qm "c2 gradle"
-    echo c >> gradle.properties && git add -A && git commit -qm "c3 gradle"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    before="$(git rev-parse HEAD~3)" commit="$(git rev-parse HEAD)"
-    export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=run" "gate runs for multi-commit push"
-)
-
-# PR #13 regression: the REAL path that was wrongly skipped. A change under
-# app/src/androidTest/ MUST run Test Lab (it is instrumentation code).
-(
-    cd "$TEST_WORKSPACE/repo_doc"
-    git checkout -qb pr13
-    mkdir -p app/src/androidTest/kotlin/com/rescueauth/v2/database
-    echo x > app/src/androidTest/kotlin/com/rescueauth/v2/database/RescueAuthDatabaseInstrumentedTest.kt
-    git add -A && git commit -qm "fix: make androidTest @Test methods JVM void"
-    export CNB_BUILD_WORKSPACE="$PWD"
-    before="$(git rev-parse HEAD~1)" commit="$(git rev-parse HEAD)"
-    export CNB_BEFORE_SHA="$before" CNB_COMMIT="$commit"
-    out="$("$GATE_SCRIPT")"
-    assert_contains "$out" "TEST_LAB_GATE=run" "PR #13 real androidTest path triggers run"
-)
-
-echo
-echo "== 24. no Firebase API call made (no network / no quota) =="
+echo "== 19. no Firebase API call made (no network / no quota) =="
 # The fake gcloud never touches the network; the runner is invoked with PATH
 # pointing ONLY at the fake bin. If a real gcloud were invoked it would fail
 # (not on PATH), proving no real API call happens in these tests.
@@ -519,7 +415,7 @@ else
 fi
 
 echo
-echo "== 25. SIGPIPE regression: manifest-first APK with many trailing entries must PASS =="
+echo "== 20. SIGPIPE regression: manifest-first APK with many trailing entries must PASS =="
 # Regression for the firebase-test-lab stage failure:
 #   [ftl][ERROR] APP_APK does not look like an Android APK (no AndroidManifest.xml)
 # The old check `unzip -Z1 "$apk" | grep -q 'AndroidManifest.xml'` under
@@ -560,7 +456,7 @@ else
 fi
 
 echo
-echo "== 26. valid zip WITHOUT AndroidManifest.xml must FAIL fast =="
+echo "== 21. valid zip WITHOUT AndroidManifest.xml must FAIL fast =="
 common_env
 mkfake_apk_nomanifest "$APP_APK"
 mkfake_apk "$TEST_APK"
@@ -581,7 +477,7 @@ assert_contains "$RUNNER_OUT" "does not look like an Android APK" "TEST_APK repo
 assert_contains "$RUNNER_OUT" "TEST_APK" "names TEST_APK"
 
 echo
-echo "== 27. set -euo pipefail: legal APK is NOT misjudged via SIGPIPE =="
+echo "== 22. set -euo pipefail: legal APK is NOT misjudged via SIGPIPE =="
 # The runner itself runs under `set -euo pipefail`; exercising the new helper
 # directly (same archive shape as test 25) proves a legal APK never triggers
 # the old 141 false negative.
@@ -611,7 +507,7 @@ mkfake_apk_nomanifest "$APP_APK"
 
 echo
 
-echo "== 28. catalog parser regression: multi-value supportedVersionIds + --format=json =="
+echo "== 23. catalog parser regression: multi-value supportedVersionIds + --format=json =="
 # Root cause of the main-CI failure:
 #   [ftl][ERROR] FTL device version not supported for model MediumPhone.arm: API 33
 #

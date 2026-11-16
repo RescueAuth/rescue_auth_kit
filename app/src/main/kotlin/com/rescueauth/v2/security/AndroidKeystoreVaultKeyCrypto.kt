@@ -48,9 +48,39 @@ class AndroidKeystoreVaultKeyCrypto(
         persist(Blob.encode(iv, wrapped))
     }
 
+    /**
+     * WRITE-ONCE persistence of the wrapped VaultKey.
+     *
+     * The blob is the only material that can decrypt this vault, so a second
+     * write is never legitimate: it happens only when the app misjudged the
+     * install as first-run while a vault already exists. Refusing here makes
+     * that misjudgement harmless instead of catastrophic — the original key
+     * stays on disk and the failure is reported to the caller as a typed
+     * failure rather than silent data loss.
+     *
+     * `StandardCopyOption.ATOMIC_MOVE` with no `REPLACE_EXISTING` fails when
+     * the destination exists, and the temporary file keeps a crash
+     * mid-write from leaving a truncated blob in place.
+     */
     override fun persistBlob(blob: String) {
-        blobFile().writeText(blob)
+        val target = blobFile()
+        if (target.exists()) {
+            throw IllegalStateException("wrapped VaultKey already exists; refusing to overwrite")
+        }
+        val temp = File(target.absolutePath + ".tmp")
+        try {
+            temp.writeText(blob)
+            java.nio.file.Files.move(
+                temp.toPath(),
+                target.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            )
+        } finally {
+            if (temp.exists()) temp.delete()
+        }
     }
+
+    override fun hasPersisted(): Boolean = blobFile().exists()
 
     override fun readWrapped(): String? =
         blobFile().takeIf { it.exists() }?.readText()?.takeIf { it.isNotBlank() }

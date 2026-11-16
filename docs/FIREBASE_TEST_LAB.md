@@ -9,99 +9,86 @@
 ## 1. 整体架构（手动触发，owner-only，main only）
 
 **产品决策：任何 `push` / PR merge / `main` update 都不自动运行任何
-RescueAuth 测试（含 Firebase Test Lab）。** FTL 只通过页面上的手动按钮
-**“Run Firebase device tests”**（`web_trigger_firebase_test`）由仓库 owner 在
-`main` 分支上触发。
+RescueAuth 测试（含 Firebase Test Lab）。** FTL 只通过 GitHub Actions 页面上的
+手动触发 **“Android Firebase device tests”**（`android-firebase.yml`，
+`workflow_dispatch`）由仓库 owner 在 `main` 分支上运行。
 
 原 `main: push → full-cloud-test-loop` 自动流水线**已移除且不再恢复**。
 
-手动 FTL 按钮的执行流程：
+手动 FTL 工作流的执行流程：
 
 ```text
-main 上点击“Run Firebase device tests”
+Actions → Android Firebase device tests → Run workflow（main）
 → debug APK                 (./gradlew :app:assembleDebug)
 → androidTest APK           (./gradlew :app:assembleDebugAndroidTest)
 → 产物校验                   (APP_APK / TEST_APK 存在且非空)
 → Firebase Test Lab         (scripts/run-firebase-test-lab.sh，单台虚拟设备)
-→ 在 CNB 日志中保留测试矩阵结果
+→ 在 Actions 运行日志中保留测试矩阵结果
 ```
 
-任何前置命令失败都会让流水线失败，**不会**提交 Test Lab 矩阵。
+任何前置命令失败都会让工作流失败，**不会**提交 Test Lab 矩阵。
 
-配置位置：`.cnb.yml` 中的 `web_trigger_firebase_test` 流水线（`$` 兜底分支下，
-由 `.cnb/web_trigger.yml` 的 `^main$` 按钮触发），构建镜像为固定的
-`cimg/android:2026.08`（JDK 17/21 + Android SDK 34/35/36 + build-tools 35.0.0，
-版本由镜像 tag 锁定，保证可复现）。
+配置位置：`.github/workflows/android-firebase.yml`，运行环境为
+`ubuntu-24.04`，JDK 为 temurin 17，Android SDK 组件为
+`platforms;android-35` 与 `build-tools;35.0.0`，与其它工作流保持一致。
 
-配套的手动全回归按钮 **“Run full RescueAuth test suite”**
-（`web_trigger_full_test`，全分支、owner-only、**无密钥**）执行
-core/JVM tests、Robolectric、lint、assembleDebug、assembleDebugAndroidTest
-与产物校验，**不包含** Firebase Test Lab——云上设备测试单由上面这个手动 FTL 按钮承担。
+配套的手动全回归工作流 **“Android manual builds”**（`android-manual.yml`，
+task 选 `full`，**无密钥**）执行 core/JVM tests、Robolectric、lint、assembleDebug、
+assembleDebugAndroidTest 与产物校验，**不包含** Firebase Test Lab——
+云上设备测试由上面这个手动 FTL 工作流单独承担。
 
 ---
 
 ## 2. 为什么只在手动 FTL 流水线中读取密钥
 
-FTL 需要 GCP 服务账号凭据。凭据存放在独立的密钥仓库：
+FTL 需要 GCP 服务账号凭据。凭据存放在 GitHub 的 **`firebase-test-lab` 环境**
+（Settings → Environments → `firebase-test-lab` → Environment secrets）：
 
-```text
-https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
-```
+| Secret | 内容 |
+|--------|------|
+| `FIREBASE_PROJECT_ID` | Firebase 项目 ID（`rescue-auth-kit-test`） |
+| `GCP_SERVICE_ACCOUNT_JSON_BASE64` | GCP 服务账号 JSON 的 Base64 |
 
-`web_trigger` 是 CNB 的**可信事件**（不属于官方文档中的“不可信事件”列表），
-且按钮已被 `.cnb/web_trigger.yml` 限制为 **owner 角色**并**仅出现在 `main` 分支**。
-因此密钥仓库的访问限制可安全配置为：
-
-| 维度       | 限制值                                        |
-|-----------|----------------------------------------------|
-| repository | `xincy22/rescue_auth_kit`                    |
-| event     | `web_trigger_firebase_test`（或 `web_trigger`） |
-| branch    | `main`                                       |
-
-因此在 `.cnb.yml` 中，**只有** `web_trigger_firebase_test` 流水线的
-`firebase-test-lab` stage 通过 `imports` 引用该文件：
+工作流通过 `environment: firebase-test-lab` 声明该环境，只有该 job 能读到
+这两个 secret：
 
 ```yaml
-$:
-  web_trigger_firebase_test:
-    - name: run-firebase-device-tests
-      stages:
-        - name: firebase-test-lab
-          imports:
-            - https://cnb.cool/xincy22/rescue_auth_kit_secrets/-/blob/main/firebase-test-lab.yml
+jobs:
+  device-test:
+    needs: build
+    environment: firebase-test-lab
+    env:
+      GCP_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_BASE64 }}
+      FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
 ```
 
-`pull_request`、`issue`、`issue.comment@npc`、`pull_request.comment@npc`、
-`tag` 事件以及其他分支、非 owner 的手动触发都**不得**导入密钥。
+工作流由 `workflow_dispatch` 触发，且 job 级 `if` 要求
+`github.ref == 'refs/heads/main'`、`github.actor == 'xincy22'`，
+其它分支与非 owner 触发都不会进入该 job。
 
-> **密钥仓库 `firebase-test-lab.yml` 需在 Web 界面补充授权（一次性）**：当前文件
-> 的 `allow_events` 若仍为 `push`，请改为包含
-> `web_trigger_firebase_test`（或 `web_trigger`），并保持
-> `allow_branches: main`。这一步只能由密钥仓库管理员在 Web 界面完成。
-> 在完成该授权前，点击“Run Firebase device tests”会在 prepare 阶段因无访问权
-> 被拒绝——这是**预期行为**，不是恢复 `main push` 自动测试的理由。
+> **环境访问限制（建议配置）**：在 Settings → Environments →
+> `firebase-test-lab` → Deployment branches 中限制为 `main` only，
+> 与 job 级 `if` 形成双重约束。
 >
-> **`imports` 作用域说明（重要）**：`imports` 采用 **Stage 级**作用域（CNB
-> 官方 Schema 同时支持 Pipeline 级、Stage 级与 Job 级 `imports`；本配置使用
-> Stage 级，且该 stage 未声明 `jobs`，等价于单一 Job，凭据生命周期只覆盖
-> `firebase-test-lab` 这一个执行单元）。注入的密钥变量**仅对
-> `firebase-test-lab` stage 可见**：build-debug-apk、build-androidtest-apk、
-> validate-apks 等前置 stage 均**无法读取** Firebase 凭据。
-> “只有手动 FTL 流水线能导入”与“只有 FTL stage 能看到”两个约束同时成立。
+> **secret 作用域说明（重要）**：GitHub 的 environment secret 只在该 job
+> 声明 `environment:` 时可见。`build` job（构建两个 APK）不声明环境，
+> 因此**读不到** Firebase 凭据；凭据只注入 `device-test` job。
+> “只有手动 FTL 工作流能读取”与“只有 device-test job 能看到”两个约束同时成立。
 >
-> **仓库治理要求**：`main` 必须保持为**保护分支**；所有 `.cnb.yml`、
-> Gradle 脚本与构建脚本（`scripts/*.sh` 等）的变更都必须经过**人工 diff
-> 审查**后才能合并。
+> **仓库治理要求**：`main` 必须保持为**保护分支**；所有
+> `.github/workflows/*.yml`、Gradle 脚本与构建脚本（`scripts/*.sh` 等）
+> 的变更都必须经过**人工 diff 审查**后才能合并。
 
 ---
 
 ## 3. 为什么 PR 分支不能运行 Test Lab
 
-PR 分支（如 `auto/xxx`）不属于 `main`，且“Run Firebase device tests”按钮
-仅出现在 `main` 分支详情页，无法满足密钥仓库 `repository + event + branch`
-的限制，因此**读不到密钥**。
+PR 分支（如 `auto/xxx`）不是 `main`，`android-firebase.yml` 的 `build` job
+带 `if: github.ref == 'refs/heads/main'` 条件，非 `main` 直接跳过；
+即使绕过该条件，`firebase-test-lab` 环境的 Deployment branches 限制
+也会让 job 拿不到 secret。
 
-推论：**只有 owner 在 `main` 上手动点击 FTL 按钮**才能真实提交 Test Lab 矩阵；
+推论：**只有 owner 在 `main` 上手动触发 FTL 工作流**才能真实提交 Test Lab 矩阵；
 任何 push / PR 都不会自动触发 FTL。
 
 这是一个有意的安全边界：防止任意 PR 提交或自动 push 消耗测试配额或触发云端设备。
@@ -131,7 +118,7 @@ PR 分支（如 `auto/xxx`）不属于 `main`，且“Run Firebase device tests�
 | `FTL_DEVICE_LOCALE`            | locale(固定 `en`)                          | 否   |
 | `FTL_DEVICE_ORIENTATION`       | 方向(固定 `portrait`)                       | 否   |
 | `FTL_TEST_TIMEOUT`             | 矩阵超时(固定 `5m`)                         | 否   |
-| `CNB_COMMIT`                   | 当前提交 SHA(用于 matrix/result 标识)       | 否   |
+| `FTL_COMMIT`                   | 当前提交 SHA(用于 matrix/result 标识)       | 否   |
 
 `APP_APK` / `TEST_APK` 使用**确定的 Gradle 输出路径**:
 
@@ -228,22 +215,22 @@ gcloud firebase test android models describe MediumPhone.arm
 
 ## 8. 变更门控（gate）现状
 
-`scripts/check-test-lab-gate.sh` 曾用于旧 `main push` 自动流水线，判断本次 push
-是否值得提交 FTL 矩阵。**该自动流水线已移除，因此这个 gate 不再被任何流水线
-引用**，仅保留脚本与测试作为历史参考。
+旧 `main push` 自动流水线曾用 `scripts/check-test-lab-gate.sh` 判断本次 push
+是否值得提交 FTL 矩阵。该自动流水线已移除，gate 脚本及其自测套件也随 CNB
+退役一并删除；它唯一的调用者是 `.cnb.yml`，GitHub 侧没有替代需求。
 
 在手动模式下，是否运行 FTL 完全由 owner 决定：
 
-- “Run full RescueAuth test suite”手动按钮总是运行完整回归（无 FTL）；
-- “Run Firebase device tests”手动按钮总是构建并提交一个 FTL 矩阵。
+- **Android manual builds** 的 `full` 任务总是运行完整回归（无 FTL）；
+- **Android Firebase device tests** 工作流总是构建并提交一个 FTL 矩阵。
 
 不再存在“自动根据变更范围跳过 FTL”的行为；`main push` 不触发任何 FTL。
 
 ---
 
-## 9. 如何从 CNB 日志进入 Firebase 测试矩阵结果
+## 9. 如何从 Actions 日志进入 Firebase 测试矩阵结果
 
-“Run Firebase device tests”手动按钮的 `firebase-test-lab` 阶段日志中会输出:
+“Android Firebase device tests”工作流的 `device-test` job 日志中会输出:
 
 ```text
 [ftl] FTL_MATRIX_ID=1234567890123456789
@@ -253,11 +240,11 @@ gcloud firebase test android models describe MediumPhone.arm
 [ftl] FTL_FINAL=<最终分类>
 ```
 
-打开 CNB 构建日志页面(`云原生构建 → 对应构建记录 → firebase-test-lab 阶段`),
-复制 `FTL_MATRIX_ID` 或点击 `FTL_CONSOLE` 链接进入 Firebase 控制台
-`Test Lab → 测试记录 (Histories)` 查看矩阵结果。
+打开 Actions 运行页面(`Actions → Android Firebase device tests → 对应运行 →
+device-test job`)，复制 `FTL_MATRIX_ID` 或点击 `FTL_CONSOLE` 链接进入 Firebase
+控制台 `Test Lab → 测试记录 (Histories)` 查看矩阵结果。
 
-`FTL_MATRIX_ID` 与当前提交 SHA 关联(`--results-dir=ftl-<CNB_COMMIT>`),
+`FTL_MATRIX_ID` 与当前提交 SHA 关联(`--results-dir=ftl-<FTL_COMMIT>`)，
 便于把一次构建与一次矩阵一一对应。
 
 ---
@@ -280,7 +267,7 @@ gcloud firebase test android models describe MediumPhone.arm
 
 Test Lab 结果默认存放在 Firebase 项目绑定的默认 Cloud Storage 桶中
 (`gs://test-lab-<...>` 或项目默认桶,以 Firebase 控制台展示为准),结果目录为
-`ftl-<CNB_COMMIT>`。结果保留周期遵循 Firebase Test Lab 的默认策略
+`ftl-<FTL_COMMIT>`。结果保留周期遵循 Firebase Test Lab 的默认策略
 (通常约 30 天,以 Firebase 控制台展示为准)。结果链接用于:
 
 - 快速回溯某次构建对应的设备测试结果;
@@ -298,15 +285,14 @@ Test Lab 结果默认存放在 Firebase 项目绑定的默认 Cloud Storage 桶�
 1. 在 GCP 控制台(IAM 与管理 → 服务账号)找到用于 Test Lab 的服务账号;
 2. 选择"密钥"标签 → "添加密钥" → "创建新密钥",下载新的 JSON;
 3. 对 JSON 做 `base64 -w0` 得到 `GCP_SERVICE_ACCOUNT_JSON_BASE64`;
-4. 将新值写入密钥仓库
-   `xincy22/rescue_auth_kit_secrets` 的 `firebase-test-lab.yml`;
+4. 将新值写入 GitHub 仓库的 `firebase-test-lab` 环境 secrets
+   (`GCP_SERVICE_ACCOUNT_JSON_BASE64` 与 `FIREBASE_PROJECT_ID`);
 5. 在 GCP 删除旧密钥;
-6. 在 `main` 分支上点击 **“Run Firebase device tests”** 手动按钮
-   验证新凭据可用;
+6. 在 `main` 上手动运行 **Android Firebase device tests** 验证新凭据可用;
 7. 确认矩阵正常后,结束轮换。
 
-> 注意:密钥仓库文件变更本身不会触发本仓库流水线;轮换验证通过手动 FTL 按钮进行
-> (一次一个矩阵,不消耗额外的自动 push)。
+> 注意:修改环境 secrets 本身不会触发本仓库任何工作流;轮换验证通过手动 FTL
+> 运行进行(一次一个矩阵,不消耗额外的自动 push)。
 
 ---
 
@@ -317,14 +303,14 @@ Test Lab 结果默认存放在 Firebase 项目绑定的默认 Cloud Storage 桶�
 1. **立即**在 GCP 控制台删除该服务账号的密钥(IAM 与管理 → 服务账号 →
    该账号 → 密钥 → 删除所有泄露密钥);
 2. 若服务账号本身也暴露,删除/停用该服务账号并创建新账号;
-3. 生成新的服务账号 JSON 并更新密钥仓库
-   `xincy22/rescue_auth_kit_secrets/firebase-test-lab.yml`(Base64);
+3. 生成新的服务账号 JSON 并更新 GitHub 的 `firebase-test-lab` 环境 secret
+   `GCP_SERVICE_ACCOUNT_JSON_BASE64`(Base64);
 4. 检查 Firebase 项目是否被异常调用,必要时在 IAM 收紧该账号角色
    (Test Lab 只需要 `Cloud Test Lab 服务账号`/`Firebase Test Lab 管理员`
    之类的最小权限,而不是 Owner);
-5. 在 `main` 上点击 **“Run Firebase device tests”** 验证新凭据与最小权限仍能
-   完成单矩阵回归;
-6. 若泄露发生在本仓库外部,同时建议在密钥仓库侧检查访问审计日志。
+5. 在 `main` 上手动运行 **Android Firebase device tests** 验证新凭据与最小权限
+   仍能完成单矩阵回归;
+6. 若泄露发生在本仓库外部,同时建议在 GCP 侧检查该服务账号的访问审计日志。
 
 ---
 
@@ -348,15 +334,15 @@ Firebase Test Lab 已在本仓库 `main` 上真实执行并成功:
 | 项 | 值 |
 | --- | --- |
 | 提交 | `9561956b`(PR #15 合并) |
-| 构建 | `cnb-87g-1jvdnj7iu` |
+| 构建 | CNB `cnb-87g-1jvdnj7iu`（历史记录，CNB 已废弃） |
 | 设备 | `MediumPhone.arm`(virtual)/ API 33 |
 | matrix | `6707992428877319626` |
 | 结果 | `FTL_RAW_GCLOUD_EXIT_CODE=0`、`FTL_EXIT_CODE=0`、`FTL_STATUS=TEST_PASSED`、`FTL_FINAL=TEST_PASSED` |
 
 行为边界(持续有效):
 
-- PR 分支中 **Test Lab 不执行**(按钮仅出现在 `main`,且读不到密钥);
-- **只有 owner 在 `main` 上手动点击 “Run Firebase device tests”** 才会提交
+- PR 分支中 **Test Lab 不执行**(工作流限定 `main`,且读不到密钥);
+- **只有 owner 在 `main` 上手动运行 “Android Firebase device tests”** 才会提交
   一个矩阵;普通 push / PR merge / main update 都不会自动触发;
 - 若某次运行失败,**不得自动修改产品代码或自动重试**,需人工分析
   `FTL_STATUS` 与退出码后决定下一步。
@@ -376,17 +362,14 @@ PR 分支上真实执行过以下命令(不消耗任何 Test Lab 配额):
 bash -n scripts/run-firebase-test-lab.sh
 shellcheck scripts/run-firebase-test-lab.sh
 bash scripts/test/test-run-firebase-test-lab.sh
-bash scripts/test/test-check-test-lab-gate.sh
 ```
 
 `scripts/test/test-run-firebase-test-lab.sh` 使用 fake `gcloud` 对
-失败路径、退出码分类、门控逻辑做了离线验证(88 项全部通过);
-`scripts/test/test-check-test-lab-gate.sh` 是变更门控的专项回归套件
-(29 项全部通过),覆盖 `app/**`、`core/**`、`gradle/**`、
-version catalog、CI/runner 自变更等所有必触发路径,以及 `docs/**`、
-`README*` 等纯文档跳过分支,并用 PR #13 的真实路径
-(`app/src/androidTest/.../RescueAuthDatabaseInstrumentedTest.kt`)
-作为回归样例。fake 仅存在于测试目录,绝不进入生产执行路径。
+失败路径、退出码分类、设备目录校验与产物校验做了离线验证。
+fake 仅存在于测试目录,绝不进入生产执行路径。
+
+变更门控脚本 `scripts/check-test-lab-gate.sh` 及其自测套件已随 CNB 退役删除,
+上述离线验证清单不再包含它们。
 
 ## GitHub migration (2026-10-05)
 
@@ -396,9 +379,8 @@ in a credential-free job; the separate device-test job receives only Firebase
 credentials from environment `firebase-test-lab`. Production signing secrets
 are not available to either job. Set `GCP_SERVICE_ACCOUNT_JSON_BASE64` and
 `FIREBASE_PROJECT_ID` there; restrict deployment to main and require owner review.
-The existing script's `CNB_COMMIT` input receives the GitHub source SHA; it is
-only a results label, not a CNB authorization bypass. Same single virtual device
-and timeout are retained. No cloud matrix has been executed by this migration.
+The script's `FTL_COMMIT` input receives the GitHub source SHA; it is only a
+results label. Same single virtual device and timeout are retained.
 
 ### Screenshot output in FTL
 

@@ -1,13 +1,13 @@
 # Public RescueAuth Android production signing identity metadata.
-# Replaced before first native release with explicit owner authorization on 2026-10-05.
+# Regenerated before first native release with explicit owner authorization on 2026-11-16.
 # No private key, keystore bytes, or passwords.
 applicationId=com.rescueauth.v2
 keyAlias=rescueauth-v2
 storeType=PKCS12
 keyAlgorithm=RSA
 keySize=4096
-certificateSignatureAlgorithm=SHA256withRSA
+certificateSignatureAlgorithm=SHA384withRSA
 certificateSubject=CN=RescueAuth, OU=Release, O=RescueAuth
-certificateValidFrom=2026-10-05T05:20:28Z
-certificateValidUntil=2066-09-25T05:20:28Z
-certificateSha256=DC4EF423E70017B01B2639634A2362EB2AC9B9CF94B4D1250EC4A1149179598D
+certificateValidFrom=2026-11-16T08:08:14Z
+certificateValidUntil=2066-11-06T08:08:14Z
+certificateSha256=7ABECD2B52CD651068EAE825FA252A2B00F3B8D8DA622333014B94060CAB070B
