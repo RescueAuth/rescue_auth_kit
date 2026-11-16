@@ -662,7 +662,7 @@ class MainActivityStartupAuthTest {
 
         // Capture the saved state as Android does before recreation.
         val savedState = android.os.Bundle()
-        activity.saveShellStateForTest(savedState)
+        activity.saveShellState(savedState)
         assertTrue("shell flag must be saved", savedState.getBoolean("shell_unlocked"))
         teardown(controller)
 
@@ -679,7 +679,7 @@ class MainActivityStartupAuthTest {
         activity2.startupAuthPromptFactory = { prompt2 }
         controller2.setup(); idle()
         // Simulate Android restoring our saved state into the recreated Activity.
-        activity2.restoreShellStateForTest(savedState); idle()
+        activity2.restoreShellState(savedState); idle()
         assertTrue("shell must be restored on recreation", activity2.isShellComposed())
         assertTrue(
             "overlay must cover restored shell while locked",
