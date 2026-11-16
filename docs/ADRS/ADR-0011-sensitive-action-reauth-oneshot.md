@@ -48,6 +48,7 @@ Phase 4 P4 之前没有任何 PRODUCT / ADR 正式定义 freshness window。
 - 五类 Developer Entry 的完整编辑器使用 `EDIT_DEVELOPER_ENTRY`，目标为 `DeveloperEdit(stableId, attemptId)`；每次进入生成新的内存 attemptId，不存入导航参数、SavedStateHandle 或数据库。
 - `DeveloperFormViewModel.beginEdit` 在读取任何编辑内容前请求认证并消费授权；直接进入 / 恢复编辑路由同样验证。取消、失败、认证不可用均不预填表单；离开路由或锁定会话会清除表单并放弃在途加载。
 - 验证授权一次完整的编辑流程；新一次进入编辑器必须重新验证。既有 reveal / copy 授权不能复用于编辑，编辑授权也不能复用于它们。新建空白条目不增加验证。
+- **补充决策（2026-11-16）：编辑不再预填敏感旧值。** 进入编辑器的 re-auth 授权对象从"读取/预填敏感值"改为"进入完整编辑器"这一高敏感入口本身。敏感字段（apiKey/apiSecret/privateKey/passphrase/storePassword/keyPassword、Generic/Env 的 value）留空表示保留原值、填写表示覆盖；旧明文只在提交瞬间从 repository 读回写回，不进入 Compose 状态或屏幕。非敏感元数据照常预填。读出敏感值用于复制仍走独立的 reveal/copy 验证（逐字段 one-shot），不受此变更影响。
 - gate 按 prompt generation 忽略旧 prompt 回调，校验成功结果与待处理 request 完全匹配，并在执行前复查会话。生命周期失效会通知等待方 `Cancelled`，避免编辑加载一直等待。
 
 ## 理由

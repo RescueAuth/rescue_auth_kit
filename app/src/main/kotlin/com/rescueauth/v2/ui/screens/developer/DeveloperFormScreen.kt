@@ -210,11 +210,13 @@ fun DeveloperFormScreen(
                     value = form.apiKey,
                     onValueChange = onApiKeyChange,
                     label = stringResource(R.string.developer_field_api_key),
+                    editing = form.isEditing,
                 )
                 SecretField(
                     value = form.apiSecret,
                     onValueChange = onApiSecretChange,
                     label = stringResource(R.string.developer_field_api_secret),
+                    editing = form.isEditing,
                 )
             }
             DeveloperFormType.SSH_KEY -> {
@@ -230,11 +232,13 @@ fun DeveloperFormScreen(
                     onValueChange = onPrivateKeyChange,
                     label = stringResource(R.string.developer_field_private_key),
                     multiLine = true,
+                    editing = form.isEditing,
                 )
                 SecretField(
                     value = form.passphrase,
                     onValueChange = onPassphraseChange,
                     label = stringResource(R.string.developer_field_passphrase),
+                    editing = form.isEditing,
                 )
                 RescueAuthTextField(
                     value = form.publicKey,
@@ -262,6 +266,7 @@ fun DeveloperFormScreen(
                         )
                         SecretField(value = value, onValueChange = { onFieldValueChange(index, it) },
                             label = stringResource(R.string.developer_field_value),
+                            editing = form.isEditing,
                             modifier = Modifier.testTag("generic_field_value_$index"))
                     }
                 }
@@ -291,6 +296,7 @@ fun DeveloperFormScreen(
                     value = form.storePassword,
                     onValueChange = onStorePasswordChange,
                     label = stringResource(R.string.developer_field_store_password),
+                    editing = form.isEditing,
                 )
                 RescueAuthTextField(
                     value = form.keyAlias,
@@ -303,6 +309,7 @@ fun DeveloperFormScreen(
                     value = form.keyPassword,
                     onValueChange = onKeyPasswordChange,
                     label = stringResource(R.string.developer_field_key_password),
+                    editing = form.isEditing,
                 )
 
                 // Keystore file selection (opaque binary asset).
@@ -387,6 +394,7 @@ fun DeveloperFormScreen(
                         )
                         SecretField(value = value, onValueChange = { onVariableValueChange(index, it) },
                             label = stringResource(R.string.developer_field_variable_value),
+                            editing = form.isEditing,
                             modifier = Modifier.testTag("env_field_value_$index"))
                     }
                 }
@@ -507,6 +515,7 @@ private fun SecretField(
     onValueChange: (String) -> Unit,
     label: String,
     multiLine: Boolean = false,
+    editing: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // Key visibility by the field identity so a removed/reordered dynamic row
@@ -517,6 +526,9 @@ private fun SecretField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        placeholder = if (editing) {
+            { Text(stringResource(R.string.developer_secret_keep_hint)) }
+        } else null,
         visualTransformation = transformation,
         keyboardOptions = if (!multiLine) {
             KeyboardOptions(keyboardType = KeyboardType.Password)

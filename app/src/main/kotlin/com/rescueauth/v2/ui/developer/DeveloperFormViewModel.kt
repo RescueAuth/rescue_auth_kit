@@ -99,6 +99,11 @@ data class DeveloperFormState(
         fields.map { (k, v) -> VaultKeyValue(k.trim(), v) }
             .filter { it.key.isNotEmpty() && it.value.isNotEmpty() }
 
+    /** Edit mode keeps blank-value rows so blank can mean "keep stored value". */
+    fun parsedFieldsForEdit(): List<VaultKeyValue> =
+        fields.map { (k, v) -> VaultKeyValue(k.trim(), v) }
+            .filter { it.key.isNotEmpty() }
+
     fun parsedVariables(): List<VaultKeyValue> =
         variables.map { (k, v) -> VaultKeyValue(k.trim(), v) }
             .filter { it.key.isNotEmpty() }
@@ -296,8 +301,10 @@ class DeveloperFormViewModel(
                     notes = entry.notes.orEmpty(),
                     serviceName = entry.serviceName,
                     accountName = entry.accountName,
-                    apiKey = entry.apiKey,
-                    apiSecret = entry.apiSecret,
+                    // Secrets are NEVER pre-filled on edit. Empty means "keep the
+                    // stored value"; submit resolves it from the repository.
+                    apiKey = "",
+                    apiSecret = "",
                 )
                 is com.rescueauth.v2.export.VaultSshKey -> DeveloperFormState(
                     editingStableId = stableId,
@@ -306,15 +313,15 @@ class DeveloperFormViewModel(
                     notes = entry.notes.orEmpty(),
                     keyName = entry.keyName,
                     publicKey = entry.publicKey,
-                    privateKey = entry.privateKey,
-                    passphrase = entry.passphrase,
+                    privateKey = "",
+                    passphrase = "",
                 )
                 is com.rescueauth.v2.export.VaultGenericSecret -> DeveloperFormState(
                     editingStableId = stableId,
                     type = DeveloperFormType.GENERIC_SECRET,
                     title = entry.title,
                     notes = entry.notes.orEmpty(),
-                    fields = entry.fields.map { Pair(it.key, it.value) }
+                    fields = entry.fields.map { Pair(it.key, "") }
                         .ifEmpty { listOf(Pair("", "")) },
                 )
                 is com.rescueauth.v2.export.VaultAndroidSigningKey -> DeveloperFormState(
@@ -325,9 +332,9 @@ class DeveloperFormViewModel(
                     projectName = entry.projectName,
                     packageName = entry.packageName,
                     keystoreFileName = entry.keystoreFileName,
-                    storePassword = entry.storePassword,
+                    storePassword = "",
                     keyAlias = entry.keyAlias,
-                    keyPassword = entry.keyPassword,
+                    keyPassword = "",
                     // Keystore bytes are NOT restored on edit — the existing stored
                     // binary stays unless the user replaces it (Issue #20 P6 §4/§16).
                     keystoreBytes = null,
@@ -338,7 +345,7 @@ class DeveloperFormViewModel(
                     title = entry.title,
                     notes = entry.notes.orEmpty(),
                     projectName = entry.projectName,
-                    variables = entry.variables.map { Pair(it.key, it.value) }
+                    variables = entry.variables.map { Pair(it.key, "") }
                         .ifEmpty { listOf(Pair("", "")) },
                 )
             }
@@ -362,6 +369,24 @@ class DeveloperFormViewModel(
     // Save (create / edit)
     // ------------------------------------------------------------------
 
+    /**
+     * On edit, a blank secret field means "keep the stored value": read the
+     * current entry and return its value for that field. On create, or when the
+     * user typed a new value, return the form value unchanged. The plaintext is
+     * read only at submit time and written straight back — never placed in
+     * Compose state, so it is never shown on screen.
+     */
+    private suspend fun keepIfBlank(
+        form: DeveloperFormState,
+        repo: DeveloperRepository,
+        fieldValue: String,
+        read: (com.rescueauth.v2.export.VaultDeveloperEntry) -> String,
+    ): String {
+        if (!form.isEditing || fieldValue.isNotEmpty()) return fieldValue
+        val existing = repo.getByStableId(form.editingStableId ?: return fieldValue) ?: return fieldValue
+        return read(existing)
+    }
+
     /** Validates and saves the form. Returns true on success. */
     suspend fun submit(): Boolean {
         val form = _formState.value
@@ -377,6 +402,17 @@ class DeveloperFormViewModel(
 
         _formState.update { it.copy(submitting = true, error = null) }
         return try {
+            // On edit, blank secret rows mean "keep the stored value". Read the
+            // old rows once so blank values can be restored at submit time; the
+            // plaintext never enters Compose state or the screen.
+            val oldGenericFields: Map<String, String> = if (form.isEditing) {
+                (repo.getByStableId(form.editingStableId ?: "") as? com.rescueauth.v2.export.VaultGenericSecret)
+                    ?.fields?.associate { it.key to it.value } ?: emptyMap()
+            } else emptyMap()
+            val oldEnvVariables: Map<String, String> = if (form.isEditing) {
+                (repo.getByStableId(form.editingStableId ?: "") as? com.rescueauth.v2.export.VaultEnvironmentVariableSet)
+                    ?.variables?.associate { it.key to it.value } ?: emptyMap()
+            } else emptyMap()
             when (form.type) {
                 DeveloperFormType.API_CREDENTIAL -> {
                     if (form.isEditing) {
@@ -386,8 +422,12 @@ class DeveloperFormViewModel(
                             notes = form.notes,
                             serviceName = form.trimmedService(),
                             accountName = form.trimmedAccount(),
-                            apiKey = form.apiKey,
-                            apiSecret = form.apiSecret,
+                            apiKey = keepIfBlank(form, repo, form.apiKey) {
+                                (it as? com.rescueauth.v2.export.VaultApiCredential)?.apiKey ?: ""
+                            },
+                            apiSecret = keepIfBlank(form, repo, form.apiSecret) {
+                                (it as? com.rescueauth.v2.export.VaultApiCredential)?.apiSecret ?: ""
+                            },
                         )
                     } else {
                         repo.createApiCredential(
@@ -408,8 +448,12 @@ class DeveloperFormViewModel(
                             notes = form.notes,
                             keyName = form.trimmedKeyName(),
                             publicKey = form.publicKey,
-                            privateKey = form.privateKey,
-                            passphrase = form.passphrase,
+                            privateKey = keepIfBlank(form, repo, form.privateKey) {
+                                (it as? com.rescueauth.v2.export.VaultSshKey)?.privateKey ?: ""
+                            },
+                            passphrase = keepIfBlank(form, repo, form.passphrase) {
+                                (it as? com.rescueauth.v2.export.VaultSshKey)?.passphrase ?: ""
+                            },
                         )
                     } else {
                         repo.createSshKey(
@@ -423,13 +467,16 @@ class DeveloperFormViewModel(
                     }
                 }
                 DeveloperFormType.GENERIC_SECRET -> {
-                    val fields = form.parsedFields()
+                    val fields = if (form.isEditing) form.parsedFieldsForEdit() else form.parsedFields()
                     if (form.isEditing) {
                         repo.editGenericSecret(
                             stableId = form.editingStableId!!,
                             title = form.trimmedTitle(),
                             notes = form.notes,
-                            fields = fields,
+                            fields = fields.map { kv ->
+                                val old = oldGenericFields[kv.key] ?: ""
+                                VaultKeyValue(kv.key, if (kv.value.isEmpty()) old else kv.value)
+                            },
                         )
                     } else {
                         repo.createGenericSecret(
@@ -451,9 +498,13 @@ class DeveloperFormViewModel(
                             packageName = form.trimmedPackageName(),
                             keystoreFileName = form.trimmedKeystoreFileName(),
                             keystoreBytes = keystore,
-                            storePassword = form.storePassword,
+                            storePassword = keepIfBlank(form, repo, form.storePassword) {
+                                (it as? com.rescueauth.v2.export.VaultAndroidSigningKey)?.storePassword ?: ""
+                            },
                             keyAlias = form.trimmedKeyAlias(),
-                            keyPassword = form.keyPassword,
+                            keyPassword = keepIfBlank(form, repo, form.keyPassword) {
+                                (it as? com.rescueauth.v2.export.VaultAndroidSigningKey)?.keyPassword ?: ""
+                            },
                         )
                     } else {
                         repo.createAndroidSigningKey(
@@ -477,7 +528,10 @@ class DeveloperFormViewModel(
                             title = form.trimmedTitle(),
                             notes = form.notes,
                             projectName = form.trimmedProjectName(),
-                            variables = variables,
+                            variables = variables.map { kv ->
+                                val old = oldEnvVariables[kv.key] ?: ""
+                                VaultKeyValue(kv.key, if (kv.value.isEmpty()) old else kv.value)
+                            },
                         )
                     } else {
                         repo.createEnvironmentVariableSet(
@@ -511,21 +565,23 @@ class DeveloperFormViewModel(
 
     private fun validate(form: DeveloperFormState): String? {
         if (form.trimmedTitle().isEmpty()) return "title_required"
+        // On edit, secret fields are intentionally blank (= keep stored value),
+        // so the create-mode required checks must not apply to them.
         return when (form.type) {
             DeveloperFormType.API_CREDENTIAL -> {
                 when {
                     form.trimmedService().isEmpty() -> "service_required"
                     form.trimmedAccount().isEmpty() -> "account_required"
-                    form.apiKey.isEmpty() -> "api_key_required"
-                    form.apiSecret.isEmpty() -> "api_secret_required"
+                    !form.isEditing && form.apiKey.isEmpty() -> "api_key_required"
+                    !form.isEditing && form.apiSecret.isEmpty() -> "api_secret_required"
                     else -> null
                 }
             }
             DeveloperFormType.SSH_KEY -> {
-                if (form.privateKey.isEmpty()) "private_key_required" else null
+                if (!form.isEditing && form.privateKey.isEmpty()) "private_key_required" else null
             }
             DeveloperFormType.GENERIC_SECRET -> {
-                val fields = form.parsedFields()
+                val fields = if (form.isEditing) form.parsedFieldsForEdit() else form.parsedFields()
                 when {
                     fields.isEmpty() -> "field_required"
                     fields.any { it.key.isBlank() } -> "field_label_required"
@@ -536,9 +592,9 @@ class DeveloperFormViewModel(
                 when {
                     form.keystoreBytes == null -> "keystore_required"
                     form.trimmedKeystoreFileName().isEmpty() -> "keystore_required"
-                    form.storePassword.isEmpty() -> "store_password_required"
+                    !form.isEditing && form.storePassword.isEmpty() -> "store_password_required"
                     form.trimmedKeyAlias().isEmpty() -> "key_alias_required"
-                    form.keyPassword.isEmpty() -> "key_password_required"
+                    !form.isEditing && form.keyPassword.isEmpty() -> "key_password_required"
                     else -> null
                 }
             }

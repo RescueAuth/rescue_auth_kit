@@ -7,6 +7,7 @@
     <string name="startup_brand_name">拾遗坊</string>
 
     <!-- Unlock prompt (BiometricPrompt) -->
+    <string name="developer_secret_keep_hint">留空表示保留已保存的值</string>
     <string name="unlock_title">解锁 拾遗坊</string>
     <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
     <string name="unlock_cancel">取消</string>

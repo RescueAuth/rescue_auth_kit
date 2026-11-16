@@ -93,6 +93,43 @@ class DeveloperFormViewModelTest {
         )
 
     @Test
+    fun `edit does not prefill secret fields but keeps metadata`() = runBlocking {
+        val created = repo.createApiCredential(
+            title = "Stripe", notes = "note", serviceName = "stripe", accountName = "alice",
+            apiKey = "sk_live_OLD", apiSecret = "secret_OLD",
+        )
+        val model = vm()
+        assertTrue(model.beginEdit(created.stableId))
+
+        val form = model.formState.value
+        // Non-secret metadata is prefilled.
+        assertEquals("Stripe", form.title)
+        assertEquals("stripe", form.serviceName)
+        assertEquals("alice", form.accountName)
+        // Secret fields are NOT prefilled.
+        assertEquals("", form.apiKey)
+        assertEquals("", form.apiSecret)
+    }
+
+    @Test
+    fun `empty secret on edit preserves stored value`() = runBlocking {
+        val created = repo.createApiCredential(
+            title = "Stripe", notes = null, serviceName = "stripe", accountName = "alice",
+            apiKey = "sk_live_OLD", apiSecret = "secret_OLD",
+        )
+        val model = vm()
+        assertTrue(model.beginEdit(created.stableId))
+        // Only change a non-secret field; leave secrets empty.
+        model.onTitleChange("Stripe renamed")
+        assertTrue("submit with empty secrets must succeed", model.submit())
+
+        val after = repo.getByStableId(created.stableId) as com.rescueauth.v2.export.VaultApiCredential
+        assertEquals("Stripe renamed", after.title)
+        assertEquals("sk_live_OLD", after.apiKey)
+        assertEquals("secret_OLD", after.apiSecret)
+    }
+
+    @Test
     fun `create api credential via form`() = runBlocking {
         val vm = vm()
         vm.beginCreate(DeveloperFormType.API_CREDENTIAL)

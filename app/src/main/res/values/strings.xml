@@ -7,6 +7,7 @@
     <string name="startup_brand_name">RescueAuth</string>
 
     <!-- Unlock prompt (BiometricPrompt) -->
+    <string name="developer_secret_keep_hint">Leave blank to keep the saved value</string>
     <string name="unlock_title">Unlock RescueAuth</string>
     <string name="unlock_subtitle">Use your fingerprint, face, or device credential</string>
     <string name="unlock_cancel">Cancel</string>

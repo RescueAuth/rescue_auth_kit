@@ -52,8 +52,9 @@ Authenticator 仍作为内部领域名称。发布准备侧重生产更新配置
 - **高敏感操作**：即使 Vault 已解锁，Export、export keystore、reveal
   SSH private key / API secret / signing 密码等操作要求一次 fresh
   Biometric / Device Credential 认证（Sensitive Action Re-authentication）。
-  进入五类 Developer Entry 的完整编辑器同样需要独立验证，验证成功后才读取并预填既有敏感值；
-  即使本次仅修改标题等元数据也适用。新建空白条目不增加该验证，编辑授权不复用于显示、复制或下一次编辑。
+  进入五类 Developer Entry 的完整编辑器同样要求一次独立验证（编辑器本身是高敏感入口），
+  即使本次仅修改标题等元数据也适用。编辑不会预填既有敏感值：敏感字段留空表示保留原值，填写表示覆盖；
+  读出敏感值用于复制走独立的 reveal/copy 验证。新建空白条目不增加该验证，编辑授权不复用于显示、复制或下一次编辑。
 
 > Phase 3 明确不做：automatic backup、scheduled backup、background
 > backup、WorkManager backup、cloud sync、自动上传、自动 checkpoint 文件。
