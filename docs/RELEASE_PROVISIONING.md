@@ -3,9 +3,9 @@
 > **Status: preparing native release 1.0.0; not published. Checked 2026-09-27.**
 >
 > Application identity and Android signing infrastructure are established.
-> Android signing identity / CNB secret provisioning was recorded on 2026-08-11.
-> The current CNB production path is **tag-only**; debug builds, full regression
-> and Firebase Test Lab use separate manual buttons. Production update trust
+> Android signing identity provisioning was recorded on 2026-08-11 and renewed
+> on 2026-11-16. The current CNB production path is **tag-only**; debug builds, full
+> regression and Firebase Test Lab use separate manual buttons. Production update trust
 > configuration, update-channel publishing and final device acceptance remain open.
 > Start with [the release checklist and evidence](#release-readiness).
 
@@ -584,8 +584,10 @@ the first native stable release. The current public certificate is recorded in
 `release/android-signing-certificate.txt`; August evidence above is historical
 and does not validate the replacement. Four signing secrets are provisioned in
 the GitHub `production` environment with `rescueauth-v*` tag restrictions and
-owner review. The old CNB signing material is retained and no longer matches
-the current certificate pin; the old production pipeline will fail closed.
+owner review, and the owner confirmed all five production secrets (the four
+APK-signing values plus `UPDATE_SIGNING_KEY_PEM`). The signing identity was
+renewed again on 2026-11-16 before any stable release, so no published version
+depends on the previous key.
 
 GitHub workflows: `android-manual.yml` provides owner-only manual debug/full
 regression; no push/PR full-test trigger. `android-release.yml` validates release

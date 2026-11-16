@@ -11,7 +11,7 @@ class UpdateProvisioningTest {
         val verifier = UpdateManifestVerifier(key)
         // Public proof only; deliberately not a deployable update manifest.
         val proof = "RescueAuth update signing provisioning proof 2026-10-05; not an update manifest.\n".toByteArray()
-        val signature = "VwPvAZaPDzZ2F9FTX+7BOkir41O8Ib20RfGUHC1VQkUAlR+0EtNe8zH5xCSZLP5HHOt1kNASSA6KUNXdFwlMCg=="
+        val signature = "kIqg/vCLp94naAmuQbHAKlRy+nICPUFnAQeCnsW3PfYt3B+9siJQQ1K7ckr9Pr6PXc4LnT0ozk+/HKX16B1EDw=="
         assertTrue(verifier.verify(proof, signature) is UpdateManifestVerifier.Result.Valid)
         proof[0] = 'X'.code.toByte()
         assertTrue(verifier.verify(proof, signature) is UpdateManifestVerifier.Result.Invalid)
