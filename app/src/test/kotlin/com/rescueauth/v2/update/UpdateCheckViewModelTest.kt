@@ -15,7 +15,7 @@ import org.junit.Test
 /**
  * App / network layer tests for the update check (Issue #20 §24).
  *
- * Uses an injected fake transport — unit tests never access the real CNB
+ * Uses an injected fake transport — unit tests never access the real GitHub
  * source. Also verifies fail-closed update data / fail-open app semantics, no
  * URL exposure on signature failure, retry, and scope-cancellation.
  */

@@ -6,7 +6,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 
 /**
- * TEST-ONLY fake [UpdateTransport] that never touches the real CNB source.
+ * TEST-ONLY fake [UpdateTransport] that never touches the real GitHub source.
  *
  * It lets tests script manifest + signature responses (or throw network
  * errors), record whether the request was cancelled, and assert that no auth

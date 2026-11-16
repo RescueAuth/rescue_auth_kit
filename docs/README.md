@@ -61,7 +61,7 @@
 - [`PACKAGE_FORMAT.md`](PACKAGE_FORMAT.md)：Native `.rakpkg` 的 logical schema、容量、KDF、AEAD、header 校验、zeroization、merge 语义。
 - [`LEGACY_IMPORT.md`](LEGACY_IMPORT.md)：旧 `.rakvault` 的只读兼容边界、解密、映射、stable ID 和 Android 导入流程。
 - [`THREAT_MODEL.md`](THREAT_MODEL.md)：资产、攻击面、信任边界、已接受风险和验证缺口。
-- [`UPDATE_PROTOCOL.md`](UPDATE_PROTOCOL.md)：固定 CNB manifest、Ed25519 验签、schema v1、错误分类和 fail-open/fail-closed 语义。
+- [`UPDATE_PROTOCOL.md`](UPDATE_PROTOCOL.md)：固定 GitHub Release manifest、Ed25519 验签、schema v1、错误分类和 fail-open/fail-closed 语义。
 - [`RELEASE_PROVISIONING.md`](RELEASE_PROVISIONING.md)：application identity、production signing、tag-only candidate build、发布检查清单与验收证据。
 - [`FIREBASE_TEST_LAB.md`](FIREBASE_TEST_LAB.md)：instrumented APK 构建、测试矩阵、凭据边界和手动触发方式。
 - [`UI_CARD_CONVENTION.md`](UI_CARD_CONVENTION.md)：`RescueAuthCard`、`RescueAuthRowCard` 与 `CardTokens` 的使用边界。
