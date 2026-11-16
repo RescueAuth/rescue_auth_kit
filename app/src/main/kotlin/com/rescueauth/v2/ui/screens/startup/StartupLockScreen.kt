@@ -54,6 +54,7 @@ object StartupLockTestTags {
     const val INTRO_CONTINUE_BUTTON = "startup_intro_continue_button"
     const val INTRO_IMPORT_V1_BUTTON = "startup_intro_import_v1_button"
     const val AUTH_HOST = "startup_auth_host"
+    const val LOCK_OVERLAY = "session_lock_overlay"
     const val EXIT_BUTTON = "startup_exit_button"
     const val SETTINGS_BUTTON = "startup_settings_button"
 }
@@ -132,6 +133,30 @@ fun StartupAuthHost(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .testTag(StartupLockTestTags.AUTH_HOST),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            StartupBranding(logoSize = 72.dp)
+        }
+    }
+}
+
+/**
+ * Opaque overlay shown over the retained app shell while the session is locked.
+ * The shell stays composed so its navigation state survives a relock, but it
+ * must never be visible or interactive while the Vault is closed: this surface
+ * covers the whole screen with the app background and consumes all input.
+ */
+@Composable
+fun SessionLockOverlay(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag(StartupLockTestTags.LOCK_OVERLAY),
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(

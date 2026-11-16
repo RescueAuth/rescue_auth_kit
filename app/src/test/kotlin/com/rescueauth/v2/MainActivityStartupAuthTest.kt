@@ -596,4 +596,44 @@ class MainActivityStartupAuthTest {
         assertNotNull("existing vault data must be preserved", activity.sessionManager.databaseOrNull())
         teardown(controller)
     }
+
+    // ---- Test F — relock keeps the shell composed under a lock overlay ----
+
+    @Test
+    fun `relock keeps shell composed and shows lock overlay until re-auth`() {
+        val crypto = FakeVaultKeyCrypto()
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        val activity = controller.get()
+        activity.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = true) }
+        val prompt = FakeStartupAuthPrompt(
+            availableAuthenticators = 1,
+            nextResult = StartupAuthResult.Success,
+        )
+        activity.startupAuthPromptFactory = { prompt }
+
+        controller.setup(); idle()
+        prompt.deliver(StartupAuthResult.Success); idle()
+        assertTrue("initial unlock", activity.sessionManager.sessionState.isUnlocked())
+        assertTrue("shell composed after unlock", activity.isShellComposed())
+        assertFalse("no overlay while unlocked", activity.isLockOverlayVisible())
+
+        // Background + timeout relock.
+        controller.pause(); idle()
+        controller.stop(); idle()
+        activity.sessionManager.lock(); idle()
+        assertFalse("timeout must lock session", activity.sessionManager.sessionState.isUnlocked())
+
+        // Foreground: shell must stay composed, overlay must cover it.
+        controller.start(); idle()
+        controller.resume(); idle()
+        assertTrue("shell must stay composed across relock", activity.isShellComposed())
+        assertTrue("lock overlay must cover retained shell", activity.isLockOverlayVisible())
+
+        // Re-auth: overlay disappears, shell remains composed.
+        prompt.deliver(StartupAuthResult.Success); idle()
+        assertTrue("vault must reopen", activity.sessionManager.sessionState.isUnlocked())
+        assertFalse("overlay must disappear after re-auth", activity.isLockOverlayVisible())
+        assertTrue("shell still composed", activity.isShellComposed())
+        teardown(controller)
+    }
 }

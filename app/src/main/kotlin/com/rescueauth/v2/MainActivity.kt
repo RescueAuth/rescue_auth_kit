@@ -3,8 +3,11 @@ package com.rescueauth.v2
 import android.os.Bundle
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveActionAccess
@@ -19,6 +22,7 @@ import com.rescueauth.v2.session.VaultUnlockOutcome
 import com.rescueauth.v2.ui.RescueAuthApp
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
+import com.rescueauth.v2.ui.screens.startup.SessionLockOverlay
 import com.rescueauth.v2.ui.screens.startup.StartupAuthHost
 import com.rescueauth.v2.ui.screens.startup.StartupBlockedScreen
 import com.rescueauth.v2.ui.screens.startup.StartupIntroScreen
@@ -182,6 +186,15 @@ class MainActivity : AppCompatActivity() {
      */
     private var isPausingForBackground = false
 
+    /**
+     * True once the Vault has been opened at least once in this Activity. After
+     * that point a session lock must NOT tear down the app shell: the shell stays
+     * composed under an opaque [SessionLockOverlay] so its navigation state
+     * survives the relock and returns to the same page after re-auth. Only the
+     * first-launch (never-unlocked) flow uses the separate startup hosts.
+     */
+    private var hasUnlockedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // No global FLAG_SECURE / secure-window policy — screenshots and screen
@@ -235,6 +248,7 @@ class MainActivity : AppCompatActivity() {
             setContent {
                 RescueAuthAppearance(themePreferences) { themeMode, onThemeModeChange ->
                     val ui by uiState.collectAsState()
+                    val sessionUnlocked by stateMachine.state.collectAsState()
                     when (ui) {
                         StartupUiState.INIT -> StartupSplashScreen()
                         StartupUiState.INTRO -> StartupIntroScreen(
@@ -272,12 +286,19 @@ class MainActivity : AppCompatActivity() {
                             // Consume the one-shot deep-link flag so a later
                             // relock/re-unlock does not re-enter the importer.
                             pendingV1Import = false
-                            RescueAuthApp(
-                                versionName = BuildConfig.VERSION_NAME,
-                                startRoute = startRoute,
-                                themeMode = themeMode,
-                                onThemeModeChange = onThemeModeChange,
-                            )
+                            Box(Modifier.fillMaxSize()) {
+                                RescueAuthApp(
+                                    versionName = BuildConfig.VERSION_NAME,
+                                    startRoute = startRoute,
+                                    themeMode = themeMode,
+                                    onThemeModeChange = onThemeModeChange,
+                                )
+                                // Opaque overlay retains the shell's navigation
+                                // state across a relock while hiding all content.
+                                if (sessionUnlocked != SecureSessionStateMachine.State.UNLOCKED) {
+                                    SessionLockOverlay()
+                                }
+                            }
                         }
                     }
                 }
@@ -302,13 +323,20 @@ class MainActivity : AppCompatActivity() {
             // BiometricPrompt cancelled by onPause while the session was
             // already unlocked (Issue #70).
             _uiState.value = StartupUiState.UNLOCKED
+        } else if (hasUnlockedOnce) {
+            // Relock after a successful unlock: KEEP the shell composed. A
+            // SessionLockOverlay covers it while the session is locked, and
+            // re-auth brings the user back to the same page. Never flip to
+            // AUTHENTICATING here — that would destroy the navigation state.
+            // scheduleAuthentication() still drives the re-auth prompt at RESUMED.
+            scheduleAuthentication()
         } else if (vaultOpenJob?.isActive == true) {
             // Keep the neutral opening host visible while the background open
             // operation completes; do not launch a second auth prompt.
             _uiState.value = StartupUiState.OPENING
         } else {
-            // Session locked — schedule re-authentication for when the
-            // lifecycle truly reaches RESUMED.
+            // First launch, session locked — schedule re-authentication for
+            // when the lifecycle truly reaches RESUMED.
             scheduleAuthentication()
         }
     }
@@ -343,7 +371,9 @@ class MainActivity : AppCompatActivity() {
             val promptIsActive = startupAuthPrompt?.isPromptActive() == true
             if (!promptIsActive) promptActive.set(false)
             if (!promptIsActive) {
-                _uiState.value = StartupUiState.AUTHENTICATING
+                // A relocked shell stays composed under the lock overlay; only
+                // the never-unlocked first-launch flow uses the startup host.
+                if (!hasUnlockedOnce) _uiState.value = StartupUiState.AUTHENTICATING
                 scheduleAuthentication()
             }
         }
@@ -460,6 +490,16 @@ class MainActivity : AppCompatActivity() {
         return promptActive.get() || authPromptPending
     }
 
+    /** Test seam: whether the app shell is composed (read-only). */
+    internal fun isShellComposed(): Boolean = _uiState.value == StartupUiState.UNLOCKED
+
+    /**
+     * True when the app shell is composed but the session is not UNLOCKED, i.e.
+     * the lock overlay must cover it. Read-only test seam.
+     */
+    internal fun isLockOverlayVisible(): Boolean =
+        isShellComposed() && !stateMachine.isUnlocked()
+
     /**
      * Runs the startup authentication flow. Resolves usable authenticators,
      * then (re)launches the system prompt. After a successful authentication
@@ -495,7 +535,9 @@ class MainActivity : AppCompatActivity() {
             _uiState.value = StartupUiState.INTRO
             return
         }
-        _uiState.value = StartupUiState.AUTHENTICATING
+        // A relocked shell stays composed under the lock overlay; do NOT flip
+        // to AUTHENTICATING (that would destroy the retained navigation state).
+        if (!hasUnlockedOnce) _uiState.value = StartupUiState.AUTHENTICATING
         if (!promptActive.compareAndSet(false, true)) return
 
         val prompt = startupAuthPrompt
@@ -531,9 +573,17 @@ class MainActivity : AppCompatActivity() {
                         // re-launch the prompt on the next RESUMED (Issue #70).
                         promptActive.set(false)
                         scheduleAuthentication()
+                    } else if (hasUnlockedOnce) {
+                        // A relocked shell is covered by the lock overlay. The
+                        // user declining re-auth must keep the overlay in place
+                        // (shell stays composed) rather than finishing the
+                        // Activity — the same page is restored on the next
+                        // successful re-auth.
+                        // No state change: uiState stays UNLOCKED, overlay is
+                        // driven by the still-LOCKED session state flow.
                     } else {
-                        // User cancelled — do NOT open the Vault, do not show a
-                        // locked screen; finish the Activity (Issue #50 UX §4).
+                        // First-launch user cancel — do NOT open the Vault, do
+                        // not show a locked screen; finish (Issue #50 UX §4).
                         _uiState.value = StartupUiState.INIT
                         finish()
                     }
@@ -610,6 +660,9 @@ class MainActivity : AppCompatActivity() {
                 // First-run: the returned fresh key must be zeroed after the DB
                 // is opened (SessionManager holds its own copy).
                 outcome.freshFirstRunKey?.fill(0)
+                // Once unlocked, future locks must retain the shell under an
+                // overlay instead of tearing it down.
+                hasUnlockedOnce = true
                 // The open can finish after onPause/onStop. Never reveal the
                 // shell or remove the background mask in that window: the
                 // next foreground lifecycle callback will restore the shell
@@ -622,10 +675,12 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     _uiState.value = StartupUiState.UNLOCKED
                     removeMask()
-                } else {
+                } else if (!hasUnlockedOnce) {
                     _uiState.value = StartupUiState.OPENING
                     showMask()
                 }
+                // A relocked shell (hasUnlockedOnce) stays composed under the
+                // lock overlay; the opening host must not replace it.
             }
             VaultUnlockOutcome.AuthRequired -> {
                 // Rare race: auth token expired between prompt success and the
@@ -636,15 +691,19 @@ class MainActivity : AppCompatActivity() {
                     _uiState.value = StartupUiState.BLOCKED
                     return
                 }
-                _uiState.value = StartupUiState.AUTHENTICATING
+                if (!hasUnlockedOnce) _uiState.value = StartupUiState.AUTHENTICATING
                 scheduleAuthentication()
             }
             VaultUnlockOutcome.AuthCancelled -> {
-                _uiState.value = StartupUiState.INIT
-                finish()
+                if (hasUnlockedOnce) {
+                    // Relocked shell: keep the overlay in place, never finish.
+                } else {
+                    _uiState.value = StartupUiState.INIT
+                    finish()
+                }
             }
             VaultUnlockOutcome.AuthFailed -> {
-                _uiState.value = StartupUiState.AUTHENTICATING
+                if (!hasUnlockedOnce) _uiState.value = StartupUiState.AUTHENTICATING
                 scheduleAuthentication()
             }
             VaultUnlockOutcome.NoSecureDevice -> {

@@ -215,6 +215,18 @@ fun DeveloperDetailRoute(
     val uiState by viewModel.uiState.collectAsState()
     val events by viewModel.events.collectAsState()
 
+    // Session lock may arrive between a successful fresh re-auth and the SAF
+    // write. Never keep raw keystore bytes in memory across a lock: clear the
+    // pending buffer immediately when the session leaves UNLOCKED.
+    LaunchedEffect(sessionState) {
+        sessionState.collect { state ->
+            if (state != SecureSessionStateMachine.State.UNLOCKED) {
+                pendingExport = null
+                pendingExportFileName = ""
+            }
+        }
+    }
+
     // Clear revealed state when leaving the screen (Issue #20 §14).
     DisposableEffect(Unit) {
         onDispose { viewModel.clearRevealed() }
