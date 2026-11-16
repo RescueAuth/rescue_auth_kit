@@ -215,14 +215,14 @@ gcloud firebase test android models describe MediumPhone.arm
 
 ## 8. 变更门控（gate）现状
 
-`scripts/check-test-lab-gate.sh` 曾用于旧 `main push` 自动流水线，判断本次 push
-是否值得提交 FTL 矩阵。**该自动流水线已移除，因此这个 gate 不再被任何流水线
-引用**，仅保留脚本与测试作为历史参考。
+旧 `main push` 自动流水线曾用 `scripts/check-test-lab-gate.sh` 判断本次 push
+是否值得提交 FTL 矩阵。该自动流水线已移除，gate 脚本及其自测套件也随 CNB
+退役一并删除；它唯一的调用者是 `.cnb.yml`，GitHub 侧没有替代需求。
 
 在手动模式下，是否运行 FTL 完全由 owner 决定：
 
-- “Run full RescueAuth test suite”手动按钮总是运行完整回归（无 FTL）；
-- “Run Firebase device tests”手动按钮总是构建并提交一个 FTL 矩阵。
+- **Android manual builds** 的 `full` 任务总是运行完整回归（无 FTL）；
+- **Android Firebase device tests** 工作流总是构建并提交一个 FTL 矩阵。
 
 不再存在“自动根据变更范围跳过 FTL”的行为；`main push` 不触发任何 FTL。
 
@@ -285,15 +285,14 @@ Test Lab 结果默认存放在 Firebase 项目绑定的默认 Cloud Storage 桶�
 1. 在 GCP 控制台(IAM 与管理 → 服务账号)找到用于 Test Lab 的服务账号;
 2. 选择"密钥"标签 → "添加密钥" → "创建新密钥",下载新的 JSON;
 3. 对 JSON 做 `base64 -w0` 得到 `GCP_SERVICE_ACCOUNT_JSON_BASE64`;
-4. 将新值写入密钥仓库
-   `xincy22/rescue_auth_kit_secrets` 的 `firebase-test-lab.yml`;
+4. 将新值写入 GitHub 仓库的 `firebase-test-lab` 环境 secrets
+   (`GCP_SERVICE_ACCOUNT_JSON_BASE64` 与 `FIREBASE_PROJECT_ID`);
 5. 在 GCP 删除旧密钥;
-6. 在 `main` 分支上点击 **“Run Firebase device tests”** 手动按钮
-   验证新凭据可用;
+6. 在 `main` 上手动运行 **Android Firebase device tests** 验证新凭据可用;
 7. 确认矩阵正常后,结束轮换。
 
-> 注意:密钥仓库文件变更本身不会触发本仓库流水线;轮换验证通过手动 FTL 按钮进行
-> (一次一个矩阵,不消耗额外的自动 push)。
+> 注意:修改环境 secrets 本身不会触发本仓库任何工作流;轮换验证通过手动 FTL
+> 运行进行(一次一个矩阵,不消耗额外的自动 push)。
 
 ---
 
@@ -304,14 +303,14 @@ Test Lab 结果默认存放在 Firebase 项目绑定的默认 Cloud Storage 桶�
 1. **立即**在 GCP 控制台删除该服务账号的密钥(IAM 与管理 → 服务账号 →
    该账号 → 密钥 → 删除所有泄露密钥);
 2. 若服务账号本身也暴露,删除/停用该服务账号并创建新账号;
-3. 生成新的服务账号 JSON 并更新密钥仓库
-   `xincy22/rescue_auth_kit_secrets/firebase-test-lab.yml`(Base64);
+3. 生成新的服务账号 JSON 并更新 GitHub 的 `firebase-test-lab` 环境 secret
+   `GCP_SERVICE_ACCOUNT_JSON_BASE64`(Base64);
 4. 检查 Firebase 项目是否被异常调用,必要时在 IAM 收紧该账号角色
    (Test Lab 只需要 `Cloud Test Lab 服务账号`/`Firebase Test Lab 管理员`
    之类的最小权限,而不是 Owner);
-5. 在 `main` 上点击 **“Run Firebase device tests”** 验证新凭据与最小权限仍能
-   完成单矩阵回归;
-6. 若泄露发生在本仓库外部,同时建议在密钥仓库侧检查访问审计日志。
+5. 在 `main` 上手动运行 **Android Firebase device tests** 验证新凭据与最小权限
+   仍能完成单矩阵回归;
+6. 若泄露发生在本仓库外部,同时建议在 GCP 侧检查该服务账号的访问审计日志。
 
 ---
 
@@ -342,8 +341,8 @@ Firebase Test Lab 已在本仓库 `main` 上真实执行并成功:
 
 行为边界(持续有效):
 
-- PR 分支中 **Test Lab 不执行**(按钮仅出现在 `main`,且读不到密钥);
-- **只有 owner 在 `main` 上手动点击 “Run Firebase device tests”** 才会提交
+- PR 分支中 **Test Lab 不执行**(工作流限定 `main`,且读不到密钥);
+- **只有 owner 在 `main` 上手动运行 “Android Firebase device tests”** 才会提交
   一个矩阵;普通 push / PR merge / main update 都不会自动触发;
 - 若某次运行失败,**不得自动修改产品代码或自动重试**,需人工分析
   `FTL_STATUS` 与退出码后决定下一步。
@@ -363,17 +362,14 @@ PR 分支上真实执行过以下命令(不消耗任何 Test Lab 配额):
 bash -n scripts/run-firebase-test-lab.sh
 shellcheck scripts/run-firebase-test-lab.sh
 bash scripts/test/test-run-firebase-test-lab.sh
-bash scripts/test/test-check-test-lab-gate.sh
 ```
 
 `scripts/test/test-run-firebase-test-lab.sh` 使用 fake `gcloud` 对
-失败路径、退出码分类、门控逻辑做了离线验证(88 项全部通过);
-`scripts/test/test-check-test-lab-gate.sh` 是变更门控的专项回归套件
-(29 项全部通过),覆盖 `app/**`、`core/**`、`gradle/**`、
-version catalog、CI/runner 自变更等所有必触发路径,以及 `docs/**`、
-`README*` 等纯文档跳过分支,并用 PR #13 的真实路径
-(`app/src/androidTest/.../RescueAuthDatabaseInstrumentedTest.kt`)
-作为回归样例。fake 仅存在于测试目录,绝不进入生产执行路径。
+失败路径、退出码分类、设备目录校验与产物校验做了离线验证。
+fake 仅存在于测试目录,绝不进入生产执行路径。
+
+变更门控脚本 `scripts/check-test-lab-gate.sh` 及其自测套件已随 CNB 退役删除,
+上述离线验证清单不再包含它们。
 
 ## GitHub migration (2026-10-05)
 

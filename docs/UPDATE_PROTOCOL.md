@@ -240,9 +240,9 @@ Error taxonomy：
 
 ## 17. 发布流程与现有能力
 
-2026-09-27 状态：本仓库的 `tag_push` 流水线已具备测试 / lint、生产 Android 签名、
-APK 身份与签名校验、上传 commit 附件的能力。生产更新公钥注入、更新仓库发布、
-manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
+2026-09-27 状态：本仓库的 tag 触发流水线（现为 `.github/workflows/android-release.yml`）
+已具备测试 / lint、生产 Android 签名、APK 身份与签名校验、以及上传候选包 artifact 的能力。
+生产更新公钥注入、更新渠道发布、manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
 发布门槛和执行顺序集中维护在
 [RELEASE_PROVISIONING.md §15](RELEASE_PROVISIONING.md#release-readiness)。
 
