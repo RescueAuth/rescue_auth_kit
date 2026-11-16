@@ -4,7 +4,7 @@
 #
 # Offline static checks for scripts/build-debug-apk.sh (no Android SDK needed).
 # Verifies the DEBUG pipeline contract:
-#   * the debug script does NOT reference any production Secret Repo / signing
+#   * the debug script does NOT reference any production signing secret
 #     secrets (RESCUEAUTH_KEYSTORE_BASE64 / *_PASSWORD / validateReleaseSigning),
 #   * the artifact-naming template produces RescueAuth-<versionName>-debug-<sha>.apk.
 #

@@ -157,8 +157,8 @@ Bridge 不复制完整保险库，不构成桌面保险库客户端或云同步�
 2026-10-05 补充授权：更新源迁至 GitHub `RescueAuth/rescue_auth_kit` 的
 `android-stable` Release assets，APK/说明使用 `rescueauth-vX.Y.Z` Release。
 独立 Ed25519 更新密钥已 provision；公开 pin 在 `release/update-public-key.txt`。
-该状态表示配置完成，端点上线、签名包和更新端到端验收仍未完成；旧 CNB
-资源保留。用户同时授权本任务后续 PR 由 Agent 自行审查、测试并合并，
+该状态表示配置完成，端点上线、签名包和更新端到端验收仍未完成；
+旧 CNB 资源已废弃，构建与发布统一在 GitHub Actions 上。用户同时授权本任务后续 PR 由 Agent 自行审查、测试并合并，
 覆盖此前工作流人工审阅约束，不豁免发布验收与凭据保护。
 
 2026-10-05 验收更新：GitHub 全量回归 420 core + 844 app 通过；

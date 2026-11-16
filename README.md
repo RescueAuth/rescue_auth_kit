@@ -74,21 +74,22 @@ are development builds signed with a debug key. The native app uses
 
 ## Build and release entry points
 
-The primary repository is [CNB](https://cnb.cool/xincy22/rescue_auth_kit).
+The repository is hosted on [GitHub](https://github.com/RescueAuth/rescue_auth_kit).
 `main` is the development branch. Stable releases use immutable
 `rescueauth-vX.Y.Z` tags after the release gates have been met.
 
-| Purpose | CNB entry point | What it runs |
+| Purpose | GitHub Actions entry point | What it runs |
 | --- | --- | --- |
-| Try a debug APK | **Build debug RescueAuth** on `main` / feature / fix / auto branches | Build, validate and attach the debug APK; no unit tests or lint |
-| Full regression | **Run full RescueAuth test suite** on any branch | Core + app JVM tests, lint, debug and AndroidTest APK builds; no secrets |
-| Cloud device regression | **Run Firebase device tests** on `main` | A Firebase Test Lab virtual-device matrix; separate from JVM tests |
-| Production candidate | Push an annotated `rescueauth-vX.Y.Z` tag | Release gates, production signing, APK verification and attachment |
+| Try a debug APK | **Android manual builds**, task `debug` | Build, validate and upload the debug APK; no unit tests or lint |
+| Full regression | **Android manual builds**, task `full` | Core + app JVM tests, lint, debug and AndroidTest APK builds; no secrets |
+| Cloud device regression | **Android Firebase device tests** | A Firebase Test Lab virtual-device matrix; separate from JVM tests |
+| Production candidate | Push an annotated `rescueauth-vX.Y.Z` tag | Release gates, production signing, APK verification and artifact upload |
 
-The three buttons are manual and owner-only. Ordinary pushes and PR merges do
-not automatically run tests. The tag pipeline does not yet publish the signed
-update manifest; candidate verification and update-channel publication remain
-separate steps. See [release provisioning](docs/RELEASE_PROVISIONING.md) and
+Every workflow is manual (`workflow_dispatch`) or tag-triggered, and owner-only.
+Ordinary pushes and PR merges do not automatically run tests. The tag workflow
+does not yet publish a GitHub Release or the signed update manifest; candidate
+verification and update-channel publication remain separate steps. See
+[release provisioning](docs/RELEASE_PROVISIONING.md) and
 [Firebase Test Lab](docs/FIREBASE_TEST_LAB.md).
 
 ## Repository and documentation

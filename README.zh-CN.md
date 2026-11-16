@@ -67,18 +67,19 @@ Debug 构建通过；lint 无错误，仍有告警。详见[验证记录](docs/U
 
 ## 构建与发布入口
 
-主仓库位于 [CNB](https://cnb.cool/xincy22/rescue_auth_kit)。`main` 是开发分支；
+仓库托管在 [GitHub](https://github.com/RescueAuth/rescue_auth_kit)。`main` 是开发分支；
 稳定版本在发布门槛满足后，以不可变的 `rescueauth-vX.Y.Z` tag 标识。
 
-| 用途 | CNB 入口 | 实际执行内容 |
+| 用途 | GitHub Actions 入口 | 实际执行内容 |
 | --- | --- | --- |
-| 试用 Debug APK | `main` / feature / fix / auto 分支上的 **Build debug RescueAuth** | 构建、校验并上传 Debug APK；不运行单测或 lint |
-| 完整回归 | 任意分支上的 **Run full RescueAuth test suite** | Core + App JVM 测试、lint、Debug 与 AndroidTest APK 构建；不读取密钥 |
-| 云端设备回归 | `main` 上的 **Run Firebase device tests** | Firebase Test Lab 虚拟设备测试矩阵，与 JVM 测试独立 |
-| 生产候选包 | 推送带注释的 `rescueauth-vX.Y.Z` tag | 发布门禁、生产签名、APK 校验及上传附件 |
+| 试用 Debug APK | **Android manual builds**，task 选 `debug` | 构建、校验并上传 Debug APK；不运行单测或 lint |
+| 完整回归 | **Android manual builds**，task 选 `full` | Core + App JVM 测试、lint、Debug 与 AndroidTest APK 构建；不读取密钥 |
+| 云端设备回归 | **Android Firebase device tests** | Firebase Test Lab 虚拟设备测试矩阵，与 JVM 测试独立 |
+| 生产候选包 | 推送带注释的 `rescueauth-vX.Y.Z` tag | 发布门禁、生产签名、APK 校验及 artifact 上传 |
 
-三个按钮均由 owner 手动触发。普通 push 和 PR 合并不会自动运行测试。
-Tag 流水线目前尚不发布签名更新清单；候选包验收与更新渠道发布仍是后续步骤。
+所有工作流均为手动触发（`workflow_dispatch`）或 tag 触发，且仅限 owner。
+普通 push 和 PR 合并不会自动运行测试。Tag 工作流目前尚不发布 GitHub Release 或签名更新清单；
+候选包验收与更新渠道发布仍是后续步骤。
 操作细节见[发布说明](docs/RELEASE_PROVISIONING.md)和
 [Firebase Test Lab](docs/FIREBASE_TEST_LAB.md)。
 

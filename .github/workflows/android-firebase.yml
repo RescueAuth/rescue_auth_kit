@@ -55,7 +55,7 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           APP_APK: ${{ github.workspace }}/ftl-input/debug/app-debug.apk
           TEST_APK: ${{ github.workspace }}/ftl-input/androidTest/debug/app-debug-androidTest.apk
-          CNB_COMMIT: ${{ github.sha }}
+          FTL_COMMIT: ${{ github.sha }}
           FTL_DEVICE_MODEL: MediumPhone.arm
           FTL_DEVICE_VERSION: '33'
           FTL_DEVICE_LOCALE: en

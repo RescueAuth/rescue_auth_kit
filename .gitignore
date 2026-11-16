@@ -46,7 +46,6 @@ captures/
 
 # Firebase Test Lab CI: transient gate file generated at runtime on the CI
 # workspace (never committed)
-.cnb-gate.env
 
 # Local web research cache
 .firecrawl/
@@ -65,3 +64,7 @@ captures/
 # Python developer-tool caches.
 __pycache__/
 *.py[cod]
+
+# Machine-specific environment notes (toolchain paths, secret locations).
+# Never committed: they describe one developer machine, not the product.
+LOCAL.md

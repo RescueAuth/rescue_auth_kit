@@ -4,8 +4,8 @@
 >
 > Application identity and Android signing infrastructure are established.
 > Android signing identity provisioning was recorded on 2026-08-11 and renewed
-> on 2026-11-16. The current CNB production path is **tag-only**; debug builds, full
-> regression and Firebase Test Lab use separate manual buttons. Production update trust
+> on 2026-11-16. The current production path is **tag-only**; debug builds, full
+> regression and Firebase Test Lab use separate manual workflows. Production update trust
 > configuration, update-channel publishing and final device acceptance remain open.
 > Start with [the release checklist and evidence](#release-readiness).
 
@@ -293,16 +293,15 @@ Without production signing secrets, normal CI continues to support:
 ```
 
 - `:app:assembleRelease` runs **unsigned** (no debug signing).
-- The Secret Repository file `android-signing.yml` supplies only these variables
-  to the **`tag_push`** production signing stage:
+- The GitHub **`production` environment** supplies only these secrets to the
+  production signing job:
   `RESCUEAUTH_KEYSTORE_BASE64`, `RESCUEAUTH_STORE_PASSWORD`,
   `RESCUEAUTH_KEY_PASSWORD`, and `RESCUEAUTH_KEY_ALIAS`.
-- Production release is **tag-only** (see §10a below): it runs on the
-  `tag_push` event from a `rescueauth-vX.Y.Z` tag. `main` and feature/fix
-  branches are never production-released. The former main-only production web
-  trigger has been removed.
-- `scripts/validate-release-tag.sh` (run as the FIRST stage, before any secret
-  import) FAILS CLOSED unless `CNB_BRANCH` matches
+- Production release is **tag-only** (see §10a below): it runs on a
+  `rescueauth-vX.Y.Z` tag push. `main` and feature/fix branches are never
+  production-released. There is no branch-triggered production path.
+- `scripts/validate-release-tag.sh` (run as the FIRST step, before any secret
+  is read) FAILS CLOSED unless `GITHUB_REF_NAME` matches
   `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$` (rejects legacy `legacy-vX.Y.Z` tags,
   `main`, feature branches and arbitrary strings).
 - `scripts/build-production-apk.sh` reconstructs a `0600` PKCS12 under a runner
@@ -362,33 +361,34 @@ independent release line starts at `1.0.0`.
 
 ### Daily development — Debug Pipeline
 
-Web trigger **"Build debug RescueAuth"** (`web_trigger_debug_apk`), available to
-`owner` on `main` / feature / fix branches:
+GitHub Actions workflow **"Android manual builds"** (`android-manual.yml`),
+task input `debug`, owner-only:
 
 ```
 assembleDebug (no core / Robolectric tests or lint)
   -> debug signing (standard Android debug key)
   -> verify applicationId=com.rescueauth.v2, debuggable=true, valid debug sig
   -> RescueAuth-<versionName>-debug-<shortCommit>.apk
-  -> commit attachment (downloadable, single APK)
+  -> artifact upload (downloadable, single APK)
 ```
 
-- No production Secret Repo import. No production signing password / keystore.
+- No production secrets. No production signing password / keystore.
 - No `validateReleaseSigning` / `assembleRelease`.
 - Used for development and real-device `.rakvault` smoke. A successful debug
   build is not evidence that the full regression suite passed.
 
 ### Manual regression entry points
 
-- **Run full RescueAuth test suite** (`web_trigger_full_test`, any branch):
+- **Android manual builds**, task `full` (`android-manual.yml`):
   core JVM + app Robolectric tests, lint, `assembleDebug` and
-  `assembleDebugAndroidTest`; no secret imports and no FTL execution.
-- **Run Firebase device tests** (`web_trigger_firebase_test`, `main` only):
+  `assembleDebugAndroidTest`; no secrets and no FTL execution.
+- **Android Firebase device tests** (`android-firebase.yml`, `main` only):
   build and validate the debug / AndroidTest APKs, then run the configured
-  single virtual-device matrix. FTL credentials are confined to that stage.
-- All three buttons are owner-only. Ordinary branch push, PR merge and `main`
-  updates do not automatically run these suites. Configuration lives in
-  [`.cnb.yml`](../.cnb.yml) and [`.cnb/web_trigger.yml`](../.cnb/web_trigger.yml).
+  single virtual-device matrix. FTL credentials are confined to the
+  `firebase-test-lab` environment.
+- All workflows are owner-only (`workflow_dispatch` or tag push). Ordinary
+  branch push, PR merge and `main` updates do not automatically run these
+  suites. Configuration lives in [`.github/workflows/`](../.github/workflows/).
 
 ### Formal production release — Tag-only pipeline
 
@@ -397,15 +397,16 @@ assembleDebug (no core / Robolectric tests or lint)
 2. Confirm `versionName` / `versionCode` in `app/build.gradle.kts`.
 3. Owner creates an **annotated** release tag, e.g. `git tag -a rescueauth-v1.0.0`,
    and pushes it.
-4. `tag_push` pipeline runs `scripts/validate-release-tag.sh` FIRST (FAIL CLOSED
-   unless the tag matches `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$`).
-5. `build-production-apk.sh` re-validates the tag, derives the version, imports
-   the Secret Repo **only in the signing stage**, reconstructs the temporary
+4. `android-release.yml` runs `scripts/validate-release-tag.sh` FIRST (FAIL
+   CLOSED unless the tag matches `^rescueauth-v[0-9]+\.[0-9]+\.[0-9]+$`).
+5. `build-production-apk.sh` re-validates the tag, derives the version, reads
+   the **`production` environment** secrets, reconstructs the temporary
    PKCS12, runs `validateReleaseSigning` + `assembleRelease`.
 6. `apksigner verify` + exactly-one-signer + pinned cert fingerprint + APK
    identity assertions (applicationId, versionName == tag version, versionCode,
    debuggable=false).
-7. Artifact `RescueAuth-X.Y.Z.apk` is attached to the release tag's commit.
+7. Artifact `RescueAuth-X.Y.Z.apk` is uploaded as a workflow artifact
+   (a GitHub Release is not yet published automatically).
 8. Download that exact attachment, verify its checksum and signer, and complete
    the signed-candidate real-device smoke.
 9. Publish release notes and the stable update channel only after candidate
@@ -541,7 +542,7 @@ against the new candidate revision.
   Android signing identity from an independent offline backup. Record completion
   without passwords, private keys or secret storage locations in the repository.
 - [ ] **Final source regression.** Run the manual full suite and `main`-only FTL
-  entry for the chosen revision; record the CNB run and FTL matrix results. Review
+  entry for the chosen revision; record the Actions run and FTL matrix results. Review
   remaining lint warnings. Exercise unlock / lock / background return, account
   and developer CRUD, fresh re-auth, and native / legacy migration on a physical
   device using disposable test data. Local emulator results do not substitute for
@@ -574,10 +575,9 @@ accessibility / animation polish remain deferred under `ROADMAP.md §18`.
 
 ## 16. GitHub migration — 2026-10-05
 
-The primary repository is now https://github.com/RescueAuth/rescue_auth_kit.
+The repository is https://github.com/RescueAuth/rescue_auth_kit.
 Existing GitHub releases/tags were retained; four `legacy-v*` tags were added
-without moving or deleting historical tags. Local `origin` points at GitHub;
-`cnb` remains the historical remote.
+without moving or deleting historical tags. Local `origin` points at GitHub.
 
 The owner explicitly authorized replacing the Android signing identity before
 the first native stable release. The current public certificate is recorded in
@@ -597,7 +597,7 @@ and check 16 KiB alignment. It uploads a candidate artifact only. No stable
 release or latest.json is published automatically. The manual main-only `android-firebase.yml` builds APKs without credentials,
 then runs the existing single-device FTL script in a separate
 `firebase-test-lab` environment. Firebase credentials and update
-manifest provisioning remain outstanding. CNB update endpoints stay unchanged.
+manifest provisioning remain outstanding.
 
 The owner reported Debug-device verification on 2026-10-05. Device/OS details,
 independent new-key backup, final FTL, and exact production-candidate device
@@ -620,8 +620,8 @@ separate Ed25519 key. The production environment now contains
 `UPDATE_SIGNING_KEY_PEM`; its reviewed public pin is
 `release/update-public-key.txt`. Gradle compiles this pin and rejects a
 conflicting override. The app's fixed manifest/signature URLs now reference
-`android-stable` release assets in RescueAuth/rescue_auth_kit. Existing CNB
-resources were not deleted or altered. APK signing remains separate.
+`android-stable` release assets in RescueAuth/rescue_auth_kit. APK signing remains
+separate.
 
 Key configuration is complete, but §15 update gates remain unchecked until
 publication and hosted verification. No native release or android-stable assets
