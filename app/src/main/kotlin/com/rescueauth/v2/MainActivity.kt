@@ -377,7 +377,12 @@ class MainActivity : AppCompatActivity() {
         vaultOpenJob?.cancel()
         super.onDestroy()
         sessionManager.lock()
-        VaultAccess.clear()
+        // Only release the registry if THIS instance still owns it. A newer
+        // Activity can be created before this instance is destroyed (cancel
+        // the unlock prompt → finish → relaunch); an unconditional clear()
+        // would unregister the live session and the app shell would render
+        // from a throwaway state machine with an empty vault.
+        VaultAccess.release(sessionManager)
         scope.cancel()
     }
 

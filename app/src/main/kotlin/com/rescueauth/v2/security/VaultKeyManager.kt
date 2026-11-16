@@ -23,8 +23,15 @@ class VaultKeyManager(private val crypto: VaultKeyCrypto) {
      */
     class AuthRequiredException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+    /**
+     * @return true when a wrapped VaultKey exists on this install.
+     *
+     * Presence is decided by the persisted artifact, not by a successful
+     * decode: a blank/corrupt blob still means the vault exists (see
+     * [VaultKeyCrypto.hasPersisted]).
+     */
     val hasVaultKey: Boolean
-        get() = !crypto.readWrapped().isNullOrBlank()
+        get() = crypto.hasPersisted()
 
     /**
      * Generates a fresh 256-bit VaultKey, wraps it, and persists the blob.

@@ -107,6 +107,7 @@ class MainActivityStartupAuthTest {
             }
             override fun persistBlob(blob: String) = crypto.persistBlob(blob)
             override fun readWrapped(): String? = crypto.readWrapped()
+            override fun hasPersisted(): Boolean = crypto.hasPersisted()
             override fun unwrap(blob: String): ByteArray = crypto.unwrap(blob)
             override fun reset() = crypto.reset()
             override fun deletePersisted() = crypto.deletePersisted()

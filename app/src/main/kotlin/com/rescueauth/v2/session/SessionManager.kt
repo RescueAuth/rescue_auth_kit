@@ -59,8 +59,18 @@ class SessionManager(
     /** Observable session state flow (used by UI collection). */
     val sessionStateFlow: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> get() = stateMachine.state
 
-    /** @return true if a wrapped VaultKey exists (first-run check). */
-    fun needsFirstRunSetup(): Boolean = !vaultKeyManager.hasVaultKey
+    /**
+     * @return true only when this install has NO vault at all — no wrapped
+     * VaultKey AND no database file.
+     *
+     * A machine owns exactly ONE vault. Any surviving artifact (wrapped key
+     * blob or the encrypted database) means the vault already exists, so the
+     * app must unlock it instead of creating a second one. Treating a
+     * missing key blob alone as "first run" would silently OVERWRITE the
+     * wrapped key, making the existing database permanently unrecoverable.
+     */
+    fun needsFirstRunSetup(): Boolean =
+        !vaultKeyManager.hasVaultKey && !databaseFileExists()
 
     /**
      * First-run setup: generates + wraps the VaultKey and opens the DB.
@@ -72,6 +82,10 @@ class SessionManager(
      * crypto failure returns a typed [VaultUnlockOutcome] instead of crashing.
      */
     fun createVaultAndOpen(): VaultUnlockOutcome = synchronized(lifecycleLock) {
+        // Single-vault invariant: never mint a new VaultKey when any trace of
+        // a vault exists. Creating here would overwrite the wrapped key and
+        // orphan the encrypted database (unrecoverable data loss).
+        if (!needsFirstRunSetup()) return unlock()
         if (!stateMachine.beginAuthentication()) {
             return if (stateMachine.isUnlocked()) VaultUnlockOutcome.Success(null) else VaultUnlockOutcome.AuthFailed
         }
@@ -155,6 +169,10 @@ class SessionManager(
             false
         }
     }
+
+    /** True when the encrypted database file exists (any size). */
+    private fun databaseFileExists(): Boolean =
+        context.getDatabasePath(RescueAuthDatabase.DB_NAME).exists()
 
     /** Room is lazy, so validate the connection before publishing UNLOCKED. */
     private fun openDatabase(key: ByteArray): RescueAuthDatabase {

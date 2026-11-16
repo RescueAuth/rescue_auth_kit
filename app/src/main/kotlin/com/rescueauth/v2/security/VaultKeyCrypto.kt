@@ -34,6 +34,18 @@ interface VaultKeyCrypto {
      */
     fun wrap(vaultKey: ByteArray, persist: (String) -> Unit)
 
+    /**
+     * @return true when a wrapped blob EXISTS on this install, regardless of
+     * whether its content can be read or decoded.
+     *
+     * Presence must be judged by the persisted file, never by a successful
+     * decode: a truncated or blank blob still means a vault was provisioned
+     * here, and treating it as "absent" routes the app into first-run setup,
+     * which mints a new VaultKey and overwrites the only copy of the key that
+     * can decrypt the existing database.
+     */
+    fun hasPersisted(): Boolean
+
     /** Returns the wrapped blob string (null if none). */
     fun readWrapped(): String?
 
