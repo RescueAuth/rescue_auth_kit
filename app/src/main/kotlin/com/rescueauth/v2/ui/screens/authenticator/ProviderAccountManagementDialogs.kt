@@ -2,8 +2,10 @@ package com.rescueauth.v2.ui.screens.authenticator
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -14,9 +16,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import com.rescueauth.v2.ui.components.RescueAuthTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,21 +24,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import com.rescueauth.v2.ui.model.AccountUi
 import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 @Composable
 private fun DialogTitle(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         RescueAuthIconBadge(icon = icon, size = 36.dp, iconSize = 18.dp)
         Text(title, style = MaterialTheme.typography.titleLarge)
@@ -55,6 +58,8 @@ fun ManagementTextDialog(
     onDismiss: () -> Unit,
 ) {
     var value by remember(initialValue) { mutableStateOf(initialValue) }
+    val trimmed = value.trim()
+    val canConfirm = trimmed.isNotEmpty() && trimmed != initialValue.trim()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { DialogTitle(title, Icons.Filled.Edit) },
@@ -65,12 +70,19 @@ fun ManagementTextDialog(
                     onValueChange = { value = it },
                     label = { Text(fieldLabel) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (canConfirm) onConfirm(trimmed)
+                    }),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(value.trim()) }) { Text(confirmLabel) }
+            TextButton(
+                onClick = { onConfirm(trimmed) },
+                enabled = canConfirm,
+            ) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
@@ -85,6 +97,7 @@ fun CreateProviderDialog(
 ) {
     var provider by remember { mutableStateOf("") }
     var accountName by remember { mutableStateOf("") }
+    val canConfirm = provider.isNotBlank() && accountName.isNotBlank()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { DialogTitle(stringResource(R.string.provider_create_title), Icons.Filled.Add) },
@@ -96,6 +109,7 @@ fun CreateProviderDialog(
                         onValueChange = { provider = it },
                         label = { Text(stringResource(R.string.provider_name_label)) },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     RescueAuthTextField(
@@ -103,6 +117,10 @@ fun CreateProviderDialog(
                         onValueChange = { accountName = it },
                         label = { Text(stringResource(R.string.account_name_label)) },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            if (canConfirm) onConfirm(provider.trim(), accountName.trim())
+                        }),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -111,7 +129,7 @@ fun CreateProviderDialog(
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(provider.trim(), accountName.trim()) },
-                enabled = provider.isNotBlank() && accountName.isNotBlank(),
+                enabled = canConfirm,
             ) { Text(stringResource(R.string.management_confirm)) }
         },
         dismissButton = {
@@ -194,13 +212,17 @@ fun ManagementDestructiveDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MergeAccountDialog(
     source: AccountUi,
     destination: AccountUi,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    candidates: List<AccountUi> = listOf(destination),
+    onSelectDestination: ((AccountUi) -> Unit)? = null,
 ) {
+    var expanded by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { DialogTitle(stringResource(R.string.account_merge_title), Icons.Filled.MergeType) },
@@ -225,15 +247,45 @@ fun MergeAccountDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-                    Text(
-                        stringResource(
-                            R.string.account_merge_destination_summary,
-                            destination.providerName,
-                            destination.accountName,
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                if (candidates.size > 1 && onSelectDestination != null) {
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it },
+                    ) {
+                        RescueAuthTextField(
+                            value = "${destination.providerName} / ${destination.accountName}",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.account_merge_choose_destination)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                        ) {
+                            candidates.forEach { candidate ->
+                                DropdownMenuItem(
+                                    text = { Text("${candidate.providerName} / ${candidate.accountName}") },
+                                    onClick = {
+                                        expanded = false
+                                        onSelectDestination(candidate)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    RescueAuthCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+                        Text(
+                            stringResource(
+                                R.string.account_merge_destination_summary,
+                                destination.providerName,
+                                destination.accountName,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
                 RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
                     Text(

@@ -33,8 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -75,6 +77,7 @@ fun RescueAuthFloatingAddOverlay(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val scope = rememberCoroutineScope()
     var snapJob by remember { mutableStateOf<Job?>(null) }
@@ -85,6 +88,7 @@ fun RescueAuthFloatingAddOverlay(
         val travelX = with(density) { (maxWidth - AddActionTokens.size).toPx().coerceAtLeast(0f) }
         val travelY = with(density) { (maxHeight - AddActionTokens.size).toPx().coerceAtLeast(0f) }
         val settle: () -> Unit = {
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             snapJob?.cancel()
             snapJob = scope.launch {
                 animate(position.xFraction, if (position.xFraction < .5f) 0f else 1f,

@@ -452,13 +452,13 @@ class AuthenticatorViewModel(
             }
             result
         } catch (e: AuthenticatorRepository.ValidationException) {
-            _formState.update { it.copy(error = e.message ?: "Invalid input") }
+            _formState.update { it.copy(error = "invalid_input") }
             false
         } catch (e: com.rescueauth.v2.totp.OtpauthParser.OtpauthParseException) {
-            _formState.update { it.copy(error = e.message ?: "Invalid otpauth URI") }
+            _formState.update { it.copy(error = "invalid_uri") }
             false
         } catch (e: Exception) {
-            _formState.update { it.copy(error = "Unable to add: ${e.message}") }
+            _formState.update { it.copy(error = "invalid_input") }
             false
         } finally {
             _formState.update { it.copy(submitting = false) }
@@ -488,16 +488,16 @@ class AuthenticatorViewModel(
         val provider = form.provider.trim()
         val account = form.accountName.trim()
         if (provider.isEmpty()) {
-            _formState.update { it.copy(error = "Provider / issuer is required") }
+            _formState.update { it.copy(error = "provider_required") }
             return false
         }
         if (account.isEmpty()) {
-            _formState.update { it.copy(error = "Account name is required") }
+            _formState.update { it.copy(error = "account_required") }
             return false
         }
         val secret = TotpCore.normalizeSecret(form.secret.trim())
         if (secret.isEmpty() || !TotpCore.isValidBase32(secret)) {
-            _formState.update { it.copy(error = "Invalid Base32 secret") }
+            _formState.update { it.copy(error = "invalid_secret") }
             return false
         }
         val accountDomain = repo.findOrCreateAccount(provider, account)
@@ -754,10 +754,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return false
         return runCatching {
             repo.createProvider(serviceName, accountName)
-            _events.value = AuthenticatorEvent.ManagementMessage("Provider created")
+            _events.value = AuthenticatorEvent.ManagementMessage("provider_created")
             true
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to create provider")
+            _events.value = AuthenticatorEvent.ManagementError("provider_create_failed")
             false
         }
     }
@@ -767,10 +767,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return null
         return runCatching {
             val created = repo.createAccount(provider, accountName)
-            _events.value = AuthenticatorEvent.ManagementMessage("Account added")
+            _events.value = AuthenticatorEvent.ManagementMessage("account_added")
             created
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to add account")
+            _events.value = AuthenticatorEvent.ManagementError("account_add_failed")
             null
         }
     }
@@ -779,10 +779,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return false
         return runCatching {
             repo.renameProvider(oldName, newName)
-            _events.value = AuthenticatorEvent.ManagementMessage("Provider renamed")
+            _events.value = AuthenticatorEvent.ManagementMessage("provider_renamed")
             true
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to rename provider")
+            _events.value = AuthenticatorEvent.ManagementError("provider_rename_failed")
             false
         }
     }
@@ -798,7 +798,7 @@ class AuthenticatorViewModel(
             repo.setProviderIcon(provider, iconKey)
             true
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to update icon")
+            _events.value = AuthenticatorEvent.ManagementError("icon_update_failed")
             false
         }
     }
@@ -807,10 +807,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return null
         return runCatching {
             val result = repo.deleteProvider(provider)
-            _events.value = AuthenticatorEvent.ManagementMessage("Provider deleted")
+            _events.value = AuthenticatorEvent.ManagementMessage("provider_deleted")
             ProviderDeleteUiResult(result.accountCount, result.totpCount, result.recoverySetCount)
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to delete provider")
+            _events.value = AuthenticatorEvent.ManagementError("provider_delete_failed")
             null
         }
     }
@@ -819,10 +819,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return false
         return runCatching {
             repo.renameAccount(accountId, newName)
-            _events.value = AuthenticatorEvent.ManagementMessage("Account renamed")
+            _events.value = AuthenticatorEvent.ManagementMessage("account_renamed")
             true
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to rename account")
+            _events.value = AuthenticatorEvent.ManagementError("account_rename_failed")
             false
         }
     }
@@ -831,10 +831,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return false
         return runCatching {
             repo.moveAccount(accountId, destinationProvider)
-            _events.value = AuthenticatorEvent.ManagementMessage("Account moved")
+            _events.value = AuthenticatorEvent.ManagementMessage("account_moved")
             true
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to move account")
+            _events.value = AuthenticatorEvent.ManagementError("account_move_failed")
             false
         }
     }
@@ -843,10 +843,10 @@ class AuthenticatorViewModel(
         val repo = managementRepositoryProvider() ?: return false
         return runCatching {
             repo.mergeAccounts(sourceAccountId, destinationAccountId)
-            _events.value = AuthenticatorEvent.ManagementMessage("Accounts merged")
+            _events.value = AuthenticatorEvent.ManagementMessage("accounts_merged")
             true
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to merge accounts")
+            _events.value = AuthenticatorEvent.ManagementError("accounts_merge_failed")
             false
         }
     }
@@ -868,7 +868,7 @@ class AuthenticatorViewModel(
                 recoverySetCount = snapshot.recoverySets.size,
             )
         }.getOrElse {
-            _events.value = AuthenticatorEvent.ManagementError(it.message ?: "Unable to delete account")
+            _events.value = AuthenticatorEvent.ManagementError("account_delete_failed")
             null
         }
     }

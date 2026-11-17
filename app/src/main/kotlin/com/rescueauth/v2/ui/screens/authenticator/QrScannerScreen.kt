@@ -5,7 +5,11 @@ package com.rescueauth.v2.ui.screens.authenticator
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -20,13 +24,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
-import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,12 +48,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -54,50 +61,44 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.RescueAuthButton as Button
 import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.ui.components.RescueAuthIconHeader
 import com.rescueauth.v2.ui.components.RescueAuthMetaPill
+import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
 import com.rescueauth.v2.ui.theme.CardTokens
+import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
  * Full-screen camera QR scanner (Phase 4 P2).
- *
- * - CameraX `Preview` + `PreviewView`, ML Kit `BarcodeScanning` for on-device
- *   QR decode (mature stack; never hand-implement a QR decoder).
- * - Lifecycle-aware: binds to the current [androidx.lifecycle.LifecycleOwner]
- *   and unbinds/releases the camera when the screen leaves composition or the
- *   app backgrounds.
- * - Camera permission is requested here (only when Scan QR is opened), never
- *   at app startup; denied / permanently-denied states have explicit UI.
- * - A last-value + cooldown guard prevents the same QR re-triggering an
- *   import every frame.
- * - Torch toggle (CameraX, no extra permission).
- * - **No camera image is saved, uploaded or logged**; only the raw scanned
- *   string leaves this composable via [onQrDetected].
  */
 @Composable
 fun QrScannerScreen(
     onQrDetected: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    statusMessage: String? = null,
+    errorMessage: String? = null,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    BackHandler(onBack = onDismiss)
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED,
         )
     }
     var permanentlyDenied by remember { mutableStateOf(false) }
     var torchOn by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasCameraPermission = granted
         if (!granted) {
@@ -105,7 +106,6 @@ fun QrScannerScreen(
         }
     }
 
-    // Detect permanent denial after the first denied result.
     LaunchedEffect(hasCameraPermission) {
         if (!hasCameraPermission) {
             permanentlyDenied = !shouldShowRationale(context)
@@ -114,18 +114,22 @@ fun QrScannerScreen(
 
     when {
         hasCameraPermission -> {
-            CameraPreview(
-                lifecycleOwner = lifecycleOwner,
-                torchOn = torchOn,
-                onQrDetected = onQrDetected,
-                modifier = modifier.fillMaxSize(),
-            )
-            CameraOverlay(
-                torchOn = torchOn,
-                onToggleTorch = { torchOn = !torchOn },
-                onDismiss = onDismiss,
-                modifier = Modifier.fillMaxSize(),
-            )
+            Box(modifier = modifier.fillMaxSize()) {
+                CameraPreview(
+                    lifecycleOwner = lifecycleOwner,
+                    torchOn = torchOn,
+                    onQrDetected = onQrDetected,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                CameraOverlay(
+                    torchOn = torchOn,
+                    onToggleTorch = { torchOn = !torchOn },
+                    onDismiss = onDismiss,
+                    statusMessage = statusMessage,
+                    errorMessage = errorMessage,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
         permanentlyDenied -> {
             PermissionDeniedContent(
@@ -141,7 +145,6 @@ fun QrScannerScreen(
                 onDismiss = onDismiss,
                 modifier = modifier.fillMaxSize(),
             )
-            // Ask on first entry to Scan QR (never at app startup).
             LaunchedEffect(Unit) {
                 permissionLauncher.launch(Manifest.permission.CAMERA)
             }
@@ -154,7 +157,7 @@ private fun shouldShowRationale(context: Context): Boolean = try {
     (context as? android.app.Activity)
         ?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)
         ?: true
-} catch (e: Exception) {
+} catch (_: Exception) {
     true
 }
 
@@ -168,7 +171,6 @@ private fun CameraPreview(
     val context = LocalContext.current
     val previewView = remember { PreviewView(context) }
 
-    // Guards against the same QR re-triggering within the cooldown window.
     val lastDetected = remember { mutableStateOf<String?>(null) }
     val lastDetectedAt = remember { mutableStateOf(0L) }
 
@@ -180,7 +182,7 @@ private fun CameraPreview(
         cameraProviderFuture.addListener({
             val cameraProvider = try {
                 cameraProviderFuture.get()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 return@addListener
             }
             val preview = Preview.Builder().build().also {
@@ -202,8 +204,8 @@ private fun CameraPreview(
                     analysis,
                 )
                 camera.cameraControl.enableTorch(torchOn)
-            } catch (e: Exception) {
-                // Camera unavailable — no scanning; the user can dismiss.
+            } catch (_: Exception) {
+                // Camera unavailable — user can dismiss.
             }
         }, ContextCompat.getMainExecutor(context))
 
@@ -214,8 +216,8 @@ private fun CameraPreview(
                 if (cameraProviderFuture.isDone) {
                     cameraProviderFuture.get().unbindAll()
                 }
-            } catch (e: Exception) {
-                // Already unbound / provider unavailable.
+            } catch (_: Exception) {
+                // Already unbound.
             }
         }
     }
@@ -249,8 +251,6 @@ private fun analyzeFrame(
                 if (value != last || now - lastDetectedAt.value > 2_000L) {
                     lastDetected.value = value
                     lastDetectedAt.value = now
-                    // Callback runs on the analyzer thread; hop to the main
-                    // thread so the caller can update Compose state safely.
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         onQrDetected(value)
                     }
@@ -267,12 +267,15 @@ private fun CameraOverlay(
     torchOn: Boolean,
     onToggleTorch: () -> Unit,
     onDismiss: () -> Unit,
+    statusMessage: String?,
+    errorMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
+                .statusBarsPadding()
                 .padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
@@ -289,14 +292,35 @@ private fun CameraOverlay(
                 )
             }
         }
-        RescueAuthMetaPill(
-            text = stringResource(R.string.scan_qr_hint),
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(Spacing.lg),
-        )
+                .navigationBarsPadding()
+                .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            if (!errorMessage.isNullOrBlank()) {
+                RescueAuthCard(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentPadding = Spacing.sm,
+                    modifier = Modifier.widthIn(max = 420.dp),
+                ) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            RescueAuthMetaPill(
+                text = statusMessage ?: stringResource(R.string.scan_qr_hint),
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 
@@ -307,18 +331,53 @@ internal fun PermissionDeniedContent(
     onRequest: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier.background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center) {
-        RescueAuthCard(contentPadding = CardTokens.contentPadding) {
+    val context = LocalContext.current
+    Box(
+        modifier
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = ScreenTokens.horizontalPadding, vertical = Spacing.lg),
+        contentAlignment = Alignment.Center,
+    ) {
+        RescueAuthCard(
+            contentPadding = CardTokens.contentPadding,
+            modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(),
+        ) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(CardTokens.actionSpacing)) {
                 RescueAuthIconHeader(
                     icon = Icons.Filled.CameraAlt,
                     title = stringResource(R.string.add_totp_mode_scan),
-                    subtitle = stringResource(if (needsSettings) R.string.scan_permission_denied_settings else R.string.scan_permission_denied),
+                    subtitle = stringResource(
+                        if (needsSettings) R.string.scan_permission_denied_settings else R.string.scan_permission_denied,
+                    ),
                     modifier = Modifier.testTag("camera_permission_header"),
                 )
-                Button(onClick = if (needsSettings) onDismiss else onRequest ?: onDismiss, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(if (needsSettings) R.string.common_cancel else R.string.scan_permission_request))
+                if (needsSettings) {
+                    Button(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.fromParts("package", context.packageName, null)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    },
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.scan_open_system_settings))
+                    }
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                } else {
+                    Button(onClick = onRequest ?: onDismiss, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.scan_permission_request))
+                    }
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
                 }
             }
         }

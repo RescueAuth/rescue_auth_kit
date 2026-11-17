@@ -83,7 +83,8 @@ internal fun DigitSelector(selected: Int, onSelect: (Int) -> Unit, modifier: Mod
 }
 @Composable
 internal fun PeriodSelector(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    ParameterChoices(stringResource(R.string.add_totp_period_label), listOf(1,30,60,120).map { "${it}s" },
+    val options = remember(selected) { (listOf(15, 30, 60, 90) + selected).distinct().sorted() }
+    ParameterChoices(stringResource(R.string.add_totp_period_label), options.map { "${it}s" },
         "${selected}s", { onSelect(it.removeSuffix("s").toInt()) }, modifier, enabled)
 }
 @OptIn(ExperimentalLayoutApi::class)

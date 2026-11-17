@@ -44,6 +44,16 @@ fun AddTotpSheet(form: AddTotpFormState, onDismiss: () -> Unit, onModeChange: (A
                         label = { Text(stringResource(R.string.add_totp_account_label)) }, modifier = Modifier.fillMaxWidth().testTag("add_totp_account"))
                 })
         }
-        form.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        form.error?.let { err ->
+            val localized = when (err) {
+                "provider_required" -> stringResource(R.string.account_add_provider_error)
+                "account_required" -> stringResource(R.string.account_add_name_error)
+                "invalid_secret" -> stringResource(R.string.account_add_secret_error)
+                "invalid_uri" -> stringResource(R.string.account_add_uri_error)
+                "invalid_input" -> stringResource(R.string.account_add_save_error)
+                else -> err
+            }
+            Text(localized, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }

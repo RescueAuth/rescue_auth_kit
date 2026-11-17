@@ -5,33 +5,38 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.rescueauth.v2.R
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.LocalRescueAuthSnackbarHostState
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
-import com.rescueauth.v2.ui.components.FloatingAddPosition
 import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
+import com.rescueauth.v2.ui.components.showInstantSnackbar
 import com.rescueauth.v2.ui.model.AccountUi
+import com.rescueauth.v2.ui.screens.authenticator.AccountAddKind
 import com.rescueauth.v2.ui.screens.authenticator.AccountAddSheet
 import com.rescueauth.v2.ui.screens.authenticator.AuthenticatorScreen
-import com.rescueauth.v2.ui.screens.authenticator.AccountAddKind
 import com.rescueauth.v2.ui.screens.authenticator.ManagementDestructiveDialog
 import com.rescueauth.v2.ui.screens.authenticator.ManagementTextDialog
 import com.rescueauth.v2.ui.screens.authenticator.MergeAccountDialog
@@ -44,7 +49,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Non-sensitive presentation state can be owned by the shell without moving form/domain logic. */
@@ -55,16 +59,12 @@ class AuthenticatorAddState {
 }
 
 /**
- * Authenticator route (Phase 4 P1) — wires the production ViewModel, the
- * shared 1s countdown tick, the Android clipboard and the Undo Snackbar into
- * the presentational screen, and hosts the Add TOTP sheet.
- *
- * Android-only side effects (clipboard write, snackbar action mapping) live
- * here — never inside the ViewModel or the screen.
+ * Authenticator route — wires the production ViewModel, the shared 1s countdown
+ * tick, the Android clipboard, haptic feedback, and the unified Snackbar host.
  */
 @Composable
 fun AuthenticatorRoute(
-    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    modifier: Modifier = Modifier,
     onOpenAccount: ((String) -> Unit)? = null,
     onOpenProvider: ((String) -> Unit)? = null,
     onBack: (() -> Unit)? = null,
@@ -73,11 +73,7 @@ fun AuthenticatorRoute(
     providerName: String? = null,
     accountId: String? = null,
     onOpenSearch: (() -> Unit)? = null,
-    searchFieldModifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
-    // Injected by the app shell (RescueAuthApp) so the ViewModel + Room
-    // collection survive bottom-tab switches and render instantly on re-entry
-    // (Issue #70 "每次进入认证器都要加载一段时间"). When null (tests / standalone
-    // previews) the route falls back to creating its own instance.
+    searchFieldModifier: Modifier = Modifier,
     viewModel: AuthenticatorViewModel? = null,
     addState: AuthenticatorAddState = remember { AuthenticatorAddState() },
     showAddAction: Boolean = true,
@@ -87,25 +83,24 @@ fun AuthenticatorRoute(
     addViewModel: AccountAddViewModel? = null,
 ) {
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     val appScope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val shellSnackbar = LocalRescueAuthSnackbarHostState.current
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = shellSnackbar ?: localSnackbarHostState
 
-    // ---- Provider & Account management dialog state (Phase 4) -----------
+    // ---- Provider & Account management dialog state -----------
     var providerToRename by remember { mutableStateOf<String?>(null) }
     var providerToDelete by remember { mutableStateOf<String?>(null) }
     var accountToRename by remember { mutableStateOf<AccountUi?>(null) }
-    var accountToMove by remember { mutableStateOf<AccountUi?>(null) }
+    var moveState by remember { mutableStateOf<Pair<AccountUi, List<String>>?>(null) }
     var accountToMerge by remember { mutableStateOf<AccountUi?>(null) }
     var mergeDestination by remember { mutableStateOf<AccountUi?>(null) }
-    var providerList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var cameraScanError by remember { mutableStateOf<String?>(null) }
 
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
         val sm = VaultAccess.sessionManager
-        if (sm != null) {
-            sm.sessionStateFlow
-        } else {
-            SecureSessionStateMachine().state
-        }
+        if (sm != null) sm.sessionStateFlow else SecureSessionStateMachine().state
     }
     val viewModel = viewModel ?: remember {
         AuthenticatorViewModel(
@@ -122,16 +117,24 @@ fun AuthenticatorRoute(
     val events by viewModel.events.collectAsState()
     val migrationState by viewModel.migrationState.collectAsState()
     val accountAddViewModel = addViewModel ?: remember(sessionState) {
-        AccountAddViewModel({ VaultAccess.providerAccountRepository() }, sessionState, appScope,
-            defaultRecoveryTitleProvider = { context.getString(R.string.recovery_codes_title) })
+        AccountAddViewModel(
+            { VaultAccess.providerAccountRepository() },
+            sessionState,
+            appScope,
+            defaultRecoveryTitleProvider = { context.getString(R.string.recovery_codes_title) },
+        )
     }
     val accountAddForm by accountAddViewModel.formState.collectAsState()
     var accountScannerVisible by remember { mutableStateOf(false) }
-    // Generated countdown values are excluded from selector metadata, so ticks do not rebuild choices.
+
     val targets = uiState.accounts.map { it.copy(totpCredentials = emptyList(), recoverySets = emptyList()) }
     LaunchedEffect(targets) { accountAddViewModel.setAccounts(targets) }
     DisposableEffect(isActive) {
-        if (!isActive) { accountAddViewModel.dismiss(); accountScannerVisible = false }
+        if (!isActive) {
+            accountAddViewModel.dismiss()
+            accountScannerVisible = false
+            cameraScanError = null
+        }
         onDispose { accountAddViewModel.dismiss() }
     }
     LaunchedEffect(isActive, addState.credentialSheetVisible, addState.providerDialogVisible) {
@@ -152,21 +155,23 @@ fun AuthenticatorRoute(
         }
     }
 
-    // Shared 1s tick: wall-clock based, driven from a background scope so it
-    // never holds the main-looper / compose idling system busy. It only runs
-    // while the lifecycle is at least STARTED (pauses when the app backgrounds
-    // or the route leaves composition), and the ViewModel corrects from the
-    // real wall clock on every tick — a missed/paused tick never drifts.
+    LaunchedEffect(cameraScanError) {
+        if (cameraScanError != null) {
+            delay(3_500L)
+            cameraScanError = null
+        }
+    }
+
+    @Suppress("DEPRECATION")
     val lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel, isActive) {
-        // Cached offscreen roots retain layout/state, not active tickers or one-shot effects.
         if (!isActive) return@DisposableEffect onDispose { }
         val tickScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         var tickJob: Job? = null
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
-                    viewModel.onTick() // immediate wall-clock correction
+                    viewModel.onTick()
                     if (tickJob == null || !tickJob!!.isActive) {
                         tickJob = tickScope.launch {
                             while (true) {
@@ -191,97 +196,98 @@ fun AuthenticatorRoute(
         }
     }
 
-    // One-shot event handling (clipboard + snackbar).
+    // Consume event immediately before suspending on showSnackbar so repeat taps
+    // work within the snackbar window and back-navigation never re-fires events.
     LaunchedEffect(events, isActive) {
         if (!isActive) return@LaunchedEffect
         val event = events ?: return@LaunchedEffect
-        when (event) {
-            is AuthenticatorEvent.CopyCode -> {
-                copyToClipboard(context, event.code)
-                snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.totp_code_copied),
-                )
-            }
-            is AuthenticatorEvent.OpenAccount -> {
-                onOpenAccount?.invoke(event.accountId)
-            }
-            is AuthenticatorEvent.Deleted -> {
-                val message = context.getString(R.string.undo_snackbar_message, event.label)
-                val actionLabel = context.getString(R.string.undo_snackbar_action)
-                val result = UndoSnackbarContract.showUndoSnackbar(
-                    snackbarHostState,
-                    message,
-                    actionLabel,
-                )
-                if (result == UndoResult.UNDO) {
-                    viewModel.undoDelete()
+        viewModel.onEventShown()
+        appScope.launch {
+            when (event) {
+                is AuthenticatorEvent.CopyCode -> {
+                    copyToClipboard(context, event.code)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.totp_code_copied))
                 }
-            }
-            is AuthenticatorEvent.Restored -> {
-                snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.totp_restored_message),
-                )
-            }
-            is AuthenticatorEvent.Added -> {
-                snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.totp_added_message),
-                )
-            }
-            is AuthenticatorEvent.MigrationImported -> {
-                snackbarHostState.showSnackbar(
-                    message = context.getString(
-                        R.string.migration_imported_message,
-                        event.imported,
-                        event.duplicates,
-                    ),
-                )
-            }
-            is AuthenticatorEvent.ScanError -> {
-                val message = when (event.messageKey) {
-                    "scan_error_not_supported" -> context.getString(R.string.scan_error_not_supported)
-                    "scan_error_malformed" -> context.getString(R.string.scan_error_malformed)
-                    "scan_error_malformed_migration" -> context.getString(R.string.scan_error_malformed_migration)
-                    "scan_error_incomplete_batch" -> context.getString(R.string.scan_error_incomplete_batch)
-                    "scan_error_batch_conflict" -> context.getString(R.string.scan_error_batch_conflict)
-                    else -> context.getString(R.string.scan_error_malformed)
+                is AuthenticatorEvent.OpenAccount -> {
+                    onOpenAccount?.invoke(event.accountId)
                 }
-                snackbarHostState.showSnackbar(message)
-            }
-            is AuthenticatorEvent.ManagementMessage -> {
-                snackbarHostState.showSnackbar(event.message)
-            }
-            is AuthenticatorEvent.ManagementError -> {
-                snackbarHostState.showSnackbar(event.message)
-            }
-            is AuthenticatorEvent.AccountDeleted -> {
-                val message = context.getString(R.string.account_deleted_message)
-                val actionLabel = context.getString(R.string.undo_snackbar_action)
-                val result = UndoSnackbarContract.showUndoSnackbar(
-                    snackbarHostState,
-                    message,
-                    actionLabel,
-                )
-                if (result == UndoResult.UNDO) {
-                    viewModel.undoDeleteAccount()
+                is AuthenticatorEvent.Deleted -> {
+                    val message = context.getString(R.string.undo_snackbar_message, event.label)
+                    val actionLabel = context.getString(R.string.undo_snackbar_action)
+                    val result = UndoSnackbarContract.showUndoSnackbar(
+                        snackbarHostState,
+                        message,
+                        actionLabel,
+                    )
+                    if (result == UndoResult.UNDO) {
+                        viewModel.undoDelete()
+                    }
                 }
-            }
-            is AuthenticatorEvent.AccountRestored -> {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.account_restored_message),
-                )
-            }
-            is AuthenticatorEvent.AccountRestoreBlocked -> {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.account_restore_blocked),
-                )
+                is AuthenticatorEvent.Restored -> {
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.totp_restored_message))
+                }
+                is AuthenticatorEvent.Added -> {
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.totp_added_message))
+                }
+                is AuthenticatorEvent.MigrationImported -> {
+                    snackbarHostState.showInstantSnackbar(
+                        context.getString(
+                            R.string.migration_imported_message,
+                            event.imported,
+                            event.duplicates,
+                        ),
+                    )
+                }
+                is AuthenticatorEvent.ScanError -> {
+                    val message = when (event.messageKey) {
+                        "scan_error_not_supported" -> context.getString(R.string.scan_error_not_supported)
+                        "scan_error_malformed" -> context.getString(R.string.scan_error_malformed)
+                        "scan_error_malformed_migration" -> context.getString(R.string.scan_error_malformed_migration)
+                        "scan_error_incomplete_batch" -> context.getString(R.string.scan_error_incomplete_batch)
+                        "scan_error_batch_conflict" -> context.getString(
+                            R.string.scan_error_batch_conflict,
+                            context.getString(R.string.common_unknown),
+                        )
+                        else -> context.getString(R.string.scan_error_malformed)
+                    }
+                    if (migrationState.scannerVisible || accountScannerVisible) {
+                        cameraScanError = message
+                    } else {
+                        snackbarHostState.showInstantSnackbar(message)
+                    }
+                }
+                is AuthenticatorEvent.ManagementMessage -> {
+                    snackbarHostState.showInstantSnackbar(resolveManagementMessage(context, event.message))
+                }
+                is AuthenticatorEvent.ManagementError -> {
+                    snackbarHostState.showInstantSnackbar(resolveManagementError(context, event.message))
+                }
+                is AuthenticatorEvent.AccountDeleted -> {
+                    val message = context.getString(R.string.account_deleted_message)
+                    val actionLabel = context.getString(R.string.undo_snackbar_action)
+                    val result = UndoSnackbarContract.showUndoSnackbar(
+                        snackbarHostState,
+                        message,
+                        actionLabel,
+                    )
+                    if (result == UndoResult.UNDO) {
+                        viewModel.undoDeleteAccount()
+                    }
+                }
+                is AuthenticatorEvent.AccountRestored -> {
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.account_restored_message))
+                }
+                is AuthenticatorEvent.AccountRestoreBlocked -> {
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.account_restore_blocked))
+                }
             }
         }
-        viewModel.onEventShown()
     }
 
     AuthenticatorScreen(
         uiState = uiState,
-        snackbarHostState = snackbarHostState,
+        snackbarHostState = if (shellSnackbar == null) localSnackbarHostState else null,
         onAddClick = {
             val account = uiState.providers.flatMap { it.accounts }.firstOrNull { it.id == accountId }
             if (account != null) accountAddViewModel.begin(account.providerName, account, AccountAddContentKind.TOTP)
@@ -296,7 +302,7 @@ fun AuthenticatorRoute(
         },
         onCopyClick = { viewModel.copyCode(it) },
         onDeleteClick = { appScope.launch { viewModel.deleteCard(it) } },
-        onOpenAccount = onOpenAccount?.let { cb -> { accountId -> cb(accountId) } },
+        onOpenAccount = onOpenAccount?.let { cb -> { id -> cb(id) } },
         onOpenProvider = onOpenProvider,
         onBack = onBack,
         onOpenRecovery = onOpenRecovery,
@@ -309,27 +315,44 @@ fun AuthenticatorRoute(
         onAddProviderClick = { addState.providerDialogVisible = true },
         onRenameProvider = { provider -> providerToRename = provider },
         onDeleteProvider = { provider -> providerToDelete = provider },
-        onAddAccount = { provider ->
-            accountAddViewModel.begin(provider)
-        },
+        onAddAccount = { provider -> accountAddViewModel.begin(provider) },
         onCreateAccountFor = { provider, kind ->
-            accountAddViewModel.begin(provider, kind = if (kind == AccountAddKind.RECOVERY) AccountAddContentKind.RECOVERY else AccountAddContentKind.TOTP)
+            accountAddViewModel.begin(
+                provider,
+                kind = if (kind == AccountAddKind.RECOVERY) AccountAddContentKind.RECOVERY else AccountAddContentKind.TOTP,
+            )
         },
         onOpenAdd = { provider, selectedId ->
             accountAddViewModel.begin(provider, uiState.accounts.firstOrNull { it.id == selectedId })
         },
         onRenameAccount = { account -> accountToRename = account },
         onMoveAccount = { account ->
-            accountToMove = account
-            appScope.launch { providerList = viewModel.availableProviders() }
+            appScope.launch {
+                val others = viewModel.availableProviders().filter { it != account.providerName }
+                if (others.isEmpty()) {
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.account_move_no_other_providers))
+                } else {
+                    moveState = account to others
+                }
+            }
         },
         onMergeAccount = { account ->
-            accountToMerge = account
-            mergeDestination = null
+            val candidates = uiState.accounts
+                .filter { it.id != account.id }
+                .sortedWith(
+                    compareByDescending<AccountUi> { it.providerName == account.providerName }
+                        .thenBy { it.providerName }
+                        .thenBy { it.accountName },
+                )
+            if (candidates.isEmpty()) {
+                appScope.launch {
+                    snackbarHostState.showInstantSnackbar(context.getString(R.string.account_merge_no_other_accounts))
+                }
+            } else {
+                accountToMerge = account
+                mergeDestination = candidates.first()
+            }
         },
-        // P8 §11: Account delete is now an ordinary immediate-delete + Undo
-        // (no destructive confirmation). The confirmation-only path remains for
-        // Provider cascading delete and Account merge.
         onDeleteAccount = { account ->
             appScope.launch { viewModel.deleteAccount(account.id) }
         },
@@ -342,44 +365,74 @@ fun AuthenticatorRoute(
         floatingAddPosition = floatingAddPosition,
     )
 
-    // Keep only the ordinary page cached. Offscreen tabs must release camera/overlay resources.
     if (!isActive) return
 
-    if (accountAddForm.visible && !accountScannerVisible) AccountAddSheet(
-        form = accountAddForm,
-        accounts = targets,
-        allowAccountSelection = accountId == null,
-        onDismiss = { accountAddViewModel.dismiss() },
-        onAccountSelected = accountAddViewModel::selectAccount,
-        onAccountNameChange = accountAddViewModel::onAccountNameChange,
-        onProviderChange = accountAddViewModel::onProviderChange,
-        onKindChange = accountAddViewModel::selectKind,
-        onTotpChange = accountAddViewModel::updateTotp,
-        onRecoveryTitleChange = accountAddViewModel::onRecoveryTitleChange,
-        onRecoveryValuesChange = accountAddViewModel::onRecoveryValuesChange,
-        onStartScan = { accountScannerVisible = true },
-        onSubmit = { appScope.launch {
-            if (accountAddViewModel.submit()) snackbarHostState.showSnackbar(context.getString(R.string.account_add_saved))
-        } },
-    )
-    if (accountScannerVisible && accountAddForm.visible) QrScannerScreen(
-        onQrDetected = { raw ->
-            handleAccountAddScan(raw, accountAddViewModel, viewModel) { accountScannerVisible = false }
-        },
-        onDismiss = { accountScannerVisible = false },
-    )
+    if (accountAddForm.visible && !accountScannerVisible) {
+        val addedFeedbackRes = when (accountAddForm.kind) {
+            AccountAddContentKind.TOTP -> R.string.totp_added_message
+            AccountAddContentKind.RECOVERY -> R.string.recovery_codes_added_message
+            AccountAddContentKind.NONE -> R.string.management_account_added
+        }
+        AccountAddSheet(
+            form = accountAddForm,
+            accounts = targets,
+            allowAccountSelection = accountId == null,
+            onDismiss = { accountAddViewModel.dismiss() },
+            onAccountSelected = accountAddViewModel::selectAccount,
+            onAccountNameChange = accountAddViewModel::onAccountNameChange,
+            onProviderChange = accountAddViewModel::onProviderChange,
+            onKindChange = accountAddViewModel::selectKind,
+            onTotpChange = accountAddViewModel::updateTotp,
+            onRecoveryTitleChange = accountAddViewModel::onRecoveryTitleChange,
+            onRecoveryValuesChange = accountAddViewModel::onRecoveryValuesChange,
+            onStartScan = {
+                cameraScanError = null
+                accountScannerVisible = true
+            },
+            onSubmit = {
+                appScope.launch {
+                    if (accountAddViewModel.submit()) {
+                        snackbarHostState.showInstantSnackbar(context.getString(addedFeedbackRes))
+                    }
+                }
+            },
+        )
+    }
 
-    // Full-screen camera QR scanner (Phase 4 P2).
+    val batchStatus = migrationState.batchProgress?.let { (collected, total) ->
+        context.getString(R.string.migration_preview_batch_progress, collected, total)
+    }
+    if (accountScannerVisible && accountAddForm.visible) {
+        QrScannerScreen(
+            onQrDetected = { raw ->
+                handleAccountAddScan(raw, accountAddViewModel, viewModel) {
+                    cameraScanError = null
+                    accountScannerVisible = false
+                }
+            },
+            onDismiss = {
+                cameraScanError = null
+                accountScannerVisible = false
+            },
+            statusMessage = batchStatus,
+            errorMessage = cameraScanError,
+        )
+    }
+
     if (migrationState.scannerVisible) {
         QrScannerScreen(
             onQrDetected = { raw ->
                 viewModel.onQrScanned(raw)
             },
-            onDismiss = { viewModel.closeScanner() },
+            onDismiss = {
+                cameraScanError = null
+                viewModel.closeScanner()
+            },
+            statusMessage = batchStatus,
+            errorMessage = cameraScanError,
         )
     }
 
-    // Migration preview / result (Compose confirmation state, not camera).
     if (migrationState.isPreviewVisible || migrationState.result != null) {
         MigrationImportSheet(
             state = migrationState,
@@ -388,7 +441,6 @@ fun AuthenticatorRoute(
         )
     }
 
-    // ---- Provider & Account management dialogs (Phase 4) -----------------
     providerToRename?.let { provider ->
         ManagementTextDialog(
             title = context.getString(R.string.provider_rename_title),
@@ -421,7 +473,14 @@ fun AuthenticatorRoute(
             onConfirm = {
                 val p = providerToDelete
                 providerToDelete = null
-                if (p != null) appScope.launch { viewModel.deleteProvider(p) }
+                if (p != null) {
+                    appScope.launch {
+                        val deleted = viewModel.deleteProvider(p)
+                        if (deleted != null && providerName == p) {
+                            onBack?.invoke()
+                        }
+                    }
+                }
             },
             onDismiss = { providerToDelete = null },
         )
@@ -444,63 +503,81 @@ fun AuthenticatorRoute(
         )
     }
 
-    accountToMove?.let { account ->
-        val otherProviders = providerList.filter { it != account.providerName }
-        if (otherProviders.isNotEmpty()) {
-            ProviderPickerDialog(
-                title = context.getString(R.string.account_move_title),
-                providers = otherProviders,
-                initialProvider = otherProviders.first(),
-                onConfirm = { destProvider ->
-                    val a = accountToMove
-                    accountToMove = null
-                    if (a != null) appScope.launch { viewModel.moveAccount(a.id, destProvider) }
-                },
-                onDismiss = { accountToMove = null },
-            )
-        } else {
-            LaunchedEffect(accountToMove) {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.account_move_destination) + ": none available",
-                )
-                accountToMove = null
-            }
-        }
+    moveState?.let { (account, otherProviders) ->
+        ProviderPickerDialog(
+            title = context.getString(R.string.account_move_title),
+            providers = otherProviders,
+            initialProvider = otherProviders.first(),
+            onConfirm = { destProvider ->
+                moveState = null
+                appScope.launch { viewModel.moveAccount(account.id, destProvider) }
+            },
+            onDismiss = { moveState = null },
+        )
     }
 
     accountToMerge?.let { source ->
-        val candidates = uiState.accounts.filter { it.id != source.id }
-        if (candidates.isNotEmpty()) {
-            if (mergeDestination == null) {
-                val first = candidates.first()
-                LaunchedEffect(Unit) { mergeDestination = first }
-            }
-            mergeDestination?.let { dest ->
-                MergeAccountDialog(
-                    source = source,
-                    destination = dest,
-                    onConfirm = {
-                        val s = accountToMerge
-                        accountToMerge = null
-                        mergeDestination = null
-                        if (s != null) appScope.launch { viewModel.mergeAccounts(s.id, dest.id) }
-                    },
-                    onDismiss = {
-                        accountToMerge = null
-                        mergeDestination = null
-                    },
-                )
-            }
+        val candidates = uiState.accounts
+            .filter { it.id != source.id }
+            .sortedWith(
+                compareByDescending<AccountUi> { it.providerName == source.providerName }
+                    .thenBy { it.providerName }
+                    .thenBy { it.accountName },
+            )
+        val dest = mergeDestination?.takeIf { sel -> candidates.any { it.id == sel.id } } ?: candidates.firstOrNull()
+        if (dest != null) {
+            MergeAccountDialog(
+                source = source,
+                destination = dest,
+                candidates = candidates,
+                onSelectDestination = { mergeDestination = it },
+                onConfirm = {
+                    val s = accountToMerge
+                    accountToMerge = null
+                    mergeDestination = null
+                    if (s != null) {
+                        appScope.launch {
+                            val ok = viewModel.mergeAccounts(s.id, dest.id)
+                            if (ok && accountId == s.id) {
+                                if (onOpenAccount != null) onOpenAccount(dest.id) else onBack?.invoke()
+                            }
+                        }
+                    }
+                },
+                onDismiss = {
+                    accountToMerge = null
+                    mergeDestination = null
+                },
+            )
         } else {
-            LaunchedEffect(accountToMerge) {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.account_merge) + ": create another account first",
-                )
-                accountToMerge = null
-            }
+            accountToMerge = null
+            mergeDestination = null
         }
     }
+}
 
+private fun resolveManagementMessage(context: Context, code: String): String = when (code) {
+    "provider_created" -> context.getString(R.string.management_provider_created)
+    "account_added" -> context.getString(R.string.management_account_added)
+    "provider_renamed" -> context.getString(R.string.management_provider_renamed)
+    "provider_deleted" -> context.getString(R.string.management_provider_deleted)
+    "account_renamed" -> context.getString(R.string.management_account_renamed)
+    "account_moved" -> context.getString(R.string.management_account_moved)
+    "accounts_merged" -> context.getString(R.string.management_accounts_merged)
+    else -> code
+}
+
+private fun resolveManagementError(context: Context, code: String): String = when (code) {
+    "provider_create_failed" -> context.getString(R.string.management_provider_create_failed)
+    "account_add_failed" -> context.getString(R.string.management_account_add_failed)
+    "provider_rename_failed" -> context.getString(R.string.management_provider_rename_failed)
+    "icon_update_failed" -> context.getString(R.string.management_icon_update_failed)
+    "provider_delete_failed" -> context.getString(R.string.management_provider_delete_failed)
+    "account_rename_failed" -> context.getString(R.string.management_account_rename_failed)
+    "account_move_failed" -> context.getString(R.string.management_account_move_failed)
+    "accounts_merge_failed" -> context.getString(R.string.management_accounts_merge_failed)
+    "account_delete_failed" -> context.getString(R.string.management_account_delete_failed)
+    else -> context.getString(R.string.common_error_title)
 }
 
 private fun copyToClipboard(context: Context, text: String) {
