@@ -89,6 +89,8 @@ ADR 是不可随意重写的决策记录；后续变更应新增 ADR 或在主�
 | [0011](ADRS/ADR-0011-sensitive-action-reauth-oneshot.md) | Sensitive Action one-shot 授权语义 |
 | [0012](ADRS/ADR-0012-selective-export-import.md) | Selective Export / Import |
 | [0013](ADRS/ADR-0013-developer-vault-completion.md) | Developer Vault keystore size contract 与 env-var identity |
+| [0014](ADRS/ADR-0014-keystore-biometric-enrollment-invalidation.md) | wrap key 不随生物识别变更作废 |
+| [0015](ADRS/ADR-0015-backup-pin-dual-wrap.md) | VaultKey 双槽独立包装（Android Keystore + 备用 PIN 保底） |
 
 ## 实现报告
 
