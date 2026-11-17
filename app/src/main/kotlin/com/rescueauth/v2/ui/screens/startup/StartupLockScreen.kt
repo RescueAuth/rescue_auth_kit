@@ -52,7 +52,6 @@ object StartupLockTestTags {
     const val SCREEN = "startup_lock_screen"
     const val INTRO_SCREEN = "startup_intro_screen"
     const val INTRO_CONTINUE_BUTTON = "startup_intro_continue_button"
-    const val INTRO_IMPORT_V1_BUTTON = "startup_intro_import_v1_button"
     const val AUTH_HOST = "startup_auth_host"
     const val LOCK_OVERLAY = "session_lock_overlay"
     const val EXIT_BUTTON = "startup_exit_button"
@@ -62,7 +61,6 @@ object StartupLockTestTags {
 @Composable
 fun StartupIntroScreen(
     onContinue: () -> Unit,
-    onImportV1: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -114,14 +112,9 @@ fun StartupIntroScreen(
                     }
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(20.dp))
                 }
-                if (onImportV1 != null) {
-                    TextButton(
-                        onClick = onImportV1,
-                        modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
-                            .testTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                    ) { Text(stringResource(R.string.startup_intro_import_v1), style = MaterialTheme.typography.labelMedium) }
-                }
+                // Legacy v1 import is deliberately NOT offered here: migrating an
+                // old vault belongs to Settings → Transfer, and the first-run page
+                // stays a single "create vault" decision.
             }
         }
     }

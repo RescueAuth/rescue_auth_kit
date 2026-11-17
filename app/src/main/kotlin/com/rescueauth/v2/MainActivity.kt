@@ -111,8 +111,7 @@ class MainActivity : AppCompatActivity() {
     private var startupMode: StartupMode = StartupMode.UNLOCK
 
     /** Set when the user chose to import from v1 Rescue Auth on the first-run
-     *  intro; consumed once on first UNLOCKED to deep-link into the legacy
-     *  importer instead of the default authenticator screen. */
+     *  removed: the welcome page no longer offers legacy import. */
     private var pendingV1Import = false
 
     private enum class StartupMode { FIRST_RUN, UNLOCK }
@@ -258,7 +257,6 @@ class MainActivity : AppCompatActivity() {
                         StartupUiState.INIT -> StartupSplashScreen()
                         StartupUiState.INTRO -> StartupIntroScreen(
                             onContinue = { onIntroContinue() },
-                            onImportV1 = { onIntroImportV1() },
                         )
                         StartupUiState.AUTHENTICATING -> StartupAuthHost()
                         StartupUiState.OPENING -> StartupOpeningHost()
@@ -440,17 +438,6 @@ class MainActivity : AppCompatActivity() {
         // Unified lifecycle-aware scheduler — the Activity is already in
         // stable RESUMED when the user taps Enable, so this launches promptly.
         scheduleAuthentication()
-    }
-
-    /**
-     * Test-visible (internal). The user chose **Import from v1 Rescue Auth** on
-     * the first-run intro. Flag the pending v1 import, then run the same
-     * enable-and-authenticate flow as [onIntroContinue]; once the Vault is
-     * created/unlocked the app shell deep-links into the legacy importer.
-     */
-    internal fun onIntroImportV1() {
-        pendingV1Import = true
-        onIntroContinue()
     }
 
     /**

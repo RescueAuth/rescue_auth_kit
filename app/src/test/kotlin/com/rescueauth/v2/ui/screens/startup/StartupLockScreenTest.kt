@@ -64,6 +64,20 @@ class StartupLockScreenTest {
     }
 
     @Test
+    fun introScreenHasNoLegacyImportEntry() {
+        composeRule.setContent {
+            RescueAuthTheme {
+                // The welcome page must not offer legacy import: migrating an old
+                // vault is a Settings → Transfer action, not a first-run choice.
+                StartupIntroScreen(onContinue = {})
+            }
+        }
+        composeRule.onNodeWithTag(StartupLockTestTags.INTRO_SCREEN).assertIsDisplayed()
+        composeRule.onNodeWithText("Import from v1 Rescue Auth").assertDoesNotExist()
+        composeRule.onNodeWithText("从 v1 Rescue Auth 导入").assertDoesNotExist()
+    }
+
+    @Test
     fun authHostIsNonInteractiveNeutralHost() {
         composeRule.setContent {
             RescueAuthTheme {
