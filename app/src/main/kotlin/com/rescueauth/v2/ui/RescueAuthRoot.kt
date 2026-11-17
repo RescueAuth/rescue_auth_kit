@@ -19,11 +19,13 @@ fun RescueAuthRoot(
     val prefs = remember(themePreferences, context) {
         themePreferences ?: ThemePreferences(context)
     }
-    RescueAuthAppearance(prefs) { themeMode, onThemeModeChange ->
+    RescueAuthAppearance(prefs) { themeMode, onThemeModeChange, themeColor, onThemeColorChange ->
         RescueAuthApp(
             versionName = versionName,
             themeMode = themeMode,
             onThemeModeChange = onThemeModeChange,
+            themeColor = themeColor,
+            onThemeColorChange = onThemeColorChange,
         )
     }
 }

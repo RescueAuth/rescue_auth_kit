@@ -56,7 +56,10 @@ fun RescueAuthExplainedCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant) })
             }
         }
-        Column(Modifier.padding(CardTokens.contentPadding)) { content() }
+        Column(
+            Modifier.padding(CardTokens.contentPadding),
+            verticalArrangement = Arrangement.spacedBy(CardTokens.formFieldSpacing),
+        ) { content() }
     }
     if (open) {
         RescueAuthSheet(explanationTitle, icon, { open = false },

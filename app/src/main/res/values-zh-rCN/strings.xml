@@ -8,7 +8,7 @@
 
     <!-- Unlock prompt (BiometricPrompt) -->
     <string name="developer_secret_keep_hint">留空表示保留已保存的值</string>
-    <string name="unlock_title">解锁 拾遗坊</string>
+    <string name="unlock_title">解锁拾遗坊</string>
     <string name="unlock_subtitle">使用指纹、人脸或设备凭据</string>
     <string name="unlock_cancel">取消</string>
 
@@ -19,13 +19,21 @@
     <string name="startup_intro_continue">开启</string>
         <string name="startup_exit">退出</string>
     <string name="startup_no_secure_title">需要安全的设备锁屏</string>
-    <string name="startup_no_secure_body">RescueAuth 需要安全的设备锁屏（PIN、图案、密码或强生物识别）来保护您的保险库。请在系统设置中配置后再试。</string>
+    <string name="startup_no_secure_body">当前设备尚未设置锁屏凭据。你可以直接设置备用 PIN 开启保险库，或先前往系统设置配置锁屏。</string>
     <string name="startup_no_secure_action">前往系统设置</string>
-    <string name="startup_key_invalidated_title">保险库密钥已失效</string>
-    <string name="startup_key_invalidated_body">您的保险库密钥因生物识别变更而失效。请重新录入生物识别后重启 RescueAuth。</string>
+    <string name="startup_use_backup_pin">使用备用 PIN 开启</string>
+    <string name="startup_key_invalidated_title">系统解锁密钥已失效</string>
+    <string name="startup_key_invalidated_body">系统锁屏曾被关闭或重置，硬件解锁密钥已被系统作废。若未设置备用 PIN，可重置本机保险库并从 .rakpkg 备份恢复。</string>
     <string name="startup_error_title">无法打开保险库</string>
-    <string name="startup_error_body">RescueAuth 无法打开您的保险库。请重试，或重启应用。</string>
+    <string name="startup_error_body">无法打开保险库，请重试或重启应用。</string>
     <string name="startup_opening">正在打开保险库…</string>
+    <string name="startup_unlock_action">解锁</string>
+    <string name="startup_unlock_with_backup_pin">使用备用 PIN</string>
+    <string name="startup_unlock_with_system">使用指纹或锁屏密码</string>
+    <string name="startup_reset_vault_action">重置本机保险库…</string>
+    <string name="startup_reset_vault_title">重置本机保险库？</string>
+    <string name="startup_reset_vault_message">这将永久清除本机当前无法解开的保险库数据，以便你重新创建保险库或导入 .rakpkg / .rakvault 备份。此操作无法撤销。</string>
+    <string name="startup_reset_vault_confirm">重置保险库</string>
 
     <!-- Sensitive action fresh re-auth (Phase 4 P4) -->
     <string name="reauth_title">验证以继续</string>
@@ -85,8 +93,8 @@
     <string name="search_no_results_hint">试试其他服务名或账户名。</string>
     <string name="search_type_provider">服务</string>
     <string name="search_type_account">账户</string>
-    <string name="search_type_totp">身份验证器</string>
-    <string name="search_type_recovery">恢复代码</string>
+    <string name="search_type_totp">验证码</string>
+    <string name="search_type_recovery">恢复码</string>
     <string name="search_type_developer">开发者</string>
     <string name="search_type_other">结果</string>
 
@@ -259,17 +267,17 @@
     <string name="recovery_move_no_other_accounts">没有其他可用账户</string>
     <string name="recovery_move_moved_message">恢复码已移动</string>
     <string name="recovery_move_failed">无法移动恢复码</string>
-    <string name="recovery_move_conflict">无法移动，因为目标已更改</string>
+    <string name="recovery_move_conflict">目标账户已变更，无法移动</string>
 
     <!-- Phase 4 P8 — Account Delete + Undo -->
     <string name="account_deleted_message">账户已删除</string>
     <string name="account_restored_message">账户已恢复</string>
-    <string name="account_restore_blocked">无法恢复，因为保险库已更改</string>
+    <string name="account_restore_blocked">保险库内容已变更，无法撤销</string>
 
     <!-- Phase 4 P8 — Developer ordinary Delete + Undo -->
-    <string name="developer_entry_deleted_message">开发者条目已删除</string>
-    <string name="developer_entry_restored_message">开发者条目已恢复</string>
-    <string name="developer_restore_blocked">无法恢复，因为保险库已更改</string>
+    <string name="developer_entry_deleted_message">条目已删除</string>
+    <string name="developer_entry_restored_message">条目已恢复</string>
+    <string name="developer_restore_blocked">保险库内容已变更，无法撤销</string>
 
     <!-- Phase 4 P8 — accessibility -->
     <string name="a11y_undo_delete">撤销删除</string>
@@ -310,8 +318,8 @@
     <string name="developer_edit_title">编辑条目</string>
     <string name="developer_delete">删除</string>
     <string name="developer_copy">复制</string>
-    <string name="developer_copied">机密已复制</string>
-    <string name="developer_saved_message">开发者条目已保存</string>
+    <string name="developer_copied">已复制到剪贴板</string>
+    <string name="developer_saved_message">已保存条目</string>
     <string name="developer_deleted_message">%1$s 已删除</string>
     <string name="developer_detail_title">开发者条目</string>
     <string name="developer_entry_missing">此条目已不存在。</string>
@@ -403,8 +411,8 @@
     <string name="settings_transfer_subtitle">在设备之间传输加密的保险库包</string>
     <string name="settings_export_vault">导出保险库</string>
     <string name="settings_export_vault_subtitle">创建整个保险库的加密数据包</string>
-    <string name="settings_import_native">导入原生数据包</string>
-    <string name="settings_import_native_subtitle">导入 Rescue Auth 数据包（合并优先）</string>
+    <string name="settings_import_native">导入拾遗坊数据包</string>
+    <string name="settings_import_native_subtitle">导入拾遗坊数据包（合并优先）</string>
     <string name="settings_import_legacy">导入旧版 v1 保险库</string>
     <string name="settings_import_legacy_subtitle">从 RescueAuth v1 导入旧版 .rakvault 文件</string>
     <string name="settings_backup_transfer_notice">导出为手动操作。每个数据包由独立 PIN 保护，导入始终与现有保险库合并。</string>
@@ -414,7 +422,7 @@
 
     <!-- Phase 6 L2: About / Update Check -->
     <string name="about_title">关于</string>
-    <string name="about_subtitle">适用于 Android 的 RescueAuth</string>
+    <string name="about_subtitle">拾遗坊 · Android</string>
     <string name="about_updates_section">更新</string>
     <string name="about_product_description">你的个人安全保险库</string>
     <string name="about_encrypted">加密保护</string>
@@ -424,38 +432,38 @@
     <string name="about_check_for_updates">检查更新</string>
     <string name="about_update_idle">点击“检查更新”以查看是否有新版本。</string>
     <string name="about_checking">正在检查更新…</string>
-    <string name="about_up_to_date">您已是最新版本（%1$s）。</string>
+    <string name="about_up_to_date">已是最新版本（%1$s）。</string>
     <string name="about_update_available">发现新版本。</string>
     <string name="about_security_update_available">发现安全更新。</string>
-    <string name="about_unsupported_current_version">您当前版本已不再受支持，请尽快升级。</string>
+    <string name="about_unsupported_current_version">当前版本已不再受支持，请尽快升级。</string>
     <string name="about_latest_version">最新版本：%1$s（构建 %2$d）</string>
     <string name="about_published_at">发布于：%1$s</string>
     <string name="about_open_release_page">打开发布页</string>
     <string name="about_error_network">无法检查更新。</string>
     <string name="about_error_timeout">更新检查超时。</string>
-    <string name="about_error_invalid_signature">无法验证更新信息，因此不显示任何更新。</string>
-    <string name="about_error_invalid_manifest">更新信息无效，因此不显示任何更新。</string>
+    <string name="about_error_invalid_signature">更新签名校验未通过，已忽略本次结果。</string>
+    <string name="about_error_invalid_manifest">更新清单格式无效，已忽略本次结果。</string>
     <string name="about_error_unsupported_schema">更新信息使用了不受支持的格式。</string>
     <string name="about_error_not_configured">此构建未配置更新验证。</string>
-    <string name="about_offline_hint">您的保险库在离线状态下仍然可用。</string>
+    <string name="about_offline_hint">保险库在离线状态下始终可用。</string>
 
     <!-- Phase 3D Export / Import -->
     <string name="export_title">导出数据包</string>
-    <string name="export_intro">从保险库创建加密便携数据包。请选择要包含的内容——每次导出都受独立 PIN 保护，且需要重新进行设备验证。</string>
-    <string name="export_scope_notice">现已支持选择性导出：整个保险库、仅认证器、仅开发者，或指定项目。</string>
+    <string name="export_intro">创建加密便携数据包。每次导出均由独立 PIN 保护，并需先完成身份验证。</string>
+    <string name="export_scope_notice">可导出整个保险库、仅账户、仅开发者，或自选具体条目。</string>
     <string name="export_start">选择保存位置</string>
-    <string name="export_reauth_hint">正在验证您的设备…验证完成后将继续导出。</string>
+    <string name="export_reauth_hint">正在验证身份…验证通过后将继续导出。</string>
     <string name="export_pin_accepted">PIN 已确认</string>
     <string name="export_choose_destination_hint">现在选择此加密数据包的保存位置。</string>
     <string name="export_pin_title">为此数据包设置 PIN</string>
     <string name="export_pin_policy">该 PIN 仅保护本次导出，不会保存，也不会改变保险库解锁方式。</string>
     <string name="export_success">导出完成</string>
-    <string name="export_success_detail">加密数据包已保存。请牢记您设置的 PIN，导入此数据包时需要用到。</string>
+    <string name="export_success_detail">加密数据包已保存。请牢记所设置的 PIN，导入此数据包时需要用到。</string>
     <string name="export_done">完成</string>
     <string name="export_error_title">导出失败</string>
 
-    <string name="import_title">导入原生数据包</string>
-    <string name="import_intro">选择 Rescue Auth 数据包文件进行预览并合并到保险库。导入绝不会覆盖现有数据。</string>
+    <string name="import_title">导入拾遗坊数据包</string>
+    <string name="import_intro">选择拾遗坊数据包文件（.rakpkg），预览后合并到当前保险库，不会覆盖现有内容。</string>
     <string name="import_pick_file">选择数据包文件</string>
     <string name="import_pin_title">输入数据包 PIN</string>
     <string name="import_pin_policy">请输入导出此数据包时设置的 PIN。</string>
@@ -680,4 +688,111 @@
         <item quantity="one">%1$d 个可用</item>
         <item quantity="other">%1$d 个可用</item>
     </plurals>
+
+    <!-- Backup PIN & Dual-Slot Security (ADR-0015) -->
+    <string name="backup_pin_setup_title">设置备用 PIN</string>
+    <string name="backup_pin_setup_subtitle">使用至少 6 位数字的备用 PIN 保护保险库，确保在本机始终可以解锁。</string>
+    <string name="backup_pin_setup_policy">备用 PIN 通过 Argon2id 在本机加密保管一份保险库密钥副本，不会上传，也不会明文存储。请妥善牢记。</string>
+    <string name="backup_pin_setup_confirm_action">开启保险库</string>
+    <string name="backup_pin_unlock_title">输入备用 PIN</string>
+    <string name="backup_pin_unlock_subtitle">输入备用 PIN 以打开保险库</string>
+    <string name="backup_pin_unlock_fallback_notice">系统锁屏凭据已变更，请输入备用 PIN 解锁。</string>
+    <string name="backup_pin_unlock_button">解锁</string>
+    <string name="backup_pin_wrong_error">备用 PIN 不正确。</string>
+    <string name="backup_pin_cooldown_message">尝试次数过多，请 %1$d 秒后再试。</string>
+    <string name="backup_pin_reauth_title">验证备用 PIN</string>
+    <string name="backup_pin_reauth_subtitle">输入备用 PIN 以授权本次操作</string>
+    <string name="backup_pin_verify_action">验证</string>
+    <string name="backup_pin_manage_add_title">添加备用 PIN</string>
+    <string name="backup_pin_manage_change_title">修改备用 PIN</string>
+    <string name="backup_pin_manage_subtitle">设置至少 6 位数字的备用 PIN，避免关闭系统锁屏后无法打开保险库。</string>
+    <string name="backup_pin_new_label">新备用 PIN</string>
+    <string name="backup_pin_confirm_label">确认备用 PIN</string>
+    <string name="backup_pin_save_action">保存 PIN</string>
+    <string name="backup_pin_saved_message">备用 PIN 已保存</string>
+    <string name="backup_pin_removed_message">备用 PIN 已移除</string>
+    <string name="backup_pin_remove_action">移除备用 PIN</string>
+    <string name="backup_pin_remove_confirm_title">移除备用 PIN？</string>
+    <string name="backup_pin_remove_confirm_message">移除后，一旦关闭本机系统锁屏，保险库将无法解开（除非此前已导出 .rakpkg 备份）。</string>
+    <string name="settings_unlock_security_card_title">解锁与防丢保护</string>
+    <string name="settings_system_unlock_title">指纹与锁屏解锁</string>
+    <string name="settings_system_unlock_active">已启用</string>
+    <string name="settings_system_unlock_invalidated">需重新验证 · 点击恢复</string>
+    <string name="settings_system_unlock_available">点击启用系统解锁</string>
+    <string name="settings_system_unlock_missing_device">未设置锁屏 · 点击前往系统设置</string>
+    <string name="settings_system_unlock_restored">已恢复指纹与锁屏解锁</string>
+    <string name="settings_backup_pin_title">备用 PIN</string>
+    <string name="settings_backup_pin_active">已设置 · 点击修改</string>
+    <string name="settings_backup_pin_recommended">未设置 · 建议开启以防锁屏变更</string>
+    <string name="settings_appearance_mode_heading">深浅模式</string>
+    <string name="settings_appearance_color_heading">主题强调色</string>
+
+    <!-- Unified localized feedback & error messages -->
+    <string name="developer_category_empty_body">从添加第一个条目开始。</string>
+    <string name="developer_public_key_copied">公钥已复制</string>
+    <string name="developer_copy_public_key">复制公钥</string>
+    <string name="developer_discard_changes_title">放弃未保存的修改？</string>
+    <string name="developer_discard_changes_message">当前条目的修改尚未保存。</string>
+    <string name="developer_discard_confirm">放弃修改</string>
+    <string name="developer_keep_editing">继续编辑</string>
+    <string name="management_provider_created">已创建服务</string>
+    <string name="management_provider_create_failed">无法创建服务</string>
+    <string name="management_provider_renamed">已重命名服务</string>
+    <string name="management_provider_rename_failed">无法重命名服务</string>
+    <string name="management_provider_deleted">已删除服务</string>
+    <string name="management_provider_delete_failed">无法删除服务</string>
+    <string name="management_icon_update_failed">无法更新图标</string>
+    <string name="management_account_added">已添加账户</string>
+    <string name="management_account_add_failed">无法添加账户</string>
+    <string name="management_account_renamed">已重命名账户</string>
+    <string name="management_account_rename_failed">无法重命名账户</string>
+    <string name="management_account_moved">账户已移动</string>
+    <string name="management_account_move_failed">无法移动账户</string>
+    <string name="management_accounts_merged">账户已合并</string>
+    <string name="management_accounts_merge_failed">无法合并账户</string>
+    <string name="management_account_delete_failed">无法删除账户</string>
+    <string name="account_move_no_other_providers">请先创建其他服务，再移动此账户</string>
+    <string name="account_merge_no_other_accounts">没有可合并的其他账户</string>
+    <string name="account_merge_choose_destination">选择目标账户</string>
+    <string name="scan_open_system_settings">前往系统设置</string>
+    <string name="about_open_release_failed">未找到可打开发布页的浏览器</string>
+    <string name="import_retry_pin">重新输入 PIN</string>
+    <string name="import_choose_another_file">重新选择文件</string>
+
+    <!-- Export / Import & Legacy Import localized ViewModel messages -->
+    <string name="transfer_error_vault_locked">保险库已锁定，请先解锁后再试。</string>
+    <string name="transfer_error_load_selection">无法加载保险库条目以供选择。</string>
+    <string name="transfer_error_select_export_empty">请至少选择一项要导出的内容。</string>
+    <string name="transfer_error_selection_changed">所选内容已发生变化，请返回重新选择。</string>
+    <string name="transfer_error_empty_document">所选文件为空，请选择有效的 .rakpkg 数据包。</string>
+    <string name="transfer_error_not_native_package">该文件不是拾遗坊 .rakpkg 数据包。若是旧版 .rakvault 文件，请使用“导入旧版 v1 保险库”。</string>
+    <string name="transfer_error_choose_file_first">请先选择数据包文件。</string>
+    <string name="transfer_error_no_package_loaded">尚未加载可导入的数据包。</string>
+    <string name="transfer_error_selected_missing">所选条目不在此数据包中，请返回重新选择。</string>
+    <string name="transfer_error_select_import_empty">请至少选择一项要导入的内容。</string>
+    <string name="transfer_error_export_write">无法写入数据包文件，请检查存储空间与权限后重试。</string>
+    <string name="transfer_error_export_capacity">保险库内容超出单个便携数据包的容量上限。</string>
+    <string name="transfer_error_export_invalid">保险库数据未通过导出校验。</string>
+    <string name="transfer_error_export_generic">导出未能完成，请重试。</string>
+    <string name="transfer_error_import_wrong_pin">PIN 不正确或数据包已损坏。</string>
+    <string name="transfer_error_import_unsupported_format">不支持的文件格式，请选择拾遗坊 .rakpkg 数据包。</string>
+    <string name="transfer_error_import_unsupported_version">此数据包由更高版本的拾遗坊创建，请升级应用后再导入。</string>
+    <string name="transfer_error_import_too_large">文件超过最大允许体积（16 MB）。</string>
+    <string name="transfer_error_import_kdf_budget">此数据包使用的加密参数超出当前设备处理上限。</string>
+    <string name="transfer_error_import_invalid_payload">数据包内容校验未通过，无法导入。</string>
+    <string name="transfer_error_import_read">无法读取所选文件，请重新选择。</string>
+    <string name="transfer_error_import_changed">预览期间保险库内容已变更，请重新预览并确认。</string>
+    <string name="transfer_error_import_apply">导入失败，所有更改已回滚，现有保险库未受影响。</string>
+    <string name="legacy_error_empty_file">所选旧版备份文件为空。</string>
+    <string name="legacy_error_too_large">旧版备份文件超过最大支持体积（64 MB）。</string>
+    <string name="legacy_error_not_rakvault">该文件不是 RescueAuth v1（.rakvault）备份文件。</string>
+    <string name="legacy_error_read_failed">无法读取所选文件，请重新选择。</string>
+    <string name="legacy_error_choose_first">请先选择 .rakvault 文件。</string>
+    <string name="legacy_error_enter_password">请输入该旧版保险库的主密码。</string>
+    <string name="legacy_error_wrong_password">无法解密旧版保险库——主密码可能不正确，或文件已损坏。</string>
+    <string name="legacy_error_unsupported_schema">此旧版备份使用了不受支持的格式版本。</string>
+    <string name="legacy_error_kdf_budget">此旧版备份使用的加密参数超出当前设备上限。</string>
+    <string name="legacy_error_invalid_payload">旧版备份内容校验未通过，无法导入。</string>
+    <string name="legacy_error_no_preview">预览已失效，请重新解密该文件。</string>
+    <string name="legacy_error_apply_failed">导入失败，所有更改已回滚，现有保险库未受影响。</string>
 </resources>
