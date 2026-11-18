@@ -13,6 +13,10 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.SnackbarHostState
+import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,6 +81,8 @@ fun DeveloperDetailScreen(
     onCopyEnvVar: (String) -> Unit,
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
+    snackbarHostState: SnackbarHostState? = null,
+    onCopyPublicKey: ((String) -> Unit)? = null,
 ) {
     RescueAuthPageScaffold(
         modifier = modifier.fillMaxSize(),
@@ -84,6 +90,7 @@ fun DeveloperDetailScreen(
             ?: stringResource(R.string.developer_detail_title),
         subtitle = uiState.detail?.let { developerTypeLabel(it) },
         navigationIcon = { RescueAuthBackButton(onBack) },
+        snackbarHost = { snackbarHostState?.let { UndoSnackbarHost(it) } },
         bottomBar = {
             if (!uiState.loading && uiState.detail != null) {
                 RescueAuthActionBar(
@@ -135,6 +142,7 @@ fun DeveloperDetailScreen(
                 onCopyKeyProperties = onCopyKeyProperties,
                 onRevealEnvVar = onRevealEnvVar,
                 onCopyEnvVar = onCopyEnvVar,
+                onCopyPublicKey = onCopyPublicKey,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -165,8 +173,15 @@ private fun DeveloperDetailContent(
     onCopyKeyProperties: () -> Unit,
     onRevealEnvVar: (String) -> Unit,
     onCopyEnvVar: (String) -> Unit,
+    onCopyPublicKey: ((String) -> Unit)?,
     modifier: Modifier,
 ) {
+    val hasMetadataCard = when (detail) {
+        is DeveloperDetailUi.GenericSecret -> !detail.notes.isNullOrBlank()
+        is DeveloperDetailUi.EnvironmentVariableSet -> detail.projectName.isNotBlank() || !detail.notes.isNullOrBlank()
+        is DeveloperDetailUi.SshKey -> detail.keyName.isNotBlank() || detail.publicKeyPresent || !detail.notes.isNullOrBlank()
+        else -> true
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -175,34 +190,71 @@ private fun DeveloperDetailContent(
         ),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        if (detail !is DeveloperDetailUi.GenericSecret) item(key = "metadata") {
+        if (hasMetadataCard) item(key = "metadata") {
             RescueAuthCard(containerColor = CardTokens.elevatedContainerColor()) {
                 when (detail) {
                     is DeveloperDetailUi.ApiCredential -> {
-                        MetadataText(stringResource(R.string.developer_field_service), detail.serviceName)
-                        MetadataText(stringResource(R.string.developer_field_account), detail.accountName)
+                        if (detail.serviceName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_service), detail.serviceName)
+                        }
+                        if (detail.accountName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_account), detail.accountName)
+                        }
                     }
                     is DeveloperDetailUi.SshKey -> {
-                        MetadataText(stringResource(R.string.developer_field_key_name), detail.keyName)
+                        if (detail.keyName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_key_name), detail.keyName)
+                        }
                         if (detail.publicKeyPresent) {
-                            Text(
-                                text = stringResource(R.string.developer_public_key_present),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = Spacing.xs),
-                            )
+                            if (detail.publicKey.isNotBlank()) {
+                                MetadataText(
+                                    stringResource(R.string.developer_field_public_key),
+                                    detail.publicKey,
+                                    monospace = true,
+                                )
+                                if (onCopyPublicKey != null) {
+                                    OutlinedButton(
+                                        onClick = { onCopyPublicKey(detail.publicKey) },
+                                        modifier = Modifier.padding(top = Spacing.xs),
+                                    ) {
+                                        Icon(Icons.Filled.ContentCopy, contentDescription = null)
+                                        Spacer(Modifier.width(Spacing.xs))
+                                        Text(stringResource(R.string.developer_copy_public_key))
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.developer_public_key_present),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = Spacing.xs),
+                                )
+                            }
                         }
                     }
                     is DeveloperDetailUi.GenericSecret -> Unit
                     is DeveloperDetailUi.AndroidSigningKey -> {
-                        MetadataText(stringResource(R.string.developer_field_project_name), detail.projectName)
-                        MetadataText(stringResource(R.string.developer_field_package_name), detail.packageName)
-                        MetadataText(stringResource(R.string.developer_field_keystore_file), detail.keystoreFileName)
-                        MetadataText(stringResource(R.string.developer_field_key_alias), detail.keyAlias)
+                        if (detail.projectName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_project_name), detail.projectName)
+                        }
+                        if (detail.packageName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_package_name), detail.packageName)
+                        }
+                        if (detail.keystoreFileName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_keystore_file), detail.keystoreFileName)
+                        }
+                        if (detail.keyAlias.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_key_alias), detail.keyAlias)
+                        }
                     }
                     is DeveloperDetailUi.EnvironmentVariableSet -> {
-                        MetadataText(stringResource(R.string.developer_field_project_name), detail.projectName)
+                        if (detail.projectName.isNotBlank()) {
+                            MetadataText(stringResource(R.string.developer_field_project_name), detail.projectName)
+                        }
                     }
+                }
+                if (!detail.notes.isNullOrBlank()) {
+                    MetadataText(stringResource(R.string.developer_field_notes), detail.notes!!)
                 }
             }
         }
@@ -266,10 +318,18 @@ private fun DeveloperDetailContent(
 }
 
 @Composable
-private fun MetadataText(label: String, value: String) {
+private fun MetadataText(label: String, value: String, monospace: Boolean = false) {
     Column(modifier = Modifier.padding(vertical = Spacing.xxs)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            text = value,
+            style = if (monospace) {
+                MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+            } else {
+                MaterialTheme.typography.bodyMedium
+            },
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

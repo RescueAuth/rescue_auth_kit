@@ -1,10 +1,5 @@
 package com.rescueauth.v2.ui.screens.developer
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -14,7 +9,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.AddSheetAction
 import com.rescueauth.v2.ui.components.RescueAuthAddSheet
+import com.rescueauth.v2.ui.components.icon
 import com.rescueauth.v2.ui.developer.DeveloperFormType
+import com.rescueauth.v2.ui.model.DeveloperEntryType
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 
 @Composable
@@ -39,13 +36,7 @@ fun DeveloperAddSheet(
     )
 }
 
-private fun DeveloperFormType.icon(): ImageVector = when (this) {
-    DeveloperFormType.API_CREDENTIAL -> Icons.Filled.Key
-    DeveloperFormType.SSH_KEY -> Icons.Filled.Lock
-    DeveloperFormType.GENERIC_SECRET -> Icons.Filled.Key
-    DeveloperFormType.ANDROID_SIGNING_KEY -> Icons.Filled.VpnKey
-    DeveloperFormType.ENVIRONMENT_VARIABLE_SET -> Icons.Filled.Build
-}
+private fun DeveloperFormType.icon(): ImageVector = DeveloperEntryType.valueOf(name).icon()
 
 @Preview(showBackground = true)
 @Composable

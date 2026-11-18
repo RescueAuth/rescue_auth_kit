@@ -60,7 +60,7 @@ fun DeveloperScreen(
                 if (selectedCategory == null && onAddClick != null) RescueAuthIconAction(Icons.Filled.Add,
                     stringResource(R.string.studio_add), onAddClick)
             },
-            snackbarHost = { snackbarHostState?.let { SnackbarHost(it, Modifier.padding(bottom = clearance)) } },
+            snackbarHost = { snackbarHostState?.let { UndoSnackbarHost(it, Modifier.padding(bottom = clearance)) } },
         ) { padding ->
             when {
                 uiState.loading -> LoadingState(Modifier.fillMaxSize().padding(padding), stringResource(R.string.developer_loading))
@@ -71,7 +71,7 @@ fun DeveloperScreen(
                     onOpenCategory = { if (onOpenCategory != null) onOpenCategory(it) else selectedCategory = it },
                     modifier = Modifier.padding(padding))
                 visibleEntries.isEmpty() -> EmptyState(
-                    title = typeLabel(selectedCategory!!), body = stringResource(R.string.studio_vault_empty_body),
+                    title = typeLabel(selectedCategory!!), body = stringResource(R.string.developer_category_empty_body),
                     actionLabel = onAddClick?.let { stringResource(R.string.developer_add_first) }, onAction = onAddClick,
                     icon = Icons.Outlined.Code, modifier = Modifier.fillMaxSize().padding(padding))
                 else -> LazyColumn(

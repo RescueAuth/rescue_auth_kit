@@ -1,6 +1,7 @@
 package com.rescueauth.v2.ui.screens.legacyimport
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -11,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import com.rescueauth.v2.legacyimport.LegacyImportService
 import com.rescueauth.v2.legacyimport.LegacyImportViewModel
 import com.rescueauth.v2.legacyimport.SafLegacyFileIo
 import com.rescueauth.v2.repository.VaultAccess
@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
  * from the Native Package Import (ROADMAP §9 — the two flows stay fully
  * isolated: separate importer, password/PIN policy, error taxonomy and state
  * machine). They only share the underlying logical MergeEngine via
- * [LegacyImportService] → [com.rescueauth.v2.repository.VaultRepository].
+ * [com.rescueauth.v2.legacyimport.LegacyImportService] → [com.rescueauth.v2.repository.VaultRepository].
  */
 @Composable
 fun LegacyImportRoute(
@@ -41,9 +41,9 @@ fun LegacyImportRoute(
         val sm = VaultAccess.sessionManager
         if (sm != null) sm.sessionStateFlow else SecureSessionStateMachine().state
     }
-    val viewModel = remember {
+    val viewModel = remember(context) {
         LegacyImportViewModel(
-            context = context.applicationContext,
+            context = context,
             serviceProvider = { VaultAccess.legacyImportService() },
             fileIo = SafLegacyFileIo(),
             sessionState = sessionState,
@@ -70,6 +70,35 @@ fun LegacyImportRoute(
         }
     }
 
+    val handleBack = {
+        when (state) {
+            LegacyImportViewModel.State.Decrypting,
+            LegacyImportViewModel.State.Applying,
+            -> Unit
+            is LegacyImportViewModel.State.FileSelected,
+            LegacyImportViewModel.State.AwaitingPassword,
+            is LegacyImportViewModel.State.Preview,
+            -> viewModel.cancelFilePick()
+            is LegacyImportViewModel.State.Error -> {
+                if ((state as LegacyImportViewModel.State.Error).action == LegacyImportViewModel.ErrorAction.RETRY_PASSWORD) {
+                    viewModel.retryPassword()
+                } else {
+                    viewModel.reset()
+                    onBack()
+                }
+            }
+            is LegacyImportViewModel.State.Success -> {
+                viewModel.reset()
+                onBack()
+            }
+            LegacyImportViewModel.State.Idle -> onBack()
+        }
+    }
+
+    BackHandler(enabled = state !is LegacyImportViewModel.State.Idle) {
+        handleBack()
+    }
+
     LegacyImportScreen(
         state = state,
         onPickFile = {
@@ -84,7 +113,7 @@ fun LegacyImportRoute(
             viewModel.reset()
             onBack()
         },
-        onBack = onBack,
+        onBack = handleBack,
         modifier = modifier,
         onNavigate = onNavigate,
     )

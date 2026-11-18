@@ -26,14 +26,18 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.rescueauth.v2.ui.components.RescueAuthButton as Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextButton
 import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton as OutlinedButton
 import com.rescueauth.v2.ui.components.RescueAuthTextField
 import com.rescueauth.v2.ui.components.RescueAuthFormPage
+import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -114,17 +118,33 @@ fun DeveloperFormScreen(
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
+    snackbarHostState: SnackbarHostState? = null,
 ) {
     val context = LocalContext.current
     var keystoreError by rememberSaveable { mutableStateOf<String?>(null) }
     var credentialsStep by rememberSaveable { mutableStateOf(false) }
-    val goBack = {
+    var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+    val baseline = remember(form.editingStableId, form.type) {
+        form.copy(keystoreBytes = null, submitting = false, error = null)
+    }
+    val hasUnsavedChanges = remember(form, baseline) {
+        form.keystoreBytes != null ||
+            form.copy(keystoreBytes = null, submitting = false, error = null) != baseline
+    }
+    val requestExit = {
         if (!form.submitting) {
-            if (credentialsStep) credentialsStep = false else onBack()
+            if (hasUnsavedChanges) showDiscardDialog = true else onBack()
         }
     }
-    BackHandler(enabled = credentialsStep || form.submitting) {
-        if (!form.submitting) credentialsStep = false
+    val goBack = {
+        if (!form.submitting) {
+            if (credentialsStep) credentialsStep = false else requestExit()
+        }
+    }
+    BackHandler(enabled = credentialsStep || form.submitting || hasUnsavedChanges) {
+        if (!form.submitting) {
+            if (credentialsStep) credentialsStep = false else requestExit()
+        }
     }
     val keystoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -137,12 +157,39 @@ fun DeveloperFormScreen(
         // null => user cancelled the SAF picker; nothing changes.
     }
 
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text(stringResource(R.string.developer_discard_changes_title)) },
+            text = { Text(stringResource(R.string.developer_discard_changes_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardDialog = false
+                        onBack()
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.developer_discard_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text(stringResource(R.string.developer_keep_editing))
+                }
+            },
+        )
+    }
+
     RescueAuthFormPage(
         title = stringResource(if (form.isEditing) R.string.developer_edit_title else R.string.developer_add_title),
         subtitle = formTypeLabel(form.type),
         onBack = goBack,
         backEnabled = !form.submitting,
         modifier = modifier.testTag("developer_form_${form.type.name}"),
+        snackbarHost = { snackbarHostState?.let { UndoSnackbarHost(it) } },
         bottomBar = {
             RescueAuthActionBar(
                 secondaryLabel = stringResource(if (credentialsStep) R.string.developer_form_previous else R.string.common_cancel),
@@ -258,8 +305,11 @@ fun DeveloperFormScreen(
                             label = { Text(stringResource(R.string.developer_field_label)) }, singleLine = true,
                             modifier = Modifier.fillMaxWidth().testTag("generic_field_name_$index"),
                             trailingIcon = {
-                                IconButton(onClick = { onRemoveField(index) },
-                                    modifier = Modifier.testTag("generic_field_remove_$index")) {
+                                IconButton(
+                                    onClick = { onRemoveField(index) },
+                                    enabled = form.fields.size > 1,
+                                    modifier = Modifier.testTag("generic_field_remove_$index"),
+                                ) {
                                     Icon(Icons.Outlined.Delete, stringResource(R.string.developer_remove_field))
                                 }
                             },
@@ -346,7 +396,7 @@ fun DeveloperFormScreen(
                         }
                     }
                 }
-                if (form.keystoreBytes != null) {
+                if (form.keystoreBytes != null || (form.isEditing && form.keystoreFileName.isNotEmpty())) {
                     Text(
                         text = form.keystoreFileName.ifEmpty { stringResource(R.string.developer_keystore_selected) },
                         style = MaterialTheme.typography.bodySmall,
@@ -386,8 +436,11 @@ fun DeveloperFormScreen(
                             label = { Text(stringResource(R.string.developer_field_variable_name)) }, singleLine = true,
                             modifier = Modifier.fillMaxWidth().testTag("env_field_name_$index"),
                             trailingIcon = {
-                                IconButton(onClick = { onRemoveVariable(index) },
-                                    modifier = Modifier.testTag("env_field_remove_$index")) {
+                                IconButton(
+                                    onClick = { onRemoveVariable(index) },
+                                    enabled = form.variables.size > 1,
+                                    modifier = Modifier.testTag("env_field_remove_$index"),
+                                ) {
                                     Icon(Icons.Outlined.Delete, stringResource(R.string.developer_remove_variable))
                                 }
                             },

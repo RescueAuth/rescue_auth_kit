@@ -3,10 +3,11 @@ package com.rescueauth.v2.ui.developer
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.activity.compose.rememberLauncherForActivityResult
+import android.view.HapticFeedbackConstants
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,9 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.rescueauth.v2.ui.components.FloatingAddPosition
-import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
@@ -28,17 +28,20 @@ import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.SensitiveAction
 import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.session.SecureSessionStateMachine
+import com.rescueauth.v2.ui.components.FloatingAddPosition
+import com.rescueauth.v2.ui.components.LoadingState
+import com.rescueauth.v2.ui.components.LocalRescueAuthSnackbarHostState
 import com.rescueauth.v2.ui.components.UndoResult
 import com.rescueauth.v2.ui.components.UndoSnackbarContract
-import com.rescueauth.v2.ui.components.LoadingState
-import com.rescueauth.v2.ui.model.DeveloperEntryUi
+import com.rescueauth.v2.ui.components.rememberFloatingAddPosition
+import com.rescueauth.v2.ui.components.showInstantSnackbar
 import com.rescueauth.v2.ui.model.DeveloperEntryType
+import com.rescueauth.v2.ui.model.DeveloperEntryUi
 import com.rescueauth.v2.ui.screens.developer.DeveloperAddSheet
 import com.rescueauth.v2.ui.screens.developer.DeveloperDeleteDialog
 import com.rescueauth.v2.ui.screens.developer.DeveloperDetailScreen
 import com.rescueauth.v2.ui.screens.developer.DeveloperFormScreen
 import com.rescueauth.v2.ui.screens.developer.DeveloperScreen
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -64,7 +67,9 @@ fun DeveloperRoute(
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val shellSnackbar = LocalRescueAuthSnackbarHostState.current
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    val activeSnackbar = shellSnackbar ?: localSnackbarHostState
     var showAddSheet by remember { mutableStateOf(false) }
 
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
@@ -83,18 +88,20 @@ fun DeveloperRoute(
         )
     }
     val listState by listViewModel.uiState.collectAsState()
+    val undoVersion by DeveloperUndoStore.version.collectAsState()
 
     // P8 §32: an ordinary Developer entry deleted from the Detail screen leaves
     // a pending Undo token in the shared store. The list route (which survives
     // the detail pop) shows the Undo Snackbar here so it lives beyond the
     // post-navigation lifecycle.
-    LaunchedEffect(DeveloperUndoStore.pending, isActive) {
+    LaunchedEffect(undoVersion, isActive) {
         if (!isActive) return@LaunchedEffect
-        val pending = DeveloperUndoStore.pending ?: return@LaunchedEffect
+        DeveloperUndoStore.pending ?: return@LaunchedEffect
+        activeSnackbar.currentSnackbarData?.dismiss()
         val message = context.getString(R.string.developer_entry_deleted_message)
         val actionLabel = context.getString(R.string.undo_snackbar_action)
         val result = UndoSnackbarContract.showUndoSnackbar(
-            snackbarHostState,
+            activeSnackbar,
             message,
             actionLabel,
         )
@@ -105,9 +112,9 @@ fun DeveloperRoute(
                     VaultAccess.developerRepository()?.restoreFromSnapshot(snapshot)
                 }.getOrNull()?.let { it is com.rescueauth.v2.domain.UndoRestoreOutcome.Restored }
                 if (outcome == true) {
-                    snackbarHostState.showSnackbar(context.getString(R.string.developer_entry_restored_message))
+                    activeSnackbar.showInstantSnackbar(context.getString(R.string.developer_entry_restored_message))
                 } else {
-                    snackbarHostState.showSnackbar(context.getString(R.string.developer_restore_blocked))
+                    activeSnackbar.showInstantSnackbar(context.getString(R.string.developer_restore_blocked))
                 }
             }
         } else {
@@ -117,7 +124,7 @@ fun DeveloperRoute(
 
     DeveloperScreen(
         uiState = listState,
-        snackbarHostState = snackbarHostState,
+        snackbarHostState = if (shellSnackbar == null) localSnackbarHostState else null,
         onAddClick = if (showAddAction) { {
             if (categoryType != null && onAddTypeSelected != null) onAddTypeSelected(DeveloperFormType.valueOf(categoryType.name))
             else showAddSheet = true
@@ -159,8 +166,11 @@ fun DeveloperDetailRoute(
     onNavigate: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val appScope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val shellSnackbar = LocalRescueAuthSnackbarHostState.current
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    val activeSnackbar = shellSnackbar ?: localSnackbarHostState
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     // Phase 4 P6 §7: SAF CreateDocument for the raw keystore export. The bytes
@@ -185,11 +195,11 @@ fun DeveloperDetailRoute(
                     true
                 }.getOrDefault(false)
                 if (ok) {
-                    snackbarHostState.showSnackbar(context.getString(R.string.developer_keystore_exported))
+                    activeSnackbar.showInstantSnackbar(context.getString(R.string.developer_keystore_exported))
                 } else {
                     // Best-effort cleanup of a partially-created SAF document.
                     runCatching { context.contentResolver.delete(uri, null, null) }
-                    snackbarHostState.showSnackbar(context.getString(R.string.common_error_title))
+                    activeSnackbar.showInstantSnackbar(context.getString(R.string.common_error_title))
                 }
             }
         }
@@ -234,25 +244,24 @@ fun DeveloperDetailRoute(
 
     LaunchedEffect(events) {
         val event = events ?: return@LaunchedEffect
+        viewModel.onEventShown()
         when (event) {
             is DeveloperDetailEvent.CopySecret -> {
                 copyToClipboard(context, event.value, event.label)
-                snackbarHostState.showSnackbar(context.getString(R.string.developer_copied))
+                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                activeSnackbar.showInstantSnackbar(context.getString(R.string.developer_copied))
             }
             is DeveloperDetailEvent.Deleted -> {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.developer_deleted_message, event.label),
-                )
+                // Signing key deletions have no Undo token; surface confirmation on the shell snackbar.
+                if (DeveloperUndoStore.pending == null && shellSnackbar != null) {
+                    val msg = context.getString(R.string.developer_deleted_message, event.label)
+                    appScope.launch { shellSnackbar.showInstantSnackbar(msg) }
+                }
             }
-            is DeveloperDetailEvent.Restored -> {
-                // Restore feedback is shown by the list route (the detail is
-                // popped after an ordinary delete); keep a safe no-op here.
-            }
-            is DeveloperDetailEvent.RestoreBlocked -> {
-                // Same — surfaced by the list route after navigation.
-            }
+            is DeveloperDetailEvent.Restored -> Unit
+            is DeveloperDetailEvent.RestoreBlocked -> Unit
             is DeveloperDetailEvent.AuthUnavailable -> {
-                snackbarHostState.showSnackbar(context.getString(R.string.auth_unavailable))
+                activeSnackbar.showInstantSnackbar(context.getString(R.string.auth_unavailable))
             }
             is DeveloperDetailEvent.ExportKeystore -> {
                 pendingExport = event.bytes
@@ -261,28 +270,36 @@ fun DeveloperDetailRoute(
             }
             is DeveloperDetailEvent.CopyKeyProperties -> {
                 copyToClipboard(context, event.snippet, event.label)
-                snackbarHostState.showSnackbar(context.getString(R.string.developer_copied))
+                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                activeSnackbar.showInstantSnackbar(context.getString(R.string.developer_copied))
             }
         }
-        viewModel.onEventShown()
+    }
+
+    fun toggleReveal(action: SensitiveAction, fieldKey: String) {
+        if (viewModel.isRevealed(fieldKey)) {
+            viewModel.hide(fieldKey)
+        } else {
+            viewModel.reveal(action, fieldKey)
+        }
     }
 
     val detail = uiState.detail
     DeveloperDetailScreen(
         uiState = uiState,
         onBack = onBack,
-        onRevealApiKey = { viewModel.reveal(SensitiveAction.REVEAL_API_SECRET, "apiKey") },
-        onRevealApiSecret = { viewModel.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret") },
+        onRevealApiKey = { toggleReveal(SensitiveAction.REVEAL_API_SECRET, "apiKey") },
+        onRevealApiSecret = { toggleReveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret") },
         onCopyApiKey = { viewModel.copySecret(SensitiveAction.COPY_API_SECRET, "apiKey", "apiKey") },
         onCopyApiSecret = { viewModel.copySecret(SensitiveAction.COPY_API_SECRET, "apiSecret", "apiSecret") },
-        onRevealPrivateKey = { viewModel.reveal(SensitiveAction.REVEAL_SSH_PRIVATE_KEY, "privateKey") },
+        onRevealPrivateKey = { toggleReveal(SensitiveAction.REVEAL_SSH_PRIVATE_KEY, "privateKey") },
         onCopyPrivateKey = { viewModel.copySecret(SensitiveAction.COPY_SSH_PRIVATE_KEY, "privateKey", "privateKey") },
-        onRevealPassphrase = { viewModel.reveal(SensitiveAction.REVEAL_SSH_PASSPHRASE, "passphrase") },
+        onRevealPassphrase = { toggleReveal(SensitiveAction.REVEAL_SSH_PASSPHRASE, "passphrase") },
         onCopyPassphrase = { viewModel.copySecret(SensitiveAction.COPY_SSH_PASSPHRASE, "passphrase", "passphrase") },
-        onRevealGeneric = { key -> viewModel.reveal(SensitiveAction.REVEAL_GENERIC_SECRET, key) },
+        onRevealGeneric = { key -> toggleReveal(SensitiveAction.REVEAL_GENERIC_SECRET, key) },
         onCopyGeneric = { key -> viewModel.copySecret(SensitiveAction.COPY_GENERIC_SECRET, key, "generic") },
         getRevealedValue = { viewModel.revealedValue(it) },
-        isRevealed = { viewModel.isRevealed(it) },
+        isRevealed = { it in uiState.revealedFieldKeys || viewModel.isRevealed(it) },
         onEdit = { if (detail != null) onEdit(detail.stableId) },
         // P8 §14: Android Signing Key keeps destructive confirmation (no Undo);
         // ordinary Developer entries delete immediately (Undo shown at the list
@@ -293,19 +310,26 @@ fun DeveloperDetailRoute(
             } else {
                 showDeleteDialog = false
                 appScope.launch {
-                    viewModel.delete()
-                    onBack()
+                    if (viewModel.delete()) onBack()
                 }
             }
         },
-        onRevealStorePassword = { viewModel.reveal(SensitiveAction.REVEAL_SIGNING_STORE_PASSWORD, "storePassword") },
+        onRevealStorePassword = { toggleReveal(SensitiveAction.REVEAL_SIGNING_STORE_PASSWORD, "storePassword") },
         onCopyStorePassword = { viewModel.copySecret(SensitiveAction.COPY_SIGNING_STORE_PASSWORD, "storePassword", "storePassword") },
-        onRevealKeyPassword = { viewModel.reveal(SensitiveAction.REVEAL_SIGNING_KEY_PASSWORD, "keyPassword") },
+        onRevealKeyPassword = { toggleReveal(SensitiveAction.REVEAL_SIGNING_KEY_PASSWORD, "keyPassword") },
         onCopyKeyPassword = { viewModel.copySecret(SensitiveAction.COPY_SIGNING_KEY_PASSWORD, "keyPassword", "keyPassword") },
         onExportKeystore = { viewModel.exportKeystore() },
         onCopyKeyProperties = { viewModel.copyKeyProperties() },
-        onRevealEnvVar = { key -> viewModel.reveal(SensitiveAction.REVEAL_ENV_VAR_VALUE, key) },
+        onRevealEnvVar = { key -> toggleReveal(SensitiveAction.REVEAL_ENV_VAR_VALUE, key) },
         onCopyEnvVar = { key -> viewModel.copySecret(SensitiveAction.COPY_ENV_VAR_VALUE, key, "env") },
+        snackbarHostState = if (shellSnackbar == null) localSnackbarHostState else null,
+        onCopyPublicKey = { publicKey ->
+            copyToClipboard(context, publicKey, "publicKey")
+            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            appScope.launch {
+                activeSnackbar.showInstantSnackbar(context.getString(R.string.developer_public_key_copied))
+            }
+        },
         modifier = modifier,
         onNavigate = onNavigate,
     )
@@ -323,8 +347,7 @@ fun DeveloperDetailRoute(
             onConfirm = {
                 showDeleteDialog = false
                 appScope.launch {
-                    viewModel.delete()
-                    onBack()
+                    if (viewModel.delete()) onBack()
                 }
             },
             onDismiss = { showDeleteDialog = false },
@@ -347,7 +370,9 @@ fun DeveloperFormRoute(
 ) {
     val context = LocalContext.current
     val appScope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val shellSnackbar = LocalRescueAuthSnackbarHostState.current
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    val activeSnackbar = shellSnackbar ?: localSnackbarHostState
 
     val sessionState: kotlinx.coroutines.flow.StateFlow<SecureSessionStateMachine.State> = remember {
         val sm = VaultAccess.sessionManager
@@ -382,17 +407,20 @@ fun DeveloperFormRoute(
 
     LaunchedEffect(events) {
         val event = events ?: return@LaunchedEffect
+        viewModel.onEventShown()
         when (event) {
             is DeveloperFormEvent.Saved -> {
-                // Completion must reach navigation immediately; this route has no snackbar host.
-                // Waiting here would strand an authorized editor after submit clears its state.
+                if (shellSnackbar != null) {
+                    val savedMessage = context.getString(R.string.developer_saved_message)
+                    appScope.launch { shellSnackbar.showInstantSnackbar(savedMessage) }
+                }
+                // Completion must reach navigation immediately without suspending on a snackbar.
                 onSaved()
             }
             is DeveloperFormEvent.Error -> {
-                snackbarHostState.showSnackbar(context.getString(R.string.common_error_title))
+                activeSnackbar.showInstantSnackbar(context.getString(R.string.common_error_title))
             }
         }
-        viewModel.onEventShown()
     }
 
     // Route restoration and direct navigation use the same guarded loader as a normal Edit tap.
@@ -432,6 +460,7 @@ fun DeveloperFormRoute(
         onAddVariable = viewModel::addVariable,
         onRemoveVariable = viewModel::removeVariable,
         onSubmit = { appScope.launch { viewModel.submit() } },
+        snackbarHostState = if (shellSnackbar == null) localSnackbarHostState else null,
         modifier = modifier,
         onNavigate = onNavigate,
     )

@@ -480,4 +480,69 @@ class DeveloperDetailViewModelTest {
         assertFalse(vm.uiState.value.authPending)
         assertNull(vm.revealedValue("apiSecret"))
     }
+
+    @Test
+    fun `hide single field updates revealedFieldKeys and requires fresh re-auth to reveal again`() = runBlocking {
+        val stableId = createApi()
+        val (vm, prompt) = vm(stableId)
+        kotlinx.coroutines.withTimeout(5_000) { vm.uiState.first { !it.loading } }
+
+        vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
+        prompt.deliver(SensitiveActionResult.Success(apiRevealRequest(stableId, "apiSecret")))
+        kotlinx.coroutines.withTimeout(5_000) {
+            while (!vm.uiState.value.revealedFieldKeys.contains("apiSecret")) kotlinx.coroutines.delay(10)
+        }
+        assertTrue(vm.isRevealed("apiSecret"))
+        assertTrue(!vm.uiState.value.toString().contains("secret-abc"))
+
+        vm.hide("apiSecret")
+        assertFalse(vm.isRevealed("apiSecret"))
+        assertNull(vm.revealedValue("apiSecret"))
+        assertFalse(vm.uiState.value.revealedFieldKeys.contains("apiSecret"))
+
+        // Revealing again must request a brand-new authorization.
+        vm.reveal(SensitiveAction.REVEAL_API_SECRET, "apiSecret")
+        assertEquals(2, prompt.startedRequests.size)
+    }
+
+    @Test
+    fun `editing an entry updates detail state reactively without recreating the ViewModel`() = runBlocking {
+        val stableId = createApi()
+        val (vm, _) = vm(stableId)
+        kotlinx.coroutines.withTimeout(5_000) { vm.uiState.first { !it.loading } }
+        assertEquals("Stripe", vm.uiState.value.detail?.title)
+
+        repo.editApiCredential(
+            stableId = stableId,
+            title = "Stripe Production",
+            notes = "Updated rotation note",
+            serviceName = "stripe",
+            accountName = "alice",
+            apiKey = "sk_live_123",
+            apiSecret = "secret-abc",
+        )
+        kotlinx.coroutines.withTimeout(5_000) {
+            vm.uiState.first { it.detail?.title == "Stripe Production" }
+        }
+        assertEquals("Updated rotation note", vm.uiState.value.detail?.notes)
+    }
+
+    @Test
+    fun `ssh detail maps publicKey and notes without exposing privateKey`() = runBlocking {
+        val created = repo.createSshKey(
+            title = "Deploy Key",
+            notes = "prod bastion",
+            keyName = "id_ed25519",
+            publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA",
+            privateKey = "PRIVATE-SSH-MATERIAL",
+            passphrase = "pass-value",
+        )
+        val (vm, _) = vm(created.stableId)
+        kotlinx.coroutines.withTimeout(5_000) { vm.uiState.first { !it.loading } }
+        val detail = vm.uiState.value.detail as com.rescueauth.v2.ui.model.DeveloperDetailUi.SshKey
+        assertEquals("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA", detail.publicKey)
+        assertEquals("prod bastion", detail.notes)
+        assertTrue(!vm.uiState.value.toString().contains("PRIVATE-SSH-MATERIAL"))
+        assertTrue(!vm.uiState.value.toString().contains("pass-value"))
+    }
 }

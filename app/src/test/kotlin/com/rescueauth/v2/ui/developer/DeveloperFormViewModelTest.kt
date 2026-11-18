@@ -247,4 +247,37 @@ class DeveloperFormViewModelTest {
         assertEquals("", vm.formState.value.title)
         assertEquals("", vm.formState.value.apiKey)
     }
+
+    @Test
+    fun `editing android signing key without re-selecting keystore preserves stored bytes and passwords`() = runBlocking {
+        val originalBytes = byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte())
+        val created = repo.createAndroidSigningKey(
+            title = "Release Signing",
+            notes = "Initial note",
+            projectName = "RescueAuth",
+            packageName = "com.rescueauth.v2",
+            keystoreFileName = "release.jks",
+            keystoreBytes = originalBytes,
+            storePassword = "store-secret-keep",
+            keyAlias = "upload",
+            keyPassword = "key-secret-keep",
+        )
+        val model = vm()
+        assertTrue(model.beginEdit(created.stableId))
+        assertEquals("release.jks", model.formState.value.keystoreFileName)
+        assertEquals(null, model.formState.value.keystoreBytes)
+
+        // Update metadata only without picking a replacement .jks file or re-typing passwords.
+        model.onTitleChange("Release Signing v2")
+        model.onNotesChange("Updated note")
+        assertTrue("editing signing key metadata must succeed without re-picking keystore", model.submit())
+
+        val updated = repo.getByStableId(created.stableId) as com.rescueauth.v2.export.VaultAndroidSigningKey
+        assertEquals("Release Signing v2", updated.title)
+        assertEquals("Updated note", updated.notes)
+        assertEquals("release.jks", updated.keystoreFileName)
+        assertEquals("store-secret-keep", updated.storePassword)
+        assertEquals("key-secret-keep", updated.keyPassword)
+        assertTrue(originalBytes.contentEquals(java.util.Base64.getDecoder().decode(updated.keystoreBase64)))
+    }
 }

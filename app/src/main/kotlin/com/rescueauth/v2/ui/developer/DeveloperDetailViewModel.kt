@@ -36,6 +36,7 @@ data class DeveloperDetailUiState(
     val authPending: Boolean = false,
     val authUnavailable: Boolean = false,
     val authCancelled: Boolean = false,
+    val revealedFieldKeys: Set<String> = emptySet(),
 ) {
     val isEmpty: Boolean
         get() = !loading && detail == null && error == null
@@ -128,18 +129,33 @@ class DeveloperDetailViewModel(
 
     private suspend fun load() {
         val repo = developerRepositoryProvider() ?: return
+        reloadOnce(repo)
+        try {
+            repo.observeAll().collect {
+                reloadOnce(repo)
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Best-effort live observation (e.g. Room teardown in tests).
+        }
+    }
+
+    private suspend fun reloadOnce(repo: DeveloperRepository) {
         try {
             val entry = repo.getByStableId(stableId)
             if (entry == null) {
+                revealedValues.clear()
                 _uiState.value = DeveloperDetailUiState(loading = false, error = "not_found")
                 return
             }
-            _uiState.value = DeveloperDetailUiState(
+            _uiState.value = _uiState.value.copy(
                 loading = false,
                 detail = entry.toDetailUi(),
+                error = null,
             )
-        } catch (e: Exception) {
-            _uiState.value = DeveloperDetailUiState(loading = false, error = "load_failed")
+        } catch (_: Exception) {
+            _uiState.value = _uiState.value.copy(loading = false, error = "load_failed")
         }
     }
 
@@ -154,7 +170,15 @@ class DeveloperDetailViewModel(
             authPending = false,
             authUnavailable = false,
             authCancelled = false,
+            revealedFieldKeys = emptySet(),
         )
+    }
+
+    /** Hides one revealed field; revealing it again requires fresh re-auth (Issue #20 §14). */
+    fun hide(fieldKey: String) {
+        if (revealedValues.remove(fieldKey) != null) {
+            _uiState.value = _uiState.value.copy(revealedFieldKeys = revealedValues.keys.toSet())
+        }
     }
 
     // ------------------------------------------------------------------
@@ -415,6 +439,7 @@ class DeveloperDetailViewModel(
         val target = request.target as? SensitiveActionTarget.DeveloperField ?: return
         val value = loadSecretValue(target) ?: return
         revealedValues[target.fieldKey] = value
+        _uiState.value = _uiState.value.copy(revealedFieldKeys = revealedValues.keys.toSet())
     }
 
     /** Loads the plaintext for a field key (repository read, in-memory only). */
@@ -529,6 +554,7 @@ class DeveloperDetailViewModel(
                 keyName = keyName,
                 publicKeyPresent = publicKey.isNotBlank(),
                 notes = notes,
+                publicKey = publicKey,
             )
             is VaultGenericSecret -> DeveloperDetailUi.GenericSecret(
                 stableId = stableId,

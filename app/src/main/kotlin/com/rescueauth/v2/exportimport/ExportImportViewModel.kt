@@ -2,6 +2,7 @@ package com.rescueauth.v2.exportimport
 
 import android.content.Context
 import android.net.Uri
+import com.rescueauth.v2.R
 import com.rescueauth.v2.export.SelectedItemSet
 import com.rescueauth.v2.export.SelectableItems
 import com.rescueauth.v2.repository.ImportOutcome
@@ -118,7 +119,7 @@ class ExportImportViewModel(
             val developerImported: Int,
             val blocked: Boolean,
         ) : ImportState
-        data class Error(val message: String) : ImportState
+        data class Error(val message: String, val canRetryPin: Boolean = false) : ImportState
     }
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
@@ -294,13 +295,13 @@ class ExportImportViewModel(
             } catch (e: VaultRepository.SessionLockedException) {
                 if (_exportState.value is ExportState.SelectingItems) {
                     _exportState.value = ExportState.Error(
-                        "Your vault is locked. Unlock it and try again.",
+                        context.getString(R.string.transfer_error_vault_locked),
                     )
                 }
             } catch (e: Exception) {
                 if (_exportState.value is ExportState.SelectingItems) {
                     _exportState.value = ExportState.Error(
-                        "Could not load your vault for selection.",
+                        context.getString(R.string.transfer_error_load_selection),
                     )
                 }
             }
@@ -315,7 +316,9 @@ class ExportImportViewModel(
     fun confirmExportSelection(selection: SelectedItemSet) {
         if (_exportState.value !is ExportState.SelectingItems) return
         if (selection.isEmpty) {
-            _exportState.value = ExportState.Error("Select at least one item to export.")
+            _exportState.value = ExportState.Error(
+                context.getString(R.string.transfer_error_select_export_empty),
+            )
             return
         }
         beginExportForScope(
@@ -429,19 +432,19 @@ class ExportImportViewModel(
                 pendingExportUri = null
                 bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(
-                    "Your vault is locked. Unlock it and try again.",
+                    context.getString(R.string.transfer_error_vault_locked),
                 )
             } catch (e: StaleSelectionException) {
                 pendingExportUri = null
                 bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(
-                    "The selected item(s) changed since you chose them. Go back and re-select.",
+                    context.getString(R.string.transfer_error_selection_changed),
                 )
             } catch (e: EmptySelectionException) {
                 pendingExportUri = null
                 bestEffortDelete(uri)
                 _exportState.value = ExportState.Error(
-                    "Select at least one item to export.",
+                    context.getString(R.string.transfer_error_select_export_empty),
                 )
             } catch (e: ExportImportError) {
                 pendingExportUri = null
@@ -524,14 +527,13 @@ class ExportImportViewModel(
                     com.rescueauth.v2.export.PackageIdentifier.Result.EmptyDocument -> {
                         pendingImportUri = null
                         _importState.value = ImportState.Error(
-                            "This document is empty. Choose a Rescue Auth package file.",
+                            context.getString(R.string.transfer_error_empty_document),
                         )
                     }
                     is com.rescueauth.v2.export.PackageIdentifier.Result.NotNativePackage -> {
                         pendingImportUri = null
                         _importState.value = ImportState.Error(
-                            "This does not look like a Rescue Auth package. " +
-                                "If it is a legacy .rakvault file, legacy import is a separate flow.",
+                            context.getString(R.string.transfer_error_not_native_package),
                         )
                     }
                 }
@@ -553,6 +555,16 @@ class ExportImportViewModel(
         _importState.value = ImportState.Idle
     }
 
+    /** Returns to PIN entry for the already-picked native package after a wrong-PIN error. */
+    fun retryImportPin() {
+        activeService?.clearImportSession()
+        if (pendingImportUri != null) {
+            _importState.value = ImportState.AwaitingPin
+        } else {
+            _importState.value = ImportState.Idle
+        }
+    }
+
     /**
      * Reads the full bounded package bytes and decodes with [pin], producing a
      * safe [ImportPreview]. The plaintext payload stays in the service's active
@@ -566,7 +578,9 @@ class ExportImportViewModel(
         val uri = pendingImportUri
         if (uri == null) {
             pin.fill('\u0000')
-            _importState.value = ImportState.Error("Choose a package file first.")
+            _importState.value = ImportState.Error(
+                context.getString(R.string.transfer_error_choose_file_first),
+            )
             return
         }
         // Defense-in-depth: the UI already prevents an empty submit, but the
@@ -587,12 +601,16 @@ class ExportImportViewModel(
                 _importState.value = ImportState.ChoosingScope(preview)
             } catch (e: VaultRepository.SessionLockedException) {
                 _importState.value = ImportState.Error(
-                    "Your vault is locked. Unlock it and try again.",
+                    context.getString(R.string.transfer_error_vault_locked),
                 )
             } catch (e: Exception) {
                 // Wrong PIN and corrupted package both surface as a single
                 // safe message (Issue #1 §11).
-                _importState.value = ImportState.Error(toImportMessage(ExportImportError.fromCodecOrRead(e)))
+                val mapped = ExportImportError.fromCodecOrRead(e)
+                _importState.value = ImportState.Error(
+                    message = toImportMessage(mapped),
+                    canRetryPin = mapped == ExportImportError.AuthenticationFailed && pendingImportUri != null,
+                )
             } finally {
                 pin.fill('\u0000')
             }
@@ -618,7 +636,9 @@ class ExportImportViewModel(
             -> {
                 val preset = resolveServiceOrNull()?.importPreset(importScope)
                 if (preset == null) {
-                    _importState.value = ImportState.Error("No package is loaded for import.")
+                    _importState.value = ImportState.Error(
+                        context.getString(R.string.transfer_error_no_package_loaded),
+                    )
                     return
                 }
                 _importState.value = ImportState.Decoding
@@ -628,15 +648,15 @@ class ExportImportViewModel(
                         _importState.value = ImportState.Preview(preview)
                     } catch (e: VaultRepository.SessionLockedException) {
                         _importState.value = ImportState.Error(
-                            "Your vault is locked. Unlock it and try again.",
+                            context.getString(R.string.transfer_error_vault_locked),
                         )
                     } catch (e: StaleSelectionException) {
                         _importState.value = ImportState.Error(
-                            "A selected item is not present in this package. Go back and re-select.",
+                            context.getString(R.string.transfer_error_selected_missing),
                         )
                     } catch (e: EmptySelectionException) {
                         _importState.value = ImportState.Error(
-                            "Select at least one item to import.",
+                            context.getString(R.string.transfer_error_select_import_empty),
                         )
                     } catch (e: Exception) {
                         _importState.value = ImportState.Error(
@@ -652,7 +672,9 @@ class ExportImportViewModel(
         val service = resolveServiceOrNull()
         val items = service?.selectableImportItems()
         if (items == null) {
-            _importState.value = ImportState.Error("No package is loaded for import.")
+            _importState.value = ImportState.Error(
+                context.getString(R.string.transfer_error_no_package_loaded),
+            )
             return
         }
         _importState.value = ImportState.SelectingItems(items = items)
@@ -666,7 +688,9 @@ class ExportImportViewModel(
     fun confirmImportSelection(selection: SelectedItemSet) {
         if (_importState.value !is ImportState.SelectingItems) return
         if (selection.isEmpty) {
-            _importState.value = ImportState.Error("Select at least one item to import.")
+            _importState.value = ImportState.Error(
+                context.getString(R.string.transfer_error_select_import_empty),
+            )
             return
         }
         _importState.value = ImportState.Decoding
@@ -676,15 +700,15 @@ class ExportImportViewModel(
                 _importState.value = ImportState.Preview(preview)
             } catch (e: VaultRepository.SessionLockedException) {
                 _importState.value = ImportState.Error(
-                    "Your vault is locked. Unlock it and try again.",
+                    context.getString(R.string.transfer_error_vault_locked),
                 )
             } catch (e: StaleSelectionException) {
                 _importState.value = ImportState.Error(
-                    "A selected item is not present in this package. Go back and re-select.",
+                    context.getString(R.string.transfer_error_selected_missing),
                 )
             } catch (e: EmptySelectionException) {
                 _importState.value = ImportState.Error(
-                    "Select at least one item to import.",
+                    context.getString(R.string.transfer_error_select_import_empty),
                 )
             } catch (e: Exception) {
                 _importState.value = ImportState.Error(
@@ -730,11 +754,11 @@ class ExportImportViewModel(
                 }
             } catch (e: VaultRepository.SessionLockedException) {
                 _importState.value = ImportState.Error(
-                    "Your vault is locked. Unlock it and try again.",
+                    context.getString(R.string.transfer_error_vault_locked),
                 )
             } catch (e: Exception) {
                 _importState.value = ImportState.Error(
-                    toImportMessage(ExportImportError.Unknown),
+                    context.getString(R.string.transfer_error_import_apply),
                 )
             }
         }
@@ -754,36 +778,36 @@ class ExportImportViewModel(
 
     private fun toExportMessage(e: ExportImportError): String = when (e) {
         ExportImportError.UserCancelled -> ""
-        ExportImportError.CannotOpenDocument -> "Could not create the export document."
-        ExportImportError.ReadFailed -> "Could not read the export document."
-        ExportImportError.PackageTooLarge -> "The exported package is too large."
-        ExportImportError.WriteFailed -> "Could not write the package file. The export was not completed."
-        ExportImportError.SessionLocked -> "Your vault is locked. Unlock it and try again."
-        ExportImportError.ExportSnapshotFailed -> "Could not build a consistent snapshot of your vault."
-        is ExportImportError.UnsupportedFormat -> "This is not a Rescue Auth package."
-        ExportImportError.UnsupportedCrypto -> "This package uses an unsupported encryption version."
-        ExportImportError.MalformedPackage -> "This package file is damaged."
-        ExportImportError.InvalidKdfParameters -> "This package uses unsupported protection settings."
-        ExportImportError.AuthenticationFailed -> "Wrong PIN or corrupted package."
-        ExportImportError.LogicalPayloadInvalid -> "This package contains invalid data."
-        ExportImportError.Unknown -> "Something went wrong during export."
+        ExportImportError.CannotOpenDocument -> context.getString(R.string.transfer_error_export_write)
+        ExportImportError.ReadFailed -> context.getString(R.string.transfer_error_import_read)
+        ExportImportError.PackageTooLarge -> context.getString(R.string.transfer_error_export_capacity)
+        ExportImportError.WriteFailed -> context.getString(R.string.transfer_error_export_write)
+        ExportImportError.SessionLocked -> context.getString(R.string.transfer_error_vault_locked)
+        ExportImportError.ExportSnapshotFailed -> context.getString(R.string.transfer_error_export_invalid)
+        is ExportImportError.UnsupportedFormat -> context.getString(R.string.transfer_error_import_unsupported_format)
+        ExportImportError.UnsupportedCrypto -> context.getString(R.string.transfer_error_import_unsupported_version)
+        ExportImportError.MalformedPackage -> context.getString(R.string.transfer_error_import_invalid_payload)
+        ExportImportError.InvalidKdfParameters -> context.getString(R.string.transfer_error_import_kdf_budget)
+        ExportImportError.AuthenticationFailed -> context.getString(R.string.transfer_error_import_wrong_pin)
+        ExportImportError.LogicalPayloadInvalid -> context.getString(R.string.transfer_error_export_invalid)
+        ExportImportError.Unknown -> context.getString(R.string.transfer_error_export_generic)
     }
 
     private fun toImportMessage(e: ExportImportError): String = when (e) {
         ExportImportError.UserCancelled -> ""
-        ExportImportError.CannotOpenDocument -> "Could not open the document."
-        ExportImportError.ReadFailed -> "Could not read the document."
-        ExportImportError.PackageTooLarge -> "This package is larger than the 16 MB limit."
-        ExportImportError.WriteFailed -> "Could not write the package file."
-        ExportImportError.SessionLocked -> "Your vault is locked. Unlock it and try again."
-        ExportImportError.ExportSnapshotFailed -> "Could not build a consistent snapshot."
-        is ExportImportError.UnsupportedFormat -> "This is not a Rescue Auth package."
-        ExportImportError.UnsupportedCrypto -> "This package uses an unsupported encryption version."
-        ExportImportError.MalformedPackage -> "This package file is damaged."
-        ExportImportError.InvalidKdfParameters -> "This package uses unsupported protection settings."
-        ExportImportError.AuthenticationFailed -> "Wrong PIN or corrupted package."
-        ExportImportError.LogicalPayloadInvalid -> "This package contains invalid data."
-        ExportImportError.Unknown -> "Something went wrong during import."
+        ExportImportError.CannotOpenDocument -> context.getString(R.string.transfer_error_import_read)
+        ExportImportError.ReadFailed -> context.getString(R.string.transfer_error_import_read)
+        ExportImportError.PackageTooLarge -> context.getString(R.string.transfer_error_import_too_large)
+        ExportImportError.WriteFailed -> context.getString(R.string.transfer_error_export_write)
+        ExportImportError.SessionLocked -> context.getString(R.string.transfer_error_vault_locked)
+        ExportImportError.ExportSnapshotFailed -> context.getString(R.string.transfer_error_import_changed)
+        is ExportImportError.UnsupportedFormat -> context.getString(R.string.transfer_error_import_unsupported_format)
+        ExportImportError.UnsupportedCrypto -> context.getString(R.string.transfer_error_import_unsupported_version)
+        ExportImportError.MalformedPackage -> context.getString(R.string.transfer_error_import_invalid_payload)
+        ExportImportError.InvalidKdfParameters -> context.getString(R.string.transfer_error_import_kdf_budget)
+        ExportImportError.AuthenticationFailed -> context.getString(R.string.transfer_error_import_wrong_pin)
+        ExportImportError.LogicalPayloadInvalid -> context.getString(R.string.transfer_error_import_invalid_payload)
+        ExportImportError.Unknown -> context.getString(R.string.transfer_error_import_apply)
     }
 }
 

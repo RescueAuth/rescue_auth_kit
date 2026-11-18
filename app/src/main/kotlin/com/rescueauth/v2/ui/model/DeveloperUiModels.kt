@@ -57,13 +57,14 @@ data class SensitiveFieldUi(
 sealed interface DeveloperDetailUi {
     val stableId: String
     val title: String
+    val notes: String?
 
     data class ApiCredential(
         override val stableId: String,
         override val title: String,
         val serviceName: String,
         val accountName: String,
-        val notes: String? = null,
+        override val notes: String? = null,
     ) : DeveloperDetailUi
 
     data class SshKey(
@@ -71,14 +72,15 @@ sealed interface DeveloperDetailUi {
         override val title: String,
         val keyName: String,
         val publicKeyPresent: Boolean,
-        val notes: String? = null,
+        override val notes: String? = null,
+        val publicKey: String = "",
     ) : DeveloperDetailUi
 
     data class GenericSecret(
         override val stableId: String,
         override val title: String,
         val fieldLabels: List<String>,
-        val notes: String? = null,
+        override val notes: String? = null,
     ) : DeveloperDetailUi
 
     data class AndroidSigningKey(
@@ -88,7 +90,7 @@ sealed interface DeveloperDetailUi {
         val packageName: String,
         val keystoreFileName: String,
         val keyAlias: String,
-        val notes: String? = null,
+        override val notes: String? = null,
     ) : DeveloperDetailUi
 
     data class EnvironmentVariableSet(
@@ -96,7 +98,7 @@ sealed interface DeveloperDetailUi {
         override val title: String,
         val projectName: String,
         val variableNames: List<String>,
-        val notes: String? = null,
+        override val notes: String? = null,
     ) : DeveloperDetailUi
 }
 

@@ -487,9 +487,13 @@ class DeveloperFormViewModel(
                     }
                 }
                 DeveloperFormType.ANDROID_SIGNING_KEY -> {
-                    val keystore = form.keystoreBytes
-                        ?: throw DeveloperRepository.ValidationException("keystore file is required")
                     if (form.isEditing) {
+                        val keystore = form.keystoreBytes ?: run {
+                            val existing = repo.getByStableId(form.editingStableId!!)
+                                as? com.rescueauth.v2.export.VaultAndroidSigningKey
+                                ?: throw DeveloperRepository.NotFoundException("developer entry not found")
+                            java.util.Base64.getDecoder().decode(existing.keystoreBase64)
+                        }
                         repo.editAndroidSigningKey(
                             stableId = form.editingStableId!!,
                             title = form.trimmedTitle(),
@@ -507,6 +511,8 @@ class DeveloperFormViewModel(
                             },
                         )
                     } else {
+                        val keystore = form.keystoreBytes
+                            ?: throw DeveloperRepository.ValidationException("keystore file is required")
                         repo.createAndroidSigningKey(
                             title = form.trimmedTitle(),
                             notes = form.notes,
@@ -590,7 +596,7 @@ class DeveloperFormViewModel(
             }
             DeveloperFormType.ANDROID_SIGNING_KEY -> {
                 when {
-                    form.keystoreBytes == null -> "keystore_required"
+                    !form.isEditing && form.keystoreBytes == null -> "keystore_required"
                     form.trimmedKeystoreFileName().isEmpty() -> "keystore_required"
                     !form.isEditing && form.storePassword.isEmpty() -> "store_password_required"
                     form.trimmedKeyAlias().isEmpty() -> "key_alias_required"
