@@ -12,7 +12,7 @@
 # arbitrary strings) exits non-zero WITHOUT printing a version.
 #
 # This gate runs BEFORE the secret-bearing production signing stage, so an
-# invalid tag never reaches the stage that imports the production Secret Repo.
+# invalid tag never reaches the stage that reads production signing secrets.
 #
 # Usage: bash scripts/validate-release-tag.sh <tag>
 #   prints: <version>            on success

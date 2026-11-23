@@ -11,7 +11,7 @@
 #
 # This is the DEVELOPMENT artifact used for real-device smoke testing on any
 # feature/fix branch or main. It uses the standard Android debug signing only —
-# it NEVER imports the production Secret Repo, NEVER reads production signing
+# it NEVER reads production signing secrets, NEVER touches the production environment
 # passwords or keystores, and NEVER runs production signing validation.
 #
 # The original Gradle output (app/build/outputs/apk/debug/app-debug.apk) is
@@ -21,7 +21,7 @@
 #
 # Usage: bash scripts/build-debug-apk.sh
 #   env overrides:
-#     CNB_COMMIT_SHORT / CNB_COMMIT   short commit id for the artifact name
+#     GITHUB_SHA                     commit id for the artifact name
 
 set -euo pipefail
 
@@ -51,10 +51,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 v2_root="$repo_root"
 
 # The short commit id used only for the artifact name (not for versioning).
-short_commit="${CNB_COMMIT_SHORT:-}"
-if [[ -z "$short_commit" && -n "${CNB_COMMIT:-}" ]]; then
-  short_commit="${CNB_COMMIT:0:7}"
-fi
+short_commit="${GITHUB_SHA:0:7}"
 if [[ -z "$short_commit" ]]; then
   short_commit="$(git -C "$repo_root" rev-parse --short=7 HEAD 2>/dev/null || echo "dev")"
 fi

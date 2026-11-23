@@ -35,13 +35,8 @@ object ExternalOpenHelper {
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            val resolve = context.packageManager.resolveActivity(intent, 0)
-            if (resolve != null) {
-                context.startActivity(intent)
-                true
-            } else {
-                false
-            }
+            context.startActivity(intent)
+            true
         } catch (_: Exception) {
             false
         }

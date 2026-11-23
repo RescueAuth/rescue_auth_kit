@@ -2,6 +2,7 @@ package com.rescueauth.v2.legacyimport
 
 import android.content.Context
 import android.net.Uri
+import com.rescueauth.v2.R
 import com.rescueauth.v2.legacy.LegacyRakVaultImporter
 import com.rescueauth.v2.legacy.LegacyVaultSnapshotMapper
 import com.rescueauth.v2.repository.ImportOutcome
@@ -221,7 +222,7 @@ class LegacyImportViewModel(
                 if (generation != operationGeneration) return@launch
                 pendingUri = null
                 _state.value = State.Error(
-                    "Could not read the selected file.",
+                    context.getString(R.string.legacy_error_read_failed),
                     ErrorAction.RESTART,
                 )
             }
@@ -250,7 +251,7 @@ class LegacyImportViewModel(
         if (uri == null) {
             password.fill('\u0000')
             _state.value = State.Error(
-                "Choose a legacy vault file first.",
+                context.getString(R.string.legacy_error_choose_first),
                 ErrorAction.RESTART,
             )
             return false
@@ -280,7 +281,7 @@ class LegacyImportViewModel(
                 } catch (e: VaultRepository.SessionLockedException) {
                     if (generation != operationGeneration) return@launch
                     _state.value = State.Error(
-                        "Your RescueAuth vault is locked. Unlock it to continue the legacy import.",
+                        context.getString(R.string.transfer_error_vault_locked),
                         ErrorAction.RESTART,
                     )
                     return@launch
@@ -290,7 +291,7 @@ class LegacyImportViewModel(
             } catch (e: VaultRepository.SessionLockedException) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "Your RescueAuth vault is locked. Unlock it to continue the legacy import.",
+                    context.getString(R.string.transfer_error_vault_locked),
                     ErrorAction.RESTART,
                 )
             } catch (e: LegacyRakVaultImporter.ImportException) {
@@ -299,7 +300,7 @@ class LegacyImportViewModel(
             } catch (e: LegacyVaultSnapshotMapper.LegacyMappingException) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "This legacy vault could not be read. It may use an unsupported format.",
+                    context.getString(R.string.legacy_error_invalid_payload),
                     ErrorAction.RESTART,
                 )
             } catch (e: LegacyFileError) {
@@ -308,7 +309,7 @@ class LegacyImportViewModel(
             } catch (e: Exception) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "Something went wrong during import.",
+                    context.getString(R.string.legacy_error_apply_failed),
                     ErrorAction.RESTART,
                 )
             } finally {
@@ -379,13 +380,13 @@ class LegacyImportViewModel(
             } catch (e: VaultRepository.SessionLockedException) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "Your RescueAuth vault is locked. Unlock it to continue the legacy import.",
+                    context.getString(R.string.transfer_error_vault_locked),
                     ErrorAction.RESTART,
                 )
             } catch (e: Exception) {
                 if (generation != operationGeneration) return@launch
                 _state.value = State.Error(
-                    "Something went wrong during import.",
+                    context.getString(R.string.legacy_error_apply_failed),
                     ErrorAction.RESTART,
                 )
             }
@@ -404,10 +405,10 @@ class LegacyImportViewModel(
 
     private fun toFileMessage(e: LegacyFileError): String = when (e) {
         LegacyFileError.UserCancelled -> ""
-        LegacyFileError.CannotOpenDocument -> "Could not open the document."
-        LegacyFileError.ReadFailed -> "Could not read the document."
-        LegacyFileError.FileEmpty -> "This file is empty. Choose a legacy vault (.rakvault) file."
-        LegacyFileError.FileTooLarge -> "This file is larger than the 64 MB legacy limit."
+        LegacyFileError.CannotOpenDocument -> context.getString(R.string.legacy_error_read_failed)
+        LegacyFileError.ReadFailed -> context.getString(R.string.legacy_error_read_failed)
+        LegacyFileError.FileEmpty -> context.getString(R.string.legacy_error_empty_file)
+        LegacyFileError.FileTooLarge -> context.getString(R.string.legacy_error_too_large)
     }
 
     private fun toErrorAction(e: LegacyRakVaultImporter.ImportException): ErrorAction =
@@ -430,25 +431,24 @@ class LegacyImportViewModel(
     private fun toImportMessage(e: LegacyRakVaultImporter.ImportException): String =
         when (e.kind) {
             LegacyRakVaultImporter.ErrorKind.AUTHENTICATION_FAILED ->
-                "Unable to decrypt this legacy vault. " +
-                    "The password may be incorrect or the file may be corrupted."
+                context.getString(R.string.legacy_error_wrong_password)
             LegacyRakVaultImporter.ErrorKind.UNSUPPORTED_SCHEMA ->
-                "This legacy vault uses an unsupported schema version and cannot be imported."
+                context.getString(R.string.legacy_error_unsupported_schema)
             LegacyRakVaultImporter.ErrorKind.UNSUPPORTED_FORMAT ->
-                "This is not a legacy Rescue Auth vault file, or it uses unsupported protection settings."
+                context.getString(R.string.legacy_error_not_rakvault)
             LegacyRakVaultImporter.ErrorKind.INVALID_ENVELOPE ->
-                "This legacy vault file is damaged and cannot be read."
+                context.getString(R.string.legacy_error_invalid_payload)
             LegacyRakVaultImporter.ErrorKind.MALFORMED_PAYLOAD ->
-                "This legacy vault contains invalid data and cannot be imported."
+                context.getString(R.string.legacy_error_invalid_payload)
             LegacyRakVaultImporter.ErrorKind.FILE_EMPTY ->
-                "This file is empty. Choose a legacy vault (.rakvault) file."
+                context.getString(R.string.legacy_error_empty_file)
             LegacyRakVaultImporter.ErrorKind.FILE_TOO_LARGE ->
-                "This file is larger than the 64 MB legacy limit."
+                context.getString(R.string.legacy_error_too_large)
             LegacyRakVaultImporter.ErrorKind.PAYLOAD_EMPTY,
             LegacyRakVaultImporter.ErrorKind.PAYLOAD_TOO_LARGE,
-            -> "This legacy vault contains invalid data and cannot be imported."
+            -> context.getString(R.string.legacy_error_invalid_payload)
             LegacyRakVaultImporter.ErrorKind.ARGON2_FAILED ->
-                "Unable to decrypt this legacy vault. The password may be incorrect or the file may be corrupted."
-            null -> "Something went wrong during import."
+                context.getString(R.string.legacy_error_wrong_password)
+            null -> context.getString(R.string.legacy_error_apply_failed)
         }
 }

@@ -82,4 +82,7 @@ enum class SensitiveAction {
 
     /** Open the full editor for a protected Developer entry (all five types). */
     EDIT_DEVELOPER_ENTRY,
+
+    /** Add, change, or remove the Vault Backup PIN from Settings. */
+    MANAGE_BACKUP_PIN,
 }

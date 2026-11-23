@@ -5,7 +5,7 @@ package com.rescueauth.v2.update
  * L2 / UPDATE_PROTOCOL.md §Networking bounds).
  *
  * The only two network reads are `latest.json` and `latest.json.sig`, both
- * served from the fixed public CNB raw source. These bounds are enforced
+ * served from the fixed public GitHub Release assets. These bounds are enforced
  * BEFORE any full-buffer allocation so an oversized / malicious remote payload
  * can never trigger an unbounded allocation (the "oversized manifest rejected
  * before unbounded allocation" contract).

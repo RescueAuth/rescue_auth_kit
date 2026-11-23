@@ -3,57 +3,61 @@ package com.rescueauth.v2.ui.screens.search
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.material3.FilterChip
-import androidx.compose.ui.text.style.TextOverflow
-import com.rescueauth.v2.ui.theme.CardTokens
-import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import com.rescueauth.v2.ui.components.RescueAuthTextField
-import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.search.SearchResult
 import com.rescueauth.v2.ui.components.EmptyState
+import com.rescueauth.v2.ui.components.RescueAuthChevron
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
+import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
+import com.rescueauth.v2.ui.components.RescueAuthSectionHeader
+import com.rescueauth.v2.ui.components.RescueAuthTextField
 import com.rescueauth.v2.ui.search.SearchUiState
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import com.rescueauth.v2.ui.theme.ScreenTokens
 import com.rescueauth.v2.ui.theme.Spacing
@@ -147,8 +151,11 @@ fun SearchScreen(
                 )
                 else -> SearchResults(
                     results = uiState.results,
-                    query = uiState.query,
-                    onResultClick = onResultClick,
+                    onResultClick = { selected ->
+                        keyboard?.hide()
+                        focusManager.clearFocus()
+                        onResultClick(selected)
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag(SearchTestTags.SEARCH_RESULTS),
@@ -160,7 +167,6 @@ fun SearchScreen(
 
 @Composable
 private fun SearchResults(
-    query: String,
     results: List<SearchResult>,
     onResultClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
@@ -170,24 +176,37 @@ private fun SearchResults(
     val orderedKeys = grouped.keys.sortedBy { key ->
         order.indexOf(key).let { index -> if (index < 0) order.size else index }
     }
-    var selectedType by remember(query) { mutableStateOf<String?>(null) }
+    var selectedType by rememberSaveable { mutableStateOf<String?>(null) }
     val activeType = selectedType.takeIf { it in grouped }
     Column(modifier) {
-        LazyRow(contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = ScreenTokens.horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
             item {
-                FilterChip(selected = activeType == null, onClick = { selectedType = null },
+                FilterChip(
+                    selected = activeType == null,
+                    onClick = { selectedType = null },
                     label = { Text(stringResource(R.string.authenticator_filter_all)) },
-                    modifier = Modifier.testTag("search_filter_all"))
+                    modifier = Modifier.testTag("search_filter_all"),
+                )
             }
             items(orderedKeys) { type ->
-                FilterChip(selected = activeType == type, onClick = { selectedType = type },
-                    label = { Text(resultTypeLabel(type)) }, modifier = Modifier.testTag("search_filter_$type"))
+                FilterChip(
+                    selected = activeType == type,
+                    onClick = { selectedType = if (activeType == type) null else type },
+                    label = { Text(resultTypeLabel(type)) },
+                    modifier = Modifier.testTag("search_filter_$type"),
+                )
             }
         }
         LazyColumn(
             Modifier.weight(1f),
-            contentPadding = PaddingValues(start = ScreenTokens.horizontalPadding, end = ScreenTokens.horizontalPadding, bottom = Spacing.lg),
+            contentPadding = PaddingValues(
+                start = ScreenTokens.horizontalPadding,
+                end = ScreenTokens.horizontalPadding,
+                bottom = Spacing.lg,
+            ),
             verticalArrangement = Arrangement.spacedBy(CardTokens.listSpacing),
         ) {
             orderedKeys.filter { activeType == null || it == activeType }.forEach { label ->
@@ -214,23 +233,35 @@ private fun resultTypeLabel(label: String): String = stringResource(
     },
 )
 
+private fun resultTypeIcon(label: String): ImageVector = when (label) {
+    "provider" -> Icons.Outlined.Dns
+    "account" -> Icons.Outlined.Person
+    "totp" -> Icons.Outlined.Timer
+    "recovery" -> Icons.Outlined.Shield
+    "developer" -> Icons.Outlined.Code
+    else -> Icons.Filled.Search
+}
+
 @Composable
 private fun SearchResultRow(result: SearchResult, onClick: () -> Unit) {
     RescueAuthRowCard(
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.testTag("search_result_${result.typeLabel}_${result.navigationId}").semantics { role = Role.Button },
+        modifier = Modifier
+            .testTag("search_result_${result.typeLabel}_${result.navigationId}")
+            .semantics { role = Role.Button },
         verticalPadding = Spacing.sm,
     ) {
         RescueAuthIconBadge(
-            icon = Icons.Filled.Search,
+            icon = resultTypeIcon(result.typeLabel),
             size = 36.dp,
             iconSize = 18.dp,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = result.title,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -238,7 +269,8 @@ private fun SearchResultRow(result: SearchResult, onClick: () -> Unit) {
             result.subtitle?.let { subtitle ->
                 Text(
                     text = subtitle,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -251,6 +283,7 @@ private fun SearchResultRow(result: SearchResult, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.primary,
             )
         }
+        RescueAuthChevron()
     }
 }
 

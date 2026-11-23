@@ -14,10 +14,10 @@ object TestManifestJson {
     const val VERSION_CODE = 10100L
     const val MIN_SUPPORTED = 10000L
     const val PUBLISHED_AT = "2026-08-10T12:00:00Z"
-    const val APK_URL = "https://cnb.cool/xincy22/rescueauth-updates/-/git/raw/main/android/stable/rescueauth-1.1.0.apk"
+    const val APK_URL = "https://github.com/RescueAuth/rescue_auth_kit/releases/download/android-stable/rescueauth-1.1.0.apk"
     const val APK_SIZE = 1_234_567L
     const val APK_SHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    const val RELEASE_NOTES_URL = "https://cnb.cool/xincy22/rescueauth-updates/-/git/raw/main/android/stable/1.1.0.html"
+    const val RELEASE_NOTES_URL = "https://github.com/RescueAuth/rescue_auth_kit/releases/download/android-stable/1.1.0.html"
     const val SEVERITY = "NORMAL"
 
     fun build(

@@ -258,3 +258,17 @@ internal object ThemeColorPalettes {
         ThemeColor.ROSE -> ROSE
     }
 }
+
+/**
+ * Resolves the concrete Material 3 [ColorScheme] for a [ThemeColor] preset and
+ * light/dark mode.
+ *
+ * The light/dark choice mirrors [RescueAuthTheme] exactly, so a consumer that
+ * previews a preset (for example the Settings appearance swatches) shows the
+ * same scheme the application would render for that preset and mode. Error and
+ * other semantic colors come from the shared palettes and are unchanged.
+ */
+fun colorSchemeFor(color: ThemeColor, darkTheme: Boolean): ColorScheme {
+    val palette = ThemeColorPalettes.schemesFor(color)
+    return if (darkTheme) palette.dark else palette.light
+}

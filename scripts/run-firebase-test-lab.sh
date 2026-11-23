@@ -7,8 +7,9 @@
 #
 # Security contract (see docs/FIREBASE_TEST_LAB.md):
 #   * Credentials (GCP_SERVICE_ACCOUNT_JSON_BASE64 / FIREBASE_PROJECT_ID) are
-#     only ever imported by the `web_trigger_firebase_test` (manual, main-only)
-#     pipeline in .cnb.yml. Never on PR branches, NPC events, or main push.
+#     only ever consumed by the `Android Firebase device tests` workflow (manual, main-only)
+#     workflow in .github/workflows/android-firebase.yml. Never on PR branches
+#     or automatic push events.
 #   * Credentials are never written to gradle.properties, permanent user-home
 #     files or the repository checkout.
 #   * Sensitive values are never echoed; logs stay redacted.
@@ -21,7 +22,7 @@
 #   GCP_SERVICE_ACCOUNT_JSON_BASE64=... \
 #   FTL_DEVICE_MODEL=... FTL_DEVICE_VERSION=... \
 #   FTL_DEVICE_LOCALE=en FTL_DEVICE_ORIENTATION=portrait FTL_TEST_TIMEOUT=5m \
-#   CNB_COMMIT=<sha> \
+#   FTL_COMMIT=<sha> \
 #   scripts/run-firebase-test-lab.sh
 
 set -euo pipefail
@@ -45,7 +46,7 @@ readonly FTL_EXIT_TEST_CANCELED=19
 readonly FTL_EXIT_INFRASTRUCTURE=20
 
 # Final classification strings (single token, no spaces) that are greppable in
-# CNB build logs.
+# the CI build logs.
 readonly STATUS_PASSED='TEST_PASSED'
 readonly STATUS_CONFIG_FAILURE='CONFIGURATION_FAILURE'
 readonly STATUS_GENERAL_FAILURE='GENERAL_OR_CONFIGURATION_FAILURE'
@@ -428,7 +429,7 @@ main() {
     FTL_DEVICE_LOCALE="${FTL_DEVICE_LOCALE:-en}"
     FTL_DEVICE_ORIENTATION="${FTL_DEVICE_ORIENTATION:-portrait}"
     FTL_TEST_TIMEOUT="${FTL_TEST_TIMEOUT:-5m}"
-    CNB_COMMIT="${CNB_COMMIT:-}"
+    FTL_COMMIT="${FTL_COMMIT:-${GITHUB_SHA:-}}"
 
     require_nonempty APP_APK
     require_nonempty TEST_APK
@@ -439,7 +440,7 @@ main() {
     require_nonempty FTL_DEVICE_LOCALE
     require_nonempty FTL_DEVICE_ORIENTATION
     require_nonempty FTL_TEST_TIMEOUT
-    require_nonempty CNB_COMMIT
+    require_nonempty FTL_COMMIT
 
     # Credential presence check (values are NEVER printed).
     log "FIREBASE_PROJECT_ID set: yes"
@@ -457,7 +458,7 @@ main() {
     log "FTL_DEVICE_LOCALE=${FTL_DEVICE_LOCALE}"
     log "FTL_DEVICE_ORIENTATION=${FTL_DEVICE_ORIENTATION}"
     log "FTL_TEST_TIMEOUT=${FTL_TEST_TIMEOUT}"
-    log "CNB_COMMIT=${CNB_COMMIT}"
+    log "FTL_COMMIT=${FTL_COMMIT}"
 
     # --- Decode credentials ---
     decode_service_account_json
@@ -492,7 +493,7 @@ main() {
         --timeout="$FTL_TEST_TIMEOUT" \
         --environment-variables=additionalTestOutputDir=/sdcard/Download/rescueauth-test-output,no-isolated-storage=true \
         --directories-to-pull=/sdcard/Download/rescueauth-test-output \
-        --results-dir="ftl-${CNB_COMMIT}" \
+        --results-dir="ftl-${FTL_COMMIT}" \
         --no-auto-google-login \
         --no-performance-metrics \
         --no-record-video \

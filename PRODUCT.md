@@ -52,8 +52,9 @@ Authenticator 仍作为内部领域名称。发布准备侧重生产更新配置
 - **高敏感操作**：即使 Vault 已解锁，Export、export keystore、reveal
   SSH private key / API secret / signing 密码等操作要求一次 fresh
   Biometric / Device Credential 认证（Sensitive Action Re-authentication）。
-  进入五类 Developer Entry 的完整编辑器同样需要独立验证，验证成功后才读取并预填既有敏感值；
-  即使本次仅修改标题等元数据也适用。新建空白条目不增加该验证，编辑授权不复用于显示、复制或下一次编辑。
+  进入五类 Developer Entry 的完整编辑器同样要求一次独立验证（编辑器本身是高敏感入口），
+  即使本次仅修改标题等元数据也适用。编辑不会预填既有敏感值：敏感字段留空表示保留原值，填写表示覆盖；
+  读出敏感值用于复制走独立的 reveal/copy 验证。新建空白条目不增加该验证，编辑授权不复用于显示、复制或下一次编辑。
 
 > Phase 3 明确不做：automatic backup、scheduled backup、background
 > backup、WorkManager backup、cloud sync、自动上传、自动 checkpoint 文件。
@@ -157,8 +158,8 @@ Bridge 不复制完整保险库，不构成桌面保险库客户端或云同步�
 2026-10-05 补充授权：更新源迁至 GitHub `RescueAuth/rescue_auth_kit` 的
 `android-stable` Release assets，APK/说明使用 `rescueauth-vX.Y.Z` Release。
 独立 Ed25519 更新密钥已 provision；公开 pin 在 `release/update-public-key.txt`。
-该状态表示配置完成，端点上线、签名包和更新端到端验收仍未完成；旧 CNB
-资源保留。用户同时授权本任务后续 PR 由 Agent 自行审查、测试并合并，
+该状态表示配置完成，端点上线、签名包和更新端到端验收仍未完成；
+旧 CNB 资源已废弃，构建与发布统一在 GitHub Actions 上。用户同时授权本任务后续 PR 由 Agent 自行审查、测试并合并，
 覆盖此前工作流人工审阅约束，不豁免发布验收与凭据保护。
 
 2026-10-05 验收更新：GitHub 全量回归 420 core + 844 app 通过；

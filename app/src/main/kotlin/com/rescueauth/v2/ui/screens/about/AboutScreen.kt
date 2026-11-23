@@ -16,7 +16,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import com.rescueauth.v2.ui.components.RescueAuthPageScaffold
+import com.rescueauth.v2.ui.components.UndoSnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -61,11 +63,13 @@ fun AboutScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onNavigate: (String) -> Unit = {},
+    snackbarHostState: SnackbarHostState? = null,
 ) {
     RescueAuthPageScaffold(
         modifier = modifier.fillMaxSize().testTag(AboutTestTags.SCREEN),
         title = stringResource(R.string.about_title),
         navigationIcon = { RescueAuthBackButton(onBack) },
+        snackbarHost = { snackbarHostState?.let { UndoSnackbarHost(it) } },
         bottomBar = { AboutUpdateAction(state is UpdateUiState.Checking, onCheckForUpdates) },
     ) { padding ->
         Column(

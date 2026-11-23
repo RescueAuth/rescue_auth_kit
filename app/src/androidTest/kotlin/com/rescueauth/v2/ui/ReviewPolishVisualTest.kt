@@ -134,8 +134,7 @@ class ReviewPolishVisualTest {
 
     private fun welcome(english: Boolean, dark: Boolean = false, large: Boolean = false) {
         var continued = 0
-        var imported = 0
-        content(dark, english, if (large) 1.5f else 1f) { StartupIntroScreen({ continued++ }, { imported++ }) }
+        content(dark, english, if (large) 1.5f else 1f) { StartupIntroScreen({ continued++ }) }
         val name = if (english) "RescueAuth" else "拾遗坊"
         rule.onAllNodes(hasText(name) or hasContentDescription(name)).assertCountEquals(1)
         rule.onNodeWithText(if (english) "Your vault." else "你的保险库。").assertDoesNotExist()
@@ -146,22 +145,21 @@ class ReviewPolishVisualTest {
         val id = if (dark) "213-welcome-dark" else if (large) "212-welcome-large" else if (english) "210-welcome-en" else "211-welcome-zh"
         capture(id, if (large) "欢迎页 · 大字体新版" else if (dark) "欢迎页 · 深色新版" else if (english) "欢迎页 · 英文新版" else "欢迎页 · 新版", "启动与外观")
         action.performClick(); rule.runOnIdle { assertEquals(1, continued) }
-        rule.onNodeWithTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON).performScrollTo().performClick()
-        rule.runOnIdle { assertEquals(1, imported) }
+        // Legacy import must not be offered on the welcome page.
+        rule.onNodeWithText(if (english) "Import from v1 Rescue Auth" else "从 v1 Rescue Auth 导入").assertDoesNotExist()
     }
     @Test fun welcomeEnglish() = welcome(true)
     @Test fun welcomeChinese() = welcome(false)
     @Test fun welcomeLargeEnglish() = welcome(true, large = true)
     @Test fun welcomeDark() = welcome(false, dark = true)
 
-    @Test fun welcomeSmallViewportKeepsBothActionsReachable() {
-        var continued = 0; var imported = 0
+    @Test fun welcomeSmallViewportKeepsActionReachable() {
+        var continued = 0
         content(english = true, fontScale = 1.5f) {
-            StartupIntroScreen({ continued++ }, { imported++ }, Modifier.width(320.dp).height(480.dp))
+            StartupIntroScreen({ continued++ }, Modifier.width(320.dp).height(480.dp))
         }
         rule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo().assertIsDisplayed().performClick()
-        rule.onNodeWithTag(StartupLockTestTags.INTRO_IMPORT_V1_BUTTON).performScrollTo().assertIsDisplayed().performClick()
-        rule.runOnIdle { assertEquals(1, continued); assertEquals(1, imported) }
+        rule.runOnIdle { assertEquals(1, continued) }
     }
 
     @Composable private fun manual(submit: () -> Unit = {}) {

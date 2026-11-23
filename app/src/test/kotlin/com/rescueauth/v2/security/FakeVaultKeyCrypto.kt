@@ -41,6 +41,8 @@ class FakeVaultKeyCrypto : VaultKeyCrypto {
         this.blob = blob
     }
 
+    override fun hasPersisted(): Boolean = blob != null
+
     override fun readWrapped(): String? = blob
 
     override fun unwrap(blob: String): ByteArray {

@@ -8,7 +8,7 @@
 
 ## 1. 结论
 
-- 应用运行时**不访问** GitHub/CNB Release API，不搜索 release，不抓取 HTML。
+- 应用运行时**不访问** GitHub Release API，不搜索 release，不抓取 HTML。
 - 更新源为 GitHub `RescueAuth/rescue_auth_kit` 的固定 `android-stable` Release assets：
   `https://github.com/RescueAuth/rescue_auth_kit/releases/download/android-stable/latest.json`
 - 签名：同目录 `latest.json.sig`。
@@ -38,7 +38,7 @@
   "apkUrl": "https://<HTTPS-URL>/rescueauth-1.0.1.apk",
   "apkSizeBytes": 12345678,
   "apkSha256": "hex-64-chars",
-  "releaseNotesUrl": "https://cnb.cool/xincy22/rescueauth-updates/-/git/raw/main/android/stable/1.0.1.html",
+  "releaseNotesUrl": "https://github.com/RescueAuth/rescue_auth_kit/releases/download/android-stable/1.0.1.html",
   "severity": "NORMAL"
 }
 ```
@@ -192,7 +192,7 @@ Error taxonomy：
 
 ## 11. 隐私
 
-- 检查更新请求只访问固定公开 CNB URL。
+- 检查更新请求只访问固定公开 GitHub Release URL。
 - 不发送 Vault ID、device ID、Android ID、account/provider name、TOTP
   metadata、Developer metadata、install history、analytics IDs、auth token、
   cookies。
@@ -240,9 +240,9 @@ Error taxonomy：
 
 ## 17. 发布流程与现有能力
 
-2026-09-27 状态：本仓库的 `tag_push` 流水线已具备测试 / lint、生产 Android 签名、
-APK 身份与签名校验、上传 commit 附件的能力。生产更新公钥注入、更新仓库发布、
-manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
+2026-09-27 状态：本仓库的 tag 触发流水线（现为 `.github/workflows/android-release.yml`）
+已具备测试 / lint、生产 Android 签名、APK 身份与签名校验、以及上传候选包 artifact 的能力。
+生产更新公钥注入、更新渠道发布、manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
 发布门槛和执行顺序集中维护在
 [RELEASE_PROVISIONING.md §15](RELEASE_PROVISIONING.md#release-readiness)。
 
@@ -288,7 +288,7 @@ manifest 生成 / Ed25519 签名与客户端端到端验收尚未完成。
 Owner-approved migration: APKs and release notes use versioned
 `rescueauth-vX.Y.Z` GitHub Releases; the stable manifest and signature use the
 fixed `android-stable` release assets listed above. The app continues to fetch
-only HTTPS files, never release APIs. Old CNB resources are retained.
+only HTTPS files, never release APIs.
 The independent production Ed25519 private key is in GitHub production
 `UPDATE_SIGNING_KEY_PEM` and protected local storage; only its raw Base64 public
 key is committed in `release/update-public-key.txt`. Gradle uses that pin by

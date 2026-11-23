@@ -6,7 +6,7 @@ package com.rescueauth.v2.update
  *
  * The production implementation uses Android's platform [HttpURLConnection]
  * (small, two GETs, no heavyweight network architecture). Tests inject a fake
- * [UpdateTransport] so unit tests never touch the real CNB source (Issue #20
+ * [UpdateTransport] so unit tests never touch the real GitHub source (Issue #20
  * §24).
  *
  * ## Contract

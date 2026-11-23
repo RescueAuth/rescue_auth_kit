@@ -54,6 +54,29 @@ object VaultAccess {
     @Volatile
     private var cachedLegacyImportService: LegacyImportService? = null
 
+    /**
+     * Releases the registry ONLY if [expected] is still the registered session,
+     * then drops cached state.
+     *
+     * An Activity instance owns its [SessionManager], and its teardown (user
+     * cancels the unlock prompt, the Activity finishes, the launcher is tapped
+     * again) can run AFTER a newer instance already registered its own session:
+     * Android may destroy the old instance after the new one reached onCreate.
+     * An unconditional clear() would then unregister the CURRENT session while
+     * the new Activity keeps showing the shell from its own state machine; the
+     * app shell reads a throwaway never-UNLOCKED state machine from this
+     * registry, every repository accessor returns null, and the user sees an
+     * empty vault until the process restarts.
+     *
+     * Ownership check keeps teardown idempotent without letting a stale
+     * instance tear down the live session.
+     */
+    @Synchronized
+    fun release(expected: SessionManager?) {
+        if (expected != null && sessionManager !== expected) return
+        clear()
+    }
+
     /** Drops cached state (called on app teardown). */
     @Synchronized
     fun clear() {

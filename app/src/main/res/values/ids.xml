@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stable id for the root ComposeView: without an id Compose cannot attach
+         a SaveableStateRegistry, so remember/rememberSaveable navigation state
+         is lost across Activity recreation. -->
+    <item name="main_compose_host" type="id" />
+</resources>

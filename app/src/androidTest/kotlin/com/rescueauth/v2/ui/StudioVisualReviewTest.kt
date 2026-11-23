@@ -100,7 +100,7 @@ class StudioVisualReviewTest {
 
     @Test fun welcome() {
         var continued = false
-        content { StartupIntroScreen(onContinue = { continued = true }, onImportV1 = {}) }
+        content { StartupIntroScreen(onContinue = { continued = true }) }
         capture("01-welcome")
         rule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo().performClick()
         assertTrue(continued)
@@ -170,7 +170,7 @@ class StudioVisualReviewTest {
 
     @Test fun largeTextEnglishWelcome() {
         var continued = false
-        content(fontScale = 1.5f, chinese = false) { StartupIntroScreen(onContinue = { continued = true }, onImportV1 = {}) }
+        content(fontScale = 1.5f, chinese = false) { StartupIntroScreen(onContinue = { continued = true }) }
         rule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo()
         capture("10-large-text")
         rule.onNodeWithTag(StartupLockTestTags.INTRO_CONTINUE_BUTTON).performScrollTo().performClick()

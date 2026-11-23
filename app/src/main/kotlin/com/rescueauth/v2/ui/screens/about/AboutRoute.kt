@@ -1,5 +1,6 @@
 package com.rescueauth.v2.ui.screens.about
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -8,11 +9,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.rescueauth.v2.R
+import com.rescueauth.v2.ui.components.LocalRescueAuthSnackbarHostState
+import com.rescueauth.v2.ui.components.showInstantSnackbar
+import com.rescueauth.v2.update.ExternalOpenHelper
 import com.rescueauth.v2.update.HttpUpdateTransport
 import com.rescueauth.v2.update.UpdateCheckViewModel
 import com.rescueauth.v2.update.UpdateTrustProvider
 import com.rescueauth.v2.update.UpdateVersionDecision
-import com.rescueauth.v2.update.ExternalOpenHelper
+import kotlinx.coroutines.launch
 
 /**
  * About route — wires the [UpdateCheckViewModel] (its coroutine scope is the
@@ -34,6 +39,9 @@ fun AboutRoute(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val shellSnackbar = LocalRescueAuthSnackbarHostState.current
+    val localSnackbarHostState = remember { SnackbarHostState() }
+    val activeSnackbar = shellSnackbar ?: localSnackbarHostState
     val viewModel = remember {
         UpdateCheckViewModel(
             transport = HttpUpdateTransport(),
@@ -62,9 +70,15 @@ fun AboutRoute(
         onOpenReleasePage = {
             // Only offered for a verified update (AboutScreen only shows the
             // button in UpdateAvailable). External open re-validates HTTPS.
-            ExternalOpenHelper.openReleasePage(context.applicationContext, viewModel.verifiedOpenUrl())
+            val opened = ExternalOpenHelper.openReleasePage(context, viewModel.verifiedOpenUrl())
+            if (!opened) {
+                scope.launch {
+                    activeSnackbar.showInstantSnackbar(context.getString(R.string.about_open_release_failed))
+                }
+            }
         },
         onBack = onBack,
+        snackbarHostState = if (shellSnackbar == null) localSnackbarHostState else null,
         modifier = modifier,
         onNavigate = onNavigate,
     )

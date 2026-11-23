@@ -31,11 +31,17 @@ fun RecoveryCodeEditorSheet(form: RecoveryFormState, onDismiss: () -> Unit, onTi
             if (namePage) RecoveryNameField(form, onTitleChange, !form.submitting)
             else RecoveryCodeFields(form, onTitleChange, onValuesChange, enabled = !form.submitting, onEditName = { namePage = true })
         }
-        form.error?.let { code -> Text(stringResource(when {
-            code == "empty_values" -> R.string.recovery_codes_empty_error
-            code.startsWith("duplicate:") -> R.string.account_add_duplicate_codes_error
-            else -> R.string.common_error_title
-        }), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        form.error?.let { code ->
+            val errMsg = when {
+                code == "empty_values" -> stringResource(R.string.recovery_codes_empty_error)
+                code.startsWith("duplicate:") -> stringResource(
+                    R.string.recovery_codes_duplicate_error,
+                    code.removePrefix("duplicate:"),
+                )
+                else -> stringResource(R.string.common_error_title)
+            }
+            Text(errMsg, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

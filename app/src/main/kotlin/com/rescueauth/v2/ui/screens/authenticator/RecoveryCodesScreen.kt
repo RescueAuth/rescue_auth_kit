@@ -81,7 +81,7 @@ fun RecoveryCodesScreen(
             title = uiState.accountName.ifBlank { stringResource(R.string.recovery_codes_title) },
             subtitle = uiState.providerName.ifBlank { stringResource(R.string.authenticator_title) },
             navigationIcon = onBack?.let { callback -> { RescueAuthBackButton(callback) } },
-            snackbarHost = { snackbarHostState?.let { SnackbarHost(it, Modifier.padding(bottom = clearance)) } },
+            snackbarHost = { snackbarHostState?.let { com.rescueauth.v2.ui.components.UndoSnackbarHost(it, Modifier.padding(bottom = clearance)) } },
         ) { padding ->
             when {
                 uiState.loading -> {

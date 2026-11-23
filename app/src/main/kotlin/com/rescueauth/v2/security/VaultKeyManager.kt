@@ -23,18 +23,53 @@ class VaultKeyManager(private val crypto: VaultKeyCrypto) {
      */
     class AuthRequiredException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
+    /**
+     * @return true when a wrapped VaultKey exists on this install.
+     *
+     * Presence is decided by the persisted artifact, not by a successful
+     * decode: a blank/corrupt blob still means the vault exists (see
+     * [VaultKeyCrypto.hasPersisted]).
+     */
     val hasVaultKey: Boolean
-        get() = !crypto.readWrapped().isNullOrBlank()
+        get() = crypto.hasPersisted()
 
     /**
      * Generates a fresh 256-bit VaultKey, wraps it, and persists the blob.
      * @return the unwrapped VaultKey (caller must zero after use).
      */
     fun generateAndWrap(): ByteArray {
-        val vaultKey = ByteArray(32).also { SecureRandomHolder.nextBytes(it) }
-        return try {
+        val vaultKey = generateRandomKey()
+        try {
+            wrapExisting(vaultKey)
+            return vaultKey
+        } catch (t: Throwable) {
+            vaultKey.fill(0)
+            throw t
+        }
+    }
+
+    /** Generates a fresh 256-bit CSPRNG VaultKey without touching AndroidKeyStore. */
+    fun generateRandomKey(): ByteArray =
+        ByteArray(32).also { SecureRandomHolder.nextBytes(it) }
+
+    /** Reads the raw persisted wrapped-key blob (null if absent), for atomic rollback on rebind. */
+    fun readPersistedBlob(): String? = crypto.readWrapped()
+
+    /** Restores a previously backed-up blob when a rebind attempt fails before persisting. */
+    fun restorePersistedBlob(blob: String) {
+        if (!crypto.hasPersisted()) {
+            crypto.persistBlob(blob)
+        }
+    }
+
+    /**
+     * Wraps an existing 32-byte [vaultKey] with the device Keystore key and
+     * persists the blob (write-once unless [deleteWrapped] was explicitly called).
+     */
+    fun wrapExisting(vaultKey: ByteArray) {
+        require(vaultKey.size == 32) { "VaultKey must be 32 bytes" }
+        try {
             crypto.wrap(vaultKey) { blob -> crypto.persistBlob(blob) }
-            vaultKey
         } catch (e: VaultKeyCrypto.AuthRequiredException) {
             // Never hide a missing user-auth token as "Keystore unavailable"
             // (the startup crash root cause) — map it to AUTH_REQUIRED.

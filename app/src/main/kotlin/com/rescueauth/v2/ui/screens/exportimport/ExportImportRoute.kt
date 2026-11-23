@@ -1,10 +1,12 @@
 package com.rescueauth.v2.ui.screens.exportimport
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -48,9 +50,9 @@ fun ExportImportRoute(
         val sm = VaultAccess.sessionManager
         if (sm != null) sm.sessionStateFlow else SecureSessionStateMachine().state
     }
-    val viewModel = remember {
+    val viewModel = remember(context) {
         ExportImportViewModel(
-            context = context.applicationContext,
+            context = context,
             serviceProvider = { VaultAccess.exportImportService() },
             fileIo = SafPackageFileIo(),
             sessionState = sessionState,
@@ -93,6 +95,34 @@ fun ExportImportRoute(
 
     when (mode) {
         ExportImportMode.EXPORT -> {
+            // Automatically prompt for the SAF save location once the per-export PIN is accepted.
+            LaunchedEffect(exportState) {
+                if (exportState is ExportImportViewModel.ExportState.AwaitingDestination) {
+                    exportLauncher.launch(
+                        PackageFileContract.suggestedExportFileName(System.currentTimeMillis()),
+                    )
+                }
+            }
+            val handleExportBack = {
+                when (exportState) {
+                    ExportImportViewModel.ExportState.Working -> Unit
+                    ExportImportViewModel.ExportState.AwaitingDestination -> viewModel.cancelExportDestination()
+                    is ExportImportViewModel.ExportState.SelectingItems,
+                    ExportImportViewModel.ExportState.AwaitingPin,
+                    ExportImportViewModel.ExportState.AwaitingReauth,
+                    -> viewModel.cancelExport()
+                    is ExportImportViewModel.ExportState.Success,
+                    is ExportImportViewModel.ExportState.Error,
+                    -> {
+                        viewModel.resetExport()
+                        onBack()
+                    }
+                    ExportImportViewModel.ExportState.Idle -> onBack()
+                }
+            }
+            BackHandler(enabled = exportState !is ExportImportViewModel.ExportState.Idle) {
+                handleExportBack()
+            }
             ExportVaultScreen(
                 state = exportState,
                 onSelectScope = { scope -> viewModel.beginExport(scope) },
@@ -103,17 +133,45 @@ fun ExportImportRoute(
                         PackageFileContract.suggestedExportFileName(System.currentTimeMillis()),
                     )
                 },
-                onCancel = { viewModel.cancelExport() },
+                onCancel = {
+                    if (exportState is ExportImportViewModel.ExportState.Idle) {
+                        onBack()
+                    } else {
+                        viewModel.cancelExport()
+                    }
+                },
                 onDismissResult = {
                     viewModel.resetExport()
                     onBack()
                 },
                 modifier = modifier,
                 onNavigate = onNavigate,
-                onBack = onBack,
+                onBack = handleExportBack,
             )
         }
         ExportImportMode.IMPORT -> {
+            val handleImportBack = {
+                when (importState) {
+                    ExportImportViewModel.ImportState.Decoding,
+                    ExportImportViewModel.ImportState.Applying,
+                    -> Unit
+                    ExportImportViewModel.ImportState.AwaitingPin,
+                    is ExportImportViewModel.ImportState.ChoosingScope,
+                    is ExportImportViewModel.ImportState.SelectingItems,
+                    is ExportImportViewModel.ImportState.Preview,
+                    -> viewModel.cancelImport()
+                    is ExportImportViewModel.ImportState.Result,
+                    is ExportImportViewModel.ImportState.Error,
+                    -> {
+                        viewModel.resetImport()
+                        onBack()
+                    }
+                    ExportImportViewModel.ImportState.Idle -> onBack()
+                }
+            }
+            BackHandler(enabled = importState !is ExportImportViewModel.ImportState.Idle) {
+                handleImportBack()
+            }
             ImportNativePackageScreen(
                 state = importState,
                 onPickDocument = { importLauncher.launch(PackageFileContract.IMPORT_MIME_TYPES) },
@@ -127,9 +185,10 @@ fun ExportImportRoute(
                     viewModel.resetImport()
                     onBack()
                 },
+                onRetryPin = { viewModel.retryImportPin() },
                 modifier = modifier,
                 onNavigate = onNavigate,
-                onBack = onBack,
+                onBack = handleImportBack,
             )
         }
     }

@@ -717,4 +717,30 @@ class ExportImportViewModelTest {
         val previewText = (state as ExportImportViewModel.ImportState.Preview).preview.toString()
         assertTrue(!previewText.contains("JBSWY3DPEHPK3PXP"))
     }
+
+    @Test
+    fun `wrong import PIN sets canRetryPin and retryImportPin returns to AwaitingPin`() = runBlocking {
+        val snapshot = MergeTestData.fullSnapshot(
+            MergeTestData.account("a", "Svc", "acct", totps = listOf(MergeTestData.totp("t"))),
+        )
+        val bytes = PortablePackageCodec.encode(payload("pkg-retry", snapshot), pin)
+        val fake = FakePackageFileIo(stored = bytes)
+        val vm = newVm(fake)
+
+        vm.handlePickedDocument(Uri.parse("content://doc/retry"))
+        awaitIdle(vm)
+        assertEquals(ExportImportViewModel.ImportState.AwaitingPin, vm.importState.value)
+
+        vm.decodeImportWithPin("999999".toCharArray())
+        awaitIdle(vm)
+        val err = vm.importState.value as ExportImportViewModel.ImportState.Error
+        assertTrue(err.canRetryPin)
+
+        vm.retryImportPin()
+        assertEquals(ExportImportViewModel.ImportState.AwaitingPin, vm.importState.value)
+
+        vm.decodeImportWithPin(pin)
+        awaitIdle(vm)
+        assertTrue(vm.importState.value is ExportImportViewModel.ImportState.ChoosingScope)
+    }
 }

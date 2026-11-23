@@ -93,6 +93,43 @@ class DeveloperFormViewModelTest {
         )
 
     @Test
+    fun `edit does not prefill secret fields but keeps metadata`() = runBlocking {
+        val created = repo.createApiCredential(
+            title = "Stripe", notes = "note", serviceName = "stripe", accountName = "alice",
+            apiKey = "sk_live_OLD", apiSecret = "secret_OLD",
+        )
+        val model = vm()
+        assertTrue(model.beginEdit(created.stableId))
+
+        val form = model.formState.value
+        // Non-secret metadata is prefilled.
+        assertEquals("Stripe", form.title)
+        assertEquals("stripe", form.serviceName)
+        assertEquals("alice", form.accountName)
+        // Secret fields are NOT prefilled.
+        assertEquals("", form.apiKey)
+        assertEquals("", form.apiSecret)
+    }
+
+    @Test
+    fun `empty secret on edit preserves stored value`() = runBlocking {
+        val created = repo.createApiCredential(
+            title = "Stripe", notes = null, serviceName = "stripe", accountName = "alice",
+            apiKey = "sk_live_OLD", apiSecret = "secret_OLD",
+        )
+        val model = vm()
+        assertTrue(model.beginEdit(created.stableId))
+        // Only change a non-secret field; leave secrets empty.
+        model.onTitleChange("Stripe renamed")
+        assertTrue("submit with empty secrets must succeed", model.submit())
+
+        val after = repo.getByStableId(created.stableId) as com.rescueauth.v2.export.VaultApiCredential
+        assertEquals("Stripe renamed", after.title)
+        assertEquals("sk_live_OLD", after.apiKey)
+        assertEquals("secret_OLD", after.apiSecret)
+    }
+
+    @Test
     fun `create api credential via form`() = runBlocking {
         val vm = vm()
         vm.beginCreate(DeveloperFormType.API_CREDENTIAL)
@@ -209,5 +246,38 @@ class DeveloperFormViewModelTest {
         vm.dismiss()
         assertEquals("", vm.formState.value.title)
         assertEquals("", vm.formState.value.apiKey)
+    }
+
+    @Test
+    fun `editing android signing key without re-selecting keystore preserves stored bytes and passwords`() = runBlocking {
+        val originalBytes = byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte())
+        val created = repo.createAndroidSigningKey(
+            title = "Release Signing",
+            notes = "Initial note",
+            projectName = "RescueAuth",
+            packageName = "com.rescueauth.v2",
+            keystoreFileName = "release.jks",
+            keystoreBytes = originalBytes,
+            storePassword = "store-secret-keep",
+            keyAlias = "upload",
+            keyPassword = "key-secret-keep",
+        )
+        val model = vm()
+        assertTrue(model.beginEdit(created.stableId))
+        assertEquals("release.jks", model.formState.value.keystoreFileName)
+        assertEquals(null, model.formState.value.keystoreBytes)
+
+        // Update metadata only without picking a replacement .jks file or re-typing passwords.
+        model.onTitleChange("Release Signing v2")
+        model.onNotesChange("Updated note")
+        assertTrue("editing signing key metadata must succeed without re-picking keystore", model.submit())
+
+        val updated = repo.getByStableId(created.stableId) as com.rescueauth.v2.export.VaultAndroidSigningKey
+        assertEquals("Release Signing v2", updated.title)
+        assertEquals("Updated note", updated.notes)
+        assertEquals("release.jks", updated.keystoreFileName)
+        assertEquals("store-secret-keep", updated.storePassword)
+        assertEquals("key-secret-keep", updated.keyPassword)
+        assertTrue(originalBytes.contentEquals(java.util.Base64.getDecoder().decode(updated.keystoreBase64)))
     }
 }

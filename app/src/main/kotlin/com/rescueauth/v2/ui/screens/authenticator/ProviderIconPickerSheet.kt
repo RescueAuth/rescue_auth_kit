@@ -1,6 +1,5 @@
 package com.rescueauth.v2.ui.screens.authenticator
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,37 +7,32 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
-import com.rescueauth.v2.ui.components.RescueAuthSheet
-import com.rescueauth.v2.ui.components.RescueAuthCard
 import com.rescueauth.v2.R
 import com.rescueauth.v2.ui.components.BrandIcons
 import com.rescueauth.v2.ui.components.RescueAuthAutoBadge
+import com.rescueauth.v2.ui.components.RescueAuthCard
+import com.rescueauth.v2.ui.components.RescueAuthSheet
 import com.rescueauth.v2.ui.model.ProviderUi
+import com.rescueauth.v2.ui.theme.CardTokens
 import com.rescueauth.v2.ui.theme.Spacing
 
 /**
  * Bottom sheet for choosing a Provider icon (schema v4 provider_meta).
- *
- * Grid layout: AUTO (brand auto-match / letter), LETTER (force the letter
- * badge), then every built-in brand glyph. The selection is persisted by the
- * caller through [onSelect] with `null` meaning AUTO.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,13 +42,13 @@ internal fun ProviderIconPickerSheet(
     onDismiss: () -> Unit,
 ) {
     RescueAuthSheet(stringResource(R.string.provider_icon_picker_title), Icons.Filled.GridView, onDismiss) {
-            Text(
-                text = stringResource(R.string.provider_icon_picker_subtitle, provider.serviceName),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xxs),
-            )
-            RescueAuthCard {
+        Text(
+            text = stringResource(R.string.provider_icon_picker_subtitle, provider.serviceName),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.xxs),
+        )
+        RescueAuthCard {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 72.dp),
                 modifier = Modifier
@@ -104,7 +98,7 @@ internal fun ProviderIconPickerSheet(
                     }
                 }
             }
-            }
+        }
     }
 }
 
@@ -115,31 +109,26 @@ private fun IconChoice(
     onClick: () -> Unit,
     badge: @Composable () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = Spacing.xs),
+    Surface(
+        onClick = onClick,
+        shape = CardTokens.rowShape,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Surface(
-            shape = CircleShape,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                androidx.compose.ui.graphics.Color.Transparent
-            },
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(vertical = Spacing.xs, horizontal = Spacing.xxs),
         ) {
-            Box(modifier = Modifier.padding(Spacing.xs)) {
+            Box(modifier = Modifier.padding(Spacing.xxs)) {
                 badge()
             }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(top = Spacing.xxs),
+            )
         }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            modifier = Modifier.padding(top = Spacing.xxs),
-        )
     }
 }

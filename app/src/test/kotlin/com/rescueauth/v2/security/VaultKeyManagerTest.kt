@@ -102,6 +102,7 @@ class VaultKeyManagerTest {
                 return if (raw.last() == 'A') raw.dropLast(1) + "B" else raw.dropLast(1) + "A"
             }
             override fun persistBlob(blob: String) = inner.persistBlob(blob)
+            override fun hasPersisted(): Boolean = inner.hasPersisted()
             override fun unwrap(blob: String): ByteArray = inner.unwrap(blob)
             override fun reset() = inner.reset()
             override fun deletePersisted() = inner.deletePersisted()

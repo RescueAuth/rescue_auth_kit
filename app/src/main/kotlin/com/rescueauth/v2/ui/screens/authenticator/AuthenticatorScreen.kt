@@ -227,6 +227,13 @@ fun AuthenticatorScreen(
             actions = {
                 if (atAccountLevel && !uiState.loading) {
                     AccountActionsMenu(selectedAccount!!, onTogglePin, onRenameAccount, onMoveAccount, onMergeAccount, onDeleteAccount)
+                } else if (atProviderLevel && !uiState.loading) {
+                    ProviderActionsMenu(
+                        provider = selectedProvider!!,
+                        onRename = onRenameProvider,
+                        onEditIcon = if (onSetProviderIcon != null) ({ iconPickerProvider = selectedProvider }) else null,
+                        onDelete = onDeleteProvider,
+                    )
                 }
                 if (showAddAction && !isDetailRequested && onAddClick != null && !uiState.loading) {
                     RescueAuthIconAction(
@@ -237,7 +244,7 @@ fun AuthenticatorScreen(
                     )
                 }
             },
-            snackbarHost = { snackbarHostState?.let { SnackbarHost(it, Modifier.padding(bottom = contentClearance)) } },
+            snackbarHost = { snackbarHostState?.let { com.rescueauth.v2.ui.components.UndoSnackbarHost(it, Modifier.padding(bottom = contentClearance)) } },
         ) { padding ->
             when {
                 uiState.loading -> LoadingState(
@@ -514,6 +521,48 @@ private fun ProviderListItem(
             }
         } else {
             RescueAuthChevron()
+        }
+    }
+}
+
+@Composable
+private fun ProviderActionsMenu(
+    provider: ProviderUi,
+    onRename: ((String) -> Unit)?,
+    onEditIcon: (() -> Unit)?,
+    onDelete: ((String) -> Unit)?,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    if (onRename == null && onEditIcon == null && onDelete == null) return
+    Box {
+        IconButton(onClick = { menuOpen = true }) {
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.provider_actions),
+            )
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            if (onRename != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.provider_rename)) },
+                    onClick = { menuOpen = false; onRename(provider.serviceName) },
+                )
+            }
+            if (onEditIcon != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.provider_icon_picker_title)) },
+                    onClick = { menuOpen = false; onEditIcon() },
+                )
+            }
+            if (onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.provider_delete)) },
+                    onClick = { menuOpen = false; onDelete(provider.serviceName) },
+                )
+            }
         }
     }
 }
