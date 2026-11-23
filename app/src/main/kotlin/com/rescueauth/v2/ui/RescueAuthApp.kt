@@ -213,7 +213,7 @@ fun RescueAuthApp(
             if (result == UndoResult.UNDO) {
                 val snapshot = DeveloperUndoStore.consume() ?: return@LaunchedEffect
                 val repo = VaultAccess.developerRepository() ?: return@LaunchedEffect
-                when (runCatching { repo.restoreEntry(snapshot) }.getOrNull()) {
+                when (runCatching { repo.restoreFromSnapshot(snapshot) }.getOrNull()) {
                     is UndoRestoreOutcome.Restored ->
                         snackbarHostState.showInstantSnackbar(context.getString(R.string.developer_entry_restored_message))
                     is UndoRestoreOutcome.Blocked ->

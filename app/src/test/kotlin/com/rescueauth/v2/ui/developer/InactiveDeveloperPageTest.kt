@@ -11,6 +11,7 @@ import com.rescueauth.v2.ui.theme.RescueAuthTheme
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
@@ -36,8 +37,14 @@ class InactiveDeveloperPageTest {
         assertSame(pending, DeveloperUndoStore.pending)
         rule.runOnIdle { active.value = true }
         rule.onNodeWithText("Developer entry deleted").assertIsDisplayed()
+        // A dismissed Snackbar yields UndoResult.DISMISSED; the production route
+        // then consumes the one-shot Undo token. The token must not survive the
+        // dismissed Snackbar or a subsequent exposure of an inactive page.
+        rule.mainClock.advanceTimeBy(5_000)
+        rule.runOnIdle { assertNull(DeveloperUndoStore.pending) }
         rule.runOnIdle { active.value = false }
         rule.mainClock.advanceTimeBy(5_000)
-        assertSame(pending, DeveloperUndoStore.pending)
+        rule.onNodeWithText("Developer entry deleted").assertDoesNotExist()
+        assertNull(DeveloperUndoStore.pending)
     }
 }

@@ -76,10 +76,10 @@ class SelectiveExportImportUiTest {
                 )
             }
         }
-        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_FULL).assertIsDisplayed()
-        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_AUTH).assertIsDisplayed()
-        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_DEV).assertIsDisplayed()
-        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_SELECTED).assertIsDisplayed()
+        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_FULL).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_AUTH).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_DEV).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag(ExportImportTestTags.EXPORT_SCOPE_SELECTED).performScrollTo().assertIsDisplayed()
     }
 
     @Test
