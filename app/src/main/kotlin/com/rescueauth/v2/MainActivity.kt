@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.withStateAtLeast
 import com.rescueauth.v2.repository.VaultAccess
 import com.rescueauth.v2.security.BackupPinFallbackPrompt
+import com.rescueauth.v2.security.DeviceAuthCapability
 import com.rescueauth.v2.security.SensitiveActionAccess
 import com.rescueauth.v2.security.SensitiveActionController
 import com.rescueauth.v2.security.SensitiveActionGate
@@ -27,6 +28,9 @@ import com.rescueauth.v2.session.VaultUnlockOutcome
 import com.rescueauth.v2.ui.RescueAuthApp
 import com.rescueauth.v2.ui.navigation.RescueAuthRoutes
 import com.rescueauth.v2.ui.screens.startup.BackupPinReauthSheet
+import com.rescueauth.v2.ui.screens.startup.FirstRunCreationBranch
+import com.rescueauth.v2.ui.screens.startup.FirstRunPinMode
+import com.rescueauth.v2.ui.screens.startup.resolveFirstRunPinMode
 import com.rescueauth.v2.ui.screens.startup.NoSecureDeviceScreen
 import com.rescueauth.v2.ui.screens.startup.SessionLockOverlay
 import com.rescueauth.v2.ui.screens.startup.StartupAuthHost
@@ -67,6 +71,16 @@ class MainActivity : AppCompatActivity() {
     /** Test-only injection point for a fake [StartupAuthPrompt]. */
     internal var startupAuthPromptFactory: ((MainActivity) -> StartupAuthPrompt)? = null
 
+    /** Test-only injection point for a fake device capability snapshot. */
+    internal var deviceCapabilityProvider: (() -> DeviceAuthCapability)? = null
+
+
+    internal fun currentFirstRunPinMode(): FirstRunPinMode = firstRunPinMode
+
+    internal fun firstRunPinSubmissionBranch(): FirstRunCreationBranch = firstRunPinMode.createBranchForPinSubmission
+
+    internal fun firstRunSetUpLaterBranch(): FirstRunCreationBranch = firstRunPinMode.createBranchForSetUpLater
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     /** Test-visible (internal) so startup-flow tests can assert session state. */
@@ -74,6 +88,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stateMachine: SecureSessionStateMachine
     private var maskView: FrameLayout? = null
 
+    private var firstRunPinMode: FirstRunPinMode = defaultFirstRunPinMode()
     private var startupMode: StartupMode = StartupMode.UNLOCK
     private var pendingV1Import = false
 
@@ -145,6 +160,15 @@ class MainActivity : AppCompatActivity() {
         startupAuthPrompt = startupAuthPromptFactory?.invoke(this)
             ?: StartupUnlockController(this)
 
+        val deviceCapability = deviceCapabilityProvider?.invoke()
+            ?: startupAuthPrompt!!.resolveCapability()
+        firstRunPinMode = resolveFirstRunPinMode(
+            hasSystemAuth = deviceCapability.hasSystemAuth,
+            hasWeakBiometricOnly = deviceCapability.hasWeakBiometricOnly,
+            hasNoSecureLock = deviceCapability.hasNoSecureLock,
+        )
+
+
         sensitiveActionController = SensitiveActionController(this)
         backupPinFallbackPrompt = BackupPinFallbackPrompt(
             systemPrompt = sensitiveActionController,
@@ -205,10 +229,11 @@ class MainActivity : AppCompatActivity() {
                             StartupUiState.BACKUP_PIN_SETUP -> StartupBackupPinSetupScreen(
                                 submitting = pinUi.submitting,
                                 errorMessage = pinUi.setupError,
-                                onBack = {
-                                    _pinSurfaceState.update { it.copy(setupError = null) }
-                                    _uiState.value = StartupUiState.NO_SECURE_DEVICE
-                                },
+                                mode = firstRunPinMode,
+                                onBack = { finish() },
+                                onSetUpLater = if (startupMode == StartupMode.FIRST_RUN && firstRunPinMode.showSetUpLater) {
+                                    { submitFirstRunSetUpLater() }
+                                } else null,
                                 onCreateWithPin = { pin -> submitFirstRunBackupPin(pin) },
                             )
                             StartupUiState.BACKUP_PIN_UNLOCK -> StartupBackupPinUnlockScreen(
@@ -458,27 +483,63 @@ class MainActivity : AppCompatActivity() {
     internal fun submitFirstRunBackupPin(pin: String) {
         if (vaultOpenJob?.isActive == true || _pinSurfaceState.value.submitting) return
         _pinSurfaceState.update { it.copy(submitting = true, setupError = null) }
-        if (sessionManagerFactory != null) {
-            val outcome = sessionManager.createVaultWithBackupPinAndOpen(pin)
+        val branch = if (startupMode == StartupMode.FIRST_RUN) {
+            firstRunPinMode.createBranchForPinSubmission
+        } else {
+            FirstRunCreationBranch.BACKUP_PIN_ONLY
+        }
+        val operation: () -> VaultUnlockOutcome = when (branch) {
+            FirstRunCreationBranch.DUAL_SLOT -> ({ sessionManager.createVaultWithSystemAndBackupPinAndOpen(pin) })
+            FirstRunCreationBranch.BACKUP_PIN_ONLY -> ({ sessionManager.createVaultWithBackupPinAndOpen(pin) })
+            FirstRunCreationBranch.SYSTEM_ONLY -> throw IllegalStateException("PIN submission must not use system-only creation")
+        }
+        val applyOutcome: (VaultUnlockOutcome) -> Unit = { outcome ->
             _pinSurfaceState.update { it.copy(submitting = false) }
             if (outcome is VaultUnlockOutcome.Success) {
+                outcome.freshFirstRunKey?.fill(0)
                 startupMode = StartupMode.UNLOCK
                 handleVaultUnlockOutcome(outcome)
             } else {
-                _pinSurfaceState.update { it.copy(setupError = getString(R.string.common_error_title)) }
+                // Fail closed: no partial slot, no silent downgrade; remain on the PIN page.
+                _uiState.value = StartupUiState.BACKUP_PIN_SETUP
+                _pinSurfaceState.update { it.copy(setupError = getString(R.string.startup_pin_setup_failed)) }
             }
+        }
+        if (sessionManagerFactory != null) {
+            applyOutcome(operation())
         } else {
             vaultOpenJob = scope.launch(Dispatchers.IO) {
-                val outcome = sessionManager.createVaultWithBackupPinAndOpen(pin)
+                val outcome = operation()
                 withContext(Dispatchers.Main.immediate) {
                     vaultOpenJob = null
-                    _pinSurfaceState.update { it.copy(submitting = false) }
-                    if (outcome is VaultUnlockOutcome.Success) {
-                        startupMode = StartupMode.UNLOCK
-                        handleVaultUnlockOutcome(outcome)
-                    } else {
-                        _pinSurfaceState.update { it.copy(setupError = getString(R.string.common_error_title)) }
-                    }
+                    applyOutcome(outcome)
+                }
+            }
+        }
+    }
+
+    internal fun submitFirstRunSetUpLater() {
+        if (vaultOpenJob?.isActive == true || _pinSurfaceState.value.submitting) return
+        _pinSurfaceState.update { it.copy(submitting = true, setupError = null) }
+        val applyOutcome: (VaultUnlockOutcome) -> Unit = { outcome ->
+            _pinSurfaceState.update { it.copy(submitting = false) }
+            if (outcome is VaultUnlockOutcome.Success) {
+                outcome.freshFirstRunKey?.fill(0)
+                startupMode = StartupMode.UNLOCK
+                handleVaultUnlockOutcome(outcome)
+            } else {
+                _uiState.value = StartupUiState.BACKUP_PIN_SETUP
+                _pinSurfaceState.update { it.copy(setupError = getString(R.string.startup_pin_setup_failed)) }
+            }
+        }
+        if (sessionManagerFactory != null) {
+            applyOutcome(sessionManager.createVaultAndOpen())
+        } else {
+            vaultOpenJob = scope.launch(Dispatchers.IO) {
+                val outcome = sessionManager.createVaultAndOpen()
+                withContext(Dispatchers.Main.immediate) {
+                    vaultOpenJob = null
+                    applyOutcome(outcome)
                 }
             }
         }
@@ -557,7 +618,7 @@ class MainActivity : AppCompatActivity() {
         blockedIsKeyInvalidated = false
         startupMode = StartupMode.FIRST_RUN
         _pinSurfaceState.value = PinSurfaceState()
-        _uiState.value = StartupUiState.INTRO
+        _uiState.value = StartupUiState.BACKUP_PIN_SETUP
     }
 
     private fun scheduleAuthentication() {
@@ -584,6 +645,17 @@ class MainActivity : AppCompatActivity() {
 
     internal fun isShellComposed(): Boolean = _uiState.value == StartupUiState.UNLOCKED
 
+    internal fun isBackupPinSetupVisible(): Boolean = _uiState.value == StartupUiState.BACKUP_PIN_SETUP
+
+    private fun defaultFirstRunPinMode(): FirstRunPinMode = FirstRunPinMode(
+        showSetUpLater = false,
+        mustSetPinBeforeContinuing = false,
+        copyVariant = FirstRunPinMode.Copy.STANDARD,
+        createBranchForPinSubmission = FirstRunCreationBranch.BACKUP_PIN_ONLY,
+        createBranchForSetUpLater = FirstRunCreationBranch.SYSTEM_ONLY,
+    )
+
+
     internal fun saveShellState(outState: Bundle) {
         outState.putBoolean("shell_unlocked", hasUnlockedOnce)
     }
@@ -608,8 +680,8 @@ class MainActivity : AppCompatActivity() {
             _uiState.value = StartupUiState.UNLOCKED
             return
         }
-        if (startupMode == StartupMode.FIRST_RUN && !introContinueRequested) {
-            _uiState.value = StartupUiState.INTRO
+        if (startupMode == StartupMode.FIRST_RUN) {
+            _uiState.value = StartupUiState.BACKUP_PIN_SETUP
             return
         }
         // Existing vault created with Backup PIN only (or whose system slot already failed):

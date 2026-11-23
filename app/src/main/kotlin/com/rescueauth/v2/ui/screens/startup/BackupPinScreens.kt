@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.rescueauth.v2.R
 import com.rescueauth.v2.exportimport.PinPolicy
+import com.rescueauth.v2.vaultkey.BackupPinCodec
 import com.rescueauth.v2.security.BackupPinReauthDialogState
 import com.rescueauth.v2.ui.components.DestructiveConfirmationDialog
 import com.rescueauth.v2.ui.components.RescueAuthActionBar
@@ -58,6 +59,7 @@ import com.rescueauth.v2.ui.components.RescueAuthFormPage
 import com.rescueauth.v2.ui.components.RescueAuthIconBadge
 import com.rescueauth.v2.ui.components.RescueAuthIconHeader
 import com.rescueauth.v2.ui.components.RescueAuthOutlinedButton
+import com.rescueauth.v2.ui.components.RescueAuthSingleActionBar
 import com.rescueauth.v2.ui.components.RescueAuthRowCard
 import com.rescueauth.v2.ui.components.RescueAuthSheet
 import com.rescueauth.v2.ui.components.RescueAuthTextField
@@ -71,6 +73,8 @@ object BackupPinTestTags {
     const val SETUP_SCREEN = "backup_pin_setup_screen"
     const val SETUP_PIN_INPUT = "backup_pin_setup_input"
     const val SETUP_CONFIRM_INPUT = "backup_pin_setup_confirm_input"
+    const val SETUP_SET_UP_LATER = "startup_pin_set_up_later"
+    const val SETUP_REQUIRED_NOTICE = "startup_pin_required_notice"
     const val UNLOCK_SCREEN = "backup_pin_unlock_screen"
     const val UNLOCK_PIN_INPUT = "backup_pin_unlock_input"
     const val UNLOCK_SUBMIT = "backup_pin_unlock_submit"
@@ -84,14 +88,14 @@ object BackupPinTestTags {
     const val MANAGE_REMOVE_ROW = "backup_pin_manage_remove"
 }
 
-/**
- * First-run Backup PIN creation screen used on devices without a system screen lock.
- */
+/** Unified first-run Backup PIN creation surface (ADR-0015). All devices use this page. */
 @Composable
 fun StartupBackupPinSetupScreen(
     submitting: Boolean,
     errorMessage: String?,
-    onBack: () -> Unit,
+    mode: FirstRunPinMode,
+    onBack: (() -> Unit)?,
+    onSetUpLater: (() -> Unit)?,
     onCreateWithPin: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -101,46 +105,78 @@ fun StartupBackupPinSetupScreen(
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var attemptedSubmit by rememberSaveable { mutableStateOf(false) }
 
-    BackHandler(enabled = !submitting, onBack = onBack)
+    if (onBack != null) BackHandler(enabled = !submitting, onBack = onBack)
 
-    val pinValidation = PinPolicy.validateNewPin(pin)
+    val pinValidation = BackupPinCodec.validateNewPin(pin)
     val mismatch = confirmPin.isNotEmpty() && pin != confirmPin
     val inlineError = when {
         errorMessage != null -> errorMessage
         !attemptedSubmit && pin.isEmpty() -> null
-        pinValidation is PinPolicy.ValidationResult.Invalid && (attemptedSubmit || pin.isNotEmpty()) ->
-            pinIssueMessage(pinValidation.reason)
+        pinValidation != null && (attemptedSubmit || pin.isNotEmpty()) ->
+            pinIssueMessage(pinValidation)
         mismatch -> stringResource(R.string.pin_mismatch_error)
         attemptedSubmit && confirmPin != pin -> stringResource(R.string.pin_mismatch_error)
         else -> null
     }
-    val canSubmit = !submitting && pinValidation is PinPolicy.ValidationResult.Valid && pin == confirmPin
+    val canSubmit = !submitting && pinValidation == null && pin == confirmPin
+
+    val subtitle = when (mode.copyVariant) {
+        FirstRunPinMode.Copy.STANDARD -> stringResource(R.string.startup_pin_setup_body)
+        FirstRunPinMode.Copy.NO_SECURE_LOCK -> stringResource(R.string.startup_pin_required_notice)
+        FirstRunPinMode.Copy.WEAK_BIOMETRIC -> stringResource(R.string.startup_pin_weak_biometric_body)
+    }
+    val explanation = when (mode.copyVariant) {
+        FirstRunPinMode.Copy.WEAK_BIOMETRIC -> stringResource(R.string.startup_pin_weak_biometric_body)
+        else -> stringResource(R.string.backup_pin_setup_policy)
+    }
 
     RescueAuthFormPage(
         modifier = modifier.fillMaxSize().testTag(BackupPinTestTags.SETUP_SCREEN),
         title = stringResource(R.string.backup_pin_setup_title),
-        subtitle = stringResource(R.string.backup_pin_setup_subtitle),
-        navigationIcon = { RescueAuthBackButton(onBack) },
+        subtitle = subtitle,
+        onBack = onBack ?: {},
+        backEnabled = onBack != null,
         bottomBar = {
-            RescueAuthActionBar(
-                secondaryLabel = stringResource(R.string.common_back),
-                secondaryIcon = Icons.AutoMirrored.Filled.ArrowBack,
-                onSecondaryClick = onBack,
-                secondaryEnabled = !submitting,
-                primaryLabel = stringResource(if (submitting) R.string.common_working else R.string.backup_pin_setup_confirm_action),
-                primaryIcon = Icons.Filled.Check,
-                onPrimaryClick = {
-                    attemptedSubmit = true
-                    if (canSubmit) onCreateWithPin(pin)
-                },
-                primaryEnabled = !submitting && pin.isNotEmpty() && confirmPin.isNotEmpty(),
-            )
+            if (mode.showSetUpLater && onSetUpLater != null) {
+                RescueAuthActionBar(
+                    secondaryLabel = stringResource(R.string.startup_pin_set_up_later),
+                    secondaryIcon = Icons.Filled.Lock,
+                    onSecondaryClick = onSetUpLater,
+                    secondaryEnabled = !submitting,
+                    secondaryTestTag = BackupPinTestTags.SETUP_SET_UP_LATER,
+                    primaryLabel = stringResource(if (submitting) R.string.common_working else R.string.backup_pin_setup_confirm_action),
+                    primaryIcon = Icons.Filled.Check,
+                    onPrimaryClick = {
+                        attemptedSubmit = true
+                        if (canSubmit) onCreateWithPin(pin)
+                    },
+                    primaryEnabled = canSubmit,
+                )
+            } else {
+                RescueAuthSingleActionBar(
+                    label = stringResource(if (submitting) R.string.common_working else R.string.backup_pin_setup_confirm_action),
+                    icon = Icons.Filled.Check,
+                    onClick = {
+                        attemptedSubmit = true
+                        if (canSubmit) onCreateWithPin(pin)
+                    },
+                    testTag = "page_action_primary",
+                )
+            }
         },
     ) {
+        if (mode.mustSetPinBeforeContinuing) {
+            RescueAuthCard(modifier = Modifier.testTag(BackupPinTestTags.SETUP_REQUIRED_NOTICE)) {
+                RescueAuthIconHeader(
+                    icon = Icons.Filled.Lock,
+                    title = stringResource(R.string.startup_no_secure_title),
+                )
+            }
+        }
         RescueAuthExplainedCard(
             identityKey = "backup_pin_setup",
             title = stringResource(R.string.backup_pin_setup_title),
-            explanation = stringResource(R.string.backup_pin_setup_policy),
+            explanation = explanation,
             icon = Icons.Outlined.Pin,
             testTagPrefix = "backup_pin_setup_help",
         ) {
@@ -265,7 +301,7 @@ fun StartupBackupPinUnlockScreen(
                     RescueAuthIconHeader(
                         icon = Icons.Filled.Lock,
                         title = stringResource(R.string.backup_pin_unlock_title),
-                        description = if (showFallbackNotice) {
+                        subtitle = if (showFallbackNotice) {
                             stringResource(R.string.backup_pin_unlock_fallback_notice)
                         } else {
                             stringResource(R.string.backup_pin_unlock_subtitle)
@@ -477,16 +513,16 @@ fun BackupPinManageSheet(
     var attempted by rememberSaveable { mutableStateOf(false) }
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
 
-    val validation = PinPolicy.validateNewPin(pin)
+    val validation = BackupPinCodec.validateNewPin(pin)
     val errorText = when {
         !attempted && pin.isEmpty() -> null
-        validation is PinPolicy.ValidationResult.Invalid && (attempted || pin.isNotEmpty()) ->
-            pinIssueMessage(validation.reason)
+        validation != null && (attempted || pin.isNotEmpty()) ->
+            pinIssueMessage(validation)
         confirmPin.isNotEmpty() && confirmPin != pin -> stringResource(R.string.pin_mismatch_error)
         attempted && confirmPin != pin -> stringResource(R.string.pin_mismatch_error)
         else -> null
     }
-    val valid = validation is PinPolicy.ValidationResult.Valid && pin == confirmPin
+    val valid = validation == null && pin == confirmPin
 
     RescueAuthSheet(
         title = stringResource(
@@ -601,9 +637,10 @@ fun BackupPinManageSheet(
 }
 
 @Composable
-private fun pinIssueMessage(reason: PinPolicy.InvalidReason): String = when (reason) {
-    PinPolicy.InvalidReason.EMPTY -> stringResource(R.string.pin_error_empty)
-    PinPolicy.InvalidReason.NON_DIGIT -> stringResource(R.string.pin_policy_error_charset)
-    PinPolicy.InvalidReason.TOO_SHORT -> stringResource(R.string.pin_policy_error_short, PinPolicy.MIN_PIN_LENGTH)
-    PinPolicy.InvalidReason.TOO_LONG -> stringResource(R.string.pin_policy_error_long, PinPolicy.MAX_PIN_LENGTH)
+private fun pinIssueMessage(reason: BackupPinCodec.PinIssue?): String = when (reason) {
+    BackupPinCodec.PinIssue.EMPTY -> stringResource(R.string.pin_error_empty)
+    BackupPinCodec.PinIssue.NON_DIGIT -> stringResource(R.string.pin_policy_error_charset)
+    BackupPinCodec.PinIssue.TOO_SHORT -> stringResource(R.string.pin_policy_error_short, PinPolicy.MIN_PIN_LENGTH)
+    BackupPinCodec.PinIssue.TOO_LONG -> stringResource(R.string.pin_policy_error_long, PinPolicy.MAX_PIN_LENGTH)
+    null -> stringResource(R.string.pin_error_empty)
 }

@@ -694,6 +694,12 @@
     <string name="backup_pin_setup_subtitle">使用至少 6 位数字的备用 PIN 保护保险库，确保在本机始终可以解锁。</string>
     <string name="backup_pin_setup_policy">备用 PIN 通过 Argon2id 在本机加密保管一份保险库密钥副本，不会上传，也不会明文存储。请妥善牢记。</string>
     <string name="backup_pin_setup_confirm_action">开启保险库</string>
+    <!-- 统一首启 PIN 页面：按设备能力选择文案；弱生物识别绝不声称保护 Keystore。 -->
+    <string name="startup_pin_set_up_later">稍后设置</string>
+    <string name="startup_pin_setup_body">现在设置备用 PIN；若本机有安全锁屏，也可选择稍后设置。备用 PIN 在本机保护一份保险库密钥恢复副本，不会上传。</string>
+    <string name="startup_pin_required_notice">本机未设置安全锁屏。必须在本机设置备用 PIN 才能继续，并保证保险库可恢复。</string>
+    <string name="startup_pin_weak_biometric_body">本机仅支持弱生物识别。弱生物识别不能保护 Android Keystore 密钥；系统解锁依靠设备 PIN、图案或密码。设置备用 PIN 可在本机保护一份保险库密钥恢复副本。</string>
+    <string name="startup_pin_setup_failed">无法创建保险库，未保留任何半成品设置。请检查备用 PIN 后重试。</string>
     <string name="backup_pin_unlock_title">输入备用 PIN</string>
     <string name="backup_pin_unlock_subtitle">输入备用 PIN 以打开保险库</string>
     <string name="backup_pin_unlock_fallback_notice">系统锁屏凭据已变更，请输入备用 PIN 解锁。</string>

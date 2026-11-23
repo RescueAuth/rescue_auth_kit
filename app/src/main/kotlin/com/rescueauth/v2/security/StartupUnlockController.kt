@@ -41,6 +41,12 @@ interface StartupAuthPrompt {
     /** @return the authenticator mask the user can actually use, or null. */
     fun resolveAvailableAuthenticators(): Int?
 
+    /**
+     * @return structured capability snapshot. Weak biometrics are recorded
+     *   but never treated as a system-slot authenticator.
+     */
+    fun resolveCapability(): DeviceAuthCapability
+
     /** Whether a prompt is currently showing / pending. */
     fun isPromptActive(): Boolean
 
@@ -68,26 +74,14 @@ class StartupUnlockController(
     private var promptShowing = false
     private var callback: ((StartupAuthResult) -> Unit)? = null
 
-    override fun resolveAvailableAuthenticators(): Int? {
-        return try {
-            val manager = BiometricManager.from(activity)
-            val strong = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            val device = manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-            var mask = 0
-            if (strong == BiometricManager.BIOMETRIC_SUCCESS) {
-                mask = mask or BiometricManager.Authenticators.BIOMETRIC_STRONG
-            }
-            if (device == BiometricManager.BIOMETRIC_SUCCESS) {
-                mask = mask or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            }
-            if (mask == 0) null else mask
-        } catch (e: Exception) {
-            // Platform cannot be queried (e.g. no biometrics service). The
-            // device-credential prompt is system-provided and is the safest
-            // fallback — never a silent bypass.
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        }
-    }
+    override fun resolveCapability(): DeviceAuthCapability =
+        DeviceAuthCapability.fromPlatformManager { BiometricManager.from(activity) }
+
+    /**
+     * Keystore prompt mask. Mirrors the Phase 2 contract: BIOMETRIC_STRONG
+     * plus DEVICE_CREDENTIAL only. BIOMETRIC_WEAK is never included.
+     */
+    override fun resolveAvailableAuthenticators(): Int? = resolveCapability().systemAuthenticatorMask
 
     override fun isPromptActive(): Boolean = promptShowing
 

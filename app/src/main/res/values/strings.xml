@@ -696,6 +696,12 @@
     <string name="backup_pin_setup_subtitle">Protects your vault with a 6+ digit PIN so you always keep access on this device.</string>
     <string name="backup_pin_setup_policy">Your Backup PIN encrypts a recovery copy of your vault key on this device using Argon2id. Keep it safe — it is never uploaded or stored in plain text.</string>
     <string name="backup_pin_setup_confirm_action">Create vault</string>
+    <!-- Unified first-run PIN surface: capability-specific copy. Weak biometrics never protect the Keystore. -->
+    <string name="startup_pin_set_up_later">Set up later</string>
+    <string name="startup_pin_setup_body">Set a Backup PIN now, or set it up later if your device has a secure screen lock. The PIN protects a local recovery copy of the vault key; it is never uploaded.</string>
+    <string name="startup_pin_required_notice">This device has no secure screen lock. You must set a Backup PIN to continue on this device. This keeps the vault recoverable.</string>
+    <string name="startup_pin_weak_biometric_body">This device only offers weak biometrics. Weak biometrics cannot protect the Android Keystore key; your device PIN, pattern, or password is the system unlock method. Setting a Backup PIN protects a local recovery copy of the vault key.</string>
+    <string name="startup_pin_setup_failed">Could not create the vault. No partial setup was kept. Check your Backup PIN and try again.</string>
     <string name="backup_pin_unlock_title">Unlock with Backup PIN</string>
     <string name="backup_pin_unlock_subtitle">Enter your Backup PIN to open your vault</string>
     <string name="backup_pin_unlock_fallback_notice">System screen lock changed — enter your Backup PIN to unlock.</string>

@@ -38,27 +38,15 @@ class SensitiveActionController(
     private var promptShowing = false
     private var callback: ((SensitiveActionResult) -> Unit)? = null
 
-    /** @return the authenticator mask the user can actually use, or null. */
-    fun resolveAvailableAuthenticators(): Int? {
-        return try {
-            val manager = BiometricManager.from(activity)
-            val strong = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            val device = manager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-            var mask = 0
-            if (strong == BiometricManager.BIOMETRIC_SUCCESS) {
-                mask = mask or BiometricManager.Authenticators.BIOMETRIC_STRONG
-            }
-            if (device == BiometricManager.BIOMETRIC_SUCCESS) {
-                mask = mask or BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            }
-            if (mask == 0) null else mask
-        } catch (e: Exception) {
-            // Platform cannot be queried (e.g. no biometrics service). The
-            // device-credential prompt is system-provided and is the safest
-            // fallback — never a silent bypass.
-            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        }
-    }
+    /** @return structured capability snapshot shared with the startup path. */
+    fun resolveCapability(): DeviceAuthCapability =
+        DeviceAuthCapability.fromPlatformManager { BiometricManager.from(activity) }
+
+    /**
+     * Keystore re-auth prompt mask: BIOMETRIC_STRONG plus DEVICE_CREDENTIAL.
+     * BIOMETRIC_WEAK is never passed to BiometricPrompt for Keystore auth.
+     */
+    fun resolveAvailableAuthenticators(): Int? = resolveCapability().systemAuthenticatorMask
 
     /**
      * Whether a prompt is currently showing / an in-flight authentication is

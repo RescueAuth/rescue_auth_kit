@@ -205,6 +205,87 @@ class SessionManager(
     }
 
     /**
+     * First-run setup with BOTH unlock slots (ADR-0015 §3.2): generates one
+     * random 256-bit VaultKey, wraps it in Android Keystore (Slot A) and under
+     * the Backup PIN (Slot B), then opens the SQLCipher database.
+     *
+     * The operation is all-or-nothing. If either slot write or the database
+     * open fails, every slot written so far, the temporary key material and
+     * the session state are rolled back. There is no single-slot fallback.
+     */
+    fun createVaultWithSystemAndBackupPinAndOpen(pin: String): VaultUnlockOutcome = synchronized(lifecycleLock) {
+        if (!needsFirstRunSetup()) return VaultUnlockOutcome.AuthFailed
+        if (BackupPinCodec.validateNewPin(pin) != null) return VaultUnlockOutcome.AuthFailed
+        if (!stateMachine.beginAuthentication()) {
+            return if (stateMachine.isUnlocked()) VaultUnlockOutcome.Success(null) else VaultUnlockOutcome.AuthFailed
+        }
+
+        val key = vaultKeyManager.generateRandomKey()
+        var systemSlotWritten = false
+        var backupPinSlotWritten = false
+        var openedDb: RescueAuthDatabase? = null
+        try {
+            vaultKeyManager.wrapExisting(key)
+            systemSlotWritten = true
+            backupPinSlot.wrapAndPersistFirstRun(key, pin)
+            backupPinSlotWritten = true
+            openedDb = openDatabase(key)
+
+            vaultKey?.fill(0)
+            vaultKey = key.copyOf()
+            database = openedDb
+            systemSlotInvalidated = false
+            stateMachine.onAuthenticationSuccess()
+            refreshSecurityStatus()
+            return VaultUnlockOutcome.Success(key)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            rollbackDualSlotCreation(systemSlotWritten, backupPinSlotWritten, openedDb, key)
+            stateMachine.onAuthenticationFailure()
+            throw e
+        } catch (e: VaultKeyManager.AuthRequiredException) {
+            rollbackDualSlotCreation(systemSlotWritten, backupPinSlotWritten, openedDb, key)
+            stateMachine.onAuthenticationFailure()
+            return VaultUnlockOutcome.AuthRequired
+        } catch (e: VaultKeyManager.KeyInvalidatedException) {
+            rollbackDualSlotCreation(systemSlotWritten, backupPinSlotWritten, openedDb, key)
+            stateMachine.onAuthenticationFailure()
+            refreshSecurityStatus()
+            return VaultUnlockOutcome.KeyInvalidated
+        } catch (e: VaultKeyManager.KeystoreUnavailableException) {
+            rollbackDualSlotCreation(systemSlotWritten, backupPinSlotWritten, openedDb, key)
+            stateMachine.onAuthenticationFailure()
+            return VaultUnlockOutcome.KeystoreUnavailable
+        } catch (e: Exception) {
+            rollbackDualSlotCreation(systemSlotWritten, backupPinSlotWritten, openedDb, key)
+            stateMachine.onAuthenticationFailure()
+            return VaultUnlockOutcome.VaultCorrupt
+        } finally {
+            key.fill(0)
+        }
+    }
+
+    /**
+     * Removes every artifact produced by an unsuccessful dual-slot create.
+     * The caller checked needsFirstRunSetup under lifecycleLock before writing.
+     */
+    private fun rollbackDualSlotCreation(
+        systemSlotWritten: Boolean,
+        backupPinSlotWritten: Boolean,
+        openedDb: RescueAuthDatabase?,
+        @Suppress("UNUSED_PARAMETER") key: ByteArray,
+    ) {
+        openedDb?.let { RescueAuthDatabase.closeDatabase(it) }
+        database = null
+        vaultKey?.fill(0)
+        vaultKey = null
+        if (systemSlotWritten) vaultKeyManager.deleteWrapped()
+        if (backupPinSlotWritten) backupPinSlot.delete()
+        systemSlotInvalidated = false
+        key.fill(0)
+        refreshSecurityStatus()
+    }
+
+    /**
      * Unlocks the session via the Android Keystore slot (Slot A). Caller must
      * have completed a successful system authentication prompt before calling
      * this (Issue #50 — auth-first).

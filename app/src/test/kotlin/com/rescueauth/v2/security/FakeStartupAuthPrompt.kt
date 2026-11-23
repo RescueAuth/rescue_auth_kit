@@ -1,5 +1,7 @@
 package com.rescueauth.v2.security
 
+import androidx.biometric.BiometricManager
+
 /**
  * Test double for [StartupAuthPrompt] that simulates the system auth prompt
  * deterministically — tests never touch real biometric hardware (Issue #50
@@ -49,6 +51,14 @@ class FakeStartupAuthPrompt(
     }
 
     override fun resolveAvailableAuthenticators(): Int? = availableAuthenticators
+
+    override fun resolveCapability(): DeviceAuthCapability = DeviceAuthCapability(
+        strongBiometricAvailable = availableAuthenticators != null &&
+            (availableAuthenticators!! and BiometricManager.Authenticators.BIOMETRIC_STRONG) != 0,
+        weakBiometricAvailable = false,
+        deviceCredentialAvailable = availableAuthenticators != null &&
+            (availableAuthenticators!! and BiometricManager.Authenticators.DEVICE_CREDENTIAL) != 0,
+    )
 
     override fun isPromptActive(): Boolean = callback != null
 

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.rescueauth.v2.database.RescueAuthDatabase
+import com.rescueauth.v2.security.DeviceAuthCapability
 import com.rescueauth.v2.security.FakeStartupAuthPrompt
 import com.rescueauth.v2.security.FakeVaultKeyCrypto
 import com.rescueauth.v2.security.StartupAuthResult
@@ -32,7 +33,7 @@ import org.robolectric.annotation.Config
  * The Vault Keystore operation (create/unwrap) must NEVER run before a
  * successful system authentication; `UserNotAuthenticatedException` must map
  * to a typed AUTH_REQUIRED outcome (not a crash); first-run shows a one-time
- * security intro before prompting; existing-vault launches request
+ * unified first-run PIN page before creation; existing-vault launches request
  * authentication automatically; a user cancel finishes the Activity without
  * opening the Vault; and a device with no secure lock shows a blocking state.
  *
@@ -88,10 +89,10 @@ class MainActivityStartupAuthTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
-    // ---- A. First-run: show intro, then (after Enable) request auth ----
+    // ---- A. First-run: unified PIN page gates all creation paths ----
 
     @Test
-    fun `first run shows intro and does not prompt until continue`() {
+    fun `first run shows unified PIN page and does not prompt`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -130,29 +131,22 @@ class MainActivityStartupAuthTest {
         controller.setup() // onCreate → onStart → onResume (decides startup mode)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        // First-run shows the intro first — the system prompt must NOT be
-        // launched before the user taps Enable.
-        assertFalse("prompt must not launch before Enable on first run", prompt.promptLaunched)
-        assertFalse("crypto must NOT run before auth success", wrapCalled)
-
-        // User taps Enable → authentication is requested.
-        activity.onIntroContinue()
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        assertTrue("auth prompt must be launched after Enable", prompt.promptLaunched)
-        assertFalse("crypto must NOT run before auth success", wrapCalled)
-
-        // Deliver auth success → then (and only then) crypto runs.
-        prompt.deliver(StartupAuthResult.Success)
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        assertTrue("crypto must run after auth success", wrapCalled)
+        // Unified first-run: every device lands on the Backup PIN page and no
+        // Keystore operation/auth prompt runs before the user chooses a path.
+        assertFalse("prompt must not launch on first-run PIN page", prompt.promptLaunched)
+        assertFalse("crypto must NOT run before a creation choice", wrapCalled)
+        assertTrue("unified first-run PIN page must be visible", activity.isBackupPinSetupVisible())
+        assertTrue("first run uses the dual-slot creation branch",
+            activity.firstRunPinSubmissionBranch() == com.rescueauth.v2.ui.screens.startup.FirstRunCreationBranch.DUAL_SLOT)
+        assertFalse("crypto must NOT run before creation", wrapCalled)
 
         teardown(controller)
     }
 
-    // ---- B. First-run: intro → Enable → auth success → createVault ----
+    // ---- B. First-run: unified PIN page blocks until a creation choice ----
 
     @Test
-    fun `first run intro then auth success opens the vault`() {
+    fun `first run PIN page stays locked before a creation choice`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -163,15 +157,9 @@ class MainActivityStartupAuthTest {
         controller.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        assertFalse("vault must not be open before Enable", activity.sessionManager.sessionState.isUnlocked())
-        activity.onIntroContinue()
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        assertFalse("vault must not be open before auth", activity.sessionManager.sessionState.isUnlocked())
-
-        prompt.deliver(StartupAuthResult.Success)
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-
-        assertTrue("vault must be open after auth success", activity.sessionManager.sessionState.isUnlocked())
+        assertFalse("vault must not be open on first-run PIN page", activity.sessionManager.sessionState.isUnlocked())
+        assertTrue("unified first-run PIN page must be visible", activity.isBackupPinSetupVisible())
+        assertFalse("vault must not be open before PIN creation", activity.sessionManager.sessionState.isUnlocked())
         teardown(controller)
     }
 
@@ -188,25 +176,19 @@ class MainActivityStartupAuthTest {
 
         controller.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        activity.onIntroContinue()
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        prompt.deliver(StartupAuthResult.Cancelled)
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-
-        assertFalse("vault must NOT be open after cancel", activity.sessionManager.sessionState.isUnlocked())
-        assertNull("vault DB must not be created after cancel", activity.sessionManager.databaseOrNull())
-        assertTrue("activity must be finishing after cancel", activity.isFinishing)
+        assertFalse("vault must NOT be open on first-run PIN page", activity.sessionManager.sessionState.isUnlocked())
+        assertNull("vault DB must not be created before PIN creation", activity.sessionManager.databaseOrNull())
+        assertFalse("no auth prompt is launched on first-run PIN page", prompt.promptLaunched)
         teardown(controller)
     }
 
     // ---- A2. Intro acknowledgment is persisted independent of Vault creation ----
 
     @Test
-    fun `after enable then cancel, next launch skips intro and requests auth directly`() {
+    fun `unified PIN page reappears on next launch while still first run`() {
         val crypto = FakeVaultKeyCrypto()
 
-        // First launch: first-run shows the intro, user taps Enable, then
-        // cancels system authentication → Activity finishes, Vault NOT created.
+        // First launch: the unified PIN page gates creation; no vault is created.
         val controller1 = Robolectric.buildActivity(MainActivity::class.java)
         val activity1 = controller1.get()
         activity1.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = false) }
@@ -215,19 +197,13 @@ class MainActivityStartupAuthTest {
 
         controller1.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        // Intro is shown (Vault still not created).
-        assertFalse("intro must gate first launch before Enable", prompt1.promptLaunched)
-        activity1.onIntroContinue()
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        prompt1.deliver(StartupAuthResult.Cancelled)
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        assertTrue("first launch must finish after cancel", activity1.isFinishing)
-        assertNull("vault must not be created after cancel", activity1.sessionManager.databaseOrNull())
+        assertTrue("first launch shows unified PIN page", activity1.isBackupPinSetupVisible())
+        assertFalse("no auth prompt on unified first-run PIN page", prompt1.promptLaunched)
+        assertNull("vault must not be created before a PIN choice", activity1.sessionManager.databaseOrNull())
         teardown(controller1)
 
         // Second launch: Vault is STILL not created (still first-run), so the
-        // adaptive intro re-shows — it appears whenever the Vault is not enabled.
-        // The previously-cancelled launch does NOT auto-skip the intro.
+        // unified PIN page appears again and no prompt is auto-requested.
         val controller2 = Robolectric.buildActivity(MainActivity::class.java)
         val activity2 = controller2.get()
         activity2.sessionManagerFactory = { buildFakeSessionManager(it, crypto, precreatedVault = false) }
@@ -237,15 +213,10 @@ class MainActivityStartupAuthTest {
         controller2.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        // Adaptive intro: because the Vault is still not enabled, the intro gate
-        // re-appears and authentication is NOT auto-requested.
-        assertFalse("second launch must re-show intro, not auto-prompt", prompt2.promptLaunched)
-        assertFalse("vault must still not be open before Enable", activity2.sessionManager.sessionState.isUnlocked())
-
-        // Tapping Enable on the re-shown intro proceeds to authentication.
-        activity2.onIntroContinue()
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        assertTrue("second launch must request auth after Enable", prompt2.promptLaunched)
+        // Vault is still not enabled, so the unified PIN page reappears with no auto prompt.
+        assertTrue("second launch shows unified PIN page", activity2.isBackupPinSetupVisible())
+        assertFalse("second launch must not auto-prompt on PIN page", prompt2.promptLaunched)
+        assertFalse("vault must still not be open before PIN creation", activity2.sessionManager.sessionState.isUnlocked())
         teardown(controller2)
     }
 
@@ -264,7 +235,7 @@ class MainActivityStartupAuthTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
         // Existing vault → must request authentication AUTOMATICALLY (no
-        // button tap, no intro).
+        // button tap, no first-run gate).
         assertTrue("existing vault must auto-request auth", prompt.promptLaunched)
         assertFalse("vault must not be open before auth", activity.sessionManager.sessionState.isUnlocked())
 
@@ -290,12 +261,13 @@ class MainActivityStartupAuthTest {
         controller.setup()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
 
-        // First-run shows the intro first; after Enable, the prompt resolves
-        // to Unavailable → blocking state; no crypto ran.
-        activity.onIntroContinue()
-        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        // Unified first-run: no secure lock still lands on the PIN page, where
+        // a Backup PIN is mandatory; no crypto ran and the page is blocking.
+        assertTrue("unified first-run PIN page must be visible", activity.isBackupPinSetupVisible())
+        assertTrue("no-secure-lock device must require PIN before continuing",
+            activity.currentFirstRunPinMode().mustSetPinBeforeContinuing)
 
-        // The prompt resolves to Unavailable → blocking state; no crypto ran.
+        // No system prompt and no crypto on a no-secure-lock device.
         assertFalse("vault must not open without a secure device", activity.sessionManager.sessionState.isUnlocked())
         assertNull("crypto must not run on no-secure-device", crypto.readWrapped())
         teardown(controller)
@@ -526,10 +498,10 @@ class MainActivityStartupAuthTest {
         teardown(controller)
     }
 
-    // ---- Test D — first install (intro → Enable → prompt → create) still works ----
+    // ---- Test D — first install shows unified PIN page and gates creation ----
 
     @Test
-    fun `first install intro enable prompt success creates vault via scheduler`() {
+    fun `first install PIN page gates creation before any prompt`() {
         val crypto = FakeVaultKeyCrypto()
         val controller = Robolectric.buildActivity(MainActivity::class.java)
         val activity = controller.get()
@@ -542,17 +514,11 @@ class MainActivityStartupAuthTest {
 
         controller.setup()
         idle()
-        // First-run: intro must gate before any prompt (no auto prompt).
-        assertFalse("first run must not prompt before Enable", prompt.promptLaunched)
-        assertFalse("vault must not open before Enable", activity.sessionManager.sessionState.isUnlocked())
-
-        activity.onIntroContinue()
-        idle()
-        assertTrue("prompt must launch after Enable", prompt.promptLaunched)
-
-        prompt.deliver(StartupAuthResult.Success)
-        idle()
-        assertTrue("vault must be created after auth", activity.sessionManager.sessionState.isUnlocked())
+        // First-run: unified PIN page gates before any prompt or creation.
+        assertFalse("first run must not prompt before a PIN choice", prompt.promptLaunched)
+        assertFalse("vault must not open on first-run PIN page", activity.sessionManager.sessionState.isUnlocked())
+        assertTrue("unified first-run PIN page must be visible", activity.isBackupPinSetupVisible())
+        assertFalse("vault must not be created before PIN creation", activity.sessionManager.sessionState.isUnlocked())
         teardown(controller)
     }
 
